@@ -8,12 +8,6 @@ import {
 
 const prisma = new PrismaClient();
 
-const ACTIVE_DRIVER_ORDER_STATUSES: OrderStatus[] = [
-  "PLACED",
-  "ACCEPTED",
-  "OUT_FOR_DELIVERY"
-];
-
 type AuthenticatedUser = {
   userId: string;
   email: string;
@@ -43,46 +37,8 @@ const orderInclude = {
   }
 } satisfies Prisma.OrderInclude;
 
-const prioritySortOrder: Record<OrderPriority, number> = {
-  HIGH: 0,
-  NORMAL: 1
-};
-
-const sortOrdersByPriorityThenOldest = <
-  T extends { priority: OrderPriority; createdAt: Date }
->(
-  orders: T[]
-): T[] => {
-  return [...orders].sort((a, b) => {
-    const priorityDifference =
-      prioritySortOrder[a.priority] - prioritySortOrder[b.priority];
-
-    if (priorityDifference !== 0) {
-      return priorityDifference;
-    }
-
-    return a.createdAt.getTime() - b.createdAt.getTime();
-  });
-};
-
 const normalize = (value: string) => value.trim().toLowerCase();
 const normalizePhone = (value: string) => value.replace(/\D/g, "");
-
-const toActiveOrderData = (order: any) => ({
-  id: order.id,
-  customerName: order.customerName,
-  customerPhone: order.phone,
-  customerEmail: order.email,
-  addressLine1: order.addressLine1,
-  city: order.city,
-  province: order.province,
-  postalCode: order.postalCode,
-  paymentMethod: order.paymentMethod,
-  orderStatus: order.orderStatus,
-  additionalNotes: order.additionalNotes,
-  createdAt: order.createdAt.toISOString(),
-  updatedAt: order.updatedAt.toISOString()
-});
 
 export const createOrderController = async (req: Request, res: Response) => {
   const {
@@ -99,7 +55,7 @@ export const createOrderController = async (req: Request, res: Response) => {
     deliveryInstructions,
     notes,
     dispatcherNotes,
-    fcmToken // 👈 NEW
+    fcmToken
   } = req.body;
 
   const combinedNotes = [additionalNotes, deliveryInstructions, notes]
@@ -116,10 +72,7 @@ export const createOrderController = async (req: Request, res: Response) => {
 
   let customer = await prisma.customer.findFirst({
     where: {
-      OR: [
-        { normalizedPhone },
-        ...(normalizedEmail ? [{ normalizedEmail }] : [])
-      ]
+      OR: [{ normalizedPhone }, ...(normalizedEmail ? [{ normalizedEmail }] : [])]
     }
   });
 
@@ -137,9 +90,7 @@ export const createOrderController = async (req: Request, res: Response) => {
         province: province.trim(),
         postalCode: postalCode.trim().toUpperCase(),
         dispatcherNotes:
-          typeof dispatcherNotes === "string"
-            ? dispatcherNotes.trim()
-            : null
+          typeof dispatcherNotes === "string" ? dispatcherNotes.trim() : null
       }
     });
   }
@@ -155,14 +106,12 @@ export const createOrderController = async (req: Request, res: Response) => {
         city: city.trim(),
         province: province.trim(),
         postalCode: postalCode.trim().toUpperCase(),
-        itemsText: rawItems
-          .map((i) => `${i.quantity}x ${i.name}`)
-          .join(", "),
+        itemsText: rawItems.map((i) => `${i.quantity}x ${i.name}`).join(", "),
         additionalNotes: combinedNotes || null,
         paymentMethod,
-        orderStatus: "PLACED",
-        priority: "NORMAL",
-        fcmToken: typeof fcmToken === "string" ? fcmToken : null // 👈 SAVE TOKEN
+        orderStatus: OrderStatus.PLACED,
+        priority: OrderPriority.NORMAL,
+        fcmToken: typeof fcmToken === "string" ? fcmToken : null
       }
     });
 
@@ -189,7 +138,7 @@ export const createOrderController = async (req: Request, res: Response) => {
           orderId: createdOrder.id,
           itemCatalogId: catalogItem.id,
           name: item.name,
-          quantity: item.quantity || 0,
+          quantity: item.quantity || 1,
           price: item.unitPrice ?? 0
         }
       });
@@ -205,6 +154,83 @@ export const createOrderController = async (req: Request, res: Response) => {
     success: true,
     message: "Order created successfully",
     order
+  });
+};
+
+export const getOrderByIdController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { id } = req.params;
+
+  const order = await prisma.order.findUnique({
+    where: { id },
+    include: orderInclude
+  });
+
+  if (!order) {
+    res.status(404).json({
+      success: false,
+      message: "Order not found"
+    });
+    return;
+  }
+
+  res.status(200).json({
+    success: true,
+    order
+  });
+};
+
+export const updateOrderStatusController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { id } = req.params;
+  const { orderStatus } = req.body;
+
+  const updatedOrder = await prisma.order.update({
+    where: { id },
+    data: {
+      orderStatus
+    },
+    include: orderInclude
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Order status updated successfully",
+    order: updatedOrder
+  });
+};
+
+export const updateOrderPriorityController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { id } = req.params;
+  const { priority } = req.body;
+
+  if (priority !== OrderPriority.NORMAL && priority !== OrderPriority.HIGH) {
+    res.status(400).json({
+      success: false,
+      message: "Invalid priority"
+    });
+    return;
+  }
+
+  const updatedOrder = await prisma.order.update({
+    where: { id },
+    data: {
+      priority
+    },
+    include: orderInclude
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Order priority updated successfully",
+    order: updatedOrder
   });
 };
 
@@ -247,7 +273,6 @@ export const getPublicOrderTrackingController = async (
         orderId: order.id,
         orderNumber: order.orderNumber,
         orderStatus: order.orderStatus,
-
         driver: driver
           ? {
               name: `${driver.firstName ?? ""} ${driver.lastName ?? ""}`.trim(),
