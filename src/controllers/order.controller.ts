@@ -8,10 +8,18 @@ import {
 
 const prisma = new PrismaClient();
 
-type AuthenticatedUser = {
-  userId: string;
-  email: string;
-  role: string;
+/* ================= TYPES ================= */
+
+type IdParams = {
+  id: string;
+};
+
+type UpdateStatusBody = {
+  orderStatus: OrderStatus;
+};
+
+type UpdatePriorityBody = {
+  priority: OrderPriority;
 };
 
 type CreateOrderItemInput = {
@@ -21,9 +29,7 @@ type CreateOrderItemInput = {
   totalPrice?: number;
 };
 
-const getAuthUser = (req: Request): AuthenticatedUser | undefined => {
-  return (req as Request & { user?: AuthenticatedUser }).user;
-};
+/* ================= HELPERS ================= */
 
 const orderInclude = {
   items: true,
@@ -40,7 +46,12 @@ const orderInclude = {
 const normalize = (value: string) => value.trim().toLowerCase();
 const normalizePhone = (value: string) => value.replace(/\D/g, "");
 
-export const createOrderController = async (req: Request, res: Response) => {
+/* ================= CONTROLLERS ================= */
+
+export const createOrderController = async (
+  req: Request,
+  res: Response
+) => {
   const {
     customerName,
     customerPhone,
@@ -157,8 +168,10 @@ export const createOrderController = async (req: Request, res: Response) => {
   });
 };
 
+/* ================= FIXED TYPES BELOW ================= */
+
 export const getOrderByIdController = async (
-  req: Request,
+  req: Request<IdParams>,
   res: Response
 ): Promise<void> => {
   const { id } = req.params;
@@ -183,7 +196,7 @@ export const getOrderByIdController = async (
 };
 
 export const updateOrderStatusController = async (
-  req: Request,
+  req: Request<IdParams, {}, UpdateStatusBody>,
   res: Response
 ): Promise<void> => {
   const { id } = req.params;
@@ -191,9 +204,7 @@ export const updateOrderStatusController = async (
 
   const updatedOrder = await prisma.order.update({
     where: { id },
-    data: {
-      orderStatus
-    },
+    data: { orderStatus },
     include: orderInclude
   });
 
@@ -205,7 +216,7 @@ export const updateOrderStatusController = async (
 };
 
 export const updateOrderPriorityController = async (
-  req: Request,
+  req: Request<IdParams, {}, UpdatePriorityBody>,
   res: Response
 ): Promise<void> => {
   const { id } = req.params;
@@ -221,9 +232,7 @@ export const updateOrderPriorityController = async (
 
   const updatedOrder = await prisma.order.update({
     where: { id },
-    data: {
-      priority
-    },
+    data: { priority },
     include: orderInclude
   });
 
@@ -235,7 +244,7 @@ export const updateOrderPriorityController = async (
 };
 
 export const getPublicOrderTrackingController = async (
-  req: Request,
+  req: Request<IdParams>,
   res: Response
 ): Promise<void> => {
   const { id } = req.params;
