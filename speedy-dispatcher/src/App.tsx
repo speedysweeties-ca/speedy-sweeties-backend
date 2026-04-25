@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+
 type OrderStatus =
   | "PLACED"
   | "ACCEPTED"
@@ -417,7 +418,7 @@ function App() {
 
   const fetchDrivers = async (authToken: string) => {
     try {
-      const response = await fetch("http://localhost:4000/api/v1/auth/drivers", {
+      const response = await fetch("https://speedy-sweeties-backend.onrender.com/api/v1", {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
@@ -439,7 +440,7 @@ function App() {
         setDriverStatsLoading(true);
       }
 
-      let url = "http://localhost:4000/api/v1/orders/driver-stats";
+      let url = "https://speedy-sweeties-backend.onrender.com/api/v1";
 
       const params = new URLSearchParams();
 
@@ -488,7 +489,7 @@ function App() {
         setHistoryLoading(true);
       }
 
-      let url = `http://localhost:4000/api/v1/orders?status=DELIVERED&page=${historyPage}`;
+      let url = `https://speedy-sweeties-backend.onrender.com/api/v1/orders?status=DELIVERED&page=${historyPage}`;
 
       const params = new URLSearchParams();
 
@@ -538,7 +539,7 @@ function App() {
         setDashboardLoading(true);
       }
 
-      const response = await fetch("http://localhost:4000/api/v1/orders", {
+      const response = await fetch("https://speedy-sweeties-backend.onrender.com/api/v1/orders", {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
@@ -598,7 +599,7 @@ function App() {
     try {
       setLoginLoading(true);
 
-      const response = await fetch("http://localhost:4000/api/v1/auth/login", {
+      const response = await fetch("https://speedy-sweeties-backend.onrender.com/api/v1/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -660,7 +661,7 @@ function App() {
       setUpdatingOrderId(orderId);
 
       const response = await fetch(
-        `http://localhost:4000/api/v1/orders/${orderId}/status`,
+        `https://speedy-sweeties-backend.onrender.com/api/v1/orders/${orderId}/status`,
         {
           method: "PATCH",
           headers: {
@@ -699,7 +700,7 @@ const updateOrderPriority = async (
     setUpdatingOrderId(orderId);
 
     const response = await fetch(
-      `http://localhost:4000/api/v1/orders/${orderId}/priority`,
+      `https://speedy-sweeties-backend.onrender.com/api/v1/orders/${orderId}/priority`,
       {
         method: "PATCH",
         headers: {
@@ -732,7 +733,7 @@ const updateOrderPriority = async (
       setUpdatingOrderId(orderId);
 
       const response = await fetch(
-        `http://localhost:4000/api/v1/orders/${orderId}/assign-driver`,
+        `https://speedy-sweeties-backend.onrender.com/api/v1/orders/${orderId}/assign-driver`,
         {
           method: "PATCH",
           headers: {
@@ -769,7 +770,7 @@ const updateOrderPriority = async (
 
     try {
       const response = await fetch(
-        `http://localhost:4000/api/v1/auth/drivers/${driverId}/force-logout`,
+        `https://speedy-sweeties-backend.onrender.com/api/v1/auth/drivers/${driverId}/force-logout`,
         {
           method: "PATCH",
           headers: {
@@ -887,7 +888,7 @@ const updateOrderPriority = async (
 
    try {
      const response = await fetch(
-       `http://localhost:4000/api/v1/customers/search?query=${encodeURIComponent(
+       `https://speedy-sweeties-backend.onrender.com/api/v1/customers/search?query=${encodeURIComponent(
          value
        )}`,
        {
@@ -953,7 +954,7 @@ const updateOrderPriority = async (
 
     try {
       const response = await fetch(
-        `http://localhost:4000/api/v1/items/search?query=${encodeURIComponent(value)}`,
+        `https://speedy-sweeties-backend.onrender.com/api/v1/items/search?query=${encodeURIComponent(value)}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1073,7 +1074,7 @@ const updateOrderPriority = async (
     try {
       setManualOrderLoading(true);
 
-      const response = await fetch("http://localhost:4000/api/v1/orders", {
+      const response = await fetch("https://speedy-sweeties-backend.onrender.com/api/v1/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
