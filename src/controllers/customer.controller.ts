@@ -10,37 +10,26 @@ const normalizePhone = (value: string) => value.replace(/\D/g, "");
 export const searchCustomersController = async (
   req: Request,
   res: Response
-) => {
-  const { query } = req.query;
+): Promise<void> => {
+  const rawQuery = req.query.query;
 
-  if (!query || typeof query !== "string") {
-    return res.status(400).json({
+  if (!rawQuery || typeof rawQuery !== "string") {
+    res.status(400).json({
       success: false,
       message: "Query is required"
     });
+    return;
   }
 
-  const normalizedQuery = normalize(query);
-  const normalizedPhone = normalizePhone(query);
+  const normalizedQuery = normalize(rawQuery);
+  const normalizedPhone = normalizePhone(rawQuery);
 
   const customers = await prisma.customer.findMany({
     where: {
       OR: [
-        {
-          normalizedFullName: {
-            contains: normalizedQuery
-          }
-        },
-        {
-          normalizedPhone: {
-            contains: normalizedPhone
-          }
-        },
-        {
-          normalizedEmail: {
-            contains: normalizedQuery
-          }
-        }
+        { normalizedFullName: { contains: normalizedQuery } },
+        { normalizedPhone: { contains: normalizedPhone } },
+        { normalizedEmail: { contains: normalizedQuery } }
       ]
     },
     take: 10,
@@ -70,7 +59,7 @@ export const searchCustomersController = async (
 export const updateCustomerDispatcherNotesController = async (
   req: Request,
   res: Response
-) => {
+): Promise<void> => {
   const { id } = req.params;
   const { dispatcherNotes } = req.body;
 
