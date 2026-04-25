@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PLACED
+  ACCEPTED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum OrderPriority {
+  NORMAL
+  HIGH
+}
+
+enum PaymentMethod {
+  CASH
+  DEBIT
+  VISA
+  MASTERCARD
+  ETRANSFER
+}
+
+enum UserRole {
+  ADMIN
+  DISPATCHER
+  DRIVER
+}
+
+model User {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  passwordHash   String
+  role           UserRole
+  firstName      String?
+  lastName       String?
+  isActive       Boolean  @default(true)
+
+  isOnline       Boolean  @default(false)
+  lastSeenAt     DateTime?
+
+  latitude       Float?
+  longitude      Float?
+  locationUpdatedAt DateTime?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  assignedOrders Order[]  @relation("DriverOrders")
+
+  @@index([role])
+  @@index([isOnline])
+  @@index([locationUpdatedAt])
+}
+
+model Customer {
+  id                 String   @id @default(uuid())
+  fullName           String
+  normalizedFullName String
+  phone              String
+  normalizedPhone    String
+  email              String?
+  normalizedEmail    String?
+  addressLine1       String
+  city               String
+  province           String
+  postalCode         String
+  notes              String?
+  dispatcherNotes    String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  orders             Order[]
+
+  @@index([normalizedPhone])
+  @@index([normalizedFullName])
+  @@index([normalizedEmail])
+  @@index([city])
+}
+
+model ItemCatalog {
+  id             String   @id @default(uuid())
+  name           String
+  normalizedName String
+  size           String?
+  category       String?
+  brand          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  orderItems     OrderItem[]
+
+  @@index([normalizedName])
+  @@index([brand])
+  @@index([category])
+  @@index([isActive])
+}
+
+model Order {
+  id                String        @id @default(uuid())
+  orderNumber       Int           @unique @default(autoincrement())
+  fcmToken String?
+  customerName      String
+  addressLine1      String
+  city              String
+  province          String
+  postalCode        String
+  phone             String
+  email             String
+  itemsText         String
+  additionalNotes   String?
+  paymentMethod     PaymentMethod
+  orderStatus       OrderStatus   @default(PLACED)
+  priority          OrderPriority @default(NORMAL)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  acceptedAt        DateTime?
+  outForDeliveryAt  DateTime?
+  deliveredAt       DateTime?
+
+  customerId        String?
+
+  assignedDriverId  String?
+  assignedAt        DateTime?
+
+  customer          Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  assignedDriver    User?         @relation("DriverOrders", fields: [assignedDriverId], references: [id], onDelete: SetNull)
+
+  items             OrderItem[]
+
+  @@index([customerId])
+  @@index([assignedDriverId])
+  @@index([orderStatus])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id             String       @id @default(uuid())
+  orderId        String
+  itemCatalogId  String?
+  name           String
+  quantity       Int
+  price          Decimal      @db.Decimal(10, 2)
+  createdAt      DateTime     @default(now())
+
+  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemCatalog    ItemCatalog? @relation(fields: [itemCatalogId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([itemCatalogId])
+  @@index([name])
+}
