@@ -2308,23 +2308,18 @@ const updateOrderPriority = async (
   </label>
 
   <textarea
-
     value={manualOrderForm.dispatcherNotes || ""}
-     onChange={(e) =>
-       handleManualOrderFieldChange("dispatcherNotes", e.target.value)
-     }
-
-    placeholder="Internal notes (e.g. Do NOT assign to driver, NO NOT DELIVER, etc...)"
+    placeholder="Internal notes (e.g. Do NOT assign to driver, DO NOT DELIVER, etc...)"
     className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
-   onChange={async (e) => {
-     const value = e.target.value;
+    onChange={async (e) => {
+      const value = e.target.value;
 
-     handleManualOrderFieldChange("dispatcherNotes", value);
+      handleManualOrderFieldChange("dispatcherNotes", value);
 
-     if (selectedCustomer?.id && token) {
-       try {
-         await fetch(
-           `http://localhost:4000/api/v1/customers/${selectedCustomer.id}/dispatcher-notes`,
+      if (selectedCustomer?.id && token) {
+        try {
+          await fetch(
+           `https://speedy-sweeties-backend.onrender.com/api/v1/customers/${selectedCustomer.id}/dispatcher-notes`,
            {
              method: "PATCH",
              headers: {
