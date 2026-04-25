@@ -154,7 +154,7 @@ function App() {
   const [historyDriverIds, setHistoryDriverIds] = useState<string[]>([]);
   const [historyStartDate, setHistoryStartDate] = useState("");
   const [historyEndDate, setHistoryEndDate] = useState("");
-  const historyLimit = 100;
+
   const [historyPage, setHistoryPage] = useState(1);
   const [historyTotalPages, setHistoryTotalPages] = useState(1);
 
@@ -654,7 +654,7 @@ function App() {
     hasCompletedInitialLoadRef.current = false;
   };
 
-  const updateOrderStatus = async (orderId: string, orderStatus: OrderStatus) => {
+  
     if (!token) return;
 
     try {
