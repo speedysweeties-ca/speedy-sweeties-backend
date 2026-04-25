@@ -418,7 +418,7 @@ function App() {
 
   const fetchDrivers = async (authToken: string) => {
     try {
-      const response = await fetch("https://speedy-sweeties-backend.onrender.com/api/v1", {
+     const response = await fetch("https://speedy-sweeties-backend.onrender.com/api/v1/drivers/online", {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
