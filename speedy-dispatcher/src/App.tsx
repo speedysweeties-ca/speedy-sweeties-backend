@@ -654,7 +654,7 @@ function App() {
     hasCompletedInitialLoadRef.current = false;
   };
 
-  
+
     if (!token) return;
 
     try {
@@ -674,22 +674,7 @@ function App() {
         }
       );
 
-      const data = await response.json();
-
-      if (response.ok) {
-        await fetchOrders(token, false);
-        await fetchDrivers(token);
-      } else {
-        alert(data.message || "Failed to update order");
-      }
-    } catch (error) {
-      console.error(error);
-      alert("Server error while updating order");
-    } finally {
-      setUpdatingOrderId(null);
-    }
-  };
-
+    
 const updateOrderPriority = async (
   orderId: string,
   priority: "HIGH" | "NORMAL"
