@@ -1,16 +1,29 @@
-import { NextFunction, Request, Response } from "express";
-import { AnyZodObject, ZodObject, ZodRawShape } from "zod";
+import { AnyZodObject, ZodError } from "zod";
+import { Request, Response, NextFunction } from "express";
 
-type RequestSchema = AnyZodObject | ZodObject<ZodRawShape>;
+export const validateRequest =
+  (schema: AnyZodObject) =>
+  (req: Request, res: Response, next: NextFunction): void => {
+    try {
+      schema.parse({
+        body: req.body,
+        query: req.query,
+        params: req.params
+      });
 
-export function validateRequest(schema: RequestSchema) {
-  return (req: Request, _res: Response, next: NextFunction): void => {
-    schema.parse({
-      body: req.body,
-      params: req.params,
-      query: req.query
-    });
+      next();
+    } catch (error) {
+      if (error instanceof ZodError) {
+        res.status(400).json({
+          success: false,
+          errors: error.errors.map((err) => ({
+            path: err.path.join("."),
+            message: err.message
+          }))
+        });
+        return;
+      }
 
-    next();
+      next(error);
+    }
   };
-}
