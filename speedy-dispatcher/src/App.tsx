@@ -654,27 +654,43 @@ function App() {
     hasCompletedInitialLoadRef.current = false;
   };
 
+const updateOrderStatus = async (orderId: string, orderStatus: OrderStatus) => {
+  if (!token) return;
 
-    if (!token) return;
+  try {
+    setUpdatingOrderId(orderId);
 
-    try {
-      setUpdatingOrderId(orderId);
+    const response = await fetch(
+      `https://speedy-sweeties-backend.onrender.com/api/v1/orders/${orderId}/status`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderStatus,
+        }),
+      }
+    );
 
-      const response = await fetch(
-        `https://speedy-sweeties-backend.onrender.com/api/v1/orders/${orderId}/status`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            orderStatus,
-          }),
-        }
-      );
+    const data = await response.json();
 
-    
+    if (response.ok) {
+      await fetchOrders(token, false);
+      await fetchDrivers(token);
+    } else {
+      alert(data.message || "Failed to update order");
+    }
+  } catch (error) {
+    console.error(error);
+    alert("Server error while updating order");
+  } finally {
+    setUpdatingOrderId(null);
+  }
+};
+
+
 const updateOrderPriority = async (
   orderId: string,
   priority: "HIGH" | "NORMAL"
