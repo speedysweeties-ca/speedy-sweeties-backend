@@ -113,14 +113,15 @@ export const loginController = async (
   }
 
   if (user.role === UserRole.DRIVER) {
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        isOnline: true,
-        lastSeenAt: new Date()
-      }
-    });
-  }
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      isOnline: true,
+      lastSeenAt: new Date(),
+      forceLogoutAt: null
+    }
+  });
+}
 
   const token = signAuthToken({
     userId: user.id,
