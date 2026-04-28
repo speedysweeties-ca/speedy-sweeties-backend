@@ -1994,7 +1994,7 @@ const updateOrderPriority = async (
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div key={activeTab} className="max-w-7xl mx-auto px-6 py-6">
         {activeTab === "LIVE_ORDERS" ? (
           dashboardLoading && orders.length === 0 ? (
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-zinc-300">
