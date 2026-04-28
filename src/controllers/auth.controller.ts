@@ -112,8 +112,10 @@ export const loginController = async (
     return;
   }
 
-  if (user.role === UserRole.DRIVER) {
-  await prisma.user.update({
+  let updatedUser = user;
+
+if (user.role === UserRole.DRIVER) {
+  updatedUser = await prisma.user.update({
     where: { id: user.id },
     data: {
       isOnline: true,
@@ -123,11 +125,11 @@ export const loginController = async (
   });
 }
 
-  const token = signAuthToken({
-    userId: user.id,
-    email: user.email,
-    role: user.role
-  });
+ const token = signAuthToken({
+  userId: updatedUser.id,
+  email: updatedUser.email,
+  role: updatedUser.role
+});
 
   res.status(200).json({
     message: "Login successful",
