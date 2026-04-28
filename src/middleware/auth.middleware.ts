@@ -36,11 +36,16 @@ export const requireAuth = async (
 
     // 🔥 FORCE LOGOUT CHECK
     if (user.forceLogoutAt) {
-      res.status(401).json({
-        message: "FORCE_LOGOUT"
-      });
-      return;
-    }
+  const tokenIssuedAt = payload.iat * 1000; // convert to ms
+  const forceLogoutTime = new Date(user.forceLogoutAt).getTime();
+
+  if (tokenIssuedAt < forceLogoutTime) {
+    res.status(401).json({
+      message: "FORCE_LOGOUT"
+    });
+    return;
+  }
+}
 
     (req as any).user = payload;
 
