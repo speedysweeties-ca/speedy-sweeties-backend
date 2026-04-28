@@ -305,7 +305,23 @@ function App() {
 
  
   useEffect(() => {
-    if (activeTab !== "DRIVER_LOCATION") return;
+    const clearMap = () => {
+      Object.values(driverMarkersRef.current).forEach((marker) => {
+        marker.setMap(null);
+      });
+
+      driverMarkersRef.current = {};
+      googleMapRef.current = null;
+
+      if (mapRef.current) {
+        mapRef.current.innerHTML = "";
+      }
+    };
+
+    if (activeTab !== "DRIVER_LOCATION") {
+      clearMap();
+      return;
+    }
 
     const googleMaps = (window as any).google?.maps;
 
@@ -318,9 +334,11 @@ function App() {
         typeof driver.longitude === "number"
     );
 
-    if (driversWithLocation.length === 0) return;
+    if (driversWithLocation.length === 0) {
+      clearMap();
+      return;
+    }
 
-    // CREATE MAP ONCE
     if (!googleMapRef.current) {
       googleMapRef.current = new googleMaps.Map(mapRef.current, {
         center: {
@@ -333,7 +351,6 @@ function App() {
 
     const map = googleMapRef.current;
 
-    // UPDATE / CREATE MARKERS
     driversWithLocation.forEach((driver) => {
       const existingMarker = driverMarkersRef.current[driver.id];
 
@@ -355,19 +372,9 @@ function App() {
       }
     });
 
-return () => {
-  Object.values(driverMarkersRef.current).forEach((marker) => {
-    marker.setMap(null);
-  });
-
-  driverMarkersRef.current = {};
-  googleMapRef.current = null;
-
-  if (mapRef.current) {
-    mapRef.current.innerHTML = "";
-  }
-};
-
+    return () => {
+      clearMap();
+    };
   }, [activeTab, drivers]);
 
   const playNewOrderSound = () => {
