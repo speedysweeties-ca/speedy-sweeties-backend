@@ -288,7 +288,7 @@ function App() {
   }, [newOrderIds]);
 
   const mapRef = useRef<HTMLDivElement | null>(null);
- 
+
   useEffect(() => {
     if (newOrderIds.length === 0) return;
 
@@ -301,8 +301,7 @@ function App() {
     };
   }, [newOrderIds]);
 
-  const mapRef = useRef<HTMLDivElement | null>(null);
-
+ 
   useEffect(() => {
     if (activeTab !== "DRIVER_LOCATION") return;
 
