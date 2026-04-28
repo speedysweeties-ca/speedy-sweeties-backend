@@ -1917,30 +1917,32 @@ const updateOrderPriority = async (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
             <h2 className="text-xl font-bold mb-4">Online Drivers</h2>
 
-            {drivers.length === 0 ? (
+            {drivers.filter((driver) => driver.isOnline).length === 0 ? (
               <p className="text-zinc-400">No drivers currently online</p>
             ) : (
               <div className="space-y-3">
-                {drivers.map((driver) => (
-                  <div
-                    key={driver.id}
-                    className="flex items-center justify-between bg-zinc-800 p-4 rounded-xl border border-zinc-700"
-                  >
-                    <div>
-                      <p className="font-semibold">{getDriverDisplayName(driver)}</p>
-                      <p className="text-zinc-400 text-sm">
-                        Active Orders: {driver.activeOrderCount}
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={() => void forceLogoutDriver(driver.id)}
-                      className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition font-semibold"
+                {drivers
+                  .filter((driver) => driver.isOnline)
+                  .map((driver) => (
+                    <div
+                      key={driver.id}
+                      className="flex items-center justify-between bg-zinc-800 p-4 rounded-xl border border-zinc-700"
                     >
-                      Force Logout
-                    </button>
-                  </div>
-                ))}
+                      <div>
+                        <p className="font-semibold">{getDriverDisplayName(driver)}</p>
+                        <p className="text-zinc-400 text-sm">
+                          Active Orders: {driver.activeOrderCount}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => void forceLogoutDriver(driver.id)}
+                        className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition font-semibold"
+                      >
+                        Force Logout
+                      </button>
+                    </div>
+                  ))}
               </div>
             )}
           </div>
