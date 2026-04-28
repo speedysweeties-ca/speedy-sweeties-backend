@@ -442,7 +442,7 @@ function App() {
         setDriverStatsLoading(true);
       }
 
-      let url = "https://speedy-api-lbfe.onrender.com/api/v1";
+      let url = "https://speedy-api-lbfe.onrender.com/api/v1/orders/driver-stats";
 
       const params = new URLSearchParams();
 
