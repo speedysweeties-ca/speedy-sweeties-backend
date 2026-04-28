@@ -1204,28 +1204,27 @@ const updateOrderPriority = async (
        {/* TOP ROW — DRIVER + PRIORITY */}
        <div className="grid grid-cols-2 gap-2">
 
-         {/* DRIVER SELECT */}
-         <select
-           value={driverSelections[order.id] ?? order.assignedDriver?.id ?? ""}
-           disabled={isUpdating || isClosed}
-           onChange={(e) =>
-             setDriverSelections((prev) => ({
-               ...prev,
-               [order.id]: e.target.value,
-             }))
-           }
-           className="p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-sm focus:outline-none focus:border-red-500 disabled:opacity-50"
-         >
-           <option value="">Select Driver</option>
-           {drivers
-             .filter((driver) => driver.isOnline)
-             .map((driver) => (
-             <option key={driver.id} value={driver.id}>
-               {getDriverDisplayName(driver)} ({driver.activeOrderCount})
-             </option>
-           ))}
-         </select>
-
+        {/* DRIVER SELECT */}
+        <select
+          value={driverSelections[order.id] ?? order.assignedDriver?.id ?? ""}
+          disabled={isUpdating || isClosed}
+          onChange={(e) =>
+            setDriverSelections((prev) => ({
+              ...prev,
+              [order.id]: e.target.value,
+            }))
+          }
+          className="p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-sm focus:outline-none focus:border-red-500 disabled:opacity-50"
+        >
+          <option value="">Select Driver</option>
+          {drivers
+            .filter((driver) => driver.isOnline)
+            .map((driver) => (
+              <option key={driver.id} value={driver.id}>
+                {getDriverDisplayName(driver)} ({driver.activeOrderCount})
+              </option>
+            ))}
+        </select>
          {/* PRIORITY SELECT — NOW SMALL + INLINE */}
          <select
            value={order.priority || "NORMAL"}
