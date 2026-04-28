@@ -29,6 +29,8 @@ type DriverOption = {
   firstName?: string | null;
   lastName?: string | null;
   email: string;
+  isOnline: boolean;
+  lastSeenAt?: string | null;
   activeOrderCount: number;
   latitude?: number | null;
   longitude?: number | null;
