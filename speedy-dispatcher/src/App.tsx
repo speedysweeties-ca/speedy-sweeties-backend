@@ -287,49 +287,58 @@ function App() {
     };
   }, [newOrderIds]);
 
+  const mapRef = useRef<HTMLDivElement | null>(null);
+ 
+  useEffect(() => {
+    if (newOrderIds.length === 0) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setNewOrderIds([]);
+    }, 12000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [newOrderIds]);
+
+  const mapRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     if (activeTab !== "DRIVER_LOCATION") return;
 
-    const timerId = window.setTimeout(() => {
-      const mapElement = document.getElementById("map");
-      const googleMaps = (window as any).google?.maps;
+    const googleMaps = (window as any).google?.maps;
 
-      if (!mapElement || !googleMaps) return;
+    if (!mapRef.current || !googleMaps) return;
 
-      const driversWithLocation = drivers.filter(
-        (driver) =>
-          typeof driver.latitude === "number" &&
-          typeof driver.longitude === "number"
-      );
+    const driversWithLocation = drivers.filter(
+      (driver) =>
+        driver.isOnline &&
+        typeof driver.latitude === "number" &&
+        typeof driver.longitude === "number"
+    );
 
-      const center =
-        driversWithLocation.length > 0
-          ? {
-              lat: driversWithLocation[0].latitude as number,
-              lng: driversWithLocation[0].longitude as number,
-            }
-          : { lat: 43.5448, lng: -80.2482 };
+    if (driversWithLocation.length === 0) return;
 
-      const map = new googleMaps.Map(mapElement, {
-        center,
-        zoom: 12,
-      });
-
-      driversWithLocation.forEach((driver) => {
-        new googleMaps.Marker({
-          position: {
-            lat: driver.latitude as number,
-            lng: driver.longitude as number,
-          },
-          map,
-          title: getDriverDisplayName(driver),
-        });
-      });
-    }, 100);
-
-    return () => {
-      window.clearTimeout(timerId);
+    const center = {
+      lat: driversWithLocation[0].latitude as number,
+      lng: driversWithLocation[0].longitude as number,
     };
+
+    const map = new googleMaps.Map(mapRef.current, {
+      center,
+      zoom: 13,
+    });
+
+    driversWithLocation.forEach((driver) => {
+      new googleMaps.Marker({
+        position: {
+          lat: driver.latitude as number,
+          lng: driver.longitude as number,
+        },
+        map,
+        title: getDriverDisplayName(driver),
+      });
+    });
   }, [activeTab, drivers]);
 
   const playNewOrderSound = () => {
@@ -2088,7 +2097,7 @@ const updateOrderPriority = async (
             </div>
 
             <div
-              id="map"
+              ref={mapRef}
               style={{
                 width: "100%",
                 height: "500px",
