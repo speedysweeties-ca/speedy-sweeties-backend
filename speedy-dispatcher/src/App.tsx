@@ -1217,7 +1217,9 @@ const updateOrderPriority = async (
            className="p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-sm focus:outline-none focus:border-red-500 disabled:opacity-50"
          >
            <option value="">Select Driver</option>
-           {drivers.map((driver) => (
+           {drivers
+             .filter((driver) => driver.isOnline)
+             .map((driver) => (
              <option key={driver.id} value={driver.id}>
                {getDriverDisplayName(driver)} ({driver.activeOrderCount})
              </option>
