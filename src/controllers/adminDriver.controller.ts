@@ -29,8 +29,9 @@ export const forceLogoutDriverController = async (
     where: { id },
     data: {
       isOnline: false,
-      lastSeenAt: new Date()
-    }
+      lastSeenAt: new Date(),
+      forceLogoutAt: new Date()
+}
   });
 
   res.status(200).json({

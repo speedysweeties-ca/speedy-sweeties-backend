@@ -1,7 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAuthToken } from "../utils/jwt";
+import { PrismaClient } from "@prisma/client";
 
-export const requireAuth = (
+const prisma = new PrismaClient();
+
+export const requireAuth = async (
   req: Request,
   res: Response,
   next: NextFunction
@@ -18,7 +21,26 @@ export const requireAuth = (
   const token = authHeader.split(" ")[1];
 
   try {
-    const payload = verifyAuthToken(token);
+    const payload: any = verifyAuthToken(token);
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId }
+    });
+
+    if (!user) {
+      res.status(401).json({
+        message: "User not found"
+      });
+      return;
+    }
+
+    // 🔥 FORCE LOGOUT CHECK
+    if (user.forceLogoutAt) {
+      res.status(401).json({
+        message: "FORCE_LOGOUT"
+      });
+      return;
+    }
 
     (req as any).user = payload;
 

@@ -355,6 +355,19 @@ function App() {
       }
     });
 
+return () => {
+  Object.values(driverMarkersRef.current).forEach((marker) => {
+    marker.setMap(null);
+  });
+
+  driverMarkersRef.current = {};
+  googleMapRef.current = null;
+
+  if (mapRef.current) {
+    mapRef.current.innerHTML = "";
+  }
+};
+
   }, [activeTab, drivers]);
 
   const playNewOrderSound = () => {
