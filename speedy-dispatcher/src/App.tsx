@@ -288,6 +288,8 @@ function App() {
   }, [newOrderIds]);
 
   const mapRef = useRef<HTMLDivElement | null>(null);
+  const googleMapRef = useRef<any>(null);
+  const driverMarkersRef = useRef<Record<string, any>>({});
 
   useEffect(() => {
     if (newOrderIds.length === 0) return;
@@ -318,26 +320,41 @@ function App() {
 
     if (driversWithLocation.length === 0) return;
 
-    const center = {
-      lat: driversWithLocation[0].latitude as number,
-      lng: driversWithLocation[0].longitude as number,
-    };
-
-    const map = new googleMaps.Map(mapRef.current, {
-      center,
-      zoom: 13,
-    });
-
-    driversWithLocation.forEach((driver) => {
-      new googleMaps.Marker({
-        position: {
-          lat: driver.latitude as number,
-          lng: driver.longitude as number,
+    // CREATE MAP ONCE
+    if (!googleMapRef.current) {
+      googleMapRef.current = new googleMaps.Map(mapRef.current, {
+        center: {
+          lat: driversWithLocation[0].latitude as number,
+          lng: driversWithLocation[0].longitude as number,
         },
-        map,
-        title: getDriverDisplayName(driver),
+        zoom: 13,
       });
+    }
+
+    const map = googleMapRef.current;
+
+    // UPDATE / CREATE MARKERS
+    driversWithLocation.forEach((driver) => {
+      const existingMarker = driverMarkersRef.current[driver.id];
+
+      const position = {
+        lat: driver.latitude as number,
+        lng: driver.longitude as number,
+      };
+
+      if (existingMarker) {
+        existingMarker.setPosition(position);
+      } else {
+        const marker = new googleMaps.Marker({
+          position,
+          map,
+          title: getDriverDisplayName(driver),
+        });
+
+        driverMarkersRef.current[driver.id] = marker;
+      }
     });
+
   }, [activeTab, drivers]);
 
   const playNewOrderSound = () => {
