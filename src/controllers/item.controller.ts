@@ -20,17 +20,60 @@ export const searchItemsController = async (
 
   const normalizedQuery = normalize(query);
 
+  if (normalizedQuery.length < 2) {
+    return res.status(200).json({
+      success: true,
+      count: 0,
+      items: []
+    });
+  }
+
   const items = await prisma.itemCatalog.findMany({
     where: {
-      normalizedName: {
-        contains: normalizedQuery
-      },
-      isActive: true
+      isActive: true,
+      OR: [
+        {
+          normalizedName: {
+            contains: normalizedQuery
+          }
+        },
+        {
+          normalizedBrand: {
+            contains: normalizedQuery
+          }
+        },
+        {
+          brand: {
+            contains: query,
+            mode: "insensitive"
+          }
+        },
+        {
+          category: {
+            contains: query,
+            mode: "insensitive"
+          }
+        }
+      ]
+    },
+    select: {
+      id: true,
+      name: true,
+      brand: true,
+      size: true,
+      category: true,
+      source: true,
+      popularityScore: true
     },
     take: 10,
-    orderBy: {
-      name: "asc"
-    }
+    orderBy: [
+      {
+        popularityScore: "desc"
+      },
+      {
+        name: "asc"
+      }
+    ]
   });
 
   res.status(200).json({

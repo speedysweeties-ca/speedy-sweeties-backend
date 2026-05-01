@@ -36,27 +36,27 @@ enum UserRole {
 }
 
 model User {
-  id             String   @id @default(uuid())
-  email          String   @unique
-  passwordHash   String
-  role           UserRole
-  firstName      String?
-  lastName       String?
-  isActive       Boolean  @default(true)
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String
+  role              UserRole
+  firstName         String?
+  lastName          String?
+  isActive          Boolean   @default(true)
 
-  isOnline       Boolean  @default(false)
-  lastSeenAt     DateTime?
+  isOnline          Boolean   @default(false)
+  lastSeenAt        DateTime?
 
-  latitude       Float?
-  longitude      Float?
+  latitude          Float?
+  longitude         Float?
   locationUpdatedAt DateTime?
 
-  forceLogoutAt DateTime?
+  forceLogoutAt     DateTime?
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  assignedOrders Order[]  @relation("DriverOrders")
+  assignedOrders    Order[]   @relation("DriverOrders")
 
   @@index([role])
   @@index([isOnline])
@@ -89,28 +89,34 @@ model Customer {
 }
 
 model ItemCatalog {
-  id             String   @id @default(uuid())
-  name           String
-  normalizedName String
-  size           String?
-  category       String?
-  brand          String?
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id              String      @id @default(uuid())
+  name            String
+  normalizedName  String
+  size            String?
+  category        String?
+  brand           String?
+  normalizedBrand String?
+  source          String?
+  isActive        Boolean     @default(true)
+  popularityScore Int         @default(0)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
-  orderItems     OrderItem[]
+  orderItems      OrderItem[]
 
   @@index([normalizedName])
   @@index([brand])
+  @@index([normalizedBrand])
   @@index([category])
+  @@index([source])
   @@index([isActive])
+  @@index([popularityScore])
 }
 
 model Order {
   id                String        @id @default(uuid())
   orderNumber       Int           @unique @default(autoincrement())
-  fcmToken String?
+  fcmToken          String?
   customerName      String
   addressLine1      String
   city              String
