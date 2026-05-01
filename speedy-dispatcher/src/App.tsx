@@ -1219,8 +1219,11 @@ const handleSaveEditedOrder = async (orderId: string) => {
     }, 50);
   };
 
- const handleCustomerPhoneChange = async (value: string) => {
-   handleManualOrderFieldChange("customerPhone", value);
+ const handleCustomerSearchChange = async (
+   field: "customerName" | "customerPhone",
+   value: string
+ ) => {
+   handleManualOrderFieldChange(field, value);
    setSelectedCustomer(null);
 
    if (!token || value.trim().length < 3) {
@@ -1239,6 +1242,34 @@ const handleSaveEditedOrder = async (orderId: string) => {
          },
        }
      );
+
+     const data = await response.json();
+
+     if (response.ok) {
+       const customers: CustomerSuggestion[] = data.customers || [];
+
+       if (field === "customerPhone") {
+         const normalizedValue = value.replace(/\D/g, "");
+
+         const exactPhoneMatch = customers.find(
+           (customer) => customer.phone.replace(/\D/g, "") === normalizedValue
+         );
+
+         if (exactPhoneMatch) {
+           selectCustomerSuggestion(exactPhoneMatch);
+           return;
+         }
+       }
+
+       setCustomerSuggestions(customers);
+     } else {
+       setCustomerSuggestions([]);
+     }
+   } catch (error) {
+     console.error(error);
+     setCustomerSuggestions([]);
+   }
+ };
 
      const data = await response.json();
 
@@ -2648,15 +2679,41 @@ const handleSaveEditedOrder = async (orderId: string) => {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <input
-                type="text"
-                placeholder="Customer Name"
-                className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
-                value={manualOrderForm.customerName}
-                onChange={(e) =>
-                  handleManualOrderFieldChange("customerName", e.target.value)
-                }
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Customer Name"
+                  className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+                  value={manualOrderForm.customerName}
+                  onChange={(e) =>
+                    void handleCustomerSearchChange("customerName", e.target.value)
+                  }
+                />
+
+                {customerSuggestions.length > 0 && (
+                  <div className="absolute z-20 mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden">
+                    {customerSuggestions.map((customer) => (
+                      <button
+                        key={customer.id}
+                        type="button"
+                        onClick={() => selectCustomerSuggestion(customer)}
+                        className="w-full text-left px-3 py-3 hover:bg-zinc-800 transition border-b border-zinc-800 last:border-b-0"
+                      >
+                        <div className="text-white font-medium">
+                          {customer.fullName}
+                        </div>
+                        <div className="text-zinc-400 text-sm">
+                          {customer.phone}
+                        </div>
+                        <div className="text-zinc-500 text-xs">
+                          {customer.addressLine1}, {customer.city},{" "}
+                          {customer.province} {customer.postalCode}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <div className="relative">
                 <input
@@ -2664,7 +2721,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   placeholder="Customer Phone"
                   className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
                   value={manualOrderForm.customerPhone}
-                  onChange={(e) => void handleCustomerPhoneChange(e.target.value)}
+                  onChange={(e) =>
+                    void handleCustomerSearchChange("customerPhone", e.target.value)
+                  }
                 />
 
                 {customerSuggestions.length > 0 && (
