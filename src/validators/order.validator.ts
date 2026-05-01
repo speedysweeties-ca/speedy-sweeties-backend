@@ -13,6 +13,14 @@ const orderItemSchema = z.object({
   totalPrice: moneyField
 });
 
+const editableOrderItemSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  quantity: z.number().int().min(1).max(100),
+  unitPrice: moneyField.optional(),
+  totalPrice: moneyField.optional(),
+  price: moneyField.optional()
+});
+
 const orderIdParamsSchema = z.object({
   id: z.string().trim().min(1)
 });
@@ -64,6 +72,26 @@ export const updateOrderStatusSchema = z.object({
   })
 });
 
+export const updateOrderDetailsSchema = z.object({
+  params: orderIdParamsSchema,
+  body: z.object({
+    customerName: z.string().trim().min(2).max(120),
+    customerPhone: z.string().trim().regex(phoneRegex, "Invalid phone number"),
+    customerEmail: z.string().trim().email(),
+    addressLine1: z.string().trim().min(3).max(200),
+    city: z.string().trim().min(2).max(100),
+    province: z.string().trim().min(2).max(100),
+    postalCode: z
+      .string()
+      .trim()
+      .regex(postalCodeRegex, "Invalid Canadian postal code"),
+    additionalNotes: z.string().trim().max(1000).optional().nullable(),
+    paymentMethod: z.nativeEnum(PaymentMethod),
+    items: z.array(editableOrderItemSchema).min(1)
+  })
+});
+
 export type CreateOrderInput = z.infer<typeof createOrderSchema>["body"];
 export type ListOrdersQueryInput = z.infer<typeof listOrdersSchema>["query"];
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>["body"];
+export type UpdateOrderDetailsInput = z.infer<typeof updateOrderDetailsSchema>["body"];

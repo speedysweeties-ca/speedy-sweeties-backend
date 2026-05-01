@@ -8,7 +8,8 @@ import { requireRole } from "../middleware/role.middleware";
 import {
   createOrderSchema,
   getOrderByIdSchema,
-  updateOrderStatusSchema
+  updateOrderStatusSchema,
+  updateOrderDetailsSchema
 } from "../validators/order.validator";
 
 import { assignDriverSchema } from "../validators/orderAssignment.validator";
@@ -18,7 +19,8 @@ import {
   getOrderByIdController,
   getPublicOrderTrackingController,
   updateOrderStatusController,
-  updateOrderPriorityController
+  updateOrderPriorityController,
+  updateOrderDetailsController
 } from "../controllers/order.controller";
 
 import { getOrderStatsController } from "../controllers/orderStats.controller";
@@ -91,6 +93,15 @@ router.patch(
   requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
   validateRequest(assignDriverSchema),
   asyncHandler(assignDriverToOrderController)
+);
+
+// 🔒 STAFF — edit order details/items
+router.patch(
+  "/:id/edit",
+  requireAuth,
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
+  validateRequest(updateOrderDetailsSchema),
+  asyncHandler(updateOrderDetailsController)
 );
 
 // 🔥 NEW — update order priority

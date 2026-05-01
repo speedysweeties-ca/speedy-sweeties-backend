@@ -3,7 +3,8 @@ import {
   PrismaClient,
   Prisma,
   OrderStatus,
-  OrderPriority
+  OrderPriority,
+  PaymentMethod
 } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -29,6 +30,27 @@ type CreateOrderItemInput = {
   totalPrice?: number;
 };
 
+type UpdateOrderItemInput = {
+  name: string;
+  quantity: number;
+  unitPrice?: number;
+  totalPrice?: number;
+  price?: number;
+};
+
+type UpdateOrderDetailsBody = {
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  addressLine1: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  additionalNotes?: string | null;
+  paymentMethod: PaymentMethod;
+  items: UpdateOrderItemInput[];
+};
+
 /* ================= HELPERS ================= */
 
 const orderInclude = {
@@ -45,6 +67,10 @@ const orderInclude = {
 
 const normalize = (value: string) => value.trim().toLowerCase();
 const normalizePhone = (value: string) => value.replace(/\D/g, "");
+
+const getItemPrice = (item: UpdateOrderItemInput): number => {
+  return item.unitPrice ?? item.price ?? 0;
+};
 
 /* ================= CONTROLLERS ================= */
 
@@ -168,8 +194,6 @@ export const createOrderController = async (
   });
 };
 
-/* ================= FIXED TYPES BELOW ================= */
-
 export const getOrderByIdController = async (
   req: Request<IdParams>,
   res: Response
@@ -192,6 +216,159 @@ export const getOrderByIdController = async (
   res.status(200).json({
     success: true,
     order
+  });
+};
+
+export const updateOrderDetailsController = async (
+  req: Request<IdParams, {}, UpdateOrderDetailsBody>,
+  res: Response
+): Promise<void> => {
+  const { id } = req.params;
+
+  const {
+    customerName,
+    customerPhone,
+    customerEmail,
+    addressLine1,
+    city,
+    province,
+    postalCode,
+    additionalNotes,
+    paymentMethod,
+    items
+  } = req.body;
+
+  const existingOrder = await prisma.order.findUnique({
+    where: { id },
+    include: { items: true }
+  });
+
+  if (!existingOrder) {
+    res.status(404).json({
+      success: false,
+      message: "Order not found"
+    });
+    return;
+  }
+
+  if (
+    existingOrder.orderStatus === OrderStatus.DELIVERED ||
+    existingOrder.orderStatus === OrderStatus.CANCELLED
+  ) {
+    res.status(400).json({
+      success: false,
+      message: "Delivered or cancelled orders cannot be edited"
+    });
+    return;
+  }
+
+  const normalizedEmail = customerEmail ? normalize(customerEmail) : null;
+  const normalizedPhone = normalizePhone(customerPhone);
+  const normalizedName = normalize(customerName);
+
+  const updatedOrder = await prisma.$transaction(async (tx) => {
+    let customer = await tx.customer.findFirst({
+      where: {
+        OR: [{ normalizedPhone }, ...(normalizedEmail ? [{ normalizedEmail }] : [])]
+      }
+    });
+
+    if (!customer) {
+      customer = await tx.customer.create({
+        data: {
+          fullName: customerName.trim(),
+          normalizedFullName: normalizedName,
+          phone: customerPhone.trim(),
+          normalizedPhone,
+          email: normalizedEmail,
+          normalizedEmail,
+          addressLine1: addressLine1.trim(),
+          city: city.trim(),
+          province: province.trim(),
+          postalCode: postalCode.trim().toUpperCase()
+        }
+      });
+    } else {
+      customer = await tx.customer.update({
+        where: { id: customer.id },
+        data: {
+          fullName: customerName.trim(),
+          normalizedFullName: normalizedName,
+          phone: customerPhone.trim(),
+          normalizedPhone,
+          email: normalizedEmail,
+          normalizedEmail,
+          addressLine1: addressLine1.trim(),
+          city: city.trim(),
+          province: province.trim(),
+          postalCode: postalCode.trim().toUpperCase()
+        }
+      });
+    }
+
+    await tx.orderItem.deleteMany({
+      where: { orderId: id }
+    });
+
+    for (const item of items) {
+      if (!item.name) continue;
+
+      const normalizedItemName = normalize(item.name);
+
+      let catalogItem = await tx.itemCatalog.findFirst({
+        where: { normalizedName: normalizedItemName }
+      });
+
+      if (!catalogItem) {
+        catalogItem = await tx.itemCatalog.create({
+          data: {
+            name: item.name.trim(),
+            normalizedName: normalizedItemName
+          }
+        });
+      }
+
+      await tx.orderItem.create({
+        data: {
+          orderId: id,
+          itemCatalogId: catalogItem.id,
+          name: item.name.trim(),
+          quantity: item.quantity || 1,
+          price: getItemPrice(item)
+        }
+      });
+    }
+
+    await tx.order.update({
+      where: { id },
+      data: {
+        customerId: customer.id,
+        customerName: customerName.trim(),
+        phone: customerPhone.trim(),
+        email: customerEmail.trim().toLowerCase(),
+        addressLine1: addressLine1.trim(),
+        city: city.trim(),
+        province: province.trim(),
+        postalCode: postalCode.trim().toUpperCase(),
+        itemsText: items.map((i) => `${i.quantity}x ${i.name}`).join(", "),
+        additionalNotes:
+          typeof additionalNotes === "string" && additionalNotes.trim()
+            ? additionalNotes.trim()
+            : null,
+        paymentMethod
+      }
+    });
+
+    return tx.order.findUniqueOrThrow({
+      where: { id },
+      include: orderInclude
+    });
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Order updated successfully",
+    order: updatedOrder
   });
 };
 

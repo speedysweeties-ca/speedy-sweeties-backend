@@ -58,6 +58,7 @@ type Order = {
   postalCode?: string;
   phone?: string;
   email?: string;
+  paymentMethod?: PaymentMethod;
   additionalNotes?: string | null;
   dispatcherNotes?: string | null;
   orderStatus: OrderStatus;
@@ -68,6 +69,7 @@ type Order = {
   acceptedAt?: string;
   outForDeliveryAt?: string;
   deliveredAt?: string;
+  updatedAt?: string;
 };
 
 type ActiveTab =
@@ -93,6 +95,19 @@ type ManualOrderForm = {
   paymentMethod: PaymentMethod;
   additionalNotes: string;
   dispatcherNotes: string;
+  items: ManualOrderItem[];
+};
+
+type EditOrderForm = {
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  addressLine1: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  paymentMethod: PaymentMethod;
+  additionalNotes: string;
   items: ManualOrderItem[];
 };
 
@@ -172,6 +187,12 @@ function App() {
     initialManualOrderForm
   );
 
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [editOrderForm, setEditOrderForm] = useState<EditOrderForm | null>(null);
+  const [editItemSuggestions, setEditItemSuggestions] = useState<
+    Record<number, ItemSuggestion[]>
+  >({});
+
   const [newOrderIds, setNewOrderIds] = useState<string[]>([]);
   const [customerSuggestions, setCustomerSuggestions] = useState<CustomerSuggestion[]>(
     []
@@ -193,7 +214,11 @@ function App() {
   }, [manualOrderForm]);
 
   const autoRefreshPaused =
-    activeTab === "CREATE_MANUAL_ORDER" || manualFormIsDirty || manualOrderLoading;
+    activeTab === "CREATE_MANUAL_ORDER" ||
+    manualFormIsDirty ||
+    manualOrderLoading ||
+    editingOrderId !== null ||
+    editOrderForm !== null;
 
   const filteredDeliveredOrders = deliveredOrders;
 
@@ -303,7 +328,7 @@ function App() {
     };
   }, [newOrderIds]);
 
- 
+
   useEffect(() => {
     const clearMap = () => {
       Object.values(driverMarkersRef.current).forEach((marker) => {
@@ -694,6 +719,9 @@ function App() {
     setPassword("");
     setActiveTab("LIVE_ORDERS");
     setManualOrderForm(initialManualOrderForm);
+    setEditingOrderId(null);
+    setEditOrderForm(null);
+    setEditItemSuggestions({});
     setNewOrderIds([]);
     setCustomerSuggestions([]);
     setItemSuggestions({});
@@ -769,6 +797,272 @@ const updateOrderPriority = async (
   } catch (error) {
     console.error(error);
     alert("Server error while updating priority");
+  } finally {
+    setUpdatingOrderId(null);
+  }
+};
+
+
+const createEditFormFromOrder = (order: Order): EditOrderForm => ({
+  customerName: order.customerName || "",
+  customerPhone: order.phone || "",
+  customerEmail: order.email || "",
+  addressLine1: order.addressLine1 || "",
+  city: order.city || "Guelph",
+  province: order.province || "ON",
+  postalCode: order.postalCode || "",
+  paymentMethod: order.paymentMethod || "CASH",
+  additionalNotes: order.additionalNotes || "",
+  items:
+    order.items && order.items.length > 0
+      ? order.items.map((item) => ({
+          itemName: item.name || "",
+          quantity: String(item.quantity || 1),
+        }))
+      : [createEmptyManualOrderItem()],
+});
+
+const handleStartEditOrder = (order: Order) => {
+  if (order.orderStatus === "DELIVERED" || order.orderStatus === "CANCELLED") {
+    alert("Delivered or cancelled orders cannot be edited.");
+    return;
+  }
+
+  setEditingOrderId(order.id);
+  setEditOrderForm(createEditFormFromOrder(order));
+  setEditItemSuggestions({});
+};
+
+const handleCancelEditOrder = () => {
+  const shouldDiscard = window.confirm("Discard these order edits?");
+  if (!shouldDiscard) return;
+
+  setEditingOrderId(null);
+  setEditOrderForm(null);
+  setEditItemSuggestions({});
+};
+
+const handleEditOrderFieldChange = (
+  field: keyof Omit<EditOrderForm, "items">,
+  value: string
+) => {
+  setEditOrderForm((prev) => {
+    if (!prev) return prev;
+
+    return {
+      ...prev,
+      [field]: value,
+    };
+  });
+};
+
+const handleEditOrderItemChange = (
+  index: number,
+  field: keyof ManualOrderItem,
+  value: string
+) => {
+  setEditOrderForm((prev) => {
+    if (!prev) return prev;
+
+    const updatedItems = [...prev.items];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      [field]: value,
+    };
+
+    return {
+      ...prev,
+      items: updatedItems,
+    };
+  });
+};
+
+const handleEditItemNameChange = async (index: number, value: string) => {
+  handleEditOrderItemChange(index, "itemName", value);
+
+  if (!token || value.trim().length < 2) {
+    setEditItemSuggestions((prev) => ({
+      ...prev,
+      [index]: [],
+    }));
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `https://speedy-api-lbfe.onrender.com/api/v1/items/search?query=${encodeURIComponent(value)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+      setEditItemSuggestions((prev) => ({
+        ...prev,
+        [index]: data.items || [],
+      }));
+    } else {
+      setEditItemSuggestions((prev) => ({
+        ...prev,
+        [index]: [],
+      }));
+    }
+  } catch (error) {
+    console.error(error);
+    setEditItemSuggestions((prev) => ({
+      ...prev,
+      [index]: [],
+    }));
+  }
+};
+
+const selectEditItemSuggestion = (index: number, itemOption: ItemSuggestion) => {
+  setEditOrderForm((prev) => {
+    if (!prev) return prev;
+
+    const updatedItems = [...prev.items];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      itemName: itemOption.name,
+    };
+
+    return {
+      ...prev,
+      items: updatedItems,
+    };
+  });
+
+  setEditItemSuggestions((prev) => ({
+    ...prev,
+    [index]: [],
+  }));
+};
+
+const handleAddEditOrderItem = () => {
+  setEditOrderForm((prev) => {
+    if (!prev) return prev;
+
+    return {
+      ...prev,
+      items: [...prev.items, createEmptyManualOrderItem()],
+    };
+  });
+};
+
+const handleRemoveEditOrderItem = (index: number) => {
+  setEditOrderForm((prev) => {
+    if (!prev) return prev;
+
+    if (prev.items.length === 1) {
+      return {
+        ...prev,
+        items: [createEmptyManualOrderItem()],
+      };
+    }
+
+    return {
+      ...prev,
+      items: prev.items.filter((_, itemIndex) => itemIndex !== index),
+    };
+  });
+
+  setEditItemSuggestions((prev) => {
+    const updated = { ...prev };
+    delete updated[index];
+    return updated;
+  });
+};
+
+const handleSaveEditedOrder = async (orderId: string) => {
+  if (!token || !editOrderForm) return;
+
+  if (!editOrderForm.customerName.trim()) {
+    alert("Customer name is required");
+    return;
+  }
+
+  if (!editOrderForm.customerPhone.trim()) {
+    alert("Customer phone is required");
+    return;
+  }
+
+  if (!editOrderForm.customerEmail.trim()) {
+    alert("Customer email is required");
+    return;
+  }
+
+  if (!editOrderForm.addressLine1.trim()) {
+    alert("Address is required");
+    return;
+  }
+
+  if (!editOrderForm.postalCode.trim()) {
+    alert("Postal code is required");
+    return;
+  }
+
+  const cleanedItems = editOrderForm.items
+    .map((item) => ({
+      name: item.itemName.trim(),
+      quantity: Number(item.quantity) || 0,
+    }))
+    .filter((item) => item.name && item.quantity > 0);
+
+  if (cleanedItems.length === 0) {
+    alert("At least one valid item is required");
+    return;
+  }
+
+  try {
+    setUpdatingOrderId(orderId);
+
+    const response = await fetch(
+      `https://speedy-api-lbfe.onrender.com/api/v1/orders/${orderId}/edit`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          customerName: editOrderForm.customerName.trim(),
+          customerPhone: editOrderForm.customerPhone.trim(),
+          customerEmail: editOrderForm.customerEmail.trim(),
+          addressLine1: editOrderForm.addressLine1.trim(),
+          city: editOrderForm.city.trim(),
+          province: editOrderForm.province.trim(),
+          postalCode: editOrderForm.postalCode.trim(),
+          paymentMethod: editOrderForm.paymentMethod,
+          additionalNotes: editOrderForm.additionalNotes.trim(),
+          items: cleanedItems.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: 0,
+            totalPrice: 0,
+          })),
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+      setEditingOrderId(null);
+      setEditOrderForm(null);
+      setEditItemSuggestions({});
+      await fetchOrders(token, false);
+      await fetchDrivers(token);
+      alert("Order updated. The driver app will receive the new order information on its next refresh.");
+    } else {
+      alert(data.message || "Failed to update order");
+    }
+  } catch (error) {
+    console.error(error);
+    alert("Server error while updating order");
   } finally {
     setUpdatingOrderId(null);
   }
@@ -1213,6 +1507,189 @@ const updateOrderPriority = async (
       default:
         return status;
     }
+  };
+
+
+  const renderEditOrderForm = (order: Order) => {
+    if (!editOrderForm) return null;
+
+    const isUpdating = updatingOrderId === order.id;
+
+    return (
+      <div className="bg-zinc-800/80 border border-red-500 rounded-xl p-3 space-y-4 text-sm">
+        <div>
+          <p className="text-red-300 font-bold">Editing Order #{order.orderNumber}</p>
+          <p className="text-zinc-400 text-xs mt-1">
+            Save changes to update the order for the dispatcher and driver app.
+          </p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <input
+            type="text"
+            placeholder="Customer Name"
+            value={editOrderForm.customerName}
+            onChange={(e) => handleEditOrderFieldChange("customerName", e.target.value)}
+            className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
+          />
+
+          <input
+            type="text"
+            placeholder="Customer Phone"
+            value={editOrderForm.customerPhone}
+            onChange={(e) => handleEditOrderFieldChange("customerPhone", e.target.value)}
+            className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
+          />
+
+          <input
+            type="email"
+            placeholder="Customer Email"
+            value={editOrderForm.customerEmail}
+            onChange={(e) => handleEditOrderFieldChange("customerEmail", e.target.value)}
+            className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500 md:col-span-2"
+          />
+
+          <input
+            type="text"
+            placeholder="Address Line 1"
+            value={editOrderForm.addressLine1}
+            onChange={(e) => handleEditOrderFieldChange("addressLine1", e.target.value)}
+            className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500 md:col-span-2"
+          />
+
+          <input
+            type="text"
+            placeholder="City"
+            value={editOrderForm.city}
+            onChange={(e) => handleEditOrderFieldChange("city", e.target.value)}
+            className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
+          />
+
+          <input
+            type="text"
+            placeholder="Province"
+            value={editOrderForm.province}
+            onChange={(e) => handleEditOrderFieldChange("province", e.target.value)}
+            className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
+          />
+
+          <input
+            type="text"
+            placeholder="Postal Code"
+            value={editOrderForm.postalCode}
+            onChange={(e) => handleEditOrderFieldChange("postalCode", e.target.value)}
+            className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
+          />
+
+          <select
+            value={editOrderForm.paymentMethod}
+            onChange={(e) =>
+              handleEditOrderFieldChange("paymentMethod", e.target.value as PaymentMethod)
+            }
+            className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+          >
+            <option value="CASH">Cash</option>
+            <option value="DEBIT">Debit</option>
+            <option value="VISA">Visa</option>
+            <option value="MASTERCARD">Mastercard</option>
+            <option value="ETRANSFER">E-transfer</option>
+          </select>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-zinc-300 font-semibold">Items</p>
+            <button
+              type="button"
+              onClick={handleAddEditOrderItem}
+              className="px-3 py-1 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition text-xs font-semibold"
+            >
+              Add Item
+            </button>
+          </div>
+
+          {editOrderForm.items.map((item, index) => (
+            <div key={`edit-item-${index}`} className="grid gap-2 md:grid-cols-[1fr_80px_auto]">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Item Name"
+                  value={item.itemName}
+                  onChange={(e) => void handleEditItemNameChange(index, e.target.value)}
+                  className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
+                />
+
+                {editItemSuggestions[index]?.length > 0 && (
+                  <div className="absolute z-30 mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden">
+                    {editItemSuggestions[index].map((itemOption) => (
+                      <button
+                        key={itemOption.id}
+                        type="button"
+                        onClick={() => selectEditItemSuggestion(index, itemOption)}
+                        className="w-full text-left px-3 py-2 hover:bg-zinc-800 transition border-b border-zinc-800 last:border-b-0"
+                      >
+                        <div className="text-white font-medium">{itemOption.name}</div>
+                        {(itemOption.brand || itemOption.category || itemOption.size) && (
+                          <div className="text-zinc-500 text-xs">
+                            {[itemOption.brand, itemOption.category, itemOption.size]
+                              .filter(Boolean)
+                              .join(" • ")}
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <input
+                type="number"
+                min="1"
+                placeholder="Qty"
+                value={item.quantity}
+                onChange={(e) => handleEditOrderItemChange(index, "quantity", e.target.value)}
+                className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
+              />
+
+              <button
+                type="button"
+                onClick={() => handleRemoveEditOrderItem(index)}
+                className="px-3 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition text-xs font-semibold"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <textarea
+          placeholder="Additional Notes"
+          value={editOrderForm.additionalNotes}
+          onChange={(e) => handleEditOrderFieldChange("additionalNotes", e.target.value)}
+          className="w-full min-h-[90px] p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
+        />
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            disabled={isUpdating}
+            onClick={() => void handleSaveEditedOrder(order.id)}
+            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50 font-semibold"
+          >
+            {isUpdating ? "Saving..." : "Save Changes"}
+          </button>
+
+          <button
+            type="button"
+            disabled={isUpdating}
+            onClick={handleCancelEditOrder}
+            className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition disabled:opacity-50 font-semibold"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
   };
 
   const renderOrderItems = (order: Order) => {
@@ -1946,7 +2423,7 @@ const updateOrderPriority = async (
           <div className="text-sm">
             {autoRefreshPaused ? (
               <p className="text-amber-300">
-                Auto-refresh is paused while a manual order is being created.
+                Auto-refresh is paused while a manual order or order edit is being created.
               </p>
             ) : (
               <p className="text-green-300">
@@ -2077,48 +2554,64 @@ const updateOrderPriority = async (
                       </span>
                     </div>
 
-                    <div className="space-y-3 mb-4 text-sm">
-                      {order.phone && (
-                        <p className="text-zinc-300">
-                          <span className="text-zinc-500">Phone:</span>{" "}
-                          {order.phone}
-                        </p>
-                      )}
-
-                      {order.email && (
-                        <p className="text-zinc-300 break-all">
-                          <span className="text-zinc-500">Email:</span>{" "}
-                          {order.email}
-                        </p>
-                      )}
-
-                      {renderOrderItems(order)}
-
-                      {renderDriverAssignmentSection(order)}
-
-                      {order.additionalNotes && (
-                        <div className="bg-zinc-800/80 border border-zinc-700 rounded-xl p-3">
-                          <p className="text-zinc-400 text-xs mb-1">
-                            Additional Notes
+                    {editingOrderId === order.id && editOrderForm ? (
+                      renderEditOrderForm(order)
+                    ) : (
+                      <div className="space-y-3 mb-4 text-sm">
+                        {order.phone && (
+                          <p className="text-zinc-300">
+                            <span className="text-zinc-500">Phone:</span>{" "}
+                            {order.phone}
                           </p>
-                          <p className="text-zinc-200">
-                            {order.additionalNotes}
+                        )}
+
+                        {order.email && (
+                          <p className="text-zinc-300 break-all">
+                            <span className="text-zinc-500">Email:</span>{" "}
+                            {order.email}
                           </p>
-                        </div>
-                      )}
+                        )}
 
-                                        {order.dispatcherNotes && (
-                                          <div className="bg-red-900 border border-red-500 rounded-xl p-3">
-                                            <p className="text-red-300 text-xs mb-1">
-                                              Dispatcher Warning
-                                            </p>
-                                            <p className="text-red-100 font-semibold">
-                                              ⚠ {order.dispatcherNotes}
-                                            </p>
-                                          </div>
-                                        )}
+                        {renderOrderItems(order)}
 
-                    </div>
+                        <button
+                          type="button"
+                          disabled={
+                            updatingOrderId === order.id ||
+                            order.orderStatus === "DELIVERED" ||
+                            order.orderStatus === "CANCELLED"
+                          }
+                          onClick={() => handleStartEditOrder(order)}
+                          className="w-full px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50 font-semibold text-sm"
+                        >
+                          Edit Order
+                        </button>
+
+                        {renderDriverAssignmentSection(order)}
+
+                        {order.additionalNotes && (
+                          <div className="bg-zinc-800/80 border border-zinc-700 rounded-xl p-3">
+                            <p className="text-zinc-400 text-xs mb-1">
+                              Additional Notes
+                            </p>
+                            <p className="text-zinc-200">
+                              {order.additionalNotes}
+                            </p>
+                          </div>
+                        )}
+
+                        {order.dispatcherNotes && (
+                          <div className="bg-red-900 border border-red-500 rounded-xl p-3">
+                            <p className="text-red-300 text-xs mb-1">
+                              Dispatcher Warning
+                            </p>
+                            <p className="text-red-100 font-semibold">
+                              ⚠ {order.dispatcherNotes}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
 
