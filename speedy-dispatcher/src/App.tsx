@@ -1271,29 +1271,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
    }
  };
 
-     const data = await response.json();
-
-     if (response.ok) {
-       const customers: CustomerSuggestion[] = data.customers || [];
-       const normalizedValue = value.replace(/\D/g, "");
-
-       const exactPhoneMatch = customers.find(
-         (customer) => customer.phone.replace(/\D/g, "") === normalizedValue
-       );
-
-       if (exactPhoneMatch) {
-         selectCustomerSuggestion(exactPhoneMatch);
-       } else {
-         setCustomerSuggestions(customers);
-       }
-     } else {
-       setCustomerSuggestions([]);
-     }
-   } catch (error) {
-     console.error(error);
-     setCustomerSuggestions([]);
-   }
- };
 
   const handleManualOrderItemChange = (
     index: number,
