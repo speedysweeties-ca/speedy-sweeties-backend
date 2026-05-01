@@ -201,6 +201,9 @@ function App() {
   const [selectedCustomer, setSelectedCustomer] =
     useState<CustomerSuggestion | null>(null);
 
+const [activeCustomerSearchField, setActiveCustomerSearchField] =
+  useState<"customerName" | "customerPhone" | null>(null);
+
   const [itemSuggestions, setItemSuggestions] = useState<
     Record<number, ItemSuggestion[]>
   >({});
@@ -1225,6 +1228,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
  ) => {
    handleManualOrderFieldChange(field, value);
    setSelectedCustomer(null);
+   setActiveCustomerSearchField(field);
 
    if (!token || value.trim().length < 3) {
      setCustomerSuggestions([]);
@@ -1247,11 +1251,45 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
      if (response.ok) {
        const customers: CustomerSuggestion[] = data.customers || [];
+       const cleanValue = value.trim().toLowerCase();
+       const normalizedValue = value.replace(/\D/g, "");
+
+       const filteredCustomers = customers.filter((customer) => {
+         if (field === "customerName") {
+           return customer.fullName.toLowerCase().includes(cleanValue);
+         }
+
+         return customer.phone.replace(/\D/g, "").includes(normalizedValue);
+       });
+
+       const sortedCustomers = [...filteredCustomers].sort((a, b) => {
+         if (field === "customerName") {
+           const aName = a.fullName.toLowerCase();
+           const bName = b.fullName.toLowerCase();
+
+           const aStarts = aName.startsWith(cleanValue);
+           const bStarts = bName.startsWith(cleanValue);
+
+           if (aStarts && !bStarts) return -1;
+           if (!aStarts && bStarts) return 1;
+
+           return aName.localeCompare(bName);
+         }
+
+         const aPhone = a.phone.replace(/\D/g, "");
+         const bPhone = b.phone.replace(/\D/g, "");
+
+         const aStarts = aPhone.startsWith(normalizedValue);
+         const bStarts = bPhone.startsWith(normalizedValue);
+
+         if (aStarts && !bStarts) return -1;
+         if (!aStarts && bStarts) return 1;
+
+         return aPhone.localeCompare(bPhone);
+       });
 
        if (field === "customerPhone") {
-         const normalizedValue = value.replace(/\D/g, "");
-
-         const exactPhoneMatch = customers.find(
+         const exactPhoneMatch = sortedCustomers.find(
            (customer) => customer.phone.replace(/\D/g, "") === normalizedValue
          );
 
@@ -1261,7 +1299,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
          }
        }
 
-       setCustomerSuggestions(customers);
+       setCustomerSuggestions(sortedCustomers);
      } else {
        setCustomerSuggestions([]);
      }
@@ -2667,7 +2705,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   }
                 />
 
-                {customerSuggestions.length > 0 && (
+                {activeCustomerSearchField === "customerName" &&
+                  customerSuggestions.length > 0 && (
                   <div className="absolute z-20 mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden">
                     {customerSuggestions.map((customer) => (
                       <button
@@ -2703,7 +2742,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   }
                 />
 
-                {customerSuggestions.length > 0 && (
+                {activeCustomerSearchField === "customerPhone" &&
+                  customerSuggestions.length > 0 && (
                   <div className="absolute z-20 mt-2 w-full rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden">
                     {customerSuggestions.map((customer) => (
                       <button
