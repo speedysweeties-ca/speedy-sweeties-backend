@@ -269,13 +269,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       void fetchOrders(token, false);
       void fetchDrivers(token);
 
-      if (activeTab === "DELIVERED_HISTORY") {
-        void fetchDeliveredOrders(token, false);
-      }
-
-      if (activeTab === "DRIVER_STATS") {
-        void fetchDriverStats(token, false);
-      }
     }, 5000);
 
     return () => {
