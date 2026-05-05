@@ -218,6 +218,9 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
   const autoRefreshPaused =
     activeTab === "CREATE_MANUAL_ORDER" ||
+    activeTab === "DRIVER_LOCATION" ||
+    activeTab === "DELIVERED_HISTORY" ||
+    activeTab === "DRIVER_STATS" ||
     manualFormIsDirty ||
     manualOrderLoading ||
     editingOrderId !== null ||
@@ -2469,7 +2472,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
           <div className="text-sm">
             {autoRefreshPaused ? (
               <p className="text-amber-300">
-                Auto-refresh is paused while a manual order or order edit is being created.
+                Auto-refresh is paused on this page to prevent the screen from jumping or resetting.
               </p>
             ) : (
               <p className="text-green-300">
