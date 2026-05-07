@@ -6,6 +6,7 @@ import {
   OrderPriority,
   PaymentMethod
 } from "@prisma/client";
+import admin from "../config/firebase";
 
 const prisma = new PrismaClient();
 
@@ -70,6 +71,43 @@ const normalizePhone = (value: string) => value.replace(/\D/g, "");
 
 const getItemPrice = (item: UpdateOrderItemInput): number => {
   return item.unitPrice ?? item.price ?? 0;
+};
+
+const sendCustomerOutForDeliveryNotification = async (
+  fcmToken: string | null,
+  orderNumber?: number | null
+): Promise<void> => {
+  if (!fcmToken) {
+    console.log("No customer FCM token found for this order");
+    return;
+  }
+
+  try {
+    await admin.messaging().send({
+      token: fcmToken,
+      notification: {
+        title: "Speedy Sweeties",
+        body: orderNumber
+          ? `Order #${orderNumber} is now out for delivery.`
+          : "Your order is now out for delivery."
+      },
+      data: {
+        type: "ORDER_STATUS_UPDATE",
+        status: OrderStatus.OUT_FOR_DELIVERY
+      },
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "speedy_sweeties_orders",
+          sound: "default"
+        }
+      }
+    });
+
+    console.log("Customer OUT_FOR_DELIVERY notification sent");
+  } catch (error) {
+    console.error("Failed to send customer OUT_FOR_DELIVERY notification:", error);
+  }
 };
 
 /* ================= CONTROLLERS ================= */
@@ -379,11 +417,40 @@ export const updateOrderStatusController = async (
   const { id } = req.params;
   const { orderStatus } = req.body;
 
+  const existingOrder = await prisma.order.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      orderStatus: true,
+      fcmToken: true,
+      orderNumber: true
+    }
+  });
+
+  if (!existingOrder) {
+    res.status(404).json({
+      success: false,
+      message: "Order not found"
+    });
+    return;
+  }
+
   const updatedOrder = await prisma.order.update({
     where: { id },
     data: { orderStatus },
     include: orderInclude
   });
+
+  const shouldNotifyCustomer =
+    orderStatus === OrderStatus.OUT_FOR_DELIVERY &&
+    existingOrder.orderStatus !== OrderStatus.OUT_FOR_DELIVERY;
+
+  if (shouldNotifyCustomer) {
+    await sendCustomerOutForDeliveryNotification(
+      existingOrder.fcmToken,
+      existingOrder.orderNumber
+    );
+  }
 
   res.status(200).json({
     success: true,
