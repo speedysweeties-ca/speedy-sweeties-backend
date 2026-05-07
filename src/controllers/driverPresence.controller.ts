@@ -34,6 +34,34 @@ const getValidLocationFromRequest = (
   return { latitude, longitude };
 };
 
+const getValidDriverAppStateFromRequest = (req: Request): string | null => {
+  const rawAppState = req.body?.appState;
+
+  if (typeof rawAppState !== "string") {
+    return null;
+  }
+
+  const cleaned = rawAppState.trim().toUpperCase();
+
+  if (cleaned !== "FOREGROUND" && cleaned !== "BACKGROUND") {
+    return null;
+  }
+
+  return cleaned;
+};
+
+const getValidDriverFcmTokenFromRequest = (req: Request): string | null => {
+  const rawToken = req.body?.driverFcmToken;
+
+  if (typeof rawToken !== "string") {
+    return null;
+  }
+
+  const cleaned = rawToken.trim();
+
+  return cleaned ? cleaned : null;
+};
+
 export const setDriverOnlineController = async (
   req: Request,
   res: Response
@@ -64,7 +92,9 @@ export const setDriverOnlineController = async (
     where: { id: authUser.userId },
     data: {
       isOnline: true,
-      lastSeenAt: new Date()
+      lastSeenAt: new Date(),
+      driverAppState: "FOREGROUND",
+      driverAppStateUpdatedAt: new Date()
     }
   });
 
@@ -104,7 +134,9 @@ export const setDriverOfflineController = async (
     where: { id: authUser.userId },
     data: {
       isOnline: false,
-      lastSeenAt: new Date()
+      lastSeenAt: new Date(),
+      driverAppState: "BACKGROUND",
+      driverAppStateUpdatedAt: new Date()
     }
   });
 
@@ -141,6 +173,8 @@ export const heartbeatDriverController = async (
   }
 
   const validLocation = getValidLocationFromRequest(req);
+  const validAppState = getValidDriverAppStateFromRequest(req);
+  const validDriverFcmToken = getValidDriverFcmTokenFromRequest(req);
 
   await prisma.user.update({
     where: { id: authUser.userId },
@@ -153,6 +187,17 @@ export const heartbeatDriverController = async (
             longitude: validLocation.longitude,
             locationUpdatedAt: new Date()
           }
+        : {}),
+      ...(validAppState
+        ? {
+            driverAppState: validAppState,
+            driverAppStateUpdatedAt: new Date()
+          }
+        : {}),
+      ...(validDriverFcmToken
+        ? {
+            driverFcmToken: validDriverFcmToken
+          }
         : {})
     }
   });
@@ -160,7 +205,7 @@ export const heartbeatDriverController = async (
   res.status(200).json({
     success: true,
     message: validLocation
-      ? "Driver heartbeat and location received"
-      : "Driver heartbeat received"
+      ? "Driver heartbeat, app state, and location received"
+      : "Driver heartbeat and app state received"
   });
 };
