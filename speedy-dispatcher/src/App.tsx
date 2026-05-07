@@ -788,43 +788,78 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         setHistoryLoading(true);
       }
 
-      let url = `https://speedy-api-lbfe.onrender.com/api/v1/orders?status=DELIVERED&page=${historyPage}`;
+      const buildHistoryUrl = (status: "DELIVERED" | "CANCELLED") => {
+        let url = `https://speedy-api-lbfe.onrender.com/api/v1/orders?status=${status}&page=${historyPage}`;
+        const params = new URLSearchParams();
 
-      const params = new URLSearchParams();
+        if (historyStartDate) {
+          params.append("startDate", historyStartDate);
+        }
 
-      if (historyStartDate) {
-        params.append("startDate", historyStartDate);
+        if (historyEndDate) {
+          params.append("endDate", historyEndDate);
+        }
+
+        if (historyDriverIds.length > 0) {
+          params.append("driverId", historyDriverIds.join(","));
+        }
+
+        if (params.toString()) {
+          url += `&${params.toString()}`;
+        }
+
+        return url;
+      };
+
+      const [deliveredResponse, cancelledResponse] = await Promise.all([
+        fetch(buildHistoryUrl("DELIVERED"), {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        }),
+        fetch(buildHistoryUrl("CANCELLED"), {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        }),
+      ]);
+
+      const deliveredData = await deliveredResponse.json();
+      const cancelledData = await cancelledResponse.json();
+
+      if (!deliveredResponse.ok) {
+        alert(deliveredData.message || "Failed to load delivered orders");
+        return;
       }
 
-      if (historyEndDate) {
-        params.append("endDate", historyEndDate);
+      if (!cancelledResponse.ok) {
+        alert(cancelledData.message || "Failed to load cancelled orders");
+        return;
       }
 
-      if (historyDriverIds.length > 0) {
-        params.append("driverId", historyDriverIds.join(","));
-      }
+      const combinedOrders: Order[] = [
+        ...(deliveredData.orders || []),
+        ...(cancelledData.orders || []),
+      ];
 
-      if (params.toString()) {
-        url += `&${params.toString()}`;
-      }
+      combinedOrders.sort((a, b) => {
+        const aTime = new Date(
+          a.cancelledAt || a.deliveredAt || a.updatedAt || a.createdAt || 0
+        ).getTime();
+        const bTime = new Date(
+          b.cancelledAt || b.deliveredAt || b.updatedAt || b.createdAt || 0
+        ).getTime();
 
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
+        return bTime - aTime;
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setDeliveredOrders(data.orders || []);
-        setHistoryTotalPages(data.totalPages || 1);
-      } else {
-        alert(data.message || "Failed to load delivered orders");
-      }
+      setDeliveredOrders(combinedOrders);
+      setHistoryTotalPages(
+        Math.max(deliveredData.totalPages || 1, cancelledData.totalPages || 1)
+      );
     } catch (error) {
       console.error(error);
-      alert("Server error while loading delivered orders");
+      alert("Server error while loading order history");
     } finally {
       if (showLoader) {
         setHistoryLoading(false);
@@ -2856,13 +2891,13 @@ const handleSaveEditedOrder = async (orderId: string) => {
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h2 className="text-2xl font-bold">Delivered History</h2>
+              <h2 className="text-2xl font-bold">Order History</h2>
               <p className="text-zinc-400 mt-1">
-                Search completed deliveries by driver and date.
+                Search delivered and cancelled orders by driver and date.
               </p>
               <p className="text-zinc-500 text-sm mt-2">
                 Showing {filteredDeliveredOrders.length} of{" "}
-                {deliveredOrders.length} delivered orders.
+                {deliveredOrders.length} history orders.
               </p>
             </div>
 
@@ -2969,11 +3004,11 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
         {historyLoading && deliveredOrders.length === 0 ? (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-zinc-300">
-            Loading delivered orders...
+            Loading order history...
           </div>
         ) : filteredDeliveredOrders.length === 0 ? (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-zinc-300">
-            No delivered orders match these filters.
+            No delivered or cancelled orders match these filters.
           </div>
         ) : (
 
@@ -2984,13 +3019,14 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 <thead className="bg-zinc-800 text-zinc-300">
                   <tr>
                     <th className="text-left p-2">Order #</th>
+                    <th className="text-left p-2">Status</th>
                     <th className="text-left p-2">Customer</th>
                     <th className="text-left p-2">Driver</th>
                     <th className="text-left p-2">Address</th>
                     <th className="text-left p-2">Placed</th>
                     <th className="text-left p-2">Accepted</th>
                     <th className="text-left p-2">Out For Delivery</th>
-                    <th className="text-left p-2">Delivered</th>
+                    <th className="text-left p-2">Completed / Cancelled</th>
                     <th className="text-left p-2">Total Time</th>
                     <th className="text-left p-2">Items</th>
                   </tr>
@@ -3004,6 +3040,12 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     >
                       <td className="p-2 align-top font-bold text-red-300">
                         #{order.orderNumber}
+                      </td>
+
+                      <td className="p-2 align-top">
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(order.orderStatus)}`}>
+                          {getStatusLabel(order.orderStatus)}
+                        </span>
                       </td>
 
                       <td className="p-2 align-top">
@@ -3046,11 +3088,34 @@ const handleSaveEditedOrder = async (orderId: string) => {
                       </td>
 
                       <td className="p-2 align-top whitespace-nowrap">
-                        {formatDateTime(order.deliveredAt)}
+                        {order.orderStatus === "CANCELLED" ? (
+                          <div>
+                            <p className="font-semibold text-red-300">
+                              Cancelled: {formatDateTime(order.cancelledAt)}
+                            </p>
+
+                            {order.cancelledFromStatus && (
+                              <p className="text-zinc-500 text-xs mt-1">
+                                Cancelled from: {getStatusLabel(order.cancelledFromStatus)}
+                              </p>
+                            )}
+
+                            {order.cancellationReason && (
+                              <p className="text-zinc-500 text-xs mt-1">
+                                Reason: {order.cancellationReason}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          formatDateTime(order.deliveredAt)
+                        )}
                       </td>
 
                       <td className="p-2 align-top whitespace-nowrap font-semibold text-amber-300">
-                        {formatCompletedDeliveryTime(order.createdAt, order.deliveredAt)}
+                        {formatCompletedDeliveryTime(
+                          order.createdAt,
+                          order.orderStatus === "CANCELLED" ? order.cancelledAt : order.deliveredAt
+                        )}
                       </td>
 
                       <td className="p-2 align-top">
