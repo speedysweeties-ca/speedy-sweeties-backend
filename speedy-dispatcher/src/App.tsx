@@ -69,6 +69,9 @@ type Order = {
   acceptedAt?: string;
   outForDeliveryAt?: string;
   deliveredAt?: string;
+  cancelledAt?: string;
+  cancelledFromStatus?: OrderStatus | null;
+  cancellationReason?: string | null;
   updatedAt?: string;
 };
 
@@ -962,7 +965,11 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     hasCompletedInitialLoadRef.current = false;
   };
 
-const updateOrderStatus = async (orderId: string, orderStatus: OrderStatus) => {
+const updateOrderStatus = async (
+  orderId: string,
+  orderStatus: OrderStatus,
+  cancellationReason?: string
+) => {
   if (!token) return;
 
   try {
@@ -978,6 +985,7 @@ const updateOrderStatus = async (orderId: string, orderStatus: OrderStatus) => {
         },
         body: JSON.stringify({
           orderStatus,
+          cancellationReason,
         }),
       }
     );
@@ -987,6 +995,10 @@ const updateOrderStatus = async (orderId: string, orderStatus: OrderStatus) => {
     if (response.ok) {
       await fetchOrders(token, false);
       await fetchDrivers(token);
+
+      if (activeTab === "DELIVERED_HISTORY") {
+        await fetchDeliveredOrders(token, false);
+      }
     } else {
       alert(data.message || "Failed to update order");
     }
@@ -996,6 +1008,41 @@ const updateOrderStatus = async (orderId: string, orderStatus: OrderStatus) => {
   } finally {
     setUpdatingOrderId(null);
   }
+};
+
+const cancelOrder = async (order: Order) => {
+  if (order.orderStatus === "DELIVERED") {
+    alert("Delivered orders cannot be cancelled.");
+    return;
+  }
+
+  if (order.orderStatus === "CANCELLED") {
+    alert("This order is already cancelled.");
+    return;
+  }
+
+  const reason = window.prompt(
+    `Cancel Order #${order.orderNumber}?
+
+Optional: enter a cancellation reason.`,
+    "Cancelled by dispatcher"
+  );
+
+  if (reason === null) return;
+
+  const shouldCancel = window.confirm(
+    `Are you sure you want to cancel Order #${order.orderNumber}?
+
+This keeps the order in history as CANCELLED and does not count toward loyalty or completed deliveries.`
+  );
+
+  if (!shouldCancel) return;
+
+  await updateOrderStatus(
+    order.id,
+    "CANCELLED",
+    reason.trim() || "Cancelled by dispatcher"
+  );
 };
 
 
@@ -3630,6 +3677,17 @@ const handleSaveEditedOrder = async (orderId: string) => {
                         </button>
 
                         {renderDriverAssignmentSection(order)}
+
+                        {order.orderStatus !== "DELIVERED" && order.orderStatus !== "CANCELLED" && (
+                          <button
+                            type="button"
+                            disabled={updatingOrderId === order.id}
+                            onClick={() => void cancelOrder(order)}
+                            className="w-full px-4 py-2 rounded-lg bg-zinc-800 hover:bg-red-700 border border-red-700 text-red-200 transition disabled:opacity-50 font-semibold text-sm"
+                          >
+                            Cancel Order
+                          </button>
+                        )}
 
                         {order.additionalNotes && (
                           <div className="bg-zinc-800/80 border border-zinc-700 rounded-xl p-3">
