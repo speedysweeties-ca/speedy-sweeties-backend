@@ -69,6 +69,9 @@ const orderInclude = {
 const normalize = (value: string) => value.trim().toLowerCase();
 const normalizePhone = (value: string) => value.replace(/\D/g, "");
 
+const LOYALTY_FREE_DELIVERY_NOTE =
+  "LOYALTY REWARD: Customer earned free delivery. Subtract $12 from this order and let the customer know delivery is free.";
+
 const getItemPrice = (item: UpdateOrderItemInput): number => {
   return item.unitPrice ?? item.price ?? 0;
 };
@@ -110,8 +113,75 @@ const sendCustomerOutForDeliveryNotification = async (
   }
 };
 
+const sendCustomerRewardEarnedNotification = async (
+  fcmToken: string | null
+): Promise<void> => {
+  if (!fcmToken) {
+    console.log("No customer FCM token found for loyalty reward notification");
+    return;
+  }
+
+  try {
+    await admin.messaging().send({
+      token: fcmToken,
+      notification: {
+        title: "Speedy Sweeties 🎉",
+        body: "You earned a free delivery on your next order!"
+      },
+      data: {
+        type: "LOYALTY_REWARD_EARNED"
+      },
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "speedy_sweeties_orders",
+          sound: "default"
+        }
+      }
+    });
+
+    console.log("Customer loyalty reward notification sent");
+  } catch (error) {
+    console.error("Failed to send loyalty reward notification:", error);
+  }
+};
+
+const sendCustomerRewardAppliedNotification = async (
+  fcmToken: string | null
+): Promise<void> => {
+  if (!fcmToken) {
+    console.log("No customer FCM token found for loyalty reward applied notification");
+    return;
+  }
+
+  try {
+    await admin.messaging().send({
+      token: fcmToken,
+      notification: {
+        title: "Speedy Sweeties 🎉",
+        body: "Your free delivery reward has been applied to this order."
+      },
+      data: {
+        type: "LOYALTY_REWARD_APPLIED"
+      },
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "speedy_sweeties_orders",
+          sound: "default"
+        }
+      }
+    });
+
+    console.log("Customer loyalty reward applied notification sent");
+  } catch (error) {
+    console.error("Failed to send loyalty reward applied notification:", error);
+  }
+};
+
 const applyCustomerLoyaltyForDeliveredOrder = async (
-  customerId: string | null
+  customerId: string | null,
+  fcmToken: string | null
 ): Promise<void> => {
   if (!customerId) {
     console.log("No customerId found for delivered order. Loyalty not updated.");
@@ -146,6 +216,8 @@ const applyCustomerLoyaltyForDeliveredOrder = async (
         loyaltyFreeDelivery: true
       }
     });
+
+    await sendCustomerRewardEarnedNotification(fcmToken);
 
     console.log("Customer earned a free delivery reward.");
     return;
@@ -184,11 +256,10 @@ export const createOrderController = async (
     fcmToken
   } = req.body;
 
-  const combinedNotes = [additionalNotes, deliveryInstructions, notes]
+  const baseNotes = [additionalNotes, deliveryInstructions, notes]
     .filter(Boolean)
     .map((v) => String(v).trim())
-    .filter(Boolean)
-    .join(" | ");
+    .filter(Boolean);
 
   const normalizedEmail = customerEmail ? normalize(customerEmail) : null;
   const normalizedPhone = normalizePhone(customerPhone);
@@ -221,7 +292,25 @@ export const createOrderController = async (
     });
   }
 
+  const shouldApplyFreeDeliveryReward = customer.loyaltyFreeDelivery === true;
+
+  const finalNotes = shouldApplyFreeDeliveryReward
+    ? [...baseNotes, LOYALTY_FREE_DELIVERY_NOTE].join(" | ")
+    : baseNotes.join(" | ");
+
   const order = await prisma.$transaction(async (tx) => {
+    if (shouldApplyFreeDeliveryReward) {
+      await tx.customer.update({
+        where: { id: customer.id },
+        data: {
+          loyaltyFreeDelivery: false,
+          loyaltyRewardsUsed: {
+            increment: 1
+          }
+        }
+      });
+    }
+
     const createdOrder = await tx.order.create({
       data: {
         customerId: customer.id,
@@ -233,7 +322,7 @@ export const createOrderController = async (
         province: province.trim(),
         postalCode: postalCode.trim().toUpperCase(),
         itemsText: rawItems.map((i) => `${i.quantity}x ${i.name}`).join(", "),
-        additionalNotes: combinedNotes || null,
+        additionalNotes: finalNotes || null,
         paymentMethod,
         orderStatus: OrderStatus.PLACED,
         priority: OrderPriority.NORMAL,
@@ -275,6 +364,12 @@ export const createOrderController = async (
       include: orderInclude
     });
   });
+
+  if (shouldApplyFreeDeliveryReward) {
+    await sendCustomerRewardAppliedNotification(
+      typeof fcmToken === "string" ? fcmToken : null
+    );
+  }
 
   res.status(201).json({
     success: true,
@@ -509,7 +604,10 @@ export const updateOrderStatusController = async (
     existingOrder.orderStatus !== OrderStatus.DELIVERED;
 
   if (shouldApplyLoyalty) {
-    await applyCustomerLoyaltyForDeliveredOrder(existingOrder.customerId);
+    await applyCustomerLoyaltyForDeliveredOrder(
+      existingOrder.customerId,
+      existingOrder.fcmToken
+    );
   }
 
   res.status(200).json({
