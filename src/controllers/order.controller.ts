@@ -18,6 +18,7 @@ type IdParams = {
 
 type UpdateStatusBody = {
   orderStatus: OrderStatus;
+  cancellationReason?: string;
 };
 
 type UpdatePriorityBody = {
@@ -67,6 +68,7 @@ const orderInclude = {
 } satisfies Prisma.OrderInclude;
 
 const normalize = (value: string) => value.trim().toLowerCase();
+
 const normalizePhone = (value: string) => value.replace(/\D/g, "");
 
 const LOYALTY_FREE_DELIVERY_NOTE =
@@ -561,7 +563,7 @@ export const updateOrderStatusController = async (
   res: Response
 ): Promise<void> => {
   const { id } = req.params;
-  const { orderStatus } = req.body;
+  const { orderStatus, cancellationReason } = req.body;
 
   const existingOrder = await prisma.order.findUnique({
     where: { id },
@@ -582,9 +584,46 @@ export const updateOrderStatusController = async (
     return;
   }
 
+  if (
+    orderStatus === OrderStatus.CANCELLED &&
+    existingOrder.orderStatus === OrderStatus.DELIVERED
+  ) {
+    res.status(400).json({
+      success: false,
+      message: "Delivered orders cannot be cancelled"
+    });
+    return;
+  }
+
+  if (
+    orderStatus === OrderStatus.CANCELLED &&
+    existingOrder.orderStatus === OrderStatus.CANCELLED
+  ) {
+    res.status(400).json({
+      success: false,
+      message: "Order is already cancelled"
+    });
+    return;
+  }
+
+  const cleanedCancellationReason =
+    typeof cancellationReason === "string" && cancellationReason.trim()
+      ? cancellationReason.trim()
+      : null;
+
   const updatedOrder = await prisma.order.update({
     where: { id },
-    data: { orderStatus },
+    data:
+      orderStatus === OrderStatus.CANCELLED
+        ? {
+            orderStatus: OrderStatus.CANCELLED,
+            cancelledAt: new Date(),
+            cancelledFromStatus: existingOrder.orderStatus,
+            cancellationReason: cleanedCancellationReason
+          }
+        : {
+            orderStatus
+          },
     include: orderInclude
   });
 
@@ -612,7 +651,10 @@ export const updateOrderStatusController = async (
 
   res.status(200).json({
     success: true,
-    message: "Order status updated successfully",
+    message:
+      orderStatus === OrderStatus.CANCELLED
+        ? "Order cancelled successfully"
+        : "Order status updated successfully",
     order: updatedOrder
   });
 };

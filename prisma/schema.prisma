@@ -141,6 +141,10 @@ model Order {
   acceptedAt        DateTime?
   outForDeliveryAt  DateTime?
   deliveredAt       DateTime?
+  cancelledAt         DateTime?
+  cancelledFromStatus OrderStatus?
+  cancellationReason  String?
+
 
   customerId        String?
 
@@ -157,6 +161,10 @@ model Order {
   @@index([orderStatus])
   @@index([priority])
   @@index([createdAt])
+  @@index([cancelledAt])
+  @@index([cancelledFromStatus])
+
+
 }
 
 model OrderItem {
