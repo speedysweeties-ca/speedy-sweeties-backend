@@ -36,31 +36,37 @@ enum UserRole {
 }
 
 model User {
-  id                String    @id @default(uuid())
-  email             String    @unique
-  passwordHash      String
-  role              UserRole
-  firstName         String?
-  lastName          String?
-  isActive          Boolean   @default(true)
+  id                       String    @id @default(uuid())
+  email                    String    @unique
+  passwordHash             String
+  role                     UserRole
+  firstName                String?
+  lastName                 String?
+  isActive                 Boolean   @default(true)
 
-  isOnline          Boolean   @default(false)
-  lastSeenAt        DateTime?
+  isOnline                 Boolean   @default(false)
+  lastSeenAt               DateTime?
 
-  latitude          Float?
-  longitude         Float?
-  locationUpdatedAt DateTime?
+  latitude                 Float?
+  longitude                Float?
+  locationUpdatedAt        DateTime?
 
-  forceLogoutAt     DateTime?
+  driverFcmToken           String?
+  driverAppState           String?   @default("FOREGROUND")
+  driverAppStateUpdatedAt  DateTime?
 
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  forceLogoutAt            DateTime?
 
-  assignedOrders    Order[]   @relation("DriverOrders")
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  assignedOrders           Order[]   @relation("DriverOrders")
 
   @@index([role])
   @@index([isOnline])
   @@index([locationUpdatedAt])
+  @@index([driverAppState])
+  @@index([driverAppStateUpdatedAt])
 }
 
 model Customer {
@@ -121,40 +127,40 @@ model ItemCatalog {
 }
 
 model Order {
-  id                String        @id @default(uuid())
-  orderNumber       Int           @unique @default(autoincrement())
-  fcmToken          String?
-  customerName      String
-  addressLine1      String
-  city              String
-  province          String
-  postalCode        String
-  phone             String
-  email             String
-  itemsText         String
-  additionalNotes   String?
-  paymentMethod     PaymentMethod
-  orderStatus       OrderStatus   @default(PLACED)
-  priority          OrderPriority @default(NORMAL)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  acceptedAt        DateTime?
-  outForDeliveryAt  DateTime?
-  deliveredAt       DateTime?
+  id                  String        @id @default(uuid())
+  orderNumber         Int           @unique @default(autoincrement())
+  fcmToken            String?
+  customerName        String
+  addressLine1        String
+  city                String
+  province            String
+  postalCode          String
+  phone               String
+  email               String
+  itemsText           String
+  additionalNotes     String?
+  paymentMethod       PaymentMethod
+  orderStatus         OrderStatus   @default(PLACED)
+  priority            OrderPriority @default(NORMAL)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  acceptedAt          DateTime?
+  outForDeliveryAt    DateTime?
+  deliveredAt         DateTime?
   cancelledAt         DateTime?
   cancelledFromStatus OrderStatus?
   cancellationReason  String?
 
+  customerId          String?
 
-  customerId        String?
+  assignedDriverId    String?
+  assignedAt          DateTime?
 
-  assignedDriverId  String?
-  assignedAt        DateTime?
+  customer            Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  assignedDriver      User?         @relation("DriverOrders", fields: [assignedDriverId], references: [id], onDelete: SetNull)
 
-  customer          Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  assignedDriver    User?         @relation("DriverOrders", fields: [assignedDriverId], references: [id], onDelete: SetNull)
-
-  items             OrderItem[]
+  items               OrderItem[]
 
   @@index([customerId])
   @@index([assignedDriverId])
@@ -163,8 +169,6 @@ model Order {
   @@index([createdAt])
   @@index([cancelledAt])
   @@index([cancelledFromStatus])
-
-
 }
 
 model OrderItem {
