@@ -30,8 +30,45 @@ const orderInclude = {
   }
 } satisfies Prisma.OrderInclude;
 
+const sendPushNotification = async (
+  fcmToken: string | null,
+  title: string,
+  body: string,
+  type: string
+): Promise<void> => {
+  if (!fcmToken) {
+    console.log(`No customer FCM token found for ${type}`);
+    return;
+  }
+
+  try {
+    await admin.messaging().send({
+      token: fcmToken,
+      notification: {
+        title,
+        body
+      },
+      data: {
+        type
+      },
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "speedy_sweeties_orders",
+          sound: "default"
+        }
+      }
+    });
+
+    console.log(`${type} push sent`);
+  } catch (error) {
+    console.error(`${type} push failed:`, error);
+  }
+};
+
 const applyCustomerLoyaltyForDeliveredOrder = async (
-  customerId: string | null
+  customerId: string | null,
+  fcmToken: string | null
 ): Promise<void> => {
   if (!customerId) {
     console.log("No customerId found for delivered order. Loyalty not updated.");
@@ -67,6 +104,13 @@ const applyCustomerLoyaltyForDeliveredOrder = async (
       }
     });
 
+    await sendPushNotification(
+      fcmToken,
+      "Speedy Sweeties 🎉",
+      "You earned a free delivery on your next order!",
+      "LOYALTY_REWARD_EARNED"
+    );
+
     console.log("Customer earned a free delivery reward.");
     return;
   }
@@ -78,6 +122,16 @@ const applyCustomerLoyaltyForDeliveredOrder = async (
     }
   });
 
+  const deliveriesRemaining = 10 - nextCompletedOrders;
+
+const deliveryWord = deliveriesRemaining === 1 ? "delivery" : "deliveries";
+
+await sendPushNotification(
+  fcmToken,
+  "Speedy Sweeties Rewards",
+  `You only have ${deliveriesRemaining} ${deliveryWord} left for your next free delivery.`,
+  "LOYALTY_PROGRESS_UPDATE"
+);
   console.log(`Customer loyalty updated: ${nextCompletedOrders}/10 completed deliveries.`);
 };
 
@@ -140,23 +194,12 @@ export const driverActionController = async (
       include: orderInclude
     });
 
-    if (order.fcmToken) {
-      try {
-        await admin.messaging().send({
-          token: order.fcmToken,
-          notification: {
-            title: "Speedy Sweeties 🚗",
-            body: "Your order is now out for delivery!"
-          }
-        });
-
-        console.log("Push sent to order customer");
-      } catch (error) {
-        console.error("Push failed:", error);
-      }
-    } else {
-      console.log("No FCM token on this order");
-    }
+    await sendPushNotification(
+      order.fcmToken,
+      "Speedy Sweeties 🚗",
+      "Your order is now out for delivery!",
+      "ORDER_OUT_FOR_DELIVERY"
+    );
 
     res.status(200).json({
       success: true,
@@ -181,7 +224,10 @@ export const driverActionController = async (
       include: orderInclude
     });
 
-    await applyCustomerLoyaltyForDeliveredOrder(order.customerId);
+    await applyCustomerLoyaltyForDeliveredOrder(
+      order.customerId,
+      order.fcmToken
+    );
 
     res.status(200).json({
       success: true,
