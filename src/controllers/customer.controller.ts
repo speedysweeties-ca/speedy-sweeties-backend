@@ -18,6 +18,77 @@ const cleanStringOrNull = (value: unknown): string | null => {
   return trimmed ? trimmed : null;
 };
 
+export const getCustomerLoyaltyController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const rawPhone = req.query.phone;
+  const rawEmail = req.query.email;
+
+  const phone =
+    typeof rawPhone === "string" ? normalizePhone(rawPhone) : "";
+
+  const email =
+    typeof rawEmail === "string" && rawEmail.trim()
+      ? normalize(rawEmail)
+      : "";
+
+  if (!phone && !email) {
+    res.status(400).json({
+      success: false,
+      message: "Phone or email is required"
+    });
+    return;
+  }
+
+  const customer = await prisma.customer.findFirst({
+    where: {
+      OR: [
+        ...(phone ? [{ normalizedPhone: phone }] : []),
+        ...(email ? [{ normalizedEmail: email }] : [])
+      ]
+    },
+    select: {
+      id: true,
+      loyaltyCompletedOrders: true,
+      loyaltyRewardsEarned: true,
+      loyaltyRewardsUsed: true,
+      loyaltyFreeDelivery: true
+    }
+  });
+
+  if (!customer) {
+    res.status(200).json({
+      success: true,
+      found: false,
+      loyalty: {
+        loyaltyCompletedOrders: 0,
+        loyaltyRewardsEarned: 0,
+        loyaltyRewardsUsed: 0,
+        loyaltyFreeDelivery: false,
+        deliveriesRemaining: 10
+      }
+    });
+    return;
+  }
+
+  const deliveriesRemaining = customer.loyaltyFreeDelivery
+    ? 0
+    : Math.max(10 - customer.loyaltyCompletedOrders, 0);
+
+  res.status(200).json({
+    success: true,
+    found: true,
+    loyalty: {
+      loyaltyCompletedOrders: customer.loyaltyCompletedOrders,
+      loyaltyRewardsEarned: customer.loyaltyRewardsEarned,
+      loyaltyRewardsUsed: customer.loyaltyRewardsUsed,
+      loyaltyFreeDelivery: customer.loyaltyFreeDelivery,
+      deliveriesRemaining
+    }
+  });
+};
+
 export const searchCustomersController = async (
   req: Request,
   res: Response

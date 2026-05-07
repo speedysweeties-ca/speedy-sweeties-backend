@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/auth.middleware";
 import { requireRole } from "../middleware/role.middleware";
 import {
   getCustomerByIdController,
+  getCustomerLoyaltyController,
   listCustomersController,
   searchCustomersController,
   updateCustomerController,
@@ -12,6 +13,12 @@ import {
 } from "../controllers/customer.controller";
 
 const router = Router();
+
+// 🌎 PUBLIC — customer app loyalty progress lookup
+router.get(
+  "/loyalty",
+  asyncHandler(getCustomerLoyaltyController)
+);
 
 // 🔒 STAFF — search customers for manual order autocomplete
 router.get(
