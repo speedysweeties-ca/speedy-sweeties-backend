@@ -64,28 +64,35 @@ model User {
 }
 
 model Customer {
-  id                 String   @id @default(uuid())
-  fullName           String
-  normalizedFullName String
-  phone              String
-  normalizedPhone    String
-  email              String?
-  normalizedEmail    String?
-  addressLine1       String
-  city               String
-  province           String
-  postalCode         String
-  notes              String?
-  dispatcherNotes    String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                     String   @id @default(uuid())
+  fullName               String
+  normalizedFullName     String
+  phone                  String
+  normalizedPhone        String
+  email                  String?
+  normalizedEmail        String?
+  addressLine1           String
+  city                   String
+  province               String
+  postalCode             String
+  notes                  String?
+  dispatcherNotes        String?
 
-  orders             Order[]
+  loyaltyCompletedOrders Int      @default(0)
+  loyaltyRewardsEarned   Int      @default(0)
+  loyaltyRewardsUsed     Int      @default(0)
+  loyaltyFreeDelivery    Boolean  @default(false)
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  orders                 Order[]
 
   @@index([normalizedPhone])
   @@index([normalizedFullName])
   @@index([normalizedEmail])
   @@index([city])
+  @@index([loyaltyFreeDelivery])
 }
 
 model ItemCatalog {
