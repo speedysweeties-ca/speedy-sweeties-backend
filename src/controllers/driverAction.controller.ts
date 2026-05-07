@@ -30,6 +30,57 @@ const orderInclude = {
   }
 } satisfies Prisma.OrderInclude;
 
+const applyCustomerLoyaltyForDeliveredOrder = async (
+  customerId: string | null
+): Promise<void> => {
+  if (!customerId) {
+    console.log("No customerId found for delivered order. Loyalty not updated.");
+    return;
+  }
+
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: {
+      id: true,
+      loyaltyCompletedOrders: true,
+      loyaltyRewardsEarned: true,
+      loyaltyFreeDelivery: true
+    }
+  });
+
+  if (!customer) {
+    console.log("Customer not found. Loyalty not updated.");
+    return;
+  }
+
+  const nextCompletedOrders = customer.loyaltyCompletedOrders + 1;
+
+  if (nextCompletedOrders >= 10) {
+    await prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        loyaltyCompletedOrders: 0,
+        loyaltyRewardsEarned: {
+          increment: 1
+        },
+        loyaltyFreeDelivery: true
+      }
+    });
+
+    console.log("Customer earned a free delivery reward.");
+    return;
+  }
+
+  await prisma.customer.update({
+    where: { id: customerId },
+    data: {
+      loyaltyCompletedOrders: nextCompletedOrders
+    }
+  });
+
+  console.log(`Customer loyalty updated: ${nextCompletedOrders}/10 completed deliveries.`);
+};
+
 export const driverActionController = async (
   req: Request<{ id: string }, {}, DriverActionBody>,
   res: Response
@@ -89,7 +140,6 @@ export const driverActionController = async (
       include: orderInclude
     });
 
-    // 🔥 SEND PUSH ONLY TO THIS CUSTOMER
     if (order.fcmToken) {
       try {
         await admin.messaging().send({
@@ -130,6 +180,8 @@ export const driverActionController = async (
       },
       include: orderInclude
     });
+
+    await applyCustomerLoyaltyForDeliveredOrder(order.customerId);
 
     res.status(200).json({
       success: true,
