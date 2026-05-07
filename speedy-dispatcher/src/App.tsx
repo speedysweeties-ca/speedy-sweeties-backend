@@ -77,7 +77,9 @@ type ActiveTab =
   | "CREATE_MANUAL_ORDER"
   | "DRIVER_LOCATION"
   | "DELIVERED_HISTORY"
-  | "DRIVER_STATS";
+  | "DRIVER_STATS"
+  | "CATALOG"
+  | "CUSTOMERS";
 
 type ManualOrderItem = {
   itemName: string;
@@ -130,7 +132,61 @@ type ItemSuggestion = {
   size?: string | null;
   category?: string | null;
   brand?: string | null;
+  source?: string | null;
   isActive: boolean;
+  popularityScore?: number;
+};
+
+type CatalogItem = {
+  id: string;
+  name: string;
+  normalizedName?: string;
+  brand?: string | null;
+  normalizedBrand?: string | null;
+  size?: string | null;
+  category?: string | null;
+  source?: string | null;
+  isActive: boolean;
+  popularityScore: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type CatalogEditForm = {
+  name: string;
+  brand: string;
+  size: string;
+  category: string;
+  source: string;
+  isActive: boolean;
+};
+
+type CustomerProfile = {
+  id: string;
+  fullName: string;
+  phone: string;
+  email?: string | null;
+  addressLine1: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  dispatcherNotes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  _count?: {
+    orders?: number;
+  };
+};
+
+type CustomerEditForm = {
+  fullName: string;
+  phone: string;
+  email: string;
+  addressLine1: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  dispatcherNotes: string;
 };
 
 const createEmptyManualOrderItem = (): ManualOrderItem => ({
@@ -160,12 +216,26 @@ function App() {
   const [manualOrderLoading, setManualOrderLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [driverStatsLoading, setDriverStatsLoading] = useState(false);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [customersLoading, setCustomersLoading] = useState(false);
 
   const [token, setToken] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [deliveredOrders, setDeliveredOrders] = useState<Order[]>([]);
   const [driverStats, setDriverStats] = useState<DriverStat[]>([]);
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
+  const [nowMs, setNowMs] = useState(Date.now());
+
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogActiveFilter, setCatalogActiveFilter] = useState<"all" | "active" | "inactive">("all");
+  const [editingCatalogItemId, setEditingCatalogItemId] = useState<string | null>(null);
+  const [catalogEditForm, setCatalogEditForm] = useState<CatalogEditForm | null>(null);
+
+  const [customers, setCustomers] = useState<CustomerProfile[]>([]);
+  const [customerProfileSearch, setCustomerProfileSearch] = useState("");
+  const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
+  const [customerEditForm, setCustomerEditForm] = useState<CustomerEditForm | null>(null);
 
   const [driverSelections, setDriverSelections] = useState<Record<string, string>>({});
   const [historyDriverIds, setHistoryDriverIds] = useState<string[]>([]);
@@ -221,6 +291,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     activeTab === "DRIVER_LOCATION" ||
     activeTab === "DELIVERED_HISTORY" ||
     activeTab === "DRIVER_STATS" ||
+    activeTab === "CATALOG" ||
+    activeTab === "CUSTOMERS" ||
     manualFormIsDirty ||
     manualOrderLoading ||
     editingOrderId !== null ||
@@ -262,6 +334,16 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   }, []);
 
   useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 30000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!token) return;
     if (autoRefreshPaused) return;
 
@@ -297,6 +379,20 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
     void fetchDriverStats(token, true);
     void fetchDrivers(token);
+  }, [activeTab, token]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (activeTab !== "CATALOG") return;
+
+    void fetchCatalogItems(token, true);
+  }, [activeTab, token, catalogActiveFilter]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (activeTab !== "CUSTOMERS") return;
+
+    void fetchCustomers(token, true);
   }, [activeTab, token]);
 
   useEffect(() => {
@@ -473,6 +569,47 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     return `${hours} hr ${minutes} min`;
   };
 
+  const formatOrderAge = (createdAt?: string) => {
+    if (!createdAt) return "—";
+
+    const createdTime = new Date(createdAt).getTime();
+    if (Number.isNaN(createdTime)) return "—";
+
+    const ageMinutes = Math.max(0, Math.floor((nowMs - createdTime) / 60000));
+
+    if (ageMinutes < 60) {
+      return `${ageMinutes} min`;
+    }
+
+    const hours = Math.floor(ageMinutes / 60);
+    const minutes = ageMinutes % 60;
+
+    if (minutes === 0) {
+      return `${hours} hr`;
+    }
+
+    return `${hours} hr ${minutes} min`;
+  };
+
+  const formatCompletedDeliveryTime = (
+    createdAt?: string | null,
+    deliveredAt?: string | null
+  ) => {
+    if (!createdAt || !deliveredAt) return "—";
+
+    const createdTime = new Date(createdAt).getTime();
+    const deliveredTime = new Date(deliveredAt).getTime();
+
+    if (Number.isNaN(createdTime) || Number.isNaN(deliveredTime)) return "—";
+
+    const deliveryMinutes = Math.max(
+      0,
+      Math.floor((deliveredTime - createdTime) / 60000)
+    );
+
+    return `${deliveryMinutes} min`;
+  };
+
   const getDriverDisplayName = (
     driver?: AssignedDriver | DriverOption | DriverStat | null
   ) => {
@@ -502,6 +639,94 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       }
     } catch (error) {
       console.error("Failed to load drivers:", error);
+    }
+  };
+
+  const fetchCatalogItems = async (authToken: string, showLoader = true) => {
+    try {
+      if (showLoader) {
+        setCatalogLoading(true);
+      }
+
+      let url = "https://speedy-api-lbfe.onrender.com/api/v1/items";
+      const params = new URLSearchParams();
+
+      if (catalogSearch.trim()) {
+        params.append("query", catalogSearch.trim());
+      }
+
+      if (catalogActiveFilter === "active") {
+        params.append("isActive", "true");
+      }
+
+      if (catalogActiveFilter === "inactive") {
+        params.append("isActive", "false");
+      }
+
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setCatalogItems(data.items || []);
+      } else {
+        alert(data.message || "Failed to load catalog items");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while loading catalog items");
+    } finally {
+      if (showLoader) {
+        setCatalogLoading(false);
+      }
+    }
+  };
+
+  const fetchCustomers = async (authToken: string, showLoader = true) => {
+    try {
+      if (showLoader) {
+        setCustomersLoading(true);
+      }
+
+      let url = "https://speedy-api-lbfe.onrender.com/api/v1/customers";
+      const params = new URLSearchParams();
+
+      if (customerProfileSearch.trim()) {
+        params.append("query", customerProfileSearch.trim());
+      }
+
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setCustomers(data.customers || []);
+      } else {
+        alert(data.message || "Failed to load customers");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while loading customers");
+    } finally {
+      if (showLoader) {
+        setCustomersLoading(false);
+      }
     }
   };
 
@@ -724,6 +949,15 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setNewOrderIds([]);
     setCustomerSuggestions([]);
     setItemSuggestions({});
+    setCatalogItems([]);
+    setCatalogSearch("");
+    setCatalogActiveFilter("all");
+    setEditingCatalogItemId(null);
+    setCatalogEditForm(null);
+    setCustomers([]);
+    setCustomerProfileSearch("");
+    setEditingCustomerId(null);
+    setCustomerEditForm(null);
     knownOrderIdsRef.current = new Set();
     hasCompletedInitialLoadRef.current = false;
   };
@@ -1525,6 +1759,213 @@ const handleSaveEditedOrder = async (orderId: string) => {
     setActiveTab("LIVE_ORDERS");
   };
 
+  const handleStartEditCatalogItem = (item: CatalogItem) => {
+    setEditingCatalogItemId(item.id);
+    setCatalogEditForm({
+      name: item.name || "",
+      brand: item.brand || "",
+      size: item.size || "",
+      category: item.category || "",
+      source: item.source || "",
+      isActive: item.isActive,
+    });
+  };
+
+  const handleCatalogEditFieldChange = (
+    field: keyof CatalogEditForm,
+    value: string | boolean
+  ) => {
+    setCatalogEditForm((prev) => {
+      if (!prev) return prev;
+
+      return {
+        ...prev,
+        [field]: value,
+      };
+    });
+  };
+
+  const handleCancelCatalogEdit = () => {
+    setEditingCatalogItemId(null);
+    setCatalogEditForm(null);
+  };
+
+  const handleSaveCatalogItem = async (itemId: string) => {
+    if (!token || !catalogEditForm) return;
+
+    if (!catalogEditForm.name.trim()) {
+      alert("Catalog item name is required");
+      return;
+    }
+
+    try {
+      setCatalogLoading(true);
+
+      const response = await fetch(
+        `https://speedy-api-lbfe.onrender.com/api/v1/items/${itemId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: catalogEditForm.name.trim(),
+            brand: catalogEditForm.brand.trim(),
+            size: catalogEditForm.size.trim(),
+            category: catalogEditForm.category.trim(),
+            source: catalogEditForm.source.trim(),
+            isActive: catalogEditForm.isActive,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setEditingCatalogItemId(null);
+        setCatalogEditForm(null);
+        await fetchCatalogItems(token, false);
+      } else {
+        alert(data.message || "Failed to update catalog item");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while updating catalog item");
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
+  const handleDeactivateCatalogItem = async (item: CatalogItem) => {
+    if (!token) return;
+
+    const shouldDeactivate = window.confirm(
+      `Deactivate "${item.name}"? It will stop showing in autocomplete, but old orders will stay safe.`
+    );
+
+    if (!shouldDeactivate) return;
+
+    try {
+      setCatalogLoading(true);
+
+      const response = await fetch(
+        `https://speedy-api-lbfe.onrender.com/api/v1/items/${item.id}/deactivate`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        await fetchCatalogItems(token, false);
+      } else {
+        alert(data.message || "Failed to deactivate catalog item");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while deactivating catalog item");
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
+  const handleStartEditCustomer = (customer: CustomerProfile) => {
+    setEditingCustomerId(customer.id);
+    setCustomerEditForm({
+      fullName: customer.fullName || "",
+      phone: customer.phone || "",
+      email: customer.email || "",
+      addressLine1: customer.addressLine1 || "",
+      city: customer.city || "Guelph",
+      province: customer.province || "ON",
+      postalCode: customer.postalCode || "",
+      dispatcherNotes: customer.dispatcherNotes || "",
+    });
+  };
+
+  const handleCustomerEditFieldChange = (
+    field: keyof CustomerEditForm,
+    value: string
+  ) => {
+    setCustomerEditForm((prev) => {
+      if (!prev) return prev;
+
+      return {
+        ...prev,
+        [field]: value,
+      };
+    });
+  };
+
+  const handleCancelCustomerEdit = () => {
+    setEditingCustomerId(null);
+    setCustomerEditForm(null);
+  };
+
+  const handleSaveCustomer = async (customerId: string) => {
+    if (!token || !customerEditForm) return;
+
+    if (!customerEditForm.fullName.trim()) {
+      alert("Customer name is required");
+      return;
+    }
+
+    if (!customerEditForm.phone.trim()) {
+      alert("Customer phone is required");
+      return;
+    }
+
+    if (!customerEditForm.addressLine1.trim()) {
+      alert("Customer address is required");
+      return;
+    }
+
+    try {
+      setCustomersLoading(true);
+
+      const response = await fetch(
+        `https://speedy-api-lbfe.onrender.com/api/v1/customers/${customerId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            fullName: customerEditForm.fullName.trim(),
+            phone: customerEditForm.phone.trim(),
+            email: customerEditForm.email.trim(),
+            addressLine1: customerEditForm.addressLine1.trim(),
+            city: customerEditForm.city.trim(),
+            province: customerEditForm.province.trim(),
+            postalCode: customerEditForm.postalCode.trim(),
+            dispatcherNotes: customerEditForm.dispatcherNotes.trim(),
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setEditingCustomerId(null);
+        setCustomerEditForm(null);
+        await fetchCustomers(token, false);
+      } else {
+        alert(data.message || "Failed to update customer");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while updating customer");
+    } finally {
+      setCustomersLoading(false);
+    }
+  };
+
   const getStatusClasses = (status: OrderStatus) => {
     switch (status) {
       case "PLACED":
@@ -1551,6 +1992,521 @@ const handleSaveEditedOrder = async (orderId: string) => {
     }
   };
 
+
+  const renderCatalogAdmin = () => {
+    return (
+      <div className="space-y-6">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Catalog</h2>
+              <p className="text-zinc-400 mt-1">
+                Search, edit, and deactivate learned catalog items.
+              </p>
+              <p className="text-zinc-500 text-sm mt-2">
+                Showing {catalogItems.length} catalog items.
+              </p>
+            </div>
+
+            <button
+              onClick={() => token && void fetchCatalogItems(token, true)}
+              disabled={catalogLoading}
+              className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
+            >
+              {catalogLoading ? "Refreshing..." : "Refresh Catalog"}
+            </button>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[1fr_220px_auto] mt-6">
+            <input
+              type="text"
+              placeholder="Search catalog by name, brand, category, or source"
+              value={catalogSearch}
+              onChange={(e) => setCatalogSearch(e.target.value)}
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+            />
+
+            <select
+              value={catalogActiveFilter}
+              onChange={(e) =>
+                setCatalogActiveFilter(e.target.value as "all" | "active" | "inactive")
+              }
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+            >
+              <option value="all">All items</option>
+              <option value="active">Active only</option>
+              <option value="inactive">Inactive only</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={() => token && void fetchCatalogItems(token, true)}
+              disabled={catalogLoading}
+              className="px-5 py-3 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50 font-semibold"
+            >
+              Search
+            </button>
+          </div>
+        </div>
+
+        {catalogLoading && catalogItems.length === 0 ? (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-zinc-300">
+            Loading catalog items...
+          </div>
+        ) : catalogItems.length === 0 ? (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-zinc-300">
+            No catalog items found.
+          </div>
+        ) : (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1100px] text-sm">
+                <thead className="bg-zinc-800 text-zinc-300">
+                  <tr>
+                    <th className="text-left p-3">Item</th>
+                    <th className="text-left p-3">Brand</th>
+                    <th className="text-left p-3">Size</th>
+                    <th className="text-left p-3">Category</th>
+                    <th className="text-left p-3">Source</th>
+                    <th className="text-left p-3">Status</th>
+                    <th className="text-left p-3">Popularity</th>
+                    <th className="text-left p-3">Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {catalogItems.map((item) => {
+                    const isEditing = editingCatalogItemId === item.id && catalogEditForm;
+
+                    return (
+                      <tr
+                        key={item.id}
+                        className="border-t border-zinc-800 hover:bg-zinc-800/40 transition"
+                      >
+                        {isEditing ? (
+                          <>
+                            <td className="p-2 align-top">
+                              <input
+                                type="text"
+                                value={catalogEditForm.name}
+                                onChange={(e) =>
+                                  handleCatalogEditFieldChange("name", e.target.value)
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              />
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <input
+                                type="text"
+                                value={catalogEditForm.brand}
+                                onChange={(e) =>
+                                  handleCatalogEditFieldChange("brand", e.target.value)
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              />
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <input
+                                type="text"
+                                value={catalogEditForm.size}
+                                onChange={(e) =>
+                                  handleCatalogEditFieldChange("size", e.target.value)
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              />
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <input
+                                type="text"
+                                value={catalogEditForm.category}
+                                onChange={(e) =>
+                                  handleCatalogEditFieldChange("category", e.target.value)
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              />
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <input
+                                type="text"
+                                value={catalogEditForm.source}
+                                onChange={(e) =>
+                                  handleCatalogEditFieldChange("source", e.target.value)
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              />
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <label className="flex items-center gap-2 text-zinc-300">
+                                <input
+                                  type="checkbox"
+                                  checked={catalogEditForm.isActive}
+                                  onChange={(e) =>
+                                    handleCatalogEditFieldChange("isActive", e.target.checked)
+                                  }
+                                />
+                                Active
+                              </label>
+                            </td>
+
+                            <td className="p-2 align-top text-zinc-300">
+                              {item.popularityScore || 0}
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <div className="flex flex-col gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void handleSaveCatalogItem(item.id)}
+                                  disabled={catalogLoading}
+                                  className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50 font-semibold"
+                                >
+                                  Save
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={handleCancelCatalogEdit}
+                                  disabled={catalogLoading}
+                                  className="px-3 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition disabled:opacity-50 font-semibold"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="p-2 align-top">
+                              <p className="font-semibold text-zinc-100">{item.name}</p>
+                              <p className="text-zinc-500 text-xs break-all">{item.id}</p>
+                            </td>
+
+                            <td className="p-2 align-top text-zinc-300">
+                              {item.brand || "—"}
+                            </td>
+
+                            <td className="p-2 align-top text-zinc-300">
+                              {item.size || "—"}
+                            </td>
+
+                            <td className="p-2 align-top text-zinc-300">
+                              {item.category || "—"}
+                            </td>
+
+                            <td className="p-2 align-top text-zinc-300">
+                              {item.source || "—"}
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <span
+                                className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold border ${
+                                  item.isActive
+                                    ? "bg-green-500/20 text-green-200 border-green-400/40"
+                                    : "bg-red-500/20 text-red-200 border-red-400/40"
+                                }`}
+                              >
+                                {item.isActive ? "Active" : "Inactive"}
+                              </span>
+                            </td>
+
+                            <td className="p-2 align-top text-zinc-300">
+                              {item.popularityScore || 0}
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <div className="flex flex-col gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditCatalogItem(item)}
+                                  className="px-3 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition font-semibold"
+                                >
+                                  Edit
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDeactivateCatalogItem(item)}
+                                  disabled={!item.isActive || catalogLoading}
+                                  className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50 font-semibold"
+                                >
+                                  Deactivate
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderCustomerProfiles = () => {
+    return (
+      <div className="space-y-6">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Customer Profiles</h2>
+              <p className="text-zinc-400 mt-1">
+                Search and edit customer profile information and dispatcher notes.
+              </p>
+              <p className="text-zinc-500 text-sm mt-2">
+                Showing {customers.length} customers.
+              </p>
+            </div>
+
+            <button
+              onClick={() => token && void fetchCustomers(token, true)}
+              disabled={customersLoading}
+              className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
+            >
+              {customersLoading ? "Refreshing..." : "Refresh Customers"}
+            </button>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[1fr_auto] mt-6">
+            <input
+              type="text"
+              placeholder="Search customers by name, phone, email, city, or postal code"
+              value={customerProfileSearch}
+              onChange={(e) => setCustomerProfileSearch(e.target.value)}
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+            />
+
+            <button
+              type="button"
+              onClick={() => token && void fetchCustomers(token, true)}
+              disabled={customersLoading}
+              className="px-5 py-3 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50 font-semibold"
+            >
+              Search
+            </button>
+          </div>
+        </div>
+
+        {customersLoading && customers.length === 0 ? (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-zinc-300">
+            Loading customers...
+          </div>
+        ) : customers.length === 0 ? (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-zinc-300">
+            No customers found.
+          </div>
+        ) : (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1200px] text-sm">
+                <thead className="bg-zinc-800 text-zinc-300">
+                  <tr>
+                    <th className="text-left p-3">Customer</th>
+                    <th className="text-left p-3">Phone</th>
+                    <th className="text-left p-3">Email</th>
+                    <th className="text-left p-3">Address</th>
+                    <th className="text-left p-3">Dispatcher Notes</th>
+                    <th className="text-left p-3">Orders</th>
+                    <th className="text-left p-3">Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {customers.map((customer) => {
+                    const isEditing = editingCustomerId === customer.id && customerEditForm;
+
+                    return (
+                      <tr
+                        key={customer.id}
+                        className="border-t border-zinc-800 hover:bg-zinc-800/40 transition"
+                      >
+                        {isEditing ? (
+                          <>
+                            <td className="p-2 align-top">
+                              <input
+                                type="text"
+                                value={customerEditForm.fullName}
+                                onChange={(e) =>
+                                  handleCustomerEditFieldChange("fullName", e.target.value)
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              />
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <input
+                                type="text"
+                                value={customerEditForm.phone}
+                                onChange={(e) =>
+                                  handleCustomerEditFieldChange("phone", e.target.value)
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              />
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <input
+                                type="email"
+                                value={customerEditForm.email}
+                                onChange={(e) =>
+                                  handleCustomerEditFieldChange("email", e.target.value)
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              />
+                            </td>
+
+                            <td className="p-2 align-top min-w-[280px]">
+                              <div className="space-y-2">
+                                <input
+                                  type="text"
+                                  value={customerEditForm.addressLine1}
+                                  onChange={(e) =>
+                                    handleCustomerEditFieldChange("addressLine1", e.target.value)
+                                  }
+                                  className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                                />
+
+                                <div className="grid grid-cols-3 gap-2">
+                                  <input
+                                    type="text"
+                                    value={customerEditForm.city}
+                                    onChange={(e) =>
+                                      handleCustomerEditFieldChange("city", e.target.value)
+                                    }
+                                    className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                                  />
+
+                                  <input
+                                    type="text"
+                                    value={customerEditForm.province}
+                                    onChange={(e) =>
+                                      handleCustomerEditFieldChange("province", e.target.value)
+                                    }
+                                    className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                                  />
+
+                                  <input
+                                    type="text"
+                                    value={customerEditForm.postalCode}
+                                    onChange={(e) =>
+                                      handleCustomerEditFieldChange("postalCode", e.target.value)
+                                    }
+                                    className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                                  />
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="p-2 align-top min-w-[260px]">
+                              <textarea
+                                value={customerEditForm.dispatcherNotes}
+                                onChange={(e) =>
+                                  handleCustomerEditFieldChange("dispatcherNotes", e.target.value)
+                                }
+                                className="w-full min-h-[90px] p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              />
+                            </td>
+
+                            <td className="p-2 align-top text-zinc-300">
+                              {customer._count?.orders || 0}
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <div className="flex flex-col gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void handleSaveCustomer(customer.id)}
+                                  disabled={customersLoading}
+                                  className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50 font-semibold"
+                                >
+                                  Save
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={handleCancelCustomerEdit}
+                                  disabled={customersLoading}
+                                  className="px-3 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition disabled:opacity-50 font-semibold"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="p-2 align-top">
+                              <p className="font-semibold text-zinc-100">{customer.fullName}</p>
+                              <p className="text-zinc-500 text-xs break-all">{customer.id}</p>
+                            </td>
+
+                            <td className="p-2 align-top text-zinc-300">
+                              {customer.phone}
+                            </td>
+
+                            <td className="p-2 align-top text-zinc-300 break-all">
+                              {customer.email || "—"}
+                            </td>
+
+                            <td className="p-2 align-top text-zinc-300">
+                              <p>{customer.addressLine1}</p>
+                              <p className="text-zinc-500 text-xs mt-1">
+                                {[customer.city, customer.province, customer.postalCode]
+                                  .filter(Boolean)
+                                  .join(", ")}
+                              </p>
+                            </td>
+
+                            <td className="p-2 align-top">
+                              {customer.dispatcherNotes ? (
+                                <div className="bg-red-900 border border-red-500 rounded-xl p-3">
+                                  <p className="text-red-300 text-xs mb-1">
+                                    Dispatcher Warning
+                                  </p>
+                                  <p className="text-red-100 font-semibold">
+                                    ⚠ {customer.dispatcherNotes}
+                                  </p>
+                                </div>
+                              ) : (
+                                <span className="text-zinc-500">—</span>
+                              )}
+                            </td>
+
+                            <td className="p-2 align-top text-zinc-300">
+                              {customer._count?.orders || 0}
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditCustomer(customer)}
+                                className="px-3 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition font-semibold"
+                              >
+                                Edit
+                              </button>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderEditOrderForm = (order: Order) => {
     if (!editOrderForm) return null;
@@ -1827,11 +2783,20 @@ const handleSaveEditedOrder = async (orderId: string) => {
        </button>
 
        {/* CURRENT DRIVER DISPLAY */}
-       <div className="text-xs text-zinc-400">
-         Assigned:{" "}
-         <span className="text-zinc-200">
-           {getDriverDisplayName(order.assignedDriver)}
-         </span>
+       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-400">
+         <div>
+           Assigned:{" "}
+           <span className="text-zinc-200">
+             {getDriverDisplayName(order.assignedDriver)}
+           </span>
+         </div>
+
+         <div>
+           Order Time:{" "}
+           <span className="text-amber-300 font-semibold">
+             {formatOrderAge(order.createdAt)}
+           </span>
+         </div>
        </div>
 
      </div>
@@ -1968,18 +2933,19 @@ const handleSaveEditedOrder = async (orderId: string) => {
              <>
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px] text-sm">
+              <table className="w-full min-w-[1180px] text-xs">
                 <thead className="bg-zinc-800 text-zinc-300">
                   <tr>
-                    <th className="text-left p-3">Order #</th>
-                    <th className="text-left p-3">Customer</th>
-                    <th className="text-left p-3">Driver</th>
-                    <th className="text-left p-3">Address</th>
-                    <th className="text-left p-3">Placed</th>
-                    <th className="text-left p-3">Accepted</th>
-                    <th className="text-left p-3">Out For Delivery</th>
-                    <th className="text-left p-3">Delivered</th>
-                    <th className="text-left p-3">Items</th>
+                    <th className="text-left p-2">Order #</th>
+                    <th className="text-left p-2">Customer</th>
+                    <th className="text-left p-2">Driver</th>
+                    <th className="text-left p-2">Address</th>
+                    <th className="text-left p-2">Placed</th>
+                    <th className="text-left p-2">Accepted</th>
+                    <th className="text-left p-2">Out For Delivery</th>
+                    <th className="text-left p-2">Delivered</th>
+                    <th className="text-left p-2">Total Time</th>
+                    <th className="text-left p-2">Items</th>
                   </tr>
                 </thead>
 
@@ -1989,11 +2955,11 @@ const handleSaveEditedOrder = async (orderId: string) => {
                       key={order.id}
                       className="border-t border-zinc-800 hover:bg-zinc-800/40 transition"
                     >
-                      <td className="p-3 align-top font-bold text-red-300">
+                      <td className="p-2 align-top font-bold text-red-300">
                         #{order.orderNumber}
                       </td>
 
-                      <td className="p-3 align-top">
+                      <td className="p-2 align-top">
                         <p className="font-semibold">{order.customerName}</p>
                         {order.phone && (
                           <p className="text-zinc-500 text-xs mt-1">
@@ -2002,7 +2968,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                         )}
                       </td>
 
-                      <td className="p-3 align-top">
+                      <td className="p-2 align-top">
                         <p>{getDriverDisplayName(order.assignedDriver)}</p>
                         {order.assignedDriver?.email && (
                           <p className="text-zinc-500 text-xs break-all mt-1">
@@ -2011,7 +2977,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                         )}
                       </td>
 
-                      <td className="p-3 align-top text-zinc-300">
+                      <td className="p-2 align-top text-zinc-300">
                         <p>{order.addressLine1}</p>
                         <p className="text-zinc-500 text-xs mt-1">
                           {[order.city, order.province, order.postalCode]
@@ -2020,23 +2986,27 @@ const handleSaveEditedOrder = async (orderId: string) => {
                         </p>
                       </td>
 
-                      <td className="p-3 align-top whitespace-nowrap">
+                      <td className="p-2 align-top whitespace-nowrap">
                         {formatDateTime(order.createdAt)}
                       </td>
 
-                      <td className="p-3 align-top whitespace-nowrap">
+                      <td className="p-2 align-top whitespace-nowrap">
                         {formatDateTime(order.acceptedAt)}
                       </td>
 
-                      <td className="p-3 align-top whitespace-nowrap">
+                      <td className="p-2 align-top whitespace-nowrap">
                         {formatDateTime(order.outForDeliveryAt)}
                       </td>
 
-                      <td className="p-3 align-top whitespace-nowrap">
+                      <td className="p-2 align-top whitespace-nowrap">
                         {formatDateTime(order.deliveredAt)}
                       </td>
 
-                      <td className="p-3 align-top">
+                      <td className="p-2 align-top whitespace-nowrap font-semibold text-amber-300">
+                        {formatCompletedDeliveryTime(order.createdAt, order.deliveredAt)}
+                      </td>
+
+                      <td className="p-2 align-top">
                         {order.items && order.items.length > 0 ? (
                           <div className="space-y-1">
                             {order.items.map((item, index) => (
@@ -2414,6 +3384,28 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                onClick={() => setActiveTab("CATALOG")}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${
+                  activeTab === "CATALOG"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-zinc-800 hover:bg-zinc-700"
+                }`}
+              >
+                Catalog
+              </button>
+
+              <button
+                onClick={() => setActiveTab("CUSTOMERS")}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${
+                  activeTab === "CUSTOMERS"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-zinc-800 hover:bg-zinc-700"
+                }`}
+              >
+                Customers
+              </button>
+
+              <button
                 onClick={() => setShowDriverPanel((prev) => !prev)}
                 className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition font-semibold"
               >
@@ -2433,11 +3425,19 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   if (activeTab === "DRIVER_STATS") {
                     void fetchDriverStats(token, true);
                   }
+
+                  if (activeTab === "CATALOG") {
+                    void fetchCatalogItems(token, true);
+                  }
+
+                  if (activeTab === "CUSTOMERS") {
+                    void fetchCustomers(token, true);
+                  }
                 }}
-                disabled={dashboardLoading || historyLoading || driverStatsLoading}
+                disabled={dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading}
                 className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
               >
-                {dashboardLoading || historyLoading || driverStatsLoading
+                {dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading
                   ? "Refreshing..."
                   : "Refresh"}
               </button>
@@ -2680,6 +3680,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
           renderDeliveredHistory()
         ) : activeTab === "DRIVER_STATS" ? (
           renderDriverStats()
+        ) : activeTab === "CATALOG" ? (
+          renderCatalogAdmin()
+        ) : activeTab === "CUSTOMERS" ? (
+          renderCustomerProfiles()
         ) : (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
             <div className="mb-6">
