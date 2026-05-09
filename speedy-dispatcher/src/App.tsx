@@ -197,6 +197,61 @@ const createEmptyManualOrderItem = (): ManualOrderItem => ({
   quantity: "1",
 });
 
+const getApiErrorMessage = (data: any, fallbackMessage: string) => {
+  if (!data) return fallbackMessage;
+
+  if (typeof data.message === "string" && data.message.trim()) {
+    return data.message.trim();
+  }
+
+  if (typeof data.error === "string" && data.error.trim()) {
+    return data.error.trim();
+  }
+
+  if (Array.isArray(data.errors) && data.errors.length > 0) {
+    const firstError = data.errors[0];
+
+    if (typeof firstError === "string" && firstError.trim()) {
+      return firstError.trim();
+    }
+
+    if (typeof firstError?.message === "string" && firstError.message.trim()) {
+      return firstError.message.trim();
+    }
+
+    if (typeof firstError?.msg === "string" && firstError.msg.trim()) {
+      return firstError.msg.trim();
+    }
+  }
+
+  if (Array.isArray(data.details) && data.details.length > 0) {
+    const firstDetail = data.details[0];
+
+    if (typeof firstDetail === "string" && firstDetail.trim()) {
+      return firstDetail.trim();
+    }
+
+    if (typeof firstDetail?.message === "string" && firstDetail.message.trim()) {
+      return firstDetail.message.trim();
+    }
+  }
+
+  return fallbackMessage;
+};
+
+const isValidEmail = (email: string) => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+};
+
+const isValidCanadianPostalCode = (postalCode: string) => {
+  return /^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/.test(postalCode.trim());
+};
+
+const isValidPhone = (phone: string) => {
+  const digitsOnly = phone.replace(/\D/g, "");
+  return digitsOnly.length === 10 || digitsOnly.length === 11;
+};
+
 const initialManualOrderForm: ManualOrderForm = {
   customerName: "",
   customerPhone: "",
@@ -681,7 +736,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       if (response.ok) {
         setCatalogItems(data.items || []);
       } else {
-        alert(data.message || "Failed to load catalog items");
+        alert(getApiErrorMessage(data, "Failed to load catalog items"));
       }
     } catch (error) {
       console.error(error);
@@ -721,7 +776,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       if (response.ok) {
         setCustomers(data.customers || []);
       } else {
-        alert(data.message || "Failed to load customers");
+        alert(getApiErrorMessage(data, "Failed to load customers"));
       }
     } catch (error) {
       console.error(error);
@@ -770,7 +825,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       if (response.ok) {
         setDriverStats(data.stats || []);
       } else {
-        alert(data.message || "Failed to load driver stats");
+        alert(getApiErrorMessage(data, "Failed to load driver stats"));
       }
     } catch (error) {
       console.error(error);
@@ -828,12 +883,12 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       const cancelledData = await cancelledResponse.json();
 
       if (!deliveredResponse.ok) {
-        alert(deliveredData.message || "Failed to load delivered orders");
+        alert(getApiErrorMessage(deliveredData, "Failed to load delivered orders"));
         return;
       }
 
       if (!cancelledResponse.ok) {
-        alert(cancelledData.message || "Failed to load cancelled orders");
+        alert(getApiErrorMessage(cancelledData, "Failed to load cancelled orders"));
         return;
       }
 
@@ -917,7 +972,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
           return nextSelections;
         });
       } else {
-        alert(data.message || "Failed to load orders");
+        alert(getApiErrorMessage(data, "Failed to load orders"));
       }
     } catch (error) {
       console.error(error);
@@ -952,7 +1007,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         await fetchOrders(data.token, true);
         await fetchDrivers(data.token);
       } else {
-        alert(data.message || "Login failed");
+        alert(getApiErrorMessage(data, "Login failed"));
       }
     } catch (error) {
       console.error(error);
@@ -1035,7 +1090,7 @@ const updateOrderStatus = async (
         await fetchDeliveredOrders(token, false);
       }
     } else {
-      alert(data.message || "Failed to update order");
+      alert(getApiErrorMessage(data, "Failed to update order"));
     }
   } catch (error) {
     console.error(error);
@@ -1107,7 +1162,7 @@ const updateOrderPriority = async (
     if (response.ok) {
       await fetchOrders(token, false);
     } else {
-      alert(data.message || "Failed to update priority");
+      alert(getApiErrorMessage(data, "Failed to update priority"));
     }
   } catch (error) {
     console.error(error);
@@ -1373,7 +1428,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
       await fetchDrivers(token);
       alert("Order updated. The driver app will receive the new order information on its next refresh.");
     } else {
-      alert(data.message || "Failed to update order");
+      alert(getApiErrorMessage(data, "Failed to update order"));
     }
   } catch (error) {
     console.error(error);
@@ -1409,7 +1464,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
         await fetchOrders(token, false);
         await fetchDrivers(token);
       } else {
-        alert(data.message || "Failed to assign driver");
+        alert(getApiErrorMessage(data, "Failed to assign driver"));
       }
     } catch (error) {
       console.error(error);
@@ -1442,7 +1497,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
         await fetchDrivers(token);
         alert("Driver logged out");
       } else {
-        alert(data.message || "Failed to logout driver");
+        alert(getApiErrorMessage(data, "Failed to logout driver"));
       }
     } catch (error) {
       console.error(error);
@@ -1734,40 +1789,106 @@ const handleSaveEditedOrder = async (orderId: string) => {
   };
 
   const handleManualOrderSubmit = async () => {
-    if (!manualOrderForm.customerName.trim()) {
-      alert("Customer name is required");
+    const customerName = manualOrderForm.customerName.trim();
+    const customerPhone = manualOrderForm.customerPhone.trim();
+    const customerEmail = manualOrderForm.customerEmail.trim();
+    const addressLine1 = manualOrderForm.addressLine1.trim();
+    const city = manualOrderForm.city.trim();
+    const province = manualOrderForm.province.trim();
+    const postalCode = manualOrderForm.postalCode.trim();
+    const additionalNotes = manualOrderForm.additionalNotes.trim();
+    const dispatcherNotes = manualOrderForm.dispatcherNotes.trim();
+
+    if (!customerName) {
+      alert("Customer name is required.");
       return;
     }
 
-    if (!manualOrderForm.customerPhone.trim()) {
-      alert("Customer phone is required");
+    if (!customerPhone) {
+      alert("Customer phone number is required.");
       return;
     }
 
-    if (!manualOrderForm.customerEmail.trim()) {
-      alert("Customer email is required");
+    if (!isValidPhone(customerPhone)) {
+      alert("Customer phone number must be 10 digits, or 11 digits if it starts with 1.");
       return;
     }
 
-    if (!manualOrderForm.addressLine1.trim()) {
-      alert("Address is required");
+    if (!customerEmail) {
+      alert("Customer email is required.");
       return;
     }
 
-    if (!manualOrderForm.postalCode.trim()) {
-      alert("Postal code is required");
+    if (!isValidEmail(customerEmail)) {
+      alert("Please enter a valid customer email address.");
       return;
     }
 
-    const cleanedItems = manualOrderForm.items
+    if (!addressLine1) {
+      alert("Customer address is required.");
+      return;
+    }
+
+    if (!city) {
+      alert("City is required.");
+      return;
+    }
+
+    if (!province) {
+      alert("Province is required.");
+      return;
+    }
+
+    if (!postalCode) {
+      alert("Postal code is required.");
+      return;
+    }
+
+    if (!isValidCanadianPostalCode(postalCode)) {
+      alert("Please enter a valid Canadian postal code, like N1H 1A1.");
+      return;
+    }
+
+    const cleanedItems = manualOrderForm.items.map((item, index) => ({
+      name: item.itemName.trim(),
+      quantity: Number(item.quantity),
+      itemNumber: index + 1,
+    }));
+
+    const hasAnyItemName = cleanedItems.some((item) => item.name);
+
+    if (!hasAnyItemName) {
+      alert("At least one item name is required.");
+      return;
+    }
+
+    const missingItemName = cleanedItems.find(
+      (item) => !item.name && item.quantity > 0
+    );
+
+    if (missingItemName) {
+      alert(`Item ${missingItemName.itemNumber} is missing an item name.`);
+      return;
+    }
+
+    const invalidQuantityItem = cleanedItems.find(
+      (item) => item.name && (!Number.isFinite(item.quantity) || item.quantity <= 0)
+    );
+
+    if (invalidQuantityItem) {
+      alert(`Item ${invalidQuantityItem.itemNumber} needs a quantity of 1 or more.`);
+      return;
+    }
+
+    const validItems = cleanedItems
+      .filter((item) => item.name && item.quantity > 0)
       .map((item) => ({
-        name: item.itemName.trim(),
-        quantity: Number(item.quantity) || 0,
-      }))
-      .filter((item) => item.name && item.quantity > 0);
+        name: item.name,
+        quantity: item.quantity,
+      }));
 
-    if (cleanedItems.length === 0) {
-      alert("At least one valid item is required");
+    if (validItems.length === 0) {
+      alert("At least one valid item is required.");
       return;
     }
 
@@ -1780,14 +1901,14 @@ const handleSaveEditedOrder = async (orderId: string) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          customerName: manualOrderForm.customerName.trim(),
-          customerPhone: manualOrderForm.customerPhone.trim(),
-          customerEmail: manualOrderForm.customerEmail.trim(),
-          addressLine1: manualOrderForm.addressLine1.trim(),
-          city: manualOrderForm.city.trim(),
-          province: manualOrderForm.province.trim(),
-          postalCode: manualOrderForm.postalCode.trim(),
-          items: cleanedItems.map((item) => ({
+          customerName,
+          customerPhone,
+          customerEmail,
+          addressLine1,
+          city,
+          province,
+          postalCode,
+          items: validItems.map((item) => ({
             name: item.name,
             quantity: item.quantity,
             unitPrice: 0,
@@ -1800,8 +1921,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
           discount: 0,
           total: 0,
           paymentMethod: manualOrderForm.paymentMethod,
-          additionalNotes: manualOrderForm.additionalNotes.trim(),
-          dispatcherNotes: manualOrderForm.dispatcherNotes.trim(),
+          additionalNotes,
+          dispatcherNotes,
         }),
       });
 
@@ -1819,11 +1940,11 @@ const handleSaveEditedOrder = async (orderId: string) => {
           await fetchDrivers(token);
         }
       } else {
-        alert(data.message || "Failed to create manual order");
+        alert(getApiErrorMessage(data, "Failed to create manual order. Please check the order information and try again."));
       }
     } catch (error) {
       console.error(error);
-      alert("Server error while creating manual order");
+      alert("Server error while creating manual order. Please try again.");
     } finally {
       setManualOrderLoading(false);
     }
@@ -1909,7 +2030,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
         setCatalogEditForm(null);
         await fetchCatalogItems(token, false);
       } else {
-        alert(data.message || "Failed to update catalog item");
+        alert(getApiErrorMessage(data, "Failed to update catalog item"));
       }
     } catch (error) {
       console.error(error);
@@ -1946,7 +2067,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
       if (response.ok) {
         await fetchCatalogItems(token, false);
       } else {
-        alert(data.message || "Failed to deactivate catalog item");
+        alert(getApiErrorMessage(data, "Failed to deactivate catalog item"));
       }
     } catch (error) {
       console.error(error);
@@ -2038,7 +2159,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
         setCustomerEditForm(null);
         await fetchCustomers(token, false);
       } else {
-        alert(data.message || "Failed to update customer");
+        alert(getApiErrorMessage(data, "Failed to update customer"));
       }
     } catch (error) {
       console.error(error);
