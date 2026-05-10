@@ -572,7 +572,12 @@ export const updateOrderStatusController = async (
       orderStatus: true,
       fcmToken: true,
       orderNumber: true,
-      customerId: true
+      customerId: true,
+      assignedAt: true,
+      dispatchedAt: true,
+      acceptedAt: true,
+      outForDeliveryAt: true,
+      deliveredAt: true
     }
   });
 
@@ -606,10 +611,39 @@ export const updateOrderStatusController = async (
     return;
   }
 
+  const now = new Date();
+
   const cleanedCancellationReason =
     typeof cancellationReason === "string" && cancellationReason.trim()
       ? cancellationReason.trim()
       : null;
+
+  const statusTimestampData: Prisma.OrderUpdateInput = {};
+
+  if (orderStatus === OrderStatus.DISPATCHED) {
+    statusTimestampData.dispatchedAt = existingOrder.dispatchedAt ?? now;
+  }
+
+  if (orderStatus === OrderStatus.ACCEPTED) {
+    statusTimestampData.dispatchedAt =
+      existingOrder.dispatchedAt ?? existingOrder.assignedAt ?? now;
+    statusTimestampData.acceptedAt = existingOrder.acceptedAt ?? now;
+  }
+
+  if (orderStatus === OrderStatus.OUT_FOR_DELIVERY) {
+    statusTimestampData.dispatchedAt =
+      existingOrder.dispatchedAt ?? existingOrder.assignedAt ?? now;
+    statusTimestampData.acceptedAt = existingOrder.acceptedAt ?? now;
+    statusTimestampData.outForDeliveryAt = existingOrder.outForDeliveryAt ?? now;
+  }
+
+  if (orderStatus === OrderStatus.DELIVERED) {
+    statusTimestampData.dispatchedAt =
+      existingOrder.dispatchedAt ?? existingOrder.assignedAt ?? now;
+    statusTimestampData.acceptedAt = existingOrder.acceptedAt ?? now;
+    statusTimestampData.outForDeliveryAt = existingOrder.outForDeliveryAt ?? now;
+    statusTimestampData.deliveredAt = existingOrder.deliveredAt ?? now;
+  }
 
   const updatedOrder = await prisma.order.update({
     where: { id },
@@ -617,12 +651,13 @@ export const updateOrderStatusController = async (
       orderStatus === OrderStatus.CANCELLED
         ? {
             orderStatus: OrderStatus.CANCELLED,
-            cancelledAt: new Date(),
+            cancelledAt: now,
             cancelledFromStatus: existingOrder.orderStatus,
             cancellationReason: cleanedCancellationReason
           }
         : {
-            orderStatus
+            orderStatus,
+            ...statusTimestampData
           },
     include: orderInclude
   });

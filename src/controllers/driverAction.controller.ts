@@ -123,15 +123,15 @@ const applyCustomerLoyaltyForDeliveredOrder = async (
   });
 
   const deliveriesRemaining = 10 - nextCompletedOrders;
+  const deliveryWord = deliveriesRemaining === 1 ? "delivery" : "deliveries";
 
-const deliveryWord = deliveriesRemaining === 1 ? "delivery" : "deliveries";
+  await sendPushNotification(
+    fcmToken,
+    "Speedy Sweeties Rewards",
+    `You only have ${deliveriesRemaining} ${deliveryWord} left for your next free delivery.`,
+    "LOYALTY_PROGRESS_UPDATE"
+  );
 
-await sendPushNotification(
-  fcmToken,
-  "Speedy Sweeties Rewards",
-  `You only have ${deliveriesRemaining} ${deliveryWord} left for your next free delivery.`,
-  "LOYALTY_PROGRESS_UPDATE"
-);
   console.log(`Customer loyalty updated: ${nextCompletedOrders}/10 completed deliveries.`);
 };
 
@@ -161,16 +161,26 @@ export const driverActionController = async (
   }
 
   if (action === "ACCEPTED") {
-    if (order.orderStatus !== OrderStatus.PLACED) {
-      res.status(400).json({ success: false, message: "Order must be PLACED first" });
+    const canAccept =
+      order.orderStatus === OrderStatus.PLACED ||
+      order.orderStatus === OrderStatus.DISPATCHED;
+
+    if (!canAccept) {
+      res.status(400).json({
+        success: false,
+        message: "Order must be PLACED or DISPATCHED first"
+      });
       return;
     }
+
+    const now = new Date();
 
     const updated = await prisma.order.update({
       where: { id },
       data: {
         orderStatus: OrderStatus.ACCEPTED,
-        acceptedAt: order.acceptedAt ?? new Date()
+        acceptedAt: order.acceptedAt ?? now,
+        dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now
       },
       include: orderInclude
     });

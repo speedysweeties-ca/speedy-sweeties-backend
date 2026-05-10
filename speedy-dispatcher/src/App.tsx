@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 type OrderStatus =
   | "PLACED"
+  | "DISPATCHED"
   | "ACCEPTED"
   | "OUT_FOR_DELIVERY"
   | "DELIVERED"
@@ -66,6 +67,7 @@ type Order = {
   items?: OrderItem[];
   assignedDriver?: AssignedDriver | null;
   createdAt?: string;
+  dispatchedAt?: string;
   acceptedAt?: string;
   outForDeliveryAt?: string;
   deliveredAt?: string;
@@ -2173,6 +2175,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
     switch (status) {
       case "PLACED":
         return "bg-blue-500/20 text-blue-200 border border-blue-400/40 shadow-[0_0_0_1px_rgba(96,165,250,0.15)]";
+      case "DISPATCHED":
+        return "bg-indigo-500/20 text-indigo-200 border border-indigo-400/40 shadow-[0_0_0_1px_rgba(129,140,248,0.15)]";
       case "ACCEPTED":
         return "bg-yellow-500/20 text-yellow-200 border border-yellow-400/40 shadow-[0_0_0_1px_rgba(250,204,21,0.15)]";
       case "OUT_FOR_DELIVERY":
@@ -2188,6 +2192,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
   const getStatusLabel = (status: OrderStatus) => {
     switch (status) {
+      case "DISPATCHED":
+        return "DISPATCHED";
       case "OUT_FOR_DELIVERY":
         return "OUT FOR DELIVERY";
       default:
@@ -3136,7 +3142,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
              <>
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1180px] text-xs">
+              <table className="w-full min-w-[1300px] text-xs">
                 <thead className="bg-zinc-800 text-zinc-300">
                   <tr>
                     <th className="text-left p-2">Order #</th>
@@ -3145,6 +3151,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     <th className="text-left p-2">Driver</th>
                     <th className="text-left p-2">Address</th>
                     <th className="text-left p-2">Placed</th>
+                    <th className="text-left p-2">Dispatched</th>
                     <th className="text-left p-2">Accepted</th>
                     <th className="text-left p-2">Out For Delivery</th>
                     <th className="text-left p-2">Completed / Cancelled</th>
@@ -3198,6 +3205,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
                       <td className="p-2 align-top whitespace-nowrap">
                         {formatDateTime(order.createdAt)}
+                      </td>
+
+                      <td className="p-2 align-top whitespace-nowrap">
+                        {formatDateTime(order.dispatchedAt)}
                       </td>
 
                       <td className="p-2 align-top whitespace-nowrap">

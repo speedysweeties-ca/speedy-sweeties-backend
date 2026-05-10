@@ -49,11 +49,10 @@ export const listAllOrdersController = async (
       ? req.query.endDate.trim()
       : undefined;
 
-  // ✅ NEW — pagination
   const page =
     typeof req.query.page === "string" ? parseInt(req.query.page, 10) : 1;
 
-  const limit = 100; // your choice
+  const limit = 100;
   const skip = (page - 1) * limit;
 
   const whereClause: Prisma.OrderWhereInput = {};
@@ -66,10 +65,13 @@ export const listAllOrdersController = async (
     whereClause.orderStatus = OrderStatus.CANCELLED;
   } else if (status === "DELIVERED") {
     whereClause.orderStatus = OrderStatus.DELIVERED;
+  } else if (status === "DISPATCHED") {
+    whereClause.orderStatus = OrderStatus.DISPATCHED;
   } else {
     whereClause.orderStatus = {
       in: [
         OrderStatus.PLACED,
+        OrderStatus.DISPATCHED,
         OrderStatus.ACCEPTED,
         OrderStatus.OUT_FOR_DELIVERY
       ]
@@ -92,17 +94,17 @@ export const listAllOrdersController = async (
     prisma.order.findMany({
       where: whereClause,
       orderBy: {
-        createdAt: "desc" // 🔥 newest first (important for pagination)
+        createdAt: "desc"
       },
       skip,
       take: limit,
       include: {
         items: true,
-	  customer: {
-    select: {
-      dispatcherNotes: true
-    }
-  },
+        customer: {
+          select: {
+            dispatcherNotes: true
+          }
+        },
         assignedDriver: {
           select: {
             id: true,
@@ -124,7 +126,7 @@ export const listAllOrdersController = async (
       ? orders
       : sortOrdersByPriorityThenOldest(orders);
 
-   const ordersWithNotes = sortedOrders.map((order) => ({
+  const ordersWithNotes = sortedOrders.map((order) => ({
     ...order,
     dispatcherNotes: order.customer?.dispatcherNotes || null
   }));

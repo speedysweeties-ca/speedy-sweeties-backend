@@ -68,7 +68,8 @@ export const listOrdersSchema = z.object({
 export const updateOrderStatusSchema = z.object({
   params: orderIdParamsSchema,
   body: z.object({
-    orderStatus: z.nativeEnum(OrderStatus)
+    orderStatus: z.nativeEnum(OrderStatus),
+    cancellationReason: z.string().trim().max(500).optional()
   })
 });
 

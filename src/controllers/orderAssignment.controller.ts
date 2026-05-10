@@ -110,6 +110,12 @@ export const assignDriverToOrderController = async (
       data: {
         assignedDriverId: null,
         assignedAt: null,
+        ...(existingOrder.orderStatus === OrderStatus.DISPATCHED
+          ? {
+              orderStatus: OrderStatus.PLACED,
+              dispatchedAt: null
+            }
+          : {}),
         ...(priority ? { priority } : {})
       },
       include: {
@@ -160,13 +166,24 @@ export const assignDriverToOrderController = async (
     return;
   }
 
+  const now = new Date();
   const wasAssignedToDifferentDriver = existingOrder.assignedDriverId !== driver.id;
+
+  const shouldMarkDispatched =
+    existingOrder.orderStatus === OrderStatus.PLACED ||
+    existingOrder.orderStatus === OrderStatus.DISPATCHED;
 
   const updatedOrder = await prisma.order.update({
     where: { id },
     data: {
       assignedDriverId: driver.id,
-      assignedAt: new Date(),
+      assignedAt: now,
+      ...(shouldMarkDispatched
+        ? {
+            orderStatus: OrderStatus.DISPATCHED,
+            dispatchedAt: existingOrder.dispatchedAt ?? now
+          }
+        : {}),
       ...(priority ? { priority } : {})
     },
     include: {

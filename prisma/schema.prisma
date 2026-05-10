@@ -10,6 +10,7 @@ datasource db {
 
 enum OrderStatus {
   PLACED
+  DISPATCHED
   ACCEPTED
   OUT_FOR_DELIVERY
   DELIVERED
@@ -145,6 +146,7 @@ model Order {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
+  dispatchedAt        DateTime?
   acceptedAt          DateTime?
   outForDeliveryAt    DateTime?
   deliveredAt         DateTime?
@@ -167,6 +169,7 @@ model Order {
   @@index([orderStatus])
   @@index([priority])
   @@index([createdAt])
+  @@index([dispatchedAt])
   @@index([cancelledAt])
   @@index([cancelledFromStatus])
 }
