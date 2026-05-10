@@ -160,27 +160,42 @@ export const driverActionController = async (
     return;
   }
 
+  if (order.orderStatus === OrderStatus.CANCELLED) {
+    res.status(400).json({ success: false, message: "Cancelled orders cannot be updated" });
+    return;
+  }
+
+  if (order.orderStatus === OrderStatus.DELIVERED) {
+    res.status(200).json({
+      success: true,
+      message: "Order already delivered",
+      order
+    });
+    return;
+  }
+
+  const now = new Date();
+
   if (action === "ACCEPTED") {
     const canAccept =
       order.orderStatus === OrderStatus.PLACED ||
-      order.orderStatus === OrderStatus.DISPATCHED;
+      order.orderStatus === OrderStatus.DISPATCHED ||
+      order.orderStatus === OrderStatus.ACCEPTED;
 
     if (!canAccept) {
       res.status(400).json({
         success: false,
-        message: "Order must be PLACED or DISPATCHED first"
+        message: "Order cannot be accepted from its current status"
       });
       return;
     }
-
-    const now = new Date();
 
     const updated = await prisma.order.update({
       where: { id },
       data: {
         orderStatus: OrderStatus.ACCEPTED,
-        acceptedAt: order.acceptedAt ?? now,
-        dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now
+        dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now,
+        acceptedAt: order.acceptedAt ?? now
       },
       include: orderInclude
     });
@@ -190,8 +205,17 @@ export const driverActionController = async (
   }
 
   if (action === "OUT_FOR_DELIVERY") {
-    if (order.orderStatus !== OrderStatus.ACCEPTED) {
-      res.status(400).json({ success: false, message: "Order must be ACCEPTED first" });
+    const canMarkOutForDelivery =
+      order.orderStatus === OrderStatus.PLACED ||
+      order.orderStatus === OrderStatus.DISPATCHED ||
+      order.orderStatus === OrderStatus.ACCEPTED ||
+      order.orderStatus === OrderStatus.OUT_FOR_DELIVERY;
+
+    if (!canMarkOutForDelivery) {
+      res.status(400).json({
+        success: false,
+        message: "Order cannot be marked out for delivery from its current status"
+      });
       return;
     }
 
@@ -199,17 +223,21 @@ export const driverActionController = async (
       where: { id },
       data: {
         orderStatus: OrderStatus.OUT_FOR_DELIVERY,
-        outForDeliveryAt: order.outForDeliveryAt ?? new Date()
+        dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now,
+        acceptedAt: order.acceptedAt ?? now,
+        outForDeliveryAt: order.outForDeliveryAt ?? now
       },
       include: orderInclude
     });
 
-    await sendPushNotification(
-      order.fcmToken,
-      "Speedy Sweeties 🚗",
-      "Your order is now out for delivery!",
-      "ORDER_OUT_FOR_DELIVERY"
-    );
+    if (order.orderStatus !== OrderStatus.OUT_FOR_DELIVERY) {
+      await sendPushNotification(
+        order.fcmToken,
+        "Speedy Sweeties 🚗",
+        "Your order is now out for delivery!",
+        "ORDER_OUT_FOR_DELIVERY"
+      );
+    }
 
     res.status(200).json({
       success: true,
@@ -220,8 +248,17 @@ export const driverActionController = async (
   }
 
   if (action === "DELIVERED") {
-    if (order.orderStatus !== OrderStatus.OUT_FOR_DELIVERY) {
-      res.status(400).json({ success: false, message: "Order must be OUT_FOR_DELIVERY first" });
+    const canMarkDelivered =
+      order.orderStatus === OrderStatus.PLACED ||
+      order.orderStatus === OrderStatus.DISPATCHED ||
+      order.orderStatus === OrderStatus.ACCEPTED ||
+      order.orderStatus === OrderStatus.OUT_FOR_DELIVERY;
+
+    if (!canMarkDelivered) {
+      res.status(400).json({
+        success: false,
+        message: "Order cannot be marked delivered from its current status"
+      });
       return;
     }
 
@@ -229,7 +266,10 @@ export const driverActionController = async (
       where: { id },
       data: {
         orderStatus: OrderStatus.DELIVERED,
-        deliveredAt: order.deliveredAt ?? new Date()
+        dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now,
+        acceptedAt: order.acceptedAt ?? now,
+        outForDeliveryAt: order.outForDeliveryAt ?? now,
+        deliveredAt: order.deliveredAt ?? now
       },
       include: orderInclude
     });
