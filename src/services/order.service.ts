@@ -21,7 +21,8 @@ export function validateStatusTransition(
   nextStatus: OrderStatus
 ): void {
   const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
-    PLACED: ["ACCEPTED", "CANCELLED"],
+    PLACED: ["DISPATCHED", "ACCEPTED", "CANCELLED"],
+    DISPATCHED: ["ACCEPTED", "CANCELLED"],
     ACCEPTED: ["OUT_FOR_DELIVERY", "CANCELLED"],
     OUT_FOR_DELIVERY: ["DELIVERED", "CANCELLED"],
     DELIVERED: [],
