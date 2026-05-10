@@ -612,6 +612,31 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     });
   };
 
+  const renderStackedDateTime = (value?: string | null) => {
+    if (!value) return <span>—</span>;
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return <span>—</span>;
+
+    const dateText = date.toLocaleDateString([], {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+    });
+
+    const timeText = date.toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    return (
+      <div className="leading-tight text-[11px]">
+        <div className="whitespace-nowrap">{dateText}</div>
+        <div className="text-zinc-400 whitespace-nowrap">{timeText}</div>
+      </div>
+    );
+  };
+
   const formatMinutes = (value?: number | null) => {
     if (value === null || value === undefined) return "—";
 
@@ -2174,7 +2199,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
   const getStatusClasses = (status: OrderStatus) => {
     switch (status) {
       case "PLACED":
-        return "bg-blue-500/20 text-blue-200 border border-blue-400/40 shadow-[0_0_0_1px_rgba(96,165,250,0.15)]";
+        return "bg-red-500/20 text-red-200 border border-red-400/40 shadow-[0_0_0_1px_rgba(248,113,113,0.15)]";
       case "DISPATCHED":
         return "bg-indigo-500/20 text-indigo-200 border border-indigo-400/40 shadow-[0_0_0_1px_rgba(129,140,248,0.15)]";
       case "ACCEPTED":
@@ -2192,6 +2217,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
   const getStatusLabel = (status: OrderStatus) => {
     switch (status) {
+      case "PLACED":
+        return "NEW ORDER";
       case "DISPATCHED":
         return "DISPATCHED";
       case "OUT_FOR_DELIVERY":
@@ -3142,7 +3169,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
              <>
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1300px] text-xs">
+              <table className="w-full min-w-[1180px] text-xs">
                 <thead className="bg-zinc-800 text-zinc-300">
                   <tr>
                     <th className="text-left p-2">Order #</th>
@@ -3203,28 +3230,29 @@ const handleSaveEditedOrder = async (orderId: string) => {
                         </p>
                       </td>
 
-                      <td className="p-2 align-top whitespace-nowrap">
-                        {formatDateTime(order.createdAt)}
+                      <td className="p-2 align-top">
+                        {renderStackedDateTime(order.createdAt)}
                       </td>
 
-                      <td className="p-2 align-top whitespace-nowrap">
-                        {formatDateTime(order.dispatchedAt)}
+                      <td className="p-2 align-top">
+                        {renderStackedDateTime(order.dispatchedAt)}
                       </td>
 
-                      <td className="p-2 align-top whitespace-nowrap">
-                        {formatDateTime(order.acceptedAt)}
+                      <td className="p-2 align-top">
+                        {renderStackedDateTime(order.acceptedAt)}
                       </td>
 
-                      <td className="p-2 align-top whitespace-nowrap">
-                        {formatDateTime(order.outForDeliveryAt)}
+                      <td className="p-2 align-top">
+                        {renderStackedDateTime(order.outForDeliveryAt)}
                       </td>
 
-                      <td className="p-2 align-top whitespace-nowrap">
+                      <td className="p-2 align-top">
                         {order.orderStatus === "CANCELLED" ? (
                           <div>
                             <p className="font-semibold text-red-300">
-                              Cancelled: {formatDateTime(order.cancelledAt)}
+                              Cancelled:
                             </p>
+                            {renderStackedDateTime(order.cancelledAt)}
 
                             {order.cancelledFromStatus && (
                               <p className="text-zinc-500 text-xs mt-1">
@@ -3239,7 +3267,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                             )}
                           </div>
                         ) : (
-                          formatDateTime(order.deliveredAt)
+                          renderStackedDateTime(order.deliveredAt)
                         )}
                       </td>
 
