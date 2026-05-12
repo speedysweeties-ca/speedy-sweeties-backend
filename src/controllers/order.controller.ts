@@ -78,6 +78,34 @@ const getItemPrice = (item: UpdateOrderItemInput): number => {
   return item.unitPrice ?? item.price ?? 0;
 };
 
+const expandCreateOrderItems = (
+  items: CreateOrderItemInput[]
+): CreateOrderItemInput[] => {
+  const expandedItems: CreateOrderItemInput[] = [];
+
+  for (const item of items) {
+    if (!item.name || typeof item.name !== "string") continue;
+
+    const splitNames = item.name
+      .split(",")
+      .map((name) => name.trim())
+      .filter(Boolean);
+
+    if (splitNames.length === 0) continue;
+
+    for (const name of splitNames) {
+      expandedItems.push({
+        name,
+        quantity: item.quantity || 1,
+        unitPrice: item.unitPrice ?? 0,
+        totalPrice: item.totalPrice ?? 0
+      });
+    }
+  }
+
+  return expandedItems;
+};
+
 const sendCustomerOutForDeliveryNotification = async (
   fcmToken: string | null,
   orderNumber?: number | null
@@ -267,7 +295,8 @@ export const createOrderController = async (
   const normalizedPhone = normalizePhone(customerPhone);
   const normalizedName = normalize(customerName);
 
-  const rawItems: CreateOrderItemInput[] = Array.isArray(items) ? items : [];
+  const incomingItems: CreateOrderItemInput[] = Array.isArray(items) ? items : [];
+  const rawItems: CreateOrderItemInput[] = expandCreateOrderItems(incomingItems);
 
   let customer = await prisma.customer.findFirst({
     where: {
@@ -335,7 +364,8 @@ export const createOrderController = async (
     for (const item of rawItems) {
       if (!item.name) continue;
 
-      const normalizedItemName = normalize(item.name);
+      const cleanedItemName = item.name.trim();
+      const normalizedItemName = normalize(cleanedItemName);
 
       let catalogItem = await tx.itemCatalog.findFirst({
         where: { normalizedName: normalizedItemName }
@@ -344,7 +374,7 @@ export const createOrderController = async (
       if (!catalogItem) {
         catalogItem = await tx.itemCatalog.create({
           data: {
-            name: item.name,
+            name: cleanedItemName,
             normalizedName: normalizedItemName
           }
         });
@@ -354,7 +384,7 @@ export const createOrderController = async (
         data: {
           orderId: createdOrder.id,
           itemCatalogId: catalogItem.id,
-          name: item.name,
+          name: cleanedItemName,
           quantity: item.quantity || 1,
           price: item.unitPrice ?? 0
         }
