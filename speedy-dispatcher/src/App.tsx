@@ -2879,9 +2879,17 @@ const handleSaveEditedOrder = async (orderId: string) => {
               <input
                 type="number"
                 min="1"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="Qty"
                 value={item.quantity}
-                onChange={(e) => handleEditOrderItemChange(index, "quantity", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                onKeyDown={(e) => {
+                  if (["e", "E", "+", "-", "."].includes(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
+                onChange={(e) => handleEditOrderItemChange(index, "quantity", e.target.value.replace(/\D/g, ""))}
                 className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
               />
 
@@ -4180,11 +4188,19 @@ const handleSaveEditedOrder = async (orderId: string) => {
                       <input
                         type="number"
                         min="1"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         placeholder="Quantity"
                         className="w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
                         value={item.quantity}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        onKeyDown={(e) => {
+                          if (["e", "E", "+", "-", "."].includes(e.key)) {
+                            e.preventDefault();
+                          }
+                        }}
                         onChange={(e) =>
-                          handleManualOrderItemChange(index, "quantity", e.target.value)
+                          handleManualOrderItemChange(index, "quantity", e.target.value.replace(/\D/g, ""))
                         }
                       />
                     </div>
