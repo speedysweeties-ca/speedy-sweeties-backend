@@ -106,6 +106,10 @@ const expandCreateOrderItems = (
   return expandedItems;
 };
 
+const hasAppFcmToken = (fcmToken: string | null | undefined): boolean => {
+  return typeof fcmToken === "string" && fcmToken.trim().length > 0;
+};
+
 const sendCustomerOutForDeliveryNotification = async (
   fcmToken: string | null,
   orderNumber?: number | null
@@ -218,6 +222,11 @@ const applyCustomerLoyaltyForDeliveredOrder = async (
     return;
   }
 
+  if (!hasAppFcmToken(fcmToken)) {
+    console.log("Order has no app FCM token. Loyalty not updated.");
+    return;
+  }
+
   const customer = await prisma.customer.findUnique({
     where: { id: customerId },
     select: {
@@ -286,6 +295,9 @@ export const createOrderController = async (
     fcmToken
   } = req.body;
 
+  const appFcmToken = hasAppFcmToken(fcmToken) ? String(fcmToken).trim() : null;
+  const isCustomerAppOrder = hasAppFcmToken(appFcmToken);
+
   const baseNotes = [additionalNotes, deliveryInstructions, notes]
     .filter(Boolean)
     .map((v) => String(v).trim())
@@ -323,7 +335,8 @@ export const createOrderController = async (
     });
   }
 
-  const shouldApplyFreeDeliveryReward = customer.loyaltyFreeDelivery === true;
+  const shouldApplyFreeDeliveryReward =
+    isCustomerAppOrder && customer.loyaltyFreeDelivery === true;
 
   const finalNotes = shouldApplyFreeDeliveryReward
     ? [...baseNotes, LOYALTY_FREE_DELIVERY_NOTE].join(" | ")
@@ -357,7 +370,7 @@ export const createOrderController = async (
         paymentMethod,
         orderStatus: OrderStatus.PLACED,
         priority: OrderPriority.NORMAL,
-        fcmToken: typeof fcmToken === "string" ? fcmToken : null
+        fcmToken: appFcmToken
       }
     });
 
@@ -398,9 +411,7 @@ export const createOrderController = async (
   });
 
   if (shouldApplyFreeDeliveryReward) {
-    await sendCustomerRewardAppliedNotification(
-      typeof fcmToken === "string" ? fcmToken : null
-    );
+    await sendCustomerRewardAppliedNotification(appFcmToken);
   }
 
   res.status(201).json({
@@ -705,7 +716,8 @@ export const updateOrderStatusController = async (
 
   const shouldApplyLoyalty =
     orderStatus === OrderStatus.DELIVERED &&
-    existingOrder.orderStatus !== OrderStatus.DELIVERED;
+    existingOrder.orderStatus !== OrderStatus.DELIVERED &&
+    hasAppFcmToken(existingOrder.fcmToken);
 
   if (shouldApplyLoyalty) {
     await applyCustomerLoyaltyForDeliveredOrder(
