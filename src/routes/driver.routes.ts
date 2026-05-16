@@ -4,7 +4,11 @@ import { requireAuth } from "../middleware/auth.middleware";
 import { requireRole } from "../middleware/role.middleware";
 import { UserRole } from "@prisma/client";
 import { getDriverOrdersController } from "../controllers/driverOrders.controller";
-import { heartbeatDriverController } from "../controllers/driverPresence.controller";
+import {
+  heartbeatDriverController,
+  setDriverOfflineController,
+  setDriverOnlineController
+} from "../controllers/driverPresence.controller";
 
 const router = Router();
 
@@ -18,6 +22,28 @@ router.get(
   requireAuth,
   requireRole([UserRole.DRIVER]),
   asyncHandler(getDriverOrdersController)
+);
+
+/**
+ * DRIVER ONLINE
+ * - Marks driver as online
+ */
+router.post(
+  "/online",
+  requireAuth,
+  requireRole([UserRole.DRIVER]),
+  asyncHandler(setDriverOnlineController)
+);
+
+/**
+ * DRIVER OFFLINE / LOGOUT
+ * - Marks driver as offline when they log out from the app
+ */
+router.post(
+  "/offline",
+  requireAuth,
+  requireRole([UserRole.DRIVER]),
+  asyncHandler(setDriverOfflineController)
 );
 
 /**
