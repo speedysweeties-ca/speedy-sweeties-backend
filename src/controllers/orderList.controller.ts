@@ -100,6 +100,7 @@ export const listAllOrdersController = async (
       take: limit,
       include: {
         items: true,
+        digitalReceipt: true,
         customer: {
           select: {
             dispatcherNotes: true
