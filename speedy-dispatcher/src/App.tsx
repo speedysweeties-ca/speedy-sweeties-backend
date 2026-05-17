@@ -726,7 +726,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   const getReceiptNoteAmount = (notes: string | null | undefined, label: string) => {
     if (!notes) return 0;
 
-    const escapedLabel = label.replace(/[.*+?^${}()|[\]\]/g, "\\$&");
+    const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
     const match = notes.match(new RegExp(`${escapedLabel}: \\$?([0-9]+(?:\\.[0-9]{1,2})?)`, "i"));
     const amount = Number(match?.[1] || 0);
 
