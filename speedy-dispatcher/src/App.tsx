@@ -743,7 +743,9 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       `Receipt #: ${receipt.receiptNumber || "—"}`,
       `Order #: ${order.orderNumber}`,
       `Customer: ${order.customerName}`,
+      `Driver: ${getDriverDisplayName(order.assignedDriver)}`,
       `Date: ${formatDateTime(order.deliveredAt || order.updatedAt || order.createdAt)}`,
+      "HST #: 822528436RT0001",
       "",
       "Items:",
       itemLines,
@@ -754,6 +756,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       `Grand Total: ${formatReceiptMoney(receipt.grandTotal)}`,
       "",
       receipt.notes ? `Notes: ${receipt.notes}` : "",
+      "",
+      "I hereby acknowledge receipt of all mentioned goods, any cost of service, and certify I am of the full age of 19 years.",
       "",
       "Thank you for ordering with Speedy Sweeties.",
     ]
