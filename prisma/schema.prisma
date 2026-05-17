@@ -37,31 +37,31 @@ enum UserRole {
 }
 
 model User {
-  id                       String    @id @default(uuid())
-  email                    String    @unique
-  passwordHash             String
-  role                     UserRole
-  firstName                String?
-  lastName                 String?
-  isActive                 Boolean   @default(true)
+  id                      String   @id @default(uuid())
+  email                   String   @unique
+  passwordHash            String
+  role                    UserRole
+  firstName               String?
+  lastName                String?
+  isActive                Boolean  @default(true)
 
-  isOnline                 Boolean   @default(false)
-  lastSeenAt               DateTime?
+  isOnline                Boolean  @default(false)
+  lastSeenAt              DateTime?
 
-  latitude                 Float?
-  longitude                Float?
-  locationUpdatedAt        DateTime?
+  latitude                Float?
+  longitude               Float?
+  locationUpdatedAt       DateTime?
 
-  driverFcmToken           String?
-  driverAppState           String?   @default("FOREGROUND")
-  driverAppStateUpdatedAt  DateTime?
+  driverFcmToken          String?
+  driverAppState          String?  @default("FOREGROUND")
+  driverAppStateUpdatedAt DateTime?
 
-  forceLogoutAt            DateTime?
+  forceLogoutAt           DateTime?
 
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
-  assignedOrders           Order[]   @relation("DriverOrders")
+  assignedOrders          Order[]  @relation("DriverOrders")
 
   @@index([role])
   @@index([isOnline])
@@ -163,6 +163,7 @@ model Order {
   assignedDriver      User?         @relation("DriverOrders", fields: [assignedDriverId], references: [id], onDelete: SetNull)
 
   items               OrderItem[]
+  digitalReceipt      DigitalReceipt?
 
   @@index([customerId])
   @@index([assignedDriverId])
@@ -175,18 +176,43 @@ model Order {
 }
 
 model OrderItem {
-  id             String       @id @default(uuid())
-  orderId        String
-  itemCatalogId  String?
-  name           String
-  quantity       Int
-  price          Decimal      @db.Decimal(10, 2)
-  createdAt      DateTime     @default(now())
+  id            String       @id @default(uuid())
+  orderId       String
+  itemCatalogId String?
+  name          String
+  quantity      Int
+  price         Decimal      @db.Decimal(10, 2)
+  createdAt     DateTime     @default(now())
 
-  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  itemCatalog    ItemCatalog? @relation(fields: [itemCatalogId], references: [id], onDelete: SetNull)
+  order         Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemCatalog   ItemCatalog? @relation(fields: [itemCatalogId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([itemCatalogId])
   @@index([name])
+}
+
+model DigitalReceipt {
+  id                String   @id @default(uuid())
+  receiptNumber     String   @unique
+
+  orderId           String   @unique
+  createdByDriverId String?
+
+  itemTotal         Decimal  @db.Decimal(10, 2)
+  deliveryCharge    Decimal  @db.Decimal(10, 2)
+  taxOrFees         Decimal  @db.Decimal(10, 2)
+  grandTotal        Decimal  @db.Decimal(10, 2)
+
+  notes             String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([receiptNumber])
+  @@index([createdByDriverId])
+  @@index([createdAt])
 }
