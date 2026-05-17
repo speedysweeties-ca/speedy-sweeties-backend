@@ -723,6 +723,16 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     });
   };
 
+  const getReceiptNoteAmount = (notes: string | null | undefined, label: string) => {
+    if (!notes) return 0;
+
+    const escapedLabel = label.replace(/[.*+?^${}()|[\]\]/g, "\\$&");
+    const match = notes.match(new RegExp(`${escapedLabel}: \\$?([0-9]+(?:\\.[0-9]{1,2})?)`, "i"));
+    const amount = Number(match?.[1] || 0);
+
+    return Number.isFinite(amount) ? amount : 0;
+  };
+
   const buildReceiptText = (order: Order) => {
     const receipt = order.digitalReceipt;
 
@@ -736,6 +746,12 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
             .map((item) => `${item.quantity}x ${item.name}`)
             .join("\n")
         : "No item details available";
+
+    const deliveryAmount = 4.0;
+    const hstAmount = 0.52;
+    const driverTipAmount = 7.5;
+    const extraStopCharge = getReceiptNoteAmount(receipt.notes, "Extra stop charge");
+    const distanceSurcharge = getReceiptNoteAmount(receipt.notes, "Distance surcharge");
 
     return [
       "Speedy Sweeties Digital Receipt",
@@ -751,11 +767,12 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       itemLines,
       "",
       `Item Total: ${formatReceiptMoney(receipt.itemTotal)}`,
-      `Delivery / Fees: ${formatReceiptMoney(receipt.deliveryCharge)}`,
-      `Tax / Other: ${formatReceiptMoney(receipt.taxOrFees)}`,
+      `Delivery: ${formatReceiptMoney(deliveryAmount)}`,
+      `HST: ${formatReceiptMoney(hstAmount)}`,
+      `Driver Tip: ${formatReceiptMoney(driverTipAmount)}`,
+      extraStopCharge > 0 ? `Extra Stop Charge: ${formatReceiptMoney(extraStopCharge)}` : "",
+      `Distance Surcharge: ${formatReceiptMoney(distanceSurcharge)}`,
       `Grand Total: ${formatReceiptMoney(receipt.grandTotal)}`,
-      "",
-      receipt.notes ? `Notes: ${receipt.notes}` : "",
       "",
       "I hereby acknowledge receipt of all mentioned goods, any cost of service, and certify I am of the full age of 19 years.",
       "",
