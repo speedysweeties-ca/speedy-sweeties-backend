@@ -15,6 +15,7 @@ const getAuthUser = (req: Request): AuthenticatedUser | undefined => {
 
 const driverOrderInclude = {
   items: true,
+  digitalReceipt: true,
   assignedDriver: {
     select: {
       id: true,
