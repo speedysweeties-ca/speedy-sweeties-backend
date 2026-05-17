@@ -30,6 +30,11 @@ import { getDriverOrdersController } from "../controllers/driverOrders.controlle
 import { driverActionController } from "../controllers/driverAction.controller";
 import { getDriverStatsController } from "../controllers/driverStats.controller";
 
+import {
+  createOrUpdateReceiptController,
+  getReceiptByOrderController
+} from "../controllers/receipt.controller";
+
 const router = Router();
 
 // ✅ PUBLIC — customers create orders
@@ -84,6 +89,22 @@ router.get(
   requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
   validateRequest(getOrderByIdSchema),
   asyncHandler(getOrderByIdController)
+);
+
+// 🔒 DRIVER — create/update digital receipt for assigned order
+router.post(
+  "/:id/receipt",
+  requireAuth,
+  requireRole([UserRole.DRIVER]),
+  asyncHandler(createOrUpdateReceiptController)
+);
+
+// 🔒 STAFF + DRIVER — get digital receipt for order
+router.get(
+  "/:id/receipt",
+  requireAuth,
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER, UserRole.DRIVER]),
+  asyncHandler(getReceiptByOrderController)
 );
 
 // 🔒 STAFF — assign driver
