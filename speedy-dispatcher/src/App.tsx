@@ -18,6 +18,20 @@ type OrderItem = {
   price?: number | string;
 };
 
+type DigitalReceipt = {
+  id?: string;
+  receiptNumber?: string | null;
+  orderId?: string | null;
+  createdByDriverId?: string | null;
+  itemTotal?: number | string | null;
+  deliveryCharge?: number | string | null;
+  taxOrFees?: number | string | null;
+  grandTotal?: number | string | null;
+  notes?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
 type AssignedDriver = {
   id: string;
   firstName?: string | null;
@@ -65,6 +79,7 @@ type Order = {
   orderStatus: OrderStatus;
   priority?: "HIGH" | "NORMAL";
   items?: OrderItem[];
+  digitalReceipt?: DigitalReceipt | null;
   assignedDriver?: AssignedDriver | null;
   createdAt?: string;
   dispatchedAt?: string;
@@ -693,6 +708,83 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     );
 
     return `${deliveryMinutes} min`;
+  };
+
+  const formatReceiptMoney = (value?: number | string | null) => {
+    const numberValue = Number(value || 0);
+
+    if (!Number.isFinite(numberValue)) {
+      return "$0.00";
+    }
+
+    return numberValue.toLocaleString("en-CA", {
+      style: "currency",
+      currency: "CAD",
+    });
+  };
+
+  const buildReceiptText = (order: Order) => {
+    const receipt = order.digitalReceipt;
+
+    if (!receipt) {
+      return "";
+    }
+
+    const itemLines =
+      order.items && order.items.length > 0
+        ? order.items
+            .map((item) => `${item.quantity}x ${item.name}`)
+            .join("\n")
+        : "No item details available";
+
+    return [
+      "Speedy Sweeties Digital Receipt",
+      "",
+      `Receipt #: ${receipt.receiptNumber || "—"}`,
+      `Order #: ${order.orderNumber}`,
+      `Customer: ${order.customerName}`,
+      `Date: ${formatDateTime(order.deliveredAt || order.updatedAt || order.createdAt)}`,
+      "",
+      "Items:",
+      itemLines,
+      "",
+      `Item Total: ${formatReceiptMoney(receipt.itemTotal)}`,
+      `Delivery / Fees: ${formatReceiptMoney(receipt.deliveryCharge)}`,
+      `Tax / Other: ${formatReceiptMoney(receipt.taxOrFees)}`,
+      `Grand Total: ${formatReceiptMoney(receipt.grandTotal)}`,
+      "",
+      receipt.notes ? `Notes: ${receipt.notes}` : "",
+      "",
+      "Thank you for ordering with Speedy Sweeties.",
+    ]
+      .filter((line) => line !== "")
+      .join("\n");
+  };
+
+  const viewReceipt = (order: Order) => {
+    if (!order.digitalReceipt) {
+      alert("No digital receipt saved for this order.");
+      return;
+    }
+
+    alert(buildReceiptText(order));
+  };
+
+  const sendReceiptToCustomer = (order: Order) => {
+    if (!order.digitalReceipt) {
+      alert("No digital receipt saved for this order.");
+      return;
+    }
+
+    if (!order.email) {
+      alert("This order does not have a customer email address.");
+      return;
+    }
+
+    const subject = `Speedy Sweeties Receipt #${order.digitalReceipt.receiptNumber || order.orderNumber}`;
+    const body = buildReceiptText(order);
+
+    window.location.href = `mailto:${encodeURIComponent(order.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
   const getDriverDisplayName = (
@@ -3191,6 +3283,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     <th className="text-left p-2">Out For Delivery</th>
                     <th className="text-left p-2">Completed / Cancelled</th>
                     <th className="text-left p-2">Total Time</th>
+                    <th className="text-left p-2">Receipt</th>
                     <th className="text-left p-2">Items</th>
                   </tr>
                 </thead>
@@ -3283,6 +3376,38 @@ const handleSaveEditedOrder = async (orderId: string) => {
                         {formatCompletedDeliveryTime(
                           order.createdAt,
                           order.orderStatus === "CANCELLED" ? order.cancelledAt : order.deliveredAt
+                        )}
+                      </td>
+
+                      <td className="p-2 align-top">
+                        {order.digitalReceipt ? (
+                          <div className="space-y-2 min-w-[150px]">
+                            <p className="font-semibold text-green-300">
+                              {formatReceiptMoney(order.digitalReceipt.grandTotal)}
+                            </p>
+                            <p className="text-zinc-500 text-xs">
+                              {order.digitalReceipt.receiptNumber || "Receipt saved"}
+                            </p>
+
+                            <button
+                              type="button"
+                              onClick={() => viewReceipt(order)}
+                              className="w-full px-3 py-1 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition font-semibold text-xs"
+                            >
+                              View
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => sendReceiptToCustomer(order)}
+                              disabled={!order.email}
+                              className="w-full px-3 py-1 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50 font-semibold text-xs"
+                            >
+                              Send
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-zinc-500">No receipt</span>
                         )}
                       </td>
 
