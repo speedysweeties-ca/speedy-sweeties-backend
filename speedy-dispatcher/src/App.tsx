@@ -734,6 +734,15 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     return Number.isFinite(amount) ? amount : 0;
   };
 
+  const getReceiptExtraStops = (notes: string | null | undefined) => {
+    if (!notes) return 0;
+
+    const match = notes.match(/Extra stops:\s*([0-9]+)/i);
+    const stopCount = Number(match?.[1] || 0);
+
+    return Number.isFinite(stopCount) ? stopCount : 0;
+  };
+
   const buildReceiptText = (order: Order) => {
     const receipt = order.digitalReceipt;
 
@@ -3404,8 +3413,13 @@ const handleSaveEditedOrder = async (orderId: string) => {
                       <td className="p-2 align-top">
                         {order.digitalReceipt ? (
                           <div className="space-y-2 min-w-[150px]">
-                            <p className="font-semibold text-green-300">
+                            <p className="font-semibold text-green-300 whitespace-nowrap">
                               {formatReceiptMoney(order.digitalReceipt.grandTotal)}
+                              {getReceiptExtraStops(order.digitalReceipt.notes) > 0 && (
+                                <span className="ml-1 text-xs font-semibold text-zinc-300">
+                                  • {getReceiptExtraStops(order.digitalReceipt.notes)} stops
+                                </span>
+                              )}
                             </p>
                             <p className="text-zinc-500 text-xs">
                               {order.digitalReceipt.receiptNumber || "Receipt saved"}
