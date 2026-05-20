@@ -110,27 +110,61 @@ const hasAppFcmToken = (fcmToken: string | null | undefined): boolean => {
   return typeof fcmToken === "string" && fcmToken.trim().length > 0;
 };
 
+const receiptTotalToNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const numberValue = Number(value);
+
+  if (Number.isNaN(numberValue) || numberValue <= 0) {
+    return null;
+  }
+
+  return Number(numberValue.toFixed(2));
+};
+
+const receiptTotalToCurrencyText = (value: unknown): string | null => {
+  const numberValue = receiptTotalToNumber(value);
+
+  if (numberValue === null) {
+    return null;
+  }
+
+  return `$${numberValue.toFixed(2)}`;
+};
+
 const sendCustomerOutForDeliveryNotification = async (
   fcmToken: string | null,
-  orderNumber?: number | null
+  orderNumber?: number | null,
+  receiptTotal?: unknown
 ): Promise<void> => {
   if (!fcmToken) {
     console.log("No customer FCM token found for this order");
     return;
   }
 
+  const receiptTotalText = receiptTotalToCurrencyText(receiptTotal);
+
+  const body = orderNumber
+    ? receiptTotalText
+      ? `Order #${orderNumber} is now out for delivery. Total: ${receiptTotalText}.`
+      : `Order #${orderNumber} is now out for delivery.`
+    : receiptTotalText
+      ? `Your order is now out for delivery. Total: ${receiptTotalText}.`
+      : "Your order is now out for delivery.";
+
   try {
     await admin.messaging().send({
       token: fcmToken,
       notification: {
         title: "Speedy Sweeties",
-        body: orderNumber
-          ? `Order #${orderNumber} is now out for delivery.`
-          : "Your order is now out for delivery."
+        body
       },
       data: {
         type: "ORDER_STATUS_UPDATE",
-        status: OrderStatus.OUT_FOR_DELIVERY
+        status: OrderStatus.OUT_FOR_DELIVERY,
+        ...(receiptTotalText ? { receiptTotal: receiptTotalText } : {})
       },
       android: {
         priority: "high",
@@ -618,7 +652,12 @@ export const updateOrderStatusController = async (
       dispatchedAt: true,
       acceptedAt: true,
       outForDeliveryAt: true,
-      deliveredAt: true
+      deliveredAt: true,
+      digitalReceipt: {
+        select: {
+          grandTotal: true
+        }
+      }
     }
   });
 
@@ -710,7 +749,8 @@ export const updateOrderStatusController = async (
   if (shouldNotifyCustomer) {
     await sendCustomerOutForDeliveryNotification(
       existingOrder.fcmToken,
-      existingOrder.orderNumber
+      existingOrder.orderNumber,
+      existingOrder.digitalReceipt?.grandTotal ?? null
     );
   }
 
@@ -774,6 +814,11 @@ export const getPublicOrderTrackingController = async (
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
+        digitalReceipt: {
+          select: {
+            grandTotal: true
+          }
+        },
         assignedDriver: {
           select: {
             id: true,
@@ -803,6 +848,7 @@ export const getPublicOrderTrackingController = async (
         orderId: order.id,
         orderNumber: order.orderNumber,
         orderStatus: order.orderStatus,
+        receiptTotal: receiptTotalToNumber(order.digitalReceipt?.grandTotal ?? null),
         driver: driver
           ? {
               name: `${driver.firstName ?? ""} ${driver.lastName ?? ""}`.trim(),
