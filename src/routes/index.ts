@@ -6,6 +6,7 @@ import itemRoutes from "./item.routes";
 import driverRoutes from "./driver.routes";
 import notificationRoutes from "./notification.routes";
 import testNotificationRoutes from "./test-notification.routes";
+import businessRoutes from "./business.routes";
 
 const router = Router();
 
@@ -23,5 +24,6 @@ router.use("/items", itemRoutes);
 router.use("/driver", driverRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/test-notification", testNotificationRoutes);
+router.use("/business", businessRoutes);
 
 export default router;

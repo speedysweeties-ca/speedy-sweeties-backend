@@ -14,5 +14,8 @@ export const env = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
   PORT: Number(process.env.PORT ?? 4000),
   DATABASE_URL: requireEnv("DATABASE_URL"),
-  CORS_ORIGIN: process.env.CORS_ORIGIN ?? "*"
+  CORS_ORIGIN: process.env.CORS_ORIGIN ?? "*",
+
+  GOOGLE_PLACES_API_KEY: process.env.GOOGLE_PLACES_API_KEY ?? "",
+  GOOGLE_PLACE_ID: process.env.GOOGLE_PLACE_ID ?? "ChIJBSxQSViaK4gRaS6LjGPMvTs"
 };
