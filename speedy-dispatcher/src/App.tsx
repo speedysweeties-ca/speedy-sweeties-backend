@@ -396,6 +396,43 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
   const filteredDeliveredOrders = deliveredOrders;
 
+  const normalizeCustomerSearchText = (value?: string | null) => {
+    return (value || "").trim().toLowerCase();
+  };
+
+  const normalizeCustomerSearchDigits = (value?: string | null) => {
+    return (value || "").replace(/\D/g, "");
+  };
+
+  const customerMatchesSearch = (customer: CustomerProfile, searchTerm: string) => {
+    const cleanSearchTerm = normalizeCustomerSearchText(searchTerm);
+    const digitSearchTerm = normalizeCustomerSearchDigits(searchTerm);
+
+    if (!cleanSearchTerm && !digitSearchTerm) return true;
+
+    const searchableText = [
+      customer.fullName,
+      customer.phone,
+      customer.email,
+      customer.addressLine1,
+      customer.city,
+      customer.province,
+      customer.postalCode,
+      customer.dispatcherNotes,
+    ]
+      .map(normalizeCustomerSearchText)
+      .join(" ");
+
+    const searchableDigits = [customer.phone, customer.postalCode]
+      .map(normalizeCustomerSearchDigits)
+      .join(" ");
+
+    return (
+      searchableText.includes(cleanSearchTerm) ||
+      (!!digitSearchTerm && searchableDigits.includes(digitSearchTerm))
+    );
+  };
+
 
   const totalStatsDeliveries = useMemo(() => {
     return driverStats.reduce((total, stat) => total + stat.totalDeliveries, 0);
@@ -958,17 +995,25 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     }
   };
 
-  const fetchCustomers = async (authToken: string, showLoader = true) => {
+  const fetchCustomers = async (
+    authToken: string,
+    showLoader = true,
+    searchOverride?: string
+  ) => {
     try {
       if (showLoader) {
         setCustomersLoading(true);
       }
 
-      let url = "https://speedy-api-lbfe.onrender.com/api/v1/customers";
+      const searchTerm = (searchOverride ?? customerProfileSearch).trim();
       const params = new URLSearchParams();
 
-      if (customerProfileSearch.trim()) {
-        params.append("query", customerProfileSearch.trim());
+      let url = searchTerm
+        ? "https://speedy-api-lbfe.onrender.com/api/v1/customers/search"
+        : "https://speedy-api-lbfe.onrender.com/api/v1/customers";
+
+      if (searchTerm) {
+        params.append("query", searchTerm);
       }
 
       if (params.toString()) {
@@ -984,7 +1029,15 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       const data = await response.json();
 
       if (response.ok) {
-        setCustomers(data.customers || []);
+        const loadedCustomers: CustomerProfile[] = data.customers || [];
+
+        setCustomers(
+          searchTerm
+            ? loadedCustomers.filter((customer) =>
+                customerMatchesSearch(customer, searchTerm)
+              )
+            : loadedCustomers
+        );
       } else {
         alert(getApiErrorMessage(data, "Failed to load customers"));
       }
@@ -2763,7 +2816,15 @@ const handleSaveEditedOrder = async (orderId: string) => {
             </button>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-[1fr_auto] mt-6">
+          <form
+            className="grid gap-3 md:grid-cols-[1fr_auto_auto] mt-6"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (token) {
+                void fetchCustomers(token, true, customerProfileSearch);
+              }
+            }}
+          >
             <input
               type="text"
               placeholder="Search customers by name, phone, email, city, or postal code"
@@ -2773,14 +2834,27 @@ const handleSaveEditedOrder = async (orderId: string) => {
             />
 
             <button
-              type="button"
-              onClick={() => token && void fetchCustomers(token, true)}
+              type="submit"
               disabled={customersLoading}
               className="px-5 py-3 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50 font-semibold"
             >
-              Search
+              {customersLoading ? "Searching..." : "Search"}
             </button>
-          </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCustomerProfileSearch("");
+                if (token) {
+                  void fetchCustomers(token, true, "");
+                }
+              }}
+              disabled={customersLoading}
+              className="px-5 py-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
+            >
+              Clear
+            </button>
+          </form>
         </div>
 
         {customersLoading && customers.length === 0 ? (
