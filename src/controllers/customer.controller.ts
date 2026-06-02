@@ -110,7 +110,9 @@ export const searchCustomersController = async (
     where: {
       OR: [
         { normalizedFullName: { contains: normalizedQuery } },
-        { normalizedPhone: { contains: normalizedPhone } },
+        ...(normalizedPhone.length > 0
+          ? [{ normalizedPhone: { contains: normalizedPhone } }]
+          : []),
         { normalizedEmail: { contains: normalizedQuery } },
         { addressLine1: { contains: searchText, mode: "insensitive" } },
         { city: { contains: searchText, mode: "insensitive" } },
@@ -164,7 +166,9 @@ export const listCustomersController = async (
         ? {
             OR: [
               { normalizedFullName: { contains: normalizedQuery } },
-              { normalizedPhone: { contains: normalizedPhone } },
+              ...(normalizedPhone.length > 0
+                ? [{ normalizedPhone: { contains: normalizedPhone } }]
+                : []),
               { normalizedEmail: { contains: normalizedQuery } },
               { addressLine1: { contains: searchText, mode: "insensitive" } },
               { city: { contains: searchText, mode: "insensitive" } },
