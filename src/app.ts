@@ -40,6 +40,24 @@ app.get("/q/lighter", async (_req, res, next) => {
   }
 });
 
+app.get("/q/lighter/stats", async (_req, res, next) => {
+  try {
+    const totalScans = await prisma.qrScan.count({
+      where: {
+        campaign: "lighter"
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      campaign: "lighter",
+      totalScans
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 app.use("/api/v1", routes);
 
 app.use(notFound);
