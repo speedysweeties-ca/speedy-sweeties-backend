@@ -216,3 +216,12 @@ model DigitalReceipt {
   @@index([createdByDriverId])
   @@index([createdAt])
 }
+
+model QrScan {
+  id        String   @id @default(uuid())
+  campaign String
+  createdAt DateTime @default(now())
+
+  @@index([campaign])
+  @@index([createdAt])
+}

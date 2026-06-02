@@ -6,6 +6,7 @@ import routes from "./routes";
 import { env } from "./config/env";
 import { notFound } from "./middleware/notFound";
 import { errorHandler } from "./middleware/errorHandler";
+import { prisma } from "./lib/prisma";
 
 // 🔥 ADD THIS LINE (initializes Firebase Admin)
 import "./config/firebase";
@@ -24,11 +25,19 @@ app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// QR CODE LINK
-app.get("/q/lighter", (_req, res) => {
-  console.log("Lighter QR code scanned");
 
-  return res.redirect("https://www.speedysweeties.ca/#contact-us");
+app.get("/q/lighter", async (_req, res, next) => {
+  try {
+    await prisma.qrScan.create({
+      data: {
+        campaign: "lighter"
+      }
+    });
+
+    return res.redirect("https://www.speedysweeties.ca/#contact-us");
+  } catch (error) {
+    return next(error);
+  }
 });
 
 app.use("/api/v1", routes);
