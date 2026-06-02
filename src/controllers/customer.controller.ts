@@ -25,8 +25,7 @@ export const getCustomerLoyaltyController = async (
   const rawPhone = req.query.phone;
   const rawEmail = req.query.email;
 
-  const phone =
-    typeof rawPhone === "string" ? normalizePhone(rawPhone) : "";
+  const phone = typeof rawPhone === "string" ? normalizePhone(rawPhone) : "";
 
   const email =
     typeof rawEmail === "string" && rawEmail.trim()
@@ -36,7 +35,7 @@ export const getCustomerLoyaltyController = async (
   if (!phone && !email) {
     res.status(400).json({
       success: false,
-      message: "Phone or email is required"
+      message: "Phone or email is required",
     });
     return;
   }
@@ -45,16 +44,16 @@ export const getCustomerLoyaltyController = async (
     where: {
       OR: [
         ...(phone ? [{ normalizedPhone: phone }] : []),
-        ...(email ? [{ normalizedEmail: email }] : [])
-      ]
+        ...(email ? [{ normalizedEmail: email }] : []),
+      ],
     },
     select: {
       id: true,
       loyaltyCompletedOrders: true,
       loyaltyRewardsEarned: true,
       loyaltyRewardsUsed: true,
-      loyaltyFreeDelivery: true
-    }
+      loyaltyFreeDelivery: true,
+    },
   });
 
   if (!customer) {
@@ -66,8 +65,8 @@ export const getCustomerLoyaltyController = async (
         loyaltyRewardsEarned: 0,
         loyaltyRewardsUsed: 0,
         loyaltyFreeDelivery: false,
-        deliveriesRemaining: 10
-      }
+        deliveriesRemaining: 10,
+      },
     });
     return;
   }
@@ -84,8 +83,8 @@ export const getCustomerLoyaltyController = async (
       loyaltyRewardsEarned: customer.loyaltyRewardsEarned,
       loyaltyRewardsUsed: customer.loyaltyRewardsUsed,
       loyaltyFreeDelivery: customer.loyaltyFreeDelivery,
-      deliveriesRemaining
-    }
+      deliveriesRemaining,
+    },
   });
 };
 
@@ -98,25 +97,29 @@ export const searchCustomersController = async (
   if (!rawQuery || typeof rawQuery !== "string") {
     res.status(400).json({
       success: false,
-      message: "Query is required"
+      message: "Query is required",
     });
     return;
   }
 
-  const normalizedQuery = normalize(rawQuery);
-  const normalizedPhone = normalizePhone(rawQuery);
+  const searchText = rawQuery.trim();
+  const normalizedQuery = normalize(searchText);
+  const normalizedPhone = normalizePhone(searchText);
 
   const customers = await prisma.customer.findMany({
     where: {
       OR: [
         { normalizedFullName: { contains: normalizedQuery } },
         { normalizedPhone: { contains: normalizedPhone } },
-        { normalizedEmail: { contains: normalizedQuery } }
-      ]
+        { normalizedEmail: { contains: normalizedQuery } },
+        { addressLine1: { contains: searchText, mode: "insensitive" } },
+        { city: { contains: searchText, mode: "insensitive" } },
+        { postalCode: { contains: searchText, mode: "insensitive" } },
+      ],
     },
     take: 10,
     orderBy: {
-      createdAt: "desc"
+      updatedAt: "desc",
     },
     select: {
       id: true,
@@ -127,14 +130,21 @@ export const searchCustomersController = async (
       city: true,
       province: true,
       postalCode: true,
-      dispatcherNotes: true
-    }
+      dispatcherNotes: true,
+      createdAt: true,
+      updatedAt: true,
+      _count: {
+        select: {
+          orders: true,
+        },
+      },
+    },
   });
 
   res.status(200).json({
     success: true,
     count: customers.length,
-    customers
+    customers,
   });
 };
 
@@ -156,13 +166,14 @@ export const listCustomersController = async (
               { normalizedFullName: { contains: normalizedQuery } },
               { normalizedPhone: { contains: normalizedPhone } },
               { normalizedEmail: { contains: normalizedQuery } },
+              { addressLine1: { contains: searchText, mode: "insensitive" } },
               { city: { contains: searchText, mode: "insensitive" } },
-              { postalCode: { contains: searchText, mode: "insensitive" } }
-            ]
+              { postalCode: { contains: searchText, mode: "insensitive" } },
+            ],
           }
         : {},
     orderBy: {
-      updatedAt: "desc"
+      updatedAt: "desc",
     },
     take: 100,
     select: {
@@ -179,16 +190,16 @@ export const listCustomersController = async (
       updatedAt: true,
       _count: {
         select: {
-          orders: true
-        }
-      }
-    }
+          orders: true,
+        },
+      },
+    },
   });
 
   res.status(200).json({
     success: true,
     count: customers.length,
-    customers
+    customers,
   });
 };
 
@@ -203,7 +214,7 @@ export const getCustomerByIdController = async (
     include: {
       orders: {
         orderBy: {
-          createdAt: "desc"
+          createdAt: "desc",
         },
         take: 20,
         select: {
@@ -220,25 +231,25 @@ export const getCustomerByIdController = async (
               id: true,
               name: true,
               quantity: true,
-              price: true
-            }
-          }
-        }
-      }
-    }
+              price: true,
+            },
+          },
+        },
+      },
+    },
   });
 
   if (!customer) {
     res.status(404).json({
       success: false,
-      message: "Customer not found"
+      message: "Customer not found",
     });
     return;
   }
 
   res.status(200).json({
     success: true,
-    customer
+    customer,
   });
 };
 
@@ -249,13 +260,13 @@ export const updateCustomerController = async (
   const { id } = req.params;
 
   const existingCustomer = await prisma.customer.findUnique({
-    where: { id }
+    where: { id },
   });
 
   if (!existingCustomer) {
     res.status(404).json({
       success: false,
-      message: "Customer not found"
+      message: "Customer not found",
     });
     return;
   }
@@ -268,7 +279,7 @@ export const updateCustomerController = async (
     city,
     province,
     postalCode,
-    dispatcherNotes
+    dispatcherNotes,
   } = req.body;
 
   const cleanedFullName =
@@ -319,14 +330,14 @@ export const updateCustomerController = async (
       dispatcherNotes:
         typeof dispatcherNotes === "string"
           ? dispatcherNotes.trim()
-          : existingCustomer.dispatcherNotes
-    }
+          : existingCustomer.dispatcherNotes,
+    },
   });
 
   res.status(200).json({
     success: true,
     message: "Customer updated successfully",
-    customer: updatedCustomer
+    customer: updatedCustomer,
   });
 };
 
@@ -338,13 +349,13 @@ export const updateCustomerDispatcherNotesController = async (
   const { dispatcherNotes } = req.body;
 
   const existingCustomer = await prisma.customer.findUnique({
-    where: { id }
+    where: { id },
   });
 
   if (!existingCustomer) {
     res.status(404).json({
       success: false,
-      message: "Customer not found"
+      message: "Customer not found",
     });
     return;
   }
@@ -353,13 +364,13 @@ export const updateCustomerDispatcherNotesController = async (
     where: { id },
     data: {
       dispatcherNotes:
-        typeof dispatcherNotes === "string" ? dispatcherNotes.trim() : ""
-    }
+        typeof dispatcherNotes === "string" ? dispatcherNotes.trim() : "",
+    },
   });
 
   res.status(200).json({
     success: true,
     message: "Dispatcher notes updated",
-    customer: updatedCustomer
+    customer: updatedCustomer,
   });
 };
