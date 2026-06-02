@@ -11,11 +11,99 @@ type CustomerIdParams = {
   id: string;
 };
 
+type CustomerSearchResult = {
+  id: string;
+  fullName: string;
+  phone: string;
+  email: string | null;
+  addressLine1: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  dispatcherNotes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  _count: {
+    orders: number;
+  };
+};
+
 const cleanStringOrNull = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
 
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+};
+
+const isPhoneOnlySearch = (searchText: string) => {
+  const digits = normalizePhone(searchText);
+  const nonDigits = searchText.replace(/\d/g, "").trim();
+
+  return digits.length >= 3 && nonDigits.length === 0;
+};
+
+const getCustomerSearchScore = (
+  customer: CustomerSearchResult,
+  searchText: string
+) => {
+  const query = normalize(searchText);
+  const queryDigits = normalizePhone(searchText);
+
+  const name = normalize(customer.fullName || "");
+  const email = normalize(customer.email || "");
+  const address = normalize(customer.addressLine1 || "");
+  const city = normalize(customer.city || "");
+  const postalCode = normalize(customer.postalCode || "");
+  const phone = normalizePhone(customer.phone || "");
+
+  if (name === query) return 1000;
+  if (name.startsWith(query)) return 900;
+  if (address === query) return 850;
+  if (address.startsWith(query)) return 800;
+  if (address.includes(query)) return 750;
+  if (postalCode === query) return 700;
+  if (postalCode.includes(query)) return 650;
+  if (city === query) return 600;
+  if (city.includes(query)) return 550;
+  if (name.includes(query)) return 500;
+  if (email.startsWith(query)) return 450;
+  if (email.includes(query)) return 400;
+
+  if (isPhoneOnlySearch(searchText) && queryDigits && phone.startsWith(queryDigits)) {
+    return 350;
+  }
+
+  if (isPhoneOnlySearch(searchText) && queryDigits && phone.includes(queryDigits)) {
+    return 300;
+  }
+
+  return 0;
+};
+
+const sortCustomersBySearchRelevance = (
+  customers: CustomerSearchResult[],
+  searchText: string
+) => {
+  return [...customers]
+    .map((customer) => ({
+      customer,
+      score: getCustomerSearchScore(customer, searchText),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+
+      const bOrders = b.customer._count?.orders || 0;
+      const aOrders = a.customer._count?.orders || 0;
+
+      if (bOrders !== aOrders) return bOrders - aOrders;
+
+      return (
+        new Date(b.customer.updatedAt).getTime() -
+        new Date(a.customer.updatedAt).getTime()
+      );
+    })
+    .map((entry) => entry.customer);
 };
 
 export const getCustomerLoyaltyController = async (
@@ -105,12 +193,13 @@ export const searchCustomersController = async (
   const searchText = rawQuery.trim();
   const normalizedQuery = normalize(searchText);
   const normalizedPhone = normalizePhone(searchText);
+  const shouldSearchPhone = isPhoneOnlySearch(searchText);
 
   const customers = await prisma.customer.findMany({
     where: {
       OR: [
         { normalizedFullName: { contains: normalizedQuery } },
-        ...(normalizedPhone.length > 0
+        ...(shouldSearchPhone
           ? [{ normalizedPhone: { contains: normalizedPhone } }]
           : []),
         { normalizedEmail: { contains: normalizedQuery } },
@@ -119,7 +208,7 @@ export const searchCustomersController = async (
         { postalCode: { contains: searchText, mode: "insensitive" } },
       ],
     },
-    take: 10,
+    take: 100,
     orderBy: {
       updatedAt: "desc",
     },
@@ -143,10 +232,15 @@ export const searchCustomersController = async (
     },
   });
 
+  const sortedCustomers = sortCustomersBySearchRelevance(
+    customers as CustomerSearchResult[],
+    searchText
+  ).slice(0, 10);
+
   res.status(200).json({
     success: true,
-    count: customers.length,
-    customers,
+    count: sortedCustomers.length,
+    customers: sortedCustomers,
   });
 };
 
@@ -159,6 +253,7 @@ export const listCustomersController = async (
 
   const normalizedQuery = searchText ? normalize(searchText) : "";
   const normalizedPhone = searchText ? normalizePhone(searchText) : "";
+  const shouldSearchPhone = searchText ? isPhoneOnlySearch(searchText) : false;
 
   const customers = await prisma.customer.findMany({
     where:
@@ -166,7 +261,7 @@ export const listCustomersController = async (
         ? {
             OR: [
               { normalizedFullName: { contains: normalizedQuery } },
-              ...(normalizedPhone.length > 0
+              ...(shouldSearchPhone
                 ? [{ normalizedPhone: { contains: normalizedPhone } }]
                 : []),
               { normalizedEmail: { contains: normalizedQuery } },
@@ -179,7 +274,7 @@ export const listCustomersController = async (
     orderBy: {
       updatedAt: "desc",
     },
-    take: 100,
+    take: normalizedQuery.length >= 2 ? 100 : 100,
     select: {
       id: true,
       fullName: true,
@@ -200,10 +295,18 @@ export const listCustomersController = async (
     },
   });
 
+  const finalCustomers =
+    normalizedQuery.length >= 2
+      ? sortCustomersBySearchRelevance(
+          customers as CustomerSearchResult[],
+          searchText
+        ).slice(0, 100)
+      : customers;
+
   res.status(200).json({
     success: true,
-    count: customers.length,
-    customers,
+    count: finalCustomers.length,
+    customers: finalCustomers,
   });
 };
 
