@@ -24,6 +24,13 @@ app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// QR CODE LINK
+app.get("/q/lighter", (_req, res) => {
+  console.log("Lighter QR code scanned");
+
+  return res.redirect("https://www.speedysweeties.ca/#contact-us");
+});
+
 app.use("/api/v1", routes);
 
 app.use(notFound);
