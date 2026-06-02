@@ -99,7 +99,8 @@ type ActiveTab =
   | "DELIVERED_HISTORY"
   | "DRIVER_STATS"
   | "CATALOG"
-  | "CUSTOMERS";
+  | "CUSTOMERS"
+  | "QR_TRACKING";
 
 type ManualOrderItem = {
   itemName: string;
@@ -209,6 +210,14 @@ type CustomerEditForm = {
   dispatcherNotes: string;
 };
 
+type QrTrackingCampaign = {
+  campaign: string;
+  label: string;
+  totalScans: number;
+  trackingUrl: string;
+  statsUrl: string;
+};
+
 const createEmptyManualOrderItem = (): ManualOrderItem => ({
   itemName: "",
   quantity: "1",
@@ -293,6 +302,7 @@ function App() {
   const [driverStatsLoading, setDriverStatsLoading] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [customersLoading, setCustomersLoading] = useState(false);
+  const [qrTrackingLoading, setQrTrackingLoading] = useState(false);
 
   const [token, setToken] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -311,6 +321,16 @@ function App() {
   const [customerProfileSearch, setCustomerProfileSearch] = useState("");
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
   const [customerEditForm, setCustomerEditForm] = useState<CustomerEditForm | null>(null);
+
+  const [qrTrackingCampaigns, setQrTrackingCampaigns] = useState<QrTrackingCampaign[]>([
+    {
+      campaign: "lighter",
+      label: "Bic Lighter",
+      totalScans: 0,
+      trackingUrl: "https://speedy-api-lbfe.onrender.com/q/lighter",
+      statsUrl: "https://speedy-api-lbfe.onrender.com/q/lighter/stats",
+    },
+  ]);
 
   const [driverSelections, setDriverSelections] = useState<Record<string, string>>({});
   const [historyDriverIds, setHistoryDriverIds] = useState<string[]>([]);
@@ -368,6 +388,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     activeTab === "DRIVER_STATS" ||
     activeTab === "CATALOG" ||
     activeTab === "CUSTOMERS" ||
+    activeTab === "QR_TRACKING" ||
     manualFormIsDirty ||
     manualOrderLoading ||
     editingOrderId !== null ||
@@ -468,6 +489,13 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     if (activeTab !== "CUSTOMERS") return;
 
     void fetchCustomers(token, true);
+  }, [activeTab, token]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (activeTab !== "QR_TRACKING") return;
+
+    void fetchQrTrackingStats(true);
   }, [activeTab, token]);
 
   useEffect(() => {
@@ -830,6 +858,38 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     }
 
     return driver.email;
+  };
+
+  const fetchQrTrackingStats = async (showLoader = true) => {
+    try {
+      if (showLoader) {
+        setQrTrackingLoading(true);
+      }
+
+      const response = await fetch("https://speedy-api-lbfe.onrender.com/q/lighter/stats");
+      const data = await response.json();
+
+      if (response.ok) {
+        setQrTrackingCampaigns([
+          {
+            campaign: data.campaign || "lighter",
+            label: "Bic Lighter",
+            totalScans: Number(data.totalScans || 0),
+            trackingUrl: "https://speedy-api-lbfe.onrender.com/q/lighter",
+            statsUrl: "https://speedy-api-lbfe.onrender.com/q/lighter/stats",
+          },
+        ]);
+      } else {
+        alert(getApiErrorMessage(data, "Failed to load QR code tracking stats"));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while loading QR code tracking stats");
+    } finally {
+      if (showLoader) {
+        setQrTrackingLoading(false);
+      }
+    }
   };
 
   const fetchDrivers = async (authToken: string) => {
@@ -1201,6 +1261,15 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setCustomerProfileSearch("");
     setEditingCustomerId(null);
     setCustomerEditForm(null);
+    setQrTrackingCampaigns([
+      {
+        campaign: "lighter",
+        label: "Bic Lighter",
+        totalScans: 0,
+        trackingUrl: "https://speedy-api-lbfe.onrender.com/q/lighter",
+        statsUrl: "https://speedy-api-lbfe.onrender.com/q/lighter/stats",
+      },
+    ]);
     knownOrderIdsRef.current = new Set();
     hasCompletedInitialLoadRef.current = false;
   };
@@ -2351,6 +2420,65 @@ const handleSaveEditedOrder = async (orderId: string) => {
     }
   };
 
+
+  const renderQrTracking = () => {
+    return (
+      <div className="space-y-6">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">QR Code Tracking</h2>
+              <p className="text-zinc-400 mt-1">
+                Track scans from printed marketing campaigns.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void fetchQrTrackingStats(true)}
+              disabled={qrTrackingLoading}
+              className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
+            >
+              {qrTrackingLoading ? "Refreshing..." : "Refresh QR Stats"}
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="bg-zinc-800 text-zinc-300">
+                <tr>
+                  <th className="text-left p-3">Campaign</th>
+                  <th className="text-left p-3">Total Scans</th>
+                  <th className="text-left p-3">QR Link</th>
+                  <th className="text-left p-3">Stats Link</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {qrTrackingCampaigns.map((campaign) => (
+                  <tr
+                    key={campaign.campaign}
+                    className="border-t border-zinc-800 hover:bg-zinc-800/40 transition"
+                  >
+                    <td className="p-3 font-semibold text-white">{campaign.label}</td>
+                    <td className="p-3">
+                      <span className="inline-flex items-center rounded-full bg-red-500/20 border border-red-400/40 px-3 py-1 text-red-100 font-bold">
+                        {campaign.totalScans}
+                      </span>
+                    </td>
+                    <td className="p-3 text-zinc-300 break-all">{campaign.trackingUrl}</td>
+                    <td className="p-3 text-zinc-300 break-all">{campaign.statsUrl}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderCatalogAdmin = () => {
     return (
@@ -3874,11 +4002,15 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   if (activeTab === "CUSTOMERS") {
                     void fetchCustomers(token, true);
                   }
+
+                  if (activeTab === "QR_TRACKING") {
+                    void fetchQrTrackingStats(true);
+                  }
                 }}
-                disabled={dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading}
+                disabled={dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading || qrTrackingLoading}
                 className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
               >
-                {dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading
+                {dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading || qrTrackingLoading
                   ? "Refreshing..."
                   : "Refresh"}
               </button>
@@ -3892,6 +4024,17 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 }`}
               >
                 Driver Location
+              </button>
+
+              <button
+                onClick={() => setActiveTab("QR_TRACKING")}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${
+                  activeTab === "QR_TRACKING"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-zinc-800 hover:bg-zinc-700"
+                }`}
+              >
+                QR Code Tracking
               </button>
 
               <button
@@ -4136,6 +4279,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
           renderCatalogAdmin()
         ) : activeTab === "CUSTOMERS" ? (
           renderCustomerProfiles()
+        ) : activeTab === "QR_TRACKING" ? (
+          renderQrTracking()
         ) : (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
             <div className="mb-6">
