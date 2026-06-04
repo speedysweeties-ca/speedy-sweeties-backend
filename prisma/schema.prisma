@@ -37,31 +37,32 @@ enum UserRole {
 }
 
 model User {
-  id                      String   @id @default(uuid())
-  email                   String   @unique
-  passwordHash            String
-  role                    UserRole
-  firstName               String?
-  lastName                String?
-  isActive                Boolean  @default(true)
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         UserRole
+  firstName    String?
+  lastName     String?
+  isActive     Boolean  @default(true)
 
-  isOnline                Boolean  @default(false)
-  lastSeenAt              DateTime?
+  isOnline   Boolean   @default(false)
+  lastSeenAt DateTime?
 
-  latitude                Float?
-  longitude               Float?
-  locationUpdatedAt       DateTime?
+  latitude          Float?
+  longitude         Float?
+  locationUpdatedAt DateTime?
 
   driverFcmToken          String?
-  driverAppState          String?  @default("FOREGROUND")
+  driverAppState          String?   @default("FOREGROUND")
   driverAppStateUpdatedAt DateTime?
 
-  forceLogoutAt           DateTime?
+  forceLogoutAt DateTime?
 
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  assignedOrders          Order[]  @relation("DriverOrders")
+  assignedOrders       Order[]                         @relation("DriverOrders")
+  checklistCompletions DispatcherChecklistCompletion[] @relation("ChecklistCompletedBy")
 
   @@index([role])
   @@index([isOnline])
@@ -71,29 +72,29 @@ model User {
 }
 
 model Customer {
-  id                     String   @id @default(uuid())
-  fullName               String
-  normalizedFullName     String
-  phone                  String
-  normalizedPhone        String
-  email                  String?
-  normalizedEmail        String?
-  addressLine1           String
-  city                   String
-  province               String
-  postalCode             String
-  notes                  String?
-  dispatcherNotes        String?
+  id                 String  @id @default(uuid())
+  fullName           String
+  normalizedFullName String
+  phone              String
+  normalizedPhone    String
+  email              String?
+  normalizedEmail    String?
+  addressLine1       String
+  city               String
+  province           String
+  postalCode         String
+  notes              String?
+  dispatcherNotes    String?
 
-  loyaltyCompletedOrders Int      @default(0)
-  loyaltyRewardsEarned   Int      @default(0)
-  loyaltyRewardsUsed     Int      @default(0)
-  loyaltyFreeDelivery    Boolean  @default(false)
+  loyaltyCompletedOrders Int     @default(0)
+  loyaltyRewardsEarned   Int     @default(0)
+  loyaltyRewardsUsed     Int     @default(0)
+  loyaltyFreeDelivery    Boolean @default(false)
 
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  orders                 Order[]
+  orders Order[]
 
   @@index([normalizedPhone])
   @@index([normalizedFullName])
@@ -103,7 +104,7 @@ model Customer {
 }
 
 model ItemCatalog {
-  id              String      @id @default(uuid())
+  id              String   @id @default(uuid())
   name            String
   normalizedName  String
   size            String?
@@ -111,12 +112,12 @@ model ItemCatalog {
   brand           String?
   normalizedBrand String?
   source          String?
-  isActive        Boolean     @default(true)
-  popularityScore Int         @default(0)
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  isActive        Boolean  @default(true)
+  popularityScore Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  orderItems      OrderItem[]
+  orderItems OrderItem[]
 
   @@index([normalizedName])
   @@index([brand])
@@ -128,23 +129,23 @@ model ItemCatalog {
 }
 
 model Order {
-  id                  String        @id @default(uuid())
-  orderNumber         Int           @unique @default(autoincrement())
-  fcmToken            String?
-  customerName        String
-  addressLine1        String
-  city                String
-  province            String
-  postalCode          String
-  phone               String
-  email               String
-  itemsText           String
-  additionalNotes     String?
-  paymentMethod       PaymentMethod
-  orderStatus         OrderStatus   @default(PLACED)
-  priority            OrderPriority @default(NORMAL)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  id              String        @id @default(uuid())
+  orderNumber     Int           @unique @default(autoincrement())
+  fcmToken        String?
+  customerName    String
+  addressLine1    String
+  city            String
+  province        String
+  postalCode      String
+  phone           String
+  email           String
+  itemsText       String
+  additionalNotes String?
+  paymentMethod   PaymentMethod
+  orderStatus     OrderStatus   @default(PLACED)
+  priority        OrderPriority @default(NORMAL)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   dispatchedAt        DateTime?
   acceptedAt          DateTime?
@@ -154,16 +155,16 @@ model Order {
   cancelledFromStatus OrderStatus?
   cancellationReason  String?
 
-  customerId          String?
+  customerId String?
 
-  assignedDriverId    String?
-  assignedAt          DateTime?
+  assignedDriverId String?
+  assignedAt       DateTime?
 
-  customer            Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  assignedDriver      User?         @relation("DriverOrders", fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  assignedDriver User?     @relation("DriverOrders", fields: [assignedDriverId], references: [id], onDelete: SetNull)
 
-  items               OrderItem[]
-  digitalReceipt      DigitalReceipt?
+  items          OrderItem[]
+  digitalReceipt DigitalReceipt?
 
   @@index([customerId])
   @@index([assignedDriverId])
@@ -176,16 +177,16 @@ model Order {
 }
 
 model OrderItem {
-  id            String       @id @default(uuid())
+  id            String   @id @default(uuid())
   orderId       String
   itemCatalogId String?
   name          String
   quantity      Int
-  price         Decimal      @db.Decimal(10, 2)
-  createdAt     DateTime     @default(now())
+  price         Decimal  @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
 
-  order         Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  itemCatalog   ItemCatalog? @relation(fields: [itemCatalogId], references: [id], onDelete: SetNull)
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemCatalog ItemCatalog? @relation(fields: [itemCatalogId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([itemCatalogId])
@@ -193,23 +194,23 @@ model OrderItem {
 }
 
 model DigitalReceipt {
-  id                String   @id @default(uuid())
-  receiptNumber     String   @unique
+  id            String @id @default(uuid())
+  receiptNumber String @unique
 
-  orderId           String   @unique
+  orderId           String  @unique
   createdByDriverId String?
 
-  itemTotal         Decimal  @db.Decimal(10, 2)
-  deliveryCharge    Decimal  @db.Decimal(10, 2)
-  taxOrFees         Decimal  @db.Decimal(10, 2)
-  grandTotal        Decimal  @db.Decimal(10, 2)
+  itemTotal      Decimal @db.Decimal(10, 2)
+  deliveryCharge Decimal @db.Decimal(10, 2)
+  taxOrFees      Decimal @db.Decimal(10, 2)
+  grandTotal     Decimal @db.Decimal(10, 2)
 
-  notes             String?
+  notes String?
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@index([receiptNumber])
@@ -219,9 +220,56 @@ model DigitalReceipt {
 
 model QrScan {
   id        String   @id @default(uuid())
-  campaign String
+  campaign  String
   createdAt DateTime @default(now())
 
   @@index([campaign])
   @@index([createdAt])
+}
+
+model DispatcherChecklistItem {
+  id          String   @id @default(uuid())
+  label       String
+  description String?
+  isRequired  Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  completions DispatcherChecklistCompletion[]
+
+  @@index([isActive])
+  @@index([isRequired])
+  @@index([sortOrder])
+}
+
+model DispatcherChecklistCompletion {
+  id                String   @id @default(uuid())
+  checklistItemId   String
+  businessDate      DateTime
+  completedByUserId String
+  completedAt       DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  checklistItem   DispatcherChecklistItem @relation(fields: [checklistItemId], references: [id], onDelete: Cascade)
+  completedByUser User                    @relation("ChecklistCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([checklistItemId, businessDate])
+  @@index([businessDate])
+  @@index([completedByUserId])
+  @@index([completedAt])
+}
+
+model DispatcherChecklistAlertLog {
+  id                   String   @id @default(uuid())
+  businessDate         DateTime @unique
+  sentAt               DateTime @default(now())
+  alertEmail           String?
+  incompleteItemLabels String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([sentAt])
 }

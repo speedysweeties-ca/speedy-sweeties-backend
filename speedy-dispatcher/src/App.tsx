@@ -100,7 +100,8 @@ type ActiveTab =
   | "DRIVER_STATS"
   | "CATALOG"
   | "CUSTOMERS"
-  | "QR_TRACKING";
+  | "QR_TRACKING"
+  | "DISPATCHER_CHECKLIST";
 
 type ManualOrderItem = {
   itemName: string;
@@ -218,6 +219,39 @@ type QrTrackingCampaign = {
   statsUrl: string;
 };
 
+type ChecklistUser = {
+  id: string;
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+};
+
+type DispatcherChecklistItem = {
+  id: string;
+  label: string;
+  description?: string | null;
+  isRequired: boolean;
+  sortOrder: number;
+  isCompleted: boolean;
+  completedAt?: string | null;
+  completedBy?: ChecklistUser | null;
+};
+
+type DispatcherChecklistHistoryDay = {
+  businessDate: string;
+  totalRequired: number;
+  completedRequired: number;
+  isComplete: boolean;
+  items: DispatcherChecklistItem[];
+};
+
+type DispatcherChecklistSummary = {
+  businessDate: string | null;
+  totalRequired: number;
+  completedRequired: number;
+  isComplete: boolean;
+};
+
 const createEmptyManualOrderItem = (): ManualOrderItem => ({
   itemName: "",
   quantity: "1",
@@ -303,6 +337,8 @@ function App() {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [qrTrackingLoading, setQrTrackingLoading] = useState(false);
+  const [dispatcherChecklistLoading, setDispatcherChecklistLoading] = useState(false);
+  const [completingChecklistItemId, setCompletingChecklistItemId] = useState<string | null>(null);
 
   const [token, setToken] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -331,6 +367,15 @@ function App() {
       statsUrl: "https://speedy-api-lbfe.onrender.com/q/lighter/stats",
     },
   ]);
+
+  const [dispatcherChecklistItems, setDispatcherChecklistItems] = useState<DispatcherChecklistItem[]>([]);
+  const [dispatcherChecklistHistory, setDispatcherChecklistHistory] = useState<DispatcherChecklistHistoryDay[]>([]);
+  const [dispatcherChecklistSummary, setDispatcherChecklistSummary] = useState<DispatcherChecklistSummary>({
+    businessDate: null,
+    totalRequired: 0,
+    completedRequired: 0,
+    isComplete: false,
+  });
 
   const [driverSelections, setDriverSelections] = useState<Record<string, string>>({});
   const [historyDriverIds, setHistoryDriverIds] = useState<string[]>([]);
@@ -389,6 +434,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     activeTab === "CATALOG" ||
     activeTab === "CUSTOMERS" ||
     activeTab === "QR_TRACKING" ||
+    activeTab === "DISPATCHER_CHECKLIST" ||
     manualFormIsDirty ||
     manualOrderLoading ||
     editingOrderId !== null ||
@@ -533,6 +579,14 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     if (activeTab !== "QR_TRACKING") return;
 
     void fetchQrTrackingStats(true);
+  }, [activeTab, token]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (activeTab !== "DISPATCHER_CHECKLIST") return;
+
+    void fetchDispatcherChecklist(token, true);
+    void fetchDispatcherChecklistHistory(token, false);
   }, [activeTab, token]);
 
   useEffect(() => {
@@ -895,6 +949,124 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     }
 
     return driver.email;
+  };
+
+  const getChecklistUserDisplayName = (user?: ChecklistUser | null) => {
+    if (!user) return "—";
+
+    const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim();
+
+    return fullName || user.email;
+  };
+
+  const formatBusinessDate = (value?: string | null) => {
+    if (!value) return "—";
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "—";
+
+    return date.toLocaleDateString([], {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+    });
+  };
+
+  const fetchDispatcherChecklist = async (authToken: string, showLoader = true) => {
+    try {
+      if (showLoader) {
+        setDispatcherChecklistLoading(true);
+      }
+
+      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/dispatcher-checklist/today", {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setDispatcherChecklistItems(data.items || []);
+        setDispatcherChecklistSummary({
+          businessDate: data.businessDate || null,
+          totalRequired: Number(data.totalRequired || 0),
+          completedRequired: Number(data.completedRequired || 0),
+          isComplete: Boolean(data.isComplete),
+        });
+      } else {
+        alert(getApiErrorMessage(data, "Failed to load daily responsibilities"));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while loading daily responsibilities");
+    } finally {
+      if (showLoader) {
+        setDispatcherChecklistLoading(false);
+      }
+    }
+  };
+
+  const fetchDispatcherChecklistHistory = async (authToken: string, showLoader = true) => {
+    try {
+      if (showLoader) {
+        setDispatcherChecklistLoading(true);
+      }
+
+      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/dispatcher-checklist/history?limit=14", {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setDispatcherChecklistHistory(data.history || []);
+      } else {
+        alert(getApiErrorMessage(data, "Failed to load daily responsibilities history"));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while loading daily responsibilities history");
+    } finally {
+      if (showLoader) {
+        setDispatcherChecklistLoading(false);
+      }
+    }
+  };
+
+  const completeDispatcherChecklistItem = async (itemId: string) => {
+    if (!token) return;
+
+    try {
+      setCompletingChecklistItemId(itemId);
+
+      const response = await fetch(
+        `https://speedy-api-lbfe.onrender.com/api/v1/dispatcher-checklist/items/${itemId}/complete`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        await fetchDispatcherChecklist(token, false);
+        await fetchDispatcherChecklistHistory(token, false);
+      } else {
+        alert(getApiErrorMessage(data, "Failed to complete checklist item"));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while completing checklist item");
+    } finally {
+      setCompletingChecklistItemId(null);
+    }
   };
 
   const fetchQrTrackingStats = async (showLoader = true) => {
@@ -1323,6 +1495,15 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         statsUrl: "https://speedy-api-lbfe.onrender.com/q/lighter/stats",
       },
     ]);
+    setDispatcherChecklistItems([]);
+    setDispatcherChecklistHistory([]);
+    setDispatcherChecklistSummary({
+      businessDate: null,
+      totalRequired: 0,
+      completedRequired: 0,
+      isComplete: false,
+    });
+    setCompletingChecklistItemId(null);
     knownOrderIdsRef.current = new Set();
     hasCompletedInitialLoadRef.current = false;
   };
@@ -2473,6 +2654,175 @@ const handleSaveEditedOrder = async (orderId: string) => {
     }
   };
 
+
+  const renderDispatcherChecklist = () => {
+    return (
+      <div className="space-y-6">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Daily Dispatcher Responsibilities</h2>
+              <p className="text-zinc-400 mt-1">
+                Complete each required task before the end of the day. Each click is saved with the dispatcher name and timestamp.
+              </p>
+              <p className="text-zinc-500 text-sm mt-2">
+                Business date: {formatBusinessDate(dispatcherChecklistSummary.businessDate)}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!token) return;
+                void fetchDispatcherChecklist(token, true);
+                void fetchDispatcherChecklistHistory(token, false);
+              }}
+              disabled={dispatcherChecklistLoading}
+              className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
+            >
+              {dispatcherChecklistLoading ? "Refreshing..." : "Refresh Checklist"}
+            </button>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3 mt-6">
+            <div className="bg-zinc-800/70 border border-zinc-700 rounded-xl p-4">
+              <p className="text-zinc-400 text-sm">Required Completed</p>
+              <p className="text-2xl font-bold mt-1">
+                {dispatcherChecklistSummary.completedRequired} / {dispatcherChecklistSummary.totalRequired}
+              </p>
+            </div>
+
+            <div className="bg-zinc-800/70 border border-zinc-700 rounded-xl p-4">
+              <p className="text-zinc-400 text-sm">Daily Status</p>
+              <p className={`text-2xl font-bold mt-1 ${dispatcherChecklistSummary.isComplete ? "text-green-300" : "text-yellow-300"}`}>
+                {dispatcherChecklistSummary.isComplete ? "Complete" : "Incomplete"}
+              </p>
+            </div>
+
+            <div className="bg-zinc-800/70 border border-zinc-700 rounded-xl p-4">
+              <p className="text-zinc-400 text-sm">Email Warning</p>
+              <p className="text-sm text-zinc-300 mt-1">
+                Backend email check will be added after the checklist screen is confirmed working.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
+          <h3 className="text-xl font-bold mb-4">Today&apos;s Checklist</h3>
+
+          {dispatcherChecklistItems.length === 0 ? (
+            <p className="text-zinc-400">No checklist items loaded yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {dispatcherChecklistItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-zinc-800/70 border border-zinc-700 rounded-xl p-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
+                >
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold border ${
+                          item.isCompleted
+                            ? "bg-green-500/20 text-green-200 border-green-400/40"
+                            : "bg-yellow-500/20 text-yellow-200 border-yellow-400/40"
+                        }`}
+                      >
+                        {item.isCompleted ? "DONE" : "NOT DONE"}
+                      </span>
+
+                      {item.isRequired && (
+                        <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold bg-red-500/20 text-red-200 border border-red-400/40">
+                          REQUIRED
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="font-semibold text-white mt-3">{item.label}</p>
+                    {item.description && (
+                      <p className="text-zinc-400 text-sm mt-1">{item.description}</p>
+                    )}
+
+                    <p className="text-zinc-500 text-xs mt-2">
+                      Completed by: {getChecklistUserDisplayName(item.completedBy)}
+                      {" • "}
+                      Timestamp: {formatDateTime(item.completedAt)}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => void completeDispatcherChecklistItem(item.id)}
+                    disabled={completingChecklistItemId === item.id}
+                    className={`px-4 py-2 rounded-lg font-semibold transition disabled:opacity-50 ${
+                      item.isCompleted
+                        ? "bg-zinc-700 hover:bg-zinc-600"
+                        : "bg-red-600 hover:bg-red-700"
+                    }`}
+                  >
+                    {completingChecklistItemId === item.id
+                      ? "Saving..."
+                      : item.isCompleted
+                        ? "Update Timestamp"
+                        : "Mark Done"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
+          <h3 className="text-xl font-bold mb-4">Checklist History</h3>
+
+          {dispatcherChecklistHistory.length === 0 ? (
+            <p className="text-zinc-400">No checklist history loaded yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {dispatcherChecklistHistory.map((day) => (
+                <div key={day.businessDate} className="bg-zinc-800/70 border border-zinc-700 rounded-xl p-4">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="font-bold text-white">{formatBusinessDate(day.businessDate)}</p>
+                      <p className="text-zinc-400 text-sm">
+                        {day.completedRequired} / {day.totalRequired} required completed
+                      </p>
+                    </div>
+
+                    <span
+                      className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-bold border ${
+                        day.isComplete
+                          ? "bg-green-500/20 text-green-200 border-green-400/40"
+                          : "bg-yellow-500/20 text-yellow-200 border-yellow-400/40"
+                      }`}
+                    >
+                      {day.isComplete ? "COMPLETE" : "INCOMPLETE"}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    {day.items.map((item) => (
+                      <div key={`${day.businessDate}-${item.id}`} className="flex flex-col gap-1 border-t border-zinc-700 pt-2 text-sm md:flex-row md:items-center md:justify-between">
+                        <span className={item.isCompleted ? "text-zinc-200" : "text-zinc-500"}>
+                          {item.isCompleted ? "✅" : "⬜"} {item.label}
+                        </span>
+                        <span className="text-zinc-500">
+                          {item.isCompleted
+                            ? `${getChecklistUserDisplayName(item.completedBy)} • ${formatDateTime(item.completedAt)}`
+                            : "Not completed"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const renderQrTracking = () => {
     return (
@@ -4080,11 +4430,16 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   if (activeTab === "QR_TRACKING") {
                     void fetchQrTrackingStats(true);
                   }
+
+                  if (activeTab === "DISPATCHER_CHECKLIST") {
+                    void fetchDispatcherChecklist(token, true);
+                    void fetchDispatcherChecklistHistory(token, false);
+                  }
                 }}
-                disabled={dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading || qrTrackingLoading}
+                disabled={dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading}
                 className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
               >
-                {dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading || qrTrackingLoading
+                {dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading
                   ? "Refreshing..."
                   : "Refresh"}
               </button>
@@ -4109,6 +4464,17 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 }`}
               >
                 QR Code Tracking
+              </button>
+
+              <button
+                onClick={() => setActiveTab("DISPATCHER_CHECKLIST")}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${
+                  activeTab === "DISPATCHER_CHECKLIST"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-zinc-800 hover:bg-zinc-700"
+                }`}
+              >
+                Daily Responsibilities
               </button>
 
               <button
@@ -4355,6 +4721,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
           renderCustomerProfiles()
         ) : activeTab === "QR_TRACKING" ? (
           renderQrTracking()
+        ) : activeTab === "DISPATCHER_CHECKLIST" ? (
+          renderDispatcherChecklist()
         ) : (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
             <div className="mb-6">
