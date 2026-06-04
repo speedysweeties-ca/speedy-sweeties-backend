@@ -2700,9 +2700,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
             </div>
 
             <div className="bg-zinc-800/70 border border-zinc-700 rounded-xl p-4">
-              <p className="text-zinc-400 text-sm">Email Warning</p>
+              <p className="text-zinc-400 text-sm">Daily Accountability</p>
               <p className="text-sm text-zinc-300 mt-1">
-                Backend email check will be added after the checklist screen is confirmed working.
+                Checklist completion is saved with dispatcher name and timestamp for daily review.
               </p>
             </div>
           </div>
@@ -2732,11 +2732,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
                         {item.isCompleted ? "DONE" : "NOT DONE"}
                       </span>
 
-                      {item.isRequired && (
-                        <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold bg-red-500/20 text-red-200 border border-red-400/40">
-                          REQUIRED
-                        </span>
-                      )}
                     </div>
 
                     <p className="font-semibold text-white mt-3">{item.label}</p>
