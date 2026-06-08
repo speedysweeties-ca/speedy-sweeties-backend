@@ -16,8 +16,8 @@ const defaultChecklistItems = [
     sortOrder: 1
   },
   {
-    label: "I have checked that no orders are stuck or missed.",
-    description: "Review live orders, active orders, and order history for anything unusual.",
+    label: "I have made sure I have kept the delivery time under 40 minutes and have not let the B&D orders go over 10 minutes before being dispatched.",
+    description: "Confirm delivery times stayed under 40 minutes and B&D orders were dispatched within 10 minutes.",
     sortOrder: 2
   },
   {
