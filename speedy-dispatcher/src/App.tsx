@@ -257,6 +257,11 @@ const createEmptyManualOrderItem = (): ManualOrderItem => ({
   quantity: "1",
 });
 
+const createDefaultManualOrderItem = (): ManualOrderItem => ({
+  itemName: "Flyer",
+  quantity: "1",
+});
+
 const getApiErrorMessage = (data: any, fallbackMessage: string) => {
   if (!data) return fallbackMessage;
 
@@ -315,15 +320,15 @@ const isValidPhone = (phone: string) => {
 const initialManualOrderForm: ManualOrderForm = {
   customerName: "",
   customerPhone: "",
-  customerEmail: "",
+  customerEmail: "example@yahoo.com",
   addressLine1: "",
   dispatcherNotes: "",
   city: "Guelph",
   province: "ON",
-  postalCode: "",
+  postalCode: "N1G 4N3",
   paymentMethod: "CASH",
   additionalNotes: "",
-  items: [createEmptyManualOrderItem()],
+  items: [createDefaultManualOrderItem()],
 };
 
 function App() {
