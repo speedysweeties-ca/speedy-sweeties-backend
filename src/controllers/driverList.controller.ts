@@ -19,9 +19,18 @@ export const getAllDriversWithStatsController = async (
       email: true,
       isOnline: true,
       lastSeenAt: true,
+
       latitude: true,
       longitude: true,
       locationUpdatedAt: true,
+      locationAccuracyMeters: true,
+      locationSpeedMetersPerSecond: true,
+      locationHeadingDegrees: true,
+      locationRecordedAt: true,
+
+      driverAppState: true,
+      driverAppStateUpdatedAt: true,
+
       assignedOrders: {
         where: {
           orderStatus: {
@@ -49,9 +58,18 @@ export const getAllDriversWithStatsController = async (
     email: driver.email,
     isOnline: driver.isOnline,
     lastSeenAt: driver.lastSeenAt,
+
     latitude: driver.latitude,
     longitude: driver.longitude,
     locationUpdatedAt: driver.locationUpdatedAt,
+    locationAccuracyMeters: driver.locationAccuracyMeters,
+    locationSpeedMetersPerSecond: driver.locationSpeedMetersPerSecond,
+    locationHeadingDegrees: driver.locationHeadingDegrees,
+    locationRecordedAt: driver.locationRecordedAt,
+
+    driverAppState: driver.driverAppState,
+    driverAppStateUpdatedAt: driver.driverAppStateUpdatedAt,
+
     activeOrderCount: driver.assignedOrders.length
   }));
 

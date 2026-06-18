@@ -48,9 +48,13 @@ model User {
   isOnline   Boolean   @default(false)
   lastSeenAt DateTime?
 
-  latitude          Float?
-  longitude         Float?
-  locationUpdatedAt DateTime?
+  latitude                     Float?
+  longitude                    Float?
+  locationUpdatedAt            DateTime?
+  locationAccuracyMeters       Float?
+  locationSpeedMetersPerSecond Float?
+  locationHeadingDegrees       Float?
+  locationRecordedAt           DateTime?
 
   driverFcmToken          String?
   driverAppState          String?   @default("FOREGROUND")
@@ -67,6 +71,7 @@ model User {
   @@index([role])
   @@index([isOnline])
   @@index([locationUpdatedAt])
+  @@index([locationRecordedAt])
   @@index([driverAppState])
   @@index([driverAppStateUpdatedAt])
 }
