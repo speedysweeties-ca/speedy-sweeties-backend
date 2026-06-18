@@ -50,6 +50,12 @@ type DriverOption = {
   latitude?: number | null;
   longitude?: number | null;
   locationUpdatedAt?: string | null;
+  locationAccuracyMeters?: number | null;
+  locationSpeedMetersPerSecond?: number | null;
+  locationHeadingDegrees?: number | null;
+  locationRecordedAt?: string | null;
+  driverAppState?: string | null;
+  driverAppStateUpdatedAt?: string | null;
 };
 
 type DriverStat = {
@@ -551,6 +557,21 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
   useEffect(() => {
     if (!token) return;
+    if (activeTab !== "DRIVER_LOCATION") return;
+
+    void fetchDrivers(token);
+
+    const intervalId = window.setInterval(() => {
+      void fetchDrivers(token);
+    }, 3000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [token, activeTab]);
+
+  useEffect(() => {
+    if (!token) return;
     if (activeTab !== "DELIVERED_HISTORY") return;
 
     void fetchDeliveredOrders(token, true);
@@ -669,6 +690,14 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     }
 
     const map = googleMapRef.current;
+    const activeDriverIds = new Set(driversWithLocation.map((driver) => driver.id));
+
+    Object.entries(driverMarkersRef.current).forEach(([driverId, marker]) => {
+      if (!activeDriverIds.has(driverId)) {
+        marker.setMap(null);
+        delete driverMarkersRef.current[driverId];
+      }
+    });
 
     driversWithLocation.forEach((driver) => {
       const existingMarker = driverMarkersRef.current[driver.id];
@@ -678,23 +707,32 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         lng: driver.longitude as number,
       };
 
+      const title = [
+        getDriverDisplayName(driver),
+        `Status: ${getDriverLocationStatus(driver)}`,
+        `Updated: ${formatDriverLocationAge(driver)}`,
+        `Accuracy: ${formatDriverAccuracy(driver.locationAccuracyMeters)}`,
+        `Speed: ${formatDriverSpeed(driver.locationSpeedMetersPerSecond)}`,
+        `Orders: ${driver.activeOrderCount}`,
+      ].join("\n");
+
       if (existingMarker) {
         existingMarker.setPosition(position);
+        existingMarker.setTitle(title);
       } else {
         const marker = new googleMaps.Marker({
           position,
           map,
-          title: getDriverDisplayName(driver),
+          title,
+          label: {
+            text: getDriverDisplayName(driver).charAt(0).toUpperCase(),
+          },
         });
 
         driverMarkersRef.current[driver.id] = marker;
       }
     });
-
-    return () => {
-      clearMap();
-    };
-  }, [activeTab, drivers]);
+  }, [activeTab, drivers, nowMs]);
 
   const playNewOrderSound = () => {
     try {
@@ -813,6 +851,72 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     }
 
     return `${hours} hr ${minutes} min`;
+  };
+
+  const getDriverLocationAgeSeconds = (driver: DriverOption) => {
+    const locationTime = new Date(
+      driver.locationRecordedAt ||
+        driver.locationUpdatedAt ||
+        driver.lastSeenAt ||
+        ""
+    ).getTime();
+
+    if (Number.isNaN(locationTime)) return null;
+
+    return Math.max(0, Math.floor((nowMs - locationTime) / 1000));
+  };
+
+  const formatDriverLocationAge = (driver: DriverOption) => {
+    const ageSeconds = getDriverLocationAgeSeconds(driver);
+
+    if (ageSeconds === null) return "No GPS yet";
+
+    if (ageSeconds < 60) {
+      return `${ageSeconds}s ago`;
+    }
+
+    const ageMinutes = Math.floor(ageSeconds / 60);
+
+    if (ageMinutes < 60) {
+      return `${ageMinutes} min ago`;
+    }
+
+    const ageHours = Math.floor(ageMinutes / 60);
+    const remainingMinutes = ageMinutes % 60;
+
+    if (remainingMinutes === 0) {
+      return `${ageHours} hr ago`;
+    }
+
+    return `${ageHours} hr ${remainingMinutes} min ago`;
+  };
+
+  const getDriverLocationStatus = (driver: DriverOption) => {
+    const ageSeconds = getDriverLocationAgeSeconds(driver);
+
+    if (!driver.isOnline) return "Offline";
+    if (ageSeconds === null) return "No GPS";
+    if (ageSeconds <= 20) return "Live";
+    if (ageSeconds <= 60) return "Slow";
+    return "Stale";
+  };
+
+  const formatDriverSpeed = (speedMetersPerSecond?: number | null) => {
+    if (speedMetersPerSecond === null || speedMetersPerSecond === undefined) {
+      return "—";
+    }
+
+    const kmPerHour = Math.round(speedMetersPerSecond * 3.6);
+
+    return `${kmPerHour} km/h`;
+  };
+
+  const formatDriverAccuracy = (accuracyMeters?: number | null) => {
+    if (accuracyMeters === null || accuracyMeters === undefined) {
+      return "—";
+    }
+
+    return `${Math.round(accuracyMeters)} m`;
   };
 
   const formatCompletedDeliveryTime = (
@@ -4487,7 +4591,11 @@ const handleSaveEditedOrder = async (orderId: string) => {
           </div>
 
           <div className="text-sm">
-            {autoRefreshPaused ? (
+            {activeTab === "DRIVER_LOCATION" ? (
+              <p className="text-green-300">
+                Driver GPS refresh is active every 3 seconds.
+              </p>
+            ) : autoRefreshPaused ? (
               <p className="text-amber-300">
                 Auto-refresh is paused on this page to prevent the screen from jumping or resetting.
               </p>
@@ -4699,7 +4807,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
             <div className="mb-6">
               <h2 className="text-2xl font-bold">Driver Location</h2>
-              <p className="text-zinc-400 mt-1">Live driver GPS positions</p>
+              <p className="text-zinc-400 mt-1">
+                Live driver GPS positions. This page refreshes every 3 seconds.
+              </p>
             </div>
 
             <div
@@ -4710,6 +4820,76 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 borderRadius: "12px",
               }}
             />
+
+            <div className="mt-6">
+              <h3 className="text-lg font-bold mb-3">Driver GPS Details</h3>
+
+              {drivers.filter((driver) => driver.isOnline).length === 0 ? (
+                <p className="text-zinc-400">No drivers are online.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-zinc-400 border-b border-zinc-700">
+                        <th className="py-2 pr-4">Driver</th>
+                        <th className="py-2 pr-4">GPS</th>
+                        <th className="py-2 pr-4">Updated</th>
+                        <th className="py-2 pr-4">Accuracy</th>
+                        <th className="py-2 pr-4">Speed</th>
+                        <th className="py-2 pr-4">Orders</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {drivers
+                        .filter((driver) => driver.isOnline)
+                        .map((driver) => {
+                          const hasLocation =
+                            typeof driver.latitude === "number" &&
+                            typeof driver.longitude === "number";
+
+                          const gpsStatus = getDriverLocationStatus(driver);
+
+                          return (
+                            <tr
+                              key={driver.id}
+                              className="border-b border-zinc-800"
+                            >
+                              <td className="py-3 pr-4 font-semibold">
+                                {getDriverDisplayName(driver)}
+                              </td>
+                              <td className="py-3 pr-4">
+                                <span
+                                  className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                    gpsStatus === "Live"
+                                      ? "bg-green-900 text-green-200"
+                                      : gpsStatus === "Slow"
+                                        ? "bg-amber-900 text-amber-200"
+                                        : "bg-red-900 text-red-200"
+                                  }`}
+                                >
+                                  {hasLocation ? gpsStatus : "No GPS"}
+                                </span>
+                              </td>
+                              <td className="py-3 pr-4 text-zinc-300">
+                                {hasLocation ? formatDriverLocationAge(driver) : "No GPS yet"}
+                              </td>
+                              <td className="py-3 pr-4 text-zinc-300">
+                                {formatDriverAccuracy(driver.locationAccuracyMeters)}
+                              </td>
+                              <td className="py-3 pr-4 text-zinc-300">
+                                {formatDriverSpeed(driver.locationSpeedMetersPerSecond)}
+                              </td>
+                              <td className="py-3 pr-4 text-zinc-300">
+                                {driver.activeOrderCount}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         ) : activeTab === "DELIVERED_HISTORY" ? (
           renderDeliveredHistory()
