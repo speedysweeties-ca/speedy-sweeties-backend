@@ -4,7 +4,8 @@ import {
   Prisma,
   OrderStatus,
   OrderPriority,
-  PaymentMethod
+  PaymentMethod,
+  UserRole
 } from "@prisma/client";
 import admin from "../config/firebase";
 
@@ -306,6 +307,107 @@ const applyCustomerLoyaltyForDeliveredOrder = async (
   console.log(`Customer loyalty updated: ${nextCompletedOrders}/10 completed deliveries.`);
 };
 
+/* ================= AUTO DISPATCH ================= */
+
+const AUTO_DISPATCH_ACTIVE_STATUSES: OrderStatus[] = [
+  OrderStatus.PLACED,
+  OrderStatus.DISPATCHED,
+  OrderStatus.ACCEPTED,
+  OrderStatus.OUT_FOR_DELIVERY
+];
+
+const isAutoDispatchEnabled = (): boolean => {
+  const value = process.env.AUTO_DISPATCH_ENABLED;
+
+  if (!value) {
+    return true;
+  }
+
+  return value.trim().toLowerCase() !== "false";
+};
+
+const autoAssignCreatedOrderToLeastBusyOnlineDriver = async (
+  tx: Prisma.TransactionClient,
+  orderId: string
+): Promise<void> => {
+  if (!isAutoDispatchEnabled()) {
+    console.log("Auto-dispatch skipped: AUTO_DISPATCH_ENABLED is false.");
+    return;
+  }
+
+  const onlineDrivers = await tx.user.findMany({
+    where: {
+      role: UserRole.DRIVER,
+      isActive: true,
+      isOnline: true
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true
+    },
+    orderBy: [{ lastSeenAt: "desc" }, { createdAt: "asc" }]
+  });
+
+  if (onlineDrivers.length === 0) {
+    console.log("Auto-dispatch skipped: no online drivers.");
+    return;
+  }
+
+  const driverWorkloads = await Promise.all(
+    onlineDrivers.map(async (driver) => {
+      const activeOrderCount = await tx.order.count({
+        where: {
+          assignedDriverId: driver.id,
+          orderStatus: {
+            in: AUTO_DISPATCH_ACTIVE_STATUSES
+          }
+        }
+      });
+
+      return {
+        driver,
+        activeOrderCount
+      };
+    })
+  );
+
+  driverWorkloads.sort((a, b) => {
+    if (a.activeOrderCount !== b.activeOrderCount) {
+      return a.activeOrderCount - b.activeOrderCount;
+    }
+
+    const aName = `${a.driver.firstName ?? ""} ${a.driver.lastName ?? ""}`.trim();
+    const bName = `${b.driver.firstName ?? ""} ${b.driver.lastName ?? ""}`.trim();
+
+    return aName.localeCompare(bName);
+  });
+
+  const selected = driverWorkloads[0];
+
+  if (!selected) {
+    console.log("Auto-dispatch skipped: no selected driver.");
+    return;
+  }
+
+  await tx.order.update({
+    where: { id: orderId },
+    data: {
+      assignedDriverId: selected.driver.id,
+      assignedAt: new Date()
+    }
+  });
+
+  const driverName =
+    `${selected.driver.firstName ?? ""} ${selected.driver.lastName ?? ""}`.trim() ||
+    selected.driver.email;
+
+  console.log(
+    `Auto-dispatched order ${orderId} to ${driverName} with ${selected.activeOrderCount} active order(s).`
+  );
+};
+
 /* ================= CONTROLLERS ================= */
 
 export const createOrderController = async (
@@ -437,6 +539,8 @@ export const createOrderController = async (
         }
       });
     }
+
+    await autoAssignCreatedOrderToLeastBusyOnlineDriver(tx, createdOrder.id);
 
     return tx.order.findUniqueOrThrow({
       where: { id: createdOrder.id },
