@@ -1245,7 +1245,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         setAutoDispatchLoading(true);
       }
 
-      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders/auto-dispatch", {
+      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders/settings/auto-dispatch", {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
@@ -1288,7 +1288,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     try {
       setAutoDispatchUpdating(true);
 
-      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders/auto-dispatch", {
+      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders/settings/auto-dispatch", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

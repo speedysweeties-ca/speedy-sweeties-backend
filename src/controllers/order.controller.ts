@@ -475,6 +475,7 @@ export const getAutoDispatchSettingsController = async (
 
   res.status(200).json({
     success: true,
+    routeVersion: "orders-settings-auto-dispatch-v2",
     enabled,
     autoDispatchEnabled: enabled,
     autoDispatch: {
@@ -501,6 +502,7 @@ export const updateAutoDispatchSettingsController = async (
 
   res.status(200).json({
     success: true,
+    routeVersion: "orders-settings-auto-dispatch-v2",
     message: finalEnabled
       ? "Auto-dispatch is now turned on"
       : "Auto-dispatch is now turned off",

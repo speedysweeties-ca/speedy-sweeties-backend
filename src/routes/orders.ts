@@ -53,6 +53,22 @@ router.get(
 );
 
 // 🔒 STAFF — auto-dispatch setting
+// Primary route uses two path segments so it cannot be mistaken for /:id.
+router.get(
+  "/settings/auto-dispatch",
+  requireAuth,
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
+  asyncHandler(getAutoDispatchSettingsController)
+);
+
+router.patch(
+  "/settings/auto-dispatch",
+  requireAuth,
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
+  asyncHandler(updateAutoDispatchSettingsController)
+);
+
+// Backward-compatible route. Keep this above every /:id route.
 router.get(
   "/auto-dispatch",
   requireAuth,
