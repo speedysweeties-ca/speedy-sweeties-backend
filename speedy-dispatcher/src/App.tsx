@@ -349,6 +349,9 @@ function App() {
   const [customersLoading, setCustomersLoading] = useState(false);
   const [qrTrackingLoading, setQrTrackingLoading] = useState(false);
   const [dispatcherChecklistLoading, setDispatcherChecklistLoading] = useState(false);
+  const [autoDispatchEnabled, setAutoDispatchEnabled] = useState<boolean | null>(null);
+  const [autoDispatchLoading, setAutoDispatchLoading] = useState(false);
+  const [autoDispatchUpdating, setAutoDispatchUpdating] = useState(false);
   const [completingChecklistItemId, setCompletingChecklistItemId] = useState<string | null>(null);
 
   const [token, setToken] = useState<string | null>(null);
@@ -520,6 +523,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       setToken(savedToken);
       void fetchOrders(savedToken, false);
       void fetchDrivers(savedToken);
+      void fetchAutoDispatchSetting(savedToken, false);
     }
   }, []);
 
@@ -1210,6 +1214,110 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     }
   };
 
+  const getAutoDispatchEnabledFromResponse = (data: any): boolean | null => {
+    const rawValue =
+      data?.autoDispatchEnabled ??
+      data?.enabled ??
+      data?.setting?.enabled ??
+      data?.setting?.value ??
+      data?.value;
+
+    if (typeof rawValue === "boolean") {
+      return rawValue;
+    }
+
+    if (typeof rawValue === "string") {
+      const cleanValue = rawValue.trim().toLowerCase();
+
+      if (cleanValue === "true") return true;
+      if (cleanValue === "false") return false;
+    }
+
+    return null;
+  };
+
+  const fetchAutoDispatchSetting = async (
+    authToken: string,
+    showLoader = true
+  ) => {
+    try {
+      if (showLoader) {
+        setAutoDispatchLoading(true);
+      }
+
+      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders/auto-dispatch", {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const enabled = getAutoDispatchEnabledFromResponse(data);
+
+        if (enabled !== null) {
+          setAutoDispatchEnabled(enabled);
+        }
+      } else if (showLoader) {
+        alert(getApiErrorMessage(data, "Failed to load auto dispatch setting"));
+      }
+    } catch (error) {
+      console.error("Failed to load auto dispatch setting:", error);
+
+      if (showLoader) {
+        alert("Server error while loading auto dispatch setting");
+      }
+    } finally {
+      if (showLoader) {
+        setAutoDispatchLoading(false);
+      }
+    }
+  };
+
+  const toggleAutoDispatch = async () => {
+    if (!token) return;
+
+    if (autoDispatchEnabled === null) {
+      alert("Auto Dispatch setting has not loaded yet. Please refresh and try again.");
+      return;
+    }
+
+    const nextEnabled = !autoDispatchEnabled;
+
+    try {
+      setAutoDispatchUpdating(true);
+
+      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders/auto-dispatch", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          enabled: nextEnabled,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        const savedEnabled = getAutoDispatchEnabledFromResponse(data);
+        const finalEnabled = savedEnabled === null ? nextEnabled : savedEnabled;
+
+        setAutoDispatchEnabled(finalEnabled);
+        alert(`Auto Dispatch is now ${finalEnabled ? "ON" : "OFF"}.`);
+      } else {
+        alert(getApiErrorMessage(data, "Failed to update auto dispatch setting"));
+      }
+    } catch (error) {
+      console.error("Failed to update auto dispatch setting:", error);
+      alert("Server error while updating auto dispatch setting");
+    } finally {
+      setAutoDispatchUpdating(false);
+    }
+  };
+
   const fetchDrivers = async (authToken: string) => {
     try {
      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/auth/drivers", {
@@ -1550,6 +1658,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         setToken(data.token);
         await fetchOrders(data.token, true);
         await fetchDrivers(data.token);
+        await fetchAutoDispatchSetting(data.token, false);
       } else {
         alert(getApiErrorMessage(data, "Login failed"));
       }
@@ -1604,6 +1713,9 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         statsUrl: "https://speedy-api-lbfe.onrender.com/q/lighter/stats",
       },
     ]);
+    setAutoDispatchEnabled(null);
+    setAutoDispatchLoading(false);
+    setAutoDispatchUpdating(false);
     setDispatcherChecklistItems([]);
     setDispatcherChecklistHistory([]);
     setDispatcherChecklistSummary({
@@ -4514,6 +4626,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   if (!token) return;
                   void fetchOrders(token, true);
                   void fetchDrivers(token);
+                  void fetchAutoDispatchSetting(token, true);
 
                   if (activeTab === "DELIVERED_HISTORY") {
                     void fetchDeliveredOrders(token, true);
@@ -4540,10 +4653,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     void fetchDispatcherChecklistHistory(token, false);
                   }
                 }}
-                disabled={dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading}
+                disabled={dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading}
                 className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
               >
-                {dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading
+                {dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading
                   ? "Refreshing..."
                   : "Refresh"}
               </button>
@@ -4590,20 +4703,58 @@ const handleSaveEditedOrder = async (orderId: string) => {
             </div>
           </div>
 
-          <div className="text-sm">
-            {activeTab === "DRIVER_LOCATION" ? (
-              <p className="text-green-300">
-                Driver GPS refresh is active every 3 seconds.
-              </p>
-            ) : autoRefreshPaused ? (
-              <p className="text-amber-300">
-                Auto-refresh is paused on this page to prevent the screen from jumping or resetting.
-              </p>
-            ) : (
-              <p className="text-green-300">
-                Auto-refresh is active every 5 seconds.
-              </p>
-            )}
+          <div className="text-sm flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              {activeTab === "DRIVER_LOCATION" ? (
+                <p className="text-green-300">
+                  Driver GPS refresh is active every 3 seconds.
+                </p>
+              ) : autoRefreshPaused ? (
+                <p className="text-amber-300">
+                  Auto-refresh is paused on this page to prevent the screen from jumping or resetting.
+                </p>
+              ) : (
+                <p className="text-green-300">
+                  Auto-refresh is active every 5 seconds.
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <span
+                className={`inline-flex items-center rounded-full border px-3 py-1 font-semibold ${
+                  autoDispatchEnabled === true
+                    ? "bg-green-500/20 text-green-200 border-green-400/40"
+                    : autoDispatchEnabled === false
+                    ? "bg-red-500/20 text-red-200 border-red-400/40"
+                    : "bg-zinc-800 text-zinc-300 border-zinc-700"
+                }`}
+              >
+                Auto Dispatch: {autoDispatchLoading && autoDispatchEnabled === null
+                  ? "Loading..."
+                  : autoDispatchEnabled === true
+                  ? "ON"
+                  : autoDispatchEnabled === false
+                  ? "OFF"
+                  : "Unknown"}
+              </span>
+
+              <button
+                onClick={() => void toggleAutoDispatch()}
+                disabled={autoDispatchLoading || autoDispatchUpdating || autoDispatchEnabled === null}
+                className={`px-4 py-2 rounded-lg font-semibold transition disabled:opacity-50 ${
+                  autoDispatchEnabled === true
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-green-600 hover:bg-green-700"
+                }`}
+              >
+                {autoDispatchUpdating
+                  ? "Saving..."
+                  : autoDispatchEnabled === true
+                  ? "Turn Auto Dispatch Off"
+                  : "Turn Auto Dispatch On"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
