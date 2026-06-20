@@ -475,6 +475,8 @@ export const getAutoDispatchSettingsController = async (
 
   res.status(200).json({
     success: true,
+    enabled,
+    autoDispatchEnabled: enabled,
     autoDispatch: {
       enabled
     }
@@ -502,6 +504,8 @@ export const updateAutoDispatchSettingsController = async (
     message: finalEnabled
       ? "Auto-dispatch is now turned on"
       : "Auto-dispatch is now turned off",
+    enabled: finalEnabled,
+    autoDispatchEnabled: finalEnabled,
     autoDispatch: {
       enabled: finalEnabled
     }
