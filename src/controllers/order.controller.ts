@@ -26,6 +26,10 @@ type UpdatePriorityBody = {
   priority: OrderPriority;
 };
 
+type AutoDispatchSettingsBody = {
+  enabled: boolean;
+};
+
 type CreateOrderItemInput = {
   name: string;
   quantity: number;
@@ -309,6 +313,8 @@ const applyCustomerLoyaltyForDeliveredOrder = async (
 
 /* ================= AUTO DISPATCH ================= */
 
+const AUTO_DISPATCH_SETTING_KEY = "autoDispatchEnabled";
+
 const AUTO_DISPATCH_ACTIVE_STATUSES: OrderStatus[] = [
   OrderStatus.PLACED,
   OrderStatus.DISPATCHED,
@@ -316,9 +322,17 @@ const AUTO_DISPATCH_ACTIVE_STATUSES: OrderStatus[] = [
   OrderStatus.OUT_FOR_DELIVERY
 ];
 
-const isAutoDispatchEnabled = (): boolean => {
+const isAutoDispatchHardDisabledByEnv = (): boolean => {
   const value = process.env.AUTO_DISPATCH_ENABLED;
 
+  if (!value) {
+    return false;
+  }
+
+  return ["false", "0", "off", "no"].includes(value.trim().toLowerCase());
+};
+
+const settingValueToBoolean = (value: string | null | undefined): boolean => {
   if (!value) {
     return true;
   }
@@ -326,12 +340,55 @@ const isAutoDispatchEnabled = (): boolean => {
   return value.trim().toLowerCase() !== "false";
 };
 
+const getAutoDispatchEnabledForTransaction = async (
+  tx: Prisma.TransactionClient
+): Promise<boolean> => {
+  if (isAutoDispatchHardDisabledByEnv()) {
+    return false;
+  }
+
+  const setting = await tx.systemSetting.findUnique({
+    where: { key: AUTO_DISPATCH_SETTING_KEY },
+    select: { value: true }
+  });
+
+  return settingValueToBoolean(setting?.value);
+};
+
+const getAutoDispatchEnabled = async (): Promise<boolean> => {
+  if (isAutoDispatchHardDisabledByEnv()) {
+    return false;
+  }
+
+  const setting = await prisma.systemSetting.findUnique({
+    where: { key: AUTO_DISPATCH_SETTING_KEY },
+    select: { value: true }
+  });
+
+  return settingValueToBoolean(setting?.value);
+};
+
+const saveAutoDispatchEnabled = async (enabled: boolean): Promise<boolean> => {
+  await prisma.systemSetting.upsert({
+    where: { key: AUTO_DISPATCH_SETTING_KEY },
+    update: { value: enabled ? "true" : "false" },
+    create: {
+      key: AUTO_DISPATCH_SETTING_KEY,
+      value: enabled ? "true" : "false"
+    }
+  });
+
+  return getAutoDispatchEnabled();
+};
+
 const autoAssignCreatedOrderToLeastBusyOnlineDriver = async (
   tx: Prisma.TransactionClient,
   orderId: string
 ): Promise<void> => {
-  if (!isAutoDispatchEnabled()) {
-    console.log("Auto-dispatch skipped: AUTO_DISPATCH_ENABLED is false.");
+  const autoDispatchEnabled = await getAutoDispatchEnabledForTransaction(tx);
+
+  if (!autoDispatchEnabled) {
+    console.log("Auto-dispatch skipped: auto-dispatch is turned off.");
     return;
   }
 
@@ -409,6 +466,47 @@ const autoAssignCreatedOrderToLeastBusyOnlineDriver = async (
 };
 
 /* ================= CONTROLLERS ================= */
+
+export const getAutoDispatchSettingsController = async (
+  _req: Request,
+  res: Response
+): Promise<void> => {
+  const enabled = await getAutoDispatchEnabled();
+
+  res.status(200).json({
+    success: true,
+    autoDispatch: {
+      enabled
+    }
+  });
+};
+
+export const updateAutoDispatchSettingsController = async (
+  req: Request<{}, {}, AutoDispatchSettingsBody>,
+  res: Response
+): Promise<void> => {
+  const { enabled } = req.body;
+
+  if (typeof enabled !== "boolean") {
+    res.status(400).json({
+      success: false,
+      message: "enabled must be true or false"
+    });
+    return;
+  }
+
+  const finalEnabled = await saveAutoDispatchEnabled(enabled);
+
+  res.status(200).json({
+    success: true,
+    message: finalEnabled
+      ? "Auto-dispatch is now turned on"
+      : "Auto-dispatch is now turned off",
+    autoDispatch: {
+      enabled: finalEnabled
+    }
+  });
+};
 
 export const createOrderController = async (
   req: Request,
