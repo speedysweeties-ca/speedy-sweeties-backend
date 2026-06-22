@@ -3,9 +3,45 @@ import { StatusCodes } from "http-status-codes";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../utils/ApiError";
 
+const DISPATCHER_CHECKLIST_TIME_ZONE = "America/Toronto";
+const DISPATCHER_CHECKLIST_START_HOUR = 18;
+
+const getTorontoDateParts = (date: Date) => {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: DISPATCHER_CHECKLIST_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false
+  });
+
+  const parts = formatter.formatToParts(date);
+
+  const getPart = (type: string) => {
+    const value = parts.find((part) => part.type === type)?.value;
+    return Number(value);
+  };
+
+  return {
+    year: getPart("year"),
+    month: getPart("month"),
+    day: getPart("day"),
+    hour: getPart("hour")
+  };
+};
+
 const getBusinessDate = (date = new Date()): Date => {
-  const businessDate = new Date(date);
-  businessDate.setHours(0, 0, 0, 0);
+  const torontoDate = getTorontoDateParts(date);
+
+  const businessDate = new Date(
+    Date.UTC(torontoDate.year, torontoDate.month - 1, torontoDate.day, 0, 0, 0, 0)
+  );
+
+  if (torontoDate.hour < DISPATCHER_CHECKLIST_START_HOUR) {
+    businessDate.setUTCDate(businessDate.getUTCDate() - 1);
+  }
+
   return businessDate;
 };
 
@@ -118,6 +154,8 @@ export const getTodayDispatcherChecklistController = async (
   return res.status(StatusCodes.OK).json({
     success: true,
     businessDate,
+    checklistStartsAtHour: DISPATCHER_CHECKLIST_START_HOUR,
+    checklistTimeZone: DISPATCHER_CHECKLIST_TIME_ZONE,
     totalRequired: requiredItems.length,
     completedRequired: completedRequiredItems.length,
     isComplete:
@@ -199,10 +237,10 @@ export const getDispatcherChecklistHistoryController = async (
 ) => {
   await ensureDefaultChecklistItems();
 
-  const limitRaw = Number(req.query.limit || 14);
+  const limitRaw = Number(req.query.limit || 28);
   const limit = Number.isFinite(limitRaw)
     ? Math.min(Math.max(limitRaw, 1), 60)
-    : 14;
+    : 28;
 
   const activeItems = await prisma.dispatcherChecklistItem.findMany({
     where: {
@@ -220,7 +258,7 @@ export const getDispatcherChecklistHistoryController = async (
 
   const today = getBusinessDate();
   const startDate = new Date(today);
-  startDate.setDate(startDate.getDate() - (limit - 1));
+  startDate.setUTCDate(startDate.getUTCDate() - (limit - 1));
 
   const completions = await prisma.dispatcherChecklistCompletion.findMany({
     where: {
@@ -251,7 +289,7 @@ export const getDispatcherChecklistHistoryController = async (
 
   const history = Array.from({ length: limit }).map((_, index) => {
     const businessDate = new Date(today);
-    businessDate.setDate(today.getDate() - index);
+    businessDate.setUTCDate(today.getUTCDate() - index);
 
     const dayCompletions = completions.filter(
       (completion) =>
@@ -289,6 +327,8 @@ export const getDispatcherChecklistHistoryController = async (
 
   return res.status(StatusCodes.OK).json({
     success: true,
+    checklistStartsAtHour: DISPATCHER_CHECKLIST_START_HOUR,
+    checklistTimeZone: DISPATCHER_CHECKLIST_TIME_ZONE,
     history
   });
 };
