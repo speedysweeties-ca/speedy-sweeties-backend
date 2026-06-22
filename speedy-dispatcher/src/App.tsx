@@ -1126,7 +1126,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         setDispatcherChecklistLoading(true);
       }
 
-      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/dispatcher-checklist/history?limit=14", {
+      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/dispatcher-checklist/history?limit=28", {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
