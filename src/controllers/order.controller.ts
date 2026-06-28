@@ -448,11 +448,15 @@ const autoAssignCreatedOrderToLeastBusyOnlineDriver = async (
     return;
   }
 
+  const now = new Date();
+
   await tx.order.update({
     where: { id: orderId },
     data: {
       assignedDriverId: selected.driver.id,
-      assignedAt: new Date()
+      assignedAt: now,
+      dispatchedAt: now,
+      orderStatus: OrderStatus.DISPATCHED
     }
   });
 
