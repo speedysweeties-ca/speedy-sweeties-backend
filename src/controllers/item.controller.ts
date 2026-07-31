@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -94,7 +94,7 @@ export const listCatalogItemsController = async (
   req: Request,
   res: Response
 ) => {
-  const { query, isActive } = req.query;
+  const { query, isActive, page, limit } = req.query;
 
   const searchText = typeof query === "string" ? query.trim() : "";
   const normalizedQuery = searchText ? normalize(searchText) : "";
@@ -104,44 +104,63 @@ export const listCatalogItemsController = async (
     isActive === "false" ? false :
     undefined;
 
-  const items = await prisma.itemCatalog.findMany({
-    where: {
-      ...(activeFilter !== undefined ? { isActive: activeFilter } : {}),
-      ...(normalizedQuery.length >= 2
-        ? {
-            OR: [
-              {
-                normalizedName: {
-                  contains: normalizedQuery
-                }
-              },
-              {
-                normalizedBrand: {
-                  contains: normalizedQuery
-                }
-              },
-              {
-                brand: {
-                  contains: searchText,
-                  mode: "insensitive"
-                }
-              },
-              {
-                category: {
-                  contains: searchText,
-                  mode: "insensitive"
-                }
-              },
-              {
-                source: {
-                  contains: searchText,
-                  mode: "insensitive"
-                }
+  const requestedPage =
+    typeof page === "string" ? Number.parseInt(page, 10) : 1;
+  const requestedLimit =
+    typeof limit === "string" ? Number.parseInt(limit, 10) : 50;
+
+  const pageSize = Number.isFinite(requestedLimit)
+    ? Math.min(100, Math.max(1, requestedLimit))
+    : 50;
+
+  const pageNumber = Number.isFinite(requestedPage)
+    ? Math.max(1, requestedPage)
+    : 1;
+
+  const where: Prisma.ItemCatalogWhereInput = {
+    ...(activeFilter !== undefined ? { isActive: activeFilter } : {}),
+    ...(normalizedQuery.length >= 2
+      ? {
+          OR: [
+            {
+              normalizedName: {
+                contains: normalizedQuery
               }
-            ]
-          }
-        : {})
-    },
+            },
+            {
+              normalizedBrand: {
+                contains: normalizedQuery
+              }
+            },
+            {
+              brand: {
+                contains: searchText,
+                mode: "insensitive" as const
+              }
+            },
+            {
+              category: {
+                contains: searchText,
+                mode: "insensitive" as const
+              }
+            },
+            {
+              source: {
+                contains: searchText,
+                mode: "insensitive" as const
+              }
+            }
+          ]
+        }
+      : {})
+  };
+
+  const total = await prisma.itemCatalog.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(pageNumber, totalPages);
+
+  const items = await prisma.itemCatalog.findMany({
+    where,
     orderBy: [
       {
         isActive: "desc"
@@ -153,12 +172,17 @@ export const listCatalogItemsController = async (
         name: "asc"
       }
     ],
-    take: 100
+    skip: (currentPage - 1) * pageSize,
+    take: pageSize
   });
 
   res.status(200).json({
     success: true,
     count: items.length,
+    total,
+    page: currentPage,
+    pageSize,
+    totalPages,
     items
   });
 };
