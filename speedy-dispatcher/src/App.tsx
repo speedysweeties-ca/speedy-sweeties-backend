@@ -364,6 +364,10 @@ function App() {
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogActiveFilter, setCatalogActiveFilter] = useState<"all" | "active" | "inactive">("all");
+  const [catalogPage, setCatalogPage] = useState(1);
+  const [catalogPageSize, setCatalogPageSize] = useState(50);
+  const [catalogTotalItems, setCatalogTotalItems] = useState(0);
+  const [catalogTotalPages, setCatalogTotalPages] = useState(1);
   const [editingCatalogItemId, setEditingCatalogItemId] = useState<string | null>(null);
   const [catalogEditForm, setCatalogEditForm] = useState<CatalogEditForm | null>(null);
 
@@ -594,8 +598,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     if (!token) return;
     if (activeTab !== "CATALOG") return;
 
-    void fetchCatalogItems(token, true);
-  }, [activeTab, token, catalogActiveFilter]);
+    void fetchCatalogItems(token, true, catalogPage, catalogPageSize);
+  }, [activeTab, token, catalogActiveFilter, catalogPage, catalogPageSize]);
 
   useEffect(() => {
     if (!token) return;
@@ -1126,7 +1130,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         setDispatcherChecklistLoading(true);
       }
 
-      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/dispatcher-checklist/history?limit=28", {
+      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/dispatcher-checklist/history?limit=14", {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
@@ -1245,7 +1249,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         setAutoDispatchLoading(true);
       }
 
-      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders/settings/auto-dispatch", {
+      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders/auto-dispatch", {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
@@ -1288,7 +1292,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     try {
       setAutoDispatchUpdating(true);
 
-      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders/settings/auto-dispatch", {
+      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders/auto-dispatch", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -1336,14 +1340,28 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     }
   };
 
-  const fetchCatalogItems = async (authToken: string, showLoader = true) => {
+  const fetchCatalogItems = async (
+    authToken: string,
+    showLoader = true,
+    pageOverride?: number,
+    pageSizeOverride?: number
+  ) => {
     try {
       if (showLoader) {
         setCatalogLoading(true);
       }
 
+      const requestedPage = Math.max(1, pageOverride ?? catalogPage);
+      const requestedPageSize = Math.min(
+        100,
+        Math.max(1, pageSizeOverride ?? catalogPageSize)
+      );
+
       let url = "https://speedy-api-lbfe.onrender.com/api/v1/items";
       const params = new URLSearchParams();
+
+      params.append("page", String(requestedPage));
+      params.append("limit", String(requestedPageSize));
 
       if (catalogSearch.trim()) {
         params.append("query", catalogSearch.trim());
@@ -1357,9 +1375,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         params.append("isActive", "false");
       }
 
-      if (params.toString()) {
-        url += `?${params.toString()}`;
-      }
+      url += `?${params.toString()}`;
 
       const response = await fetch(url, {
         headers: {
@@ -1370,7 +1386,32 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       const data = await response.json();
 
       if (response.ok) {
-        setCatalogItems(data.items || []);
+        const loadedItems: CatalogItem[] = data.items || [];
+        const returnedPage = Math.max(1, Number(data.page) || requestedPage);
+        const returnedPageSize = Math.max(
+          1,
+          Number(data.pageSize) || requestedPageSize
+        );
+        const returnedTotal = Math.max(
+          0,
+          Number(data.total ?? data.count ?? loadedItems.length) || 0
+        );
+        const returnedTotalPages = Math.max(
+          1,
+          Number(data.totalPages) || Math.ceil(returnedTotal / returnedPageSize) || 1
+        );
+
+        setCatalogItems(loadedItems);
+        setCatalogTotalItems(returnedTotal);
+        setCatalogTotalPages(returnedTotalPages);
+
+        if (returnedPage !== catalogPage) {
+          setCatalogPage(returnedPage);
+        }
+
+        if (returnedPageSize !== catalogPageSize) {
+          setCatalogPageSize(returnedPageSize);
+        }
       } else {
         alert(getApiErrorMessage(data, "Failed to load catalog items"));
       }
@@ -1382,6 +1423,33 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         setCatalogLoading(false);
       }
     }
+  };
+
+  const handleCatalogSearch = () => {
+    if (!token) return;
+
+    setEditingCatalogItemId(null);
+    setCatalogEditForm(null);
+
+    if (catalogPage === 1) {
+      void fetchCatalogItems(token, true, 1, catalogPageSize);
+      return;
+    }
+
+    setCatalogPage(1);
+  };
+
+  const handleCatalogPageChange = (nextPage: number) => {
+    const safePage = Math.min(
+      Math.max(1, nextPage),
+      Math.max(1, catalogTotalPages)
+    );
+
+    if (safePage === catalogPage) return;
+
+    setEditingCatalogItemId(null);
+    setCatalogEditForm(null);
+    setCatalogPage(safePage);
   };
 
   const fetchCustomers = async (
@@ -1698,6 +1766,10 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setCatalogItems([]);
     setCatalogSearch("");
     setCatalogActiveFilter("all");
+    setCatalogPage(1);
+    setCatalogPageSize(50);
+    setCatalogTotalItems(0);
+    setCatalogTotalPages(1);
     setEditingCatalogItemId(null);
     setCatalogEditForm(null);
     setCustomers([]);
@@ -3110,7 +3182,12 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 Search, edit, and deactivate learned catalog items.
               </p>
               <p className="text-zinc-500 text-sm mt-2">
-                Showing {catalogItems.length} catalog items.
+                {catalogTotalItems === 0
+                  ? "Showing 0 catalog items."
+                  : `Showing ${(catalogPage - 1) * catalogPageSize + 1}-${Math.min(
+                      catalogPage * catalogPageSize,
+                      catalogTotalItems
+                    )} of ${catalogTotalItems} catalog items. Page ${catalogPage} of ${catalogTotalPages}.`}
               </p>
             </div>
 
@@ -3123,7 +3200,13 @@ const handleSaveEditedOrder = async (orderId: string) => {
             </button>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-[1fr_220px_auto] mt-6">
+          <form
+            className="grid gap-3 md:grid-cols-[1fr_220px_160px_auto] mt-6"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleCatalogSearch();
+            }}
+          >
             <input
               type="text"
               placeholder="Search catalog by name, brand, category, or source"
@@ -3134,9 +3217,14 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
             <select
               value={catalogActiveFilter}
-              onChange={(e) =>
-                setCatalogActiveFilter(e.target.value as "all" | "active" | "inactive")
-              }
+              onChange={(e) => {
+                setCatalogActiveFilter(
+                  e.target.value as "all" | "active" | "inactive"
+                );
+                setCatalogPage(1);
+                setEditingCatalogItemId(null);
+                setCatalogEditForm(null);
+              }}
               className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
             >
               <option value="all">All items</option>
@@ -3144,15 +3232,30 @@ const handleSaveEditedOrder = async (orderId: string) => {
               <option value="inactive">Inactive only</option>
             </select>
 
+            <select
+              value={catalogPageSize}
+              onChange={(e) => {
+                setCatalogPageSize(Number(e.target.value));
+                setCatalogPage(1);
+                setEditingCatalogItemId(null);
+                setCatalogEditForm(null);
+              }}
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+              aria-label="Catalog items per page"
+            >
+              <option value={25}>25 per page</option>
+              <option value={50}>50 per page</option>
+              <option value={100}>100 per page</option>
+            </select>
+
             <button
-              type="button"
-              onClick={() => token && void fetchCatalogItems(token, true)}
+              type="submit"
               disabled={catalogLoading}
               className="px-5 py-3 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50 font-semibold"
             >
               Search
             </button>
-          </div>
+          </form>
         </div>
 
         {catalogLoading && catalogItems.length === 0 ? (
@@ -3351,6 +3454,54 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   })}
                 </tbody>
               </table>
+            </div>
+
+            <div className="flex flex-col gap-4 border-t border-zinc-800 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-zinc-400">
+                Page {catalogPage} of {catalogTotalPages} · {catalogTotalItems} total items
+              </p>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleCatalogPageChange(1)}
+                  disabled={catalogLoading || catalogPage <= 1}
+                  className="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-40 font-semibold"
+                >
+                  First
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleCatalogPageChange(catalogPage - 1)}
+                  disabled={catalogLoading || catalogPage <= 1}
+                  className="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-40 font-semibold"
+                >
+                  Previous
+                </button>
+
+                <span className="px-3 py-2 text-sm font-semibold text-zinc-200">
+                  {catalogPage} / {catalogTotalPages}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => handleCatalogPageChange(catalogPage + 1)}
+                  disabled={catalogLoading || catalogPage >= catalogTotalPages}
+                  className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-40 font-semibold"
+                >
+                  Next
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleCatalogPageChange(catalogTotalPages)}
+                  disabled={catalogLoading || catalogPage >= catalogTotalPages}
+                  className="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-40 font-semibold"
+                >
+                  Last
+                </button>
+              </div>
             </div>
           </div>
         )}
