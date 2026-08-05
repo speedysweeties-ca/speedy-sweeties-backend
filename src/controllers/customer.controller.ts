@@ -7,6 +7,25 @@ const normalize = (value: string) => value.trim().toLowerCase();
 
 const normalizePhone = (value: string) => value.replace(/\D/g, "");
 
+const LOYALTY_TIME_ZONE = "America/Toronto";
+
+const getCurrentLoyaltyMonth = (date: Date = new Date()): string => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: LOYALTY_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+
+  if (!year || !month) {
+    throw new Error("Unable to determine the current loyalty calendar month.");
+  }
+
+  return `${year}-${month}`;
+};
+
 type CustomerIdParams = {
   id: string;
 };
@@ -128,7 +147,9 @@ export const getCustomerLoyaltyController = async (
     return;
   }
 
-  const customer = await prisma.customer.findFirst({
+  const currentLoyaltyMonth = getCurrentLoyaltyMonth();
+
+  let customer = await prisma.customer.findFirst({
     where: {
       OR: [
         ...(phone ? [{ normalizedPhone: phone }] : []),
@@ -138,6 +159,7 @@ export const getCustomerLoyaltyController = async (
     select: {
       id: true,
       loyaltyCompletedOrders: true,
+      loyaltyProgressMonth: true,
       loyaltyRewardsEarned: true,
       loyaltyRewardsUsed: true,
       loyaltyFreeDelivery: true,
@@ -157,6 +179,49 @@ export const getCustomerLoyaltyController = async (
       },
     });
     return;
+  }
+
+  if (customer.loyaltyProgressMonth !== currentLoyaltyMonth) {
+    await prisma.customer.updateMany({
+      where: {
+        id: customer.id,
+        OR: [
+          { loyaltyProgressMonth: null },
+          { loyaltyProgressMonth: { not: currentLoyaltyMonth } },
+        ],
+      },
+      data: {
+        loyaltyCompletedOrders: 0,
+        loyaltyProgressMonth: currentLoyaltyMonth,
+      },
+    });
+
+    customer = await prisma.customer.findUnique({
+      where: { id: customer.id },
+      select: {
+        id: true,
+        loyaltyCompletedOrders: true,
+        loyaltyProgressMonth: true,
+        loyaltyRewardsEarned: true,
+        loyaltyRewardsUsed: true,
+        loyaltyFreeDelivery: true,
+      },
+    });
+
+    if (!customer) {
+      res.status(200).json({
+        success: true,
+        found: false,
+        loyalty: {
+          loyaltyCompletedOrders: 0,
+          loyaltyRewardsEarned: 0,
+          loyaltyRewardsUsed: 0,
+          loyaltyFreeDelivery: false,
+          deliveriesRemaining: 10,
+        },
+      });
+      return;
+    }
   }
 
   const deliveriesRemaining = customer.loyaltyFreeDelivery

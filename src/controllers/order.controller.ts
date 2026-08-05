@@ -93,6 +93,25 @@ const normalizePhone = (value: string) => value.replace(/\D/g, "");
 const LOYALTY_FREE_DELIVERY_NOTE =
   "LOYALTY REWARD: Customer earned free delivery. Subtract $12 from this order and let the customer know delivery is free.";
 
+const LOYALTY_TIME_ZONE = "America/Toronto";
+
+const getCurrentLoyaltyMonth = (date: Date = new Date()): string => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: LOYALTY_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit"
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+
+  if (!year || !month) {
+    throw new Error("Unable to determine the current loyalty calendar month.");
+  }
+
+  return `${year}-${month}`;
+};
+
 const getItemPrice = (item: UpdateOrderItemInput): number => {
   return item.unitPrice ?? item.price ?? 0;
 };
@@ -322,49 +341,79 @@ const applyCustomerLoyaltyForDeliveredOrder = async (
     return;
   }
 
-  const customer = await prisma.customer.findUnique({
-    where: { id: customerId },
-    select: {
-      id: true,
-      loyaltyCompletedOrders: true,
-      loyaltyRewardsEarned: true,
-      loyaltyFreeDelivery: true
-    }
-  });
+  const currentLoyaltyMonth = getCurrentLoyaltyMonth();
 
-  if (!customer) {
-    console.log("Customer not found. Loyalty not updated.");
-    return;
-  }
-
-  const nextCompletedOrders = customer.loyaltyCompletedOrders + 1;
-
-  if (nextCompletedOrders >= 10) {
-    await prisma.customer.update({
+  const loyaltyResult = await prisma.$transaction(async (tx) => {
+    const customer = await tx.customer.findUnique({
       where: { id: customerId },
-      data: {
-        loyaltyCompletedOrders: 0,
-        loyaltyRewardsEarned: {
-          increment: 1
-        },
+      select: {
+        id: true,
+        loyaltyCompletedOrders: true,
+        loyaltyProgressMonth: true,
+        loyaltyRewardsEarned: true,
         loyaltyFreeDelivery: true
       }
     });
 
+    if (!customer) {
+      return null;
+    }
+
+    const completedOrdersThisMonth =
+      customer.loyaltyProgressMonth === currentLoyaltyMonth
+        ? customer.loyaltyCompletedOrders
+        : 0;
+
+    const nextCompletedOrders = completedOrdersThisMonth + 1;
+
+    if (nextCompletedOrders >= 10) {
+      await tx.customer.update({
+        where: { id: customerId },
+        data: {
+          loyaltyCompletedOrders: 0,
+          loyaltyProgressMonth: currentLoyaltyMonth,
+          loyaltyRewardsEarned: {
+            increment: 1
+          },
+          loyaltyFreeDelivery: true
+        }
+      });
+
+      return {
+        rewardEarned: true,
+        completedOrders: 0
+      };
+    }
+
+    await tx.customer.update({
+      where: { id: customerId },
+      data: {
+        loyaltyCompletedOrders: nextCompletedOrders,
+        loyaltyProgressMonth: currentLoyaltyMonth
+      }
+    });
+
+    return {
+      rewardEarned: false,
+      completedOrders: nextCompletedOrders
+    };
+  });
+
+  if (!loyaltyResult) {
+    console.log("Customer not found. Loyalty not updated.");
+    return;
+  }
+
+  if (loyaltyResult.rewardEarned) {
     await sendCustomerRewardEarnedNotification(fcmToken);
 
     console.log("Customer earned a free delivery reward.");
     return;
   }
 
-  await prisma.customer.update({
-    where: { id: customerId },
-    data: {
-      loyaltyCompletedOrders: nextCompletedOrders
-    }
-  });
-
-  console.log(`Customer loyalty updated: ${nextCompletedOrders}/10 completed deliveries.`);
+  console.log(
+    `Customer loyalty updated: ${loyaltyResult.completedOrders}/10 completed deliveries for ${currentLoyaltyMonth}.`
+  );
 };
 
 /* ================= AUTO DISPATCH ================= */
@@ -654,6 +703,7 @@ export const createOrderController = async (
         city: city.trim(),
         province: province.trim(),
         postalCode: postalCode.trim().toUpperCase(),
+        loyaltyProgressMonth: getCurrentLoyaltyMonth(),
         dispatcherNotes:
           typeof dispatcherNotes === "string" ? dispatcherNotes.trim() : null
       }
@@ -857,7 +907,8 @@ export const updateOrderDetailsController = async (
           addressLine1: addressLine1.trim(),
           city: city.trim(),
           province: province.trim(),
-          postalCode: postalCode.trim().toUpperCase()
+          postalCode: postalCode.trim().toUpperCase(),
+          loyaltyProgressMonth: getCurrentLoyaltyMonth()
         }
       });
     } else {

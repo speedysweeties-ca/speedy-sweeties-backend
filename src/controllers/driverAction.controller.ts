@@ -34,6 +34,25 @@ const hasAppFcmToken = (fcmToken: string | null | undefined): boolean => {
   return typeof fcmToken === "string" && fcmToken.trim().length > 0;
 };
 
+const LOYALTY_TIME_ZONE = "America/Toronto";
+
+const getCurrentLoyaltyMonth = (date: Date = new Date()): string => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: LOYALTY_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit"
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+
+  if (!year || !month) {
+    throw new Error("Unable to determine the current loyalty calendar month.");
+  }
+
+  return `${year}-${month}`;
+};
+
 const sendPushNotification = async (
   fcmToken: string | null,
   title: string,
@@ -84,35 +103,70 @@ const applyCustomerLoyaltyForDeliveredOrder = async (
     return;
   }
 
-  const customer = await prisma.customer.findUnique({
-    where: { id: customerId },
-    select: {
-      id: true,
-      loyaltyCompletedOrders: true,
-      loyaltyRewardsEarned: true,
-      loyaltyFreeDelivery: true
-    }
-  });
+  const currentLoyaltyMonth = getCurrentLoyaltyMonth();
 
-  if (!customer) {
-    console.log("Customer not found. Loyalty not updated.");
-    return;
-  }
-
-  const nextCompletedOrders = customer.loyaltyCompletedOrders + 1;
-
-  if (nextCompletedOrders >= 10) {
-    await prisma.customer.update({
+  const loyaltyResult = await prisma.$transaction(async (tx) => {
+    const customer = await tx.customer.findUnique({
       where: { id: customerId },
-      data: {
-        loyaltyCompletedOrders: 0,
-        loyaltyRewardsEarned: {
-          increment: 1
-        },
+      select: {
+        id: true,
+        loyaltyCompletedOrders: true,
+        loyaltyProgressMonth: true,
+        loyaltyRewardsEarned: true,
         loyaltyFreeDelivery: true
       }
     });
 
+    if (!customer) {
+      return null;
+    }
+
+    const completedOrdersThisMonth =
+      customer.loyaltyProgressMonth === currentLoyaltyMonth
+        ? customer.loyaltyCompletedOrders
+        : 0;
+
+    const nextCompletedOrders = completedOrdersThisMonth + 1;
+
+    if (nextCompletedOrders >= 10) {
+      await tx.customer.update({
+        where: { id: customerId },
+        data: {
+          loyaltyCompletedOrders: 0,
+          loyaltyProgressMonth: currentLoyaltyMonth,
+          loyaltyRewardsEarned: {
+            increment: 1
+          },
+          loyaltyFreeDelivery: true
+        }
+      });
+
+      return {
+        rewardEarned: true,
+        completedOrders: 0
+      };
+    }
+
+    await tx.customer.update({
+      where: { id: customerId },
+      data: {
+        loyaltyCompletedOrders: nextCompletedOrders,
+        loyaltyProgressMonth: currentLoyaltyMonth
+      }
+    });
+
+    return {
+      rewardEarned: false,
+      completedOrders: nextCompletedOrders
+    };
+  });
+
+  if (!loyaltyResult) {
+    console.log("Customer not found. Loyalty not updated.");
+    return;
+  }
+
+  if (loyaltyResult.rewardEarned) {
     await sendPushNotification(
       fcmToken,
       "Speedy Sweeties 🎉",
@@ -124,14 +178,7 @@ const applyCustomerLoyaltyForDeliveredOrder = async (
     return;
   }
 
-  await prisma.customer.update({
-    where: { id: customerId },
-    data: {
-      loyaltyCompletedOrders: nextCompletedOrders
-    }
-  });
-
-  const deliveriesRemaining = 10 - nextCompletedOrders;
+  const deliveriesRemaining = 10 - loyaltyResult.completedOrders;
   const deliveryWord = deliveriesRemaining === 1 ? "delivery" : "deliveries";
 
   await sendPushNotification(
@@ -141,7 +188,9 @@ const applyCustomerLoyaltyForDeliveredOrder = async (
     "LOYALTY_PROGRESS_UPDATE"
   );
 
-  console.log(`Customer loyalty updated: ${nextCompletedOrders}/10 completed deliveries.`);
+  console.log(
+    `Customer loyalty updated: ${loyaltyResult.completedOrders}/10 completed deliveries for ${currentLoyaltyMonth}.`
+  );
 };
 
 export const driverActionController = async (
