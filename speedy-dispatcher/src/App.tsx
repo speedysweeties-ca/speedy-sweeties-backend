@@ -162,6 +162,7 @@ type ItemSuggestion = {
   category?: string | null;
   brand?: string | null;
   source?: string | null;
+  pickupType?: string | null;
   isActive: boolean;
   popularityScore?: number;
 };
@@ -175,6 +176,7 @@ type CatalogItem = {
   size?: string | null;
   category?: string | null;
   source?: string | null;
+  pickupType?: string | null;
   isActive: boolean;
   popularityScore: number;
   createdAt?: string;
@@ -187,6 +189,7 @@ type CatalogEditForm = {
   size: string;
   category: string;
   source: string;
+  pickupType: string;
   isActive: boolean;
 };
 
@@ -552,6 +555,26 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     return driverStats.reduce((total, stat) => total + stat.totalDeliveries, 0);
   }, [driverStats]);
 
+  const pickupTypeOptions = useMemo(() => {
+    const values = new Set<string>(["UNKNOWN"]);
+
+    pickupLocations.forEach((location) => {
+      const value = (location.pickupType || "").trim().toUpperCase();
+      if (value) values.add(value);
+    });
+
+    catalogItems.forEach((item) => {
+      const value = (item.pickupType || "").trim().toUpperCase();
+      if (value) values.add(value);
+    });
+
+    return Array.from(values).sort((a, b) => {
+      if (a === "UNKNOWN") return -1;
+      if (b === "UNKNOWN") return 1;
+      return a.localeCompare(b);
+    });
+  }, [pickupLocations, catalogItems]);
+
   const topDriver = useMemo(() => {
     if (driverStats.length === 0) return null;
     return [...driverStats].sort((a, b) => b.totalDeliveries - a.totalDeliveries)[0];
@@ -651,6 +674,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     if (activeTab !== "CATALOG") return;
 
     void fetchCatalogItems(token, true, catalogPage, catalogPageSize);
+    void fetchPickupLocations(token, false);
   }, [activeTab, token, catalogActiveFilter, catalogPage, catalogPageSize]);
 
   useEffect(() => {
@@ -3228,6 +3252,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
       size: item.size || "",
       category: item.category || "",
       source: item.source || "",
+      pickupType: (item.pickupType || "UNKNOWN").toUpperCase(),
       isActive: item.isActive,
     });
   };
@@ -3276,6 +3301,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             size: catalogEditForm.size.trim(),
             category: catalogEditForm.category.trim(),
             source: catalogEditForm.source.trim(),
+            pickupType: (catalogEditForm.pickupType.trim() || "UNKNOWN").toUpperCase(),
             isActive: catalogEditForm.isActive,
           }),
         }
@@ -3781,10 +3807,11 @@ const handleSaveEditedOrder = async (orderId: string) => {
         ) : (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px] text-sm">
+              <table className="w-full min-w-[1250px] text-sm">
                 <thead className="bg-zinc-800 text-zinc-300">
                   <tr>
                     <th className="text-left p-3">Item</th>
+                    <th className="text-left p-3">Pickup Type</th>
                     <th className="text-left p-3">Brand</th>
                     <th className="text-left p-3">Size</th>
                     <th className="text-left p-3">Category</th>
@@ -3815,6 +3842,22 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                 }
                                 className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
                               />
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <select
+                                value={catalogEditForm.pickupType}
+                                onChange={(e) =>
+                                  handleCatalogEditFieldChange("pickupType", e.target.value)
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              >
+                                {pickupTypeOptions.map((pickupType) => (
+                                  <option key={pickupType} value={pickupType}>
+                                    {pickupType.replace(/_/g, " ")}
+                                  </option>
+                                ))}
+                              </select>
                             </td>
 
                             <td className="p-2 align-top">
@@ -3905,6 +3948,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
                             <td className="p-2 align-top">
                               <p className="font-semibold text-zinc-100">{item.name}</p>
                               <p className="text-zinc-500 text-xs break-all">{item.id}</p>
+                            </td>
+
+                            <td className="p-2 align-top text-zinc-300">
+                              {(item.pickupType || "UNKNOWN").replace(/_/g, " ")}
                             </td>
 
                             <td className="p-2 align-top text-zinc-300">
