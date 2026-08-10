@@ -193,6 +193,15 @@ type CatalogEditForm = {
   isActive: boolean;
 };
 
+const CATALOG_PICKUP_TYPE_OPTIONS = [
+  "UNKNOWN",
+  "CONVENIENCE",
+  "GENERAL_RETAIL",
+  "GROCERY",
+  "PHARMACY",
+  "OTHER",
+] as const;
+
 type PickupLocation = {
   id: string;
   name: string;
@@ -414,6 +423,8 @@ function App() {
   const [catalogTotalPages, setCatalogTotalPages] = useState(1);
   const [editingCatalogItemId, setEditingCatalogItemId] = useState<string | null>(null);
   const [catalogEditForm, setCatalogEditForm] = useState<CatalogEditForm | null>(null);
+  const [updatingCatalogPickupTypeId, setUpdatingCatalogPickupTypeId] =
+    useState<string | null>(null);
 
   const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([]);
   const [pickupLocationForm, setPickupLocationForm] = useState<PickupLocationForm>(
@@ -555,26 +566,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     return driverStats.reduce((total, stat) => total + stat.totalDeliveries, 0);
   }, [driverStats]);
 
-  const pickupTypeOptions = useMemo(() => {
-    const values = new Set<string>(["UNKNOWN"]);
-
-    pickupLocations.forEach((location) => {
-      const value = (location.pickupType || "").trim().toUpperCase();
-      if (value) values.add(value);
-    });
-
-    catalogItems.forEach((item) => {
-      const value = (item.pickupType || "").trim().toUpperCase();
-      if (value) values.add(value);
-    });
-
-    return Array.from(values).sort((a, b) => {
-      if (a === "UNKNOWN") return -1;
-      if (b === "UNKNOWN") return 1;
-      return a.localeCompare(b);
-    });
-  }, [pickupLocations, catalogItems]);
-
   const topDriver = useMemo(() => {
     if (driverStats.length === 0) return null;
     return [...driverStats].sort((a, b) => b.totalDeliveries - a.totalDeliveries)[0];
@@ -674,7 +665,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     if (activeTab !== "CATALOG") return;
 
     void fetchCatalogItems(token, true, catalogPage, catalogPageSize);
-    void fetchPickupLocations(token, false);
   }, [activeTab, token, catalogActiveFilter, catalogPage, catalogPageSize]);
 
   useEffect(() => {
@@ -2303,6 +2293,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setCatalogTotalPages(1);
     setEditingCatalogItemId(null);
     setCatalogEditForm(null);
+    setUpdatingCatalogPickupTypeId(null);
     setPickupLocations([]);
     setPickupLocationForm(initialPickupLocationForm);
     setEditingPickupLocationId(null);
@@ -3252,7 +3243,12 @@ const handleSaveEditedOrder = async (orderId: string) => {
       size: item.size || "",
       category: item.category || "",
       source: item.source || "",
-      pickupType: (item.pickupType || "UNKNOWN").toUpperCase(),
+      pickupType: CATALOG_PICKUP_TYPE_OPTIONS.includes(
+        (item.pickupType || "UNKNOWN").toUpperCase() as
+          (typeof CATALOG_PICKUP_TYPE_OPTIONS)[number]
+      )
+        ? (item.pickupType || "UNKNOWN").toUpperCase()
+        : "OTHER",
       isActive: item.isActive,
     });
   };
@@ -3274,6 +3270,77 @@ const handleSaveEditedOrder = async (orderId: string) => {
   const handleCancelCatalogEdit = () => {
     setEditingCatalogItemId(null);
     setCatalogEditForm(null);
+  };
+
+  const handleCatalogPickupTypeChange = async (
+    item: CatalogItem,
+    nextPickupType: string
+  ) => {
+    if (!token) return;
+
+    const normalizedPickupType = CATALOG_PICKUP_TYPE_OPTIONS.includes(
+      nextPickupType.toUpperCase() as
+        (typeof CATALOG_PICKUP_TYPE_OPTIONS)[number]
+    )
+      ? nextPickupType.toUpperCase()
+      : "UNKNOWN";
+
+    const currentPickupType = CATALOG_PICKUP_TYPE_OPTIONS.includes(
+      (item.pickupType || "UNKNOWN").toUpperCase() as
+        (typeof CATALOG_PICKUP_TYPE_OPTIONS)[number]
+    )
+      ? (item.pickupType || "UNKNOWN").toUpperCase()
+      : "OTHER";
+
+    if (normalizedPickupType === currentPickupType) return;
+
+    try {
+      setUpdatingCatalogPickupTypeId(item.id);
+
+      const response = await fetch(
+        `https://speedy-api-lbfe.onrender.com/api/v1/items/${item.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            pickupType: normalizedPickupType,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setCatalogItems((prev) =>
+          prev.map((catalogItem) =>
+            catalogItem.id === item.id
+              ? { ...catalogItem, pickupType: normalizedPickupType }
+              : catalogItem
+          )
+        );
+
+        if (editingCatalogItemId === item.id && catalogEditForm) {
+          setCatalogEditForm((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  pickupType: normalizedPickupType,
+                }
+              : prev
+          );
+        }
+      } else {
+        alert(getApiErrorMessage(data, "Failed to update pickup type"));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while updating pickup type");
+    } finally {
+      setUpdatingCatalogPickupTypeId(null);
+    }
   };
 
   const handleSaveCatalogItem = async (itemId: string) => {
@@ -3852,7 +3919,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                 }
                                 className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
                               >
-                                {pickupTypeOptions.map((pickupType) => (
+                                {CATALOG_PICKUP_TYPE_OPTIONS.map((pickupType) => (
                                   <option key={pickupType} value={pickupType}>
                                     {pickupType.replace(/_/g, " ")}
                                   </option>
@@ -3950,8 +4017,35 @@ const handleSaveEditedOrder = async (orderId: string) => {
                               <p className="text-zinc-500 text-xs break-all">{item.id}</p>
                             </td>
 
-                            <td className="p-2 align-top text-zinc-300">
-                              {(item.pickupType || "UNKNOWN").replace(/_/g, " ")}
+                            <td className="p-2 align-top">
+                              <select
+                                value={
+                                  CATALOG_PICKUP_TYPE_OPTIONS.includes(
+                                    (item.pickupType || "UNKNOWN").toUpperCase() as
+                                      (typeof CATALOG_PICKUP_TYPE_OPTIONS)[number]
+                                  )
+                                    ? (item.pickupType || "UNKNOWN").toUpperCase()
+                                    : "OTHER"
+                                }
+                                onChange={(e) =>
+                                  void handleCatalogPickupTypeChange(
+                                    item,
+                                    e.target.value
+                                  )
+                                }
+                                disabled={
+                                  catalogLoading ||
+                                  updatingCatalogPickupTypeId === item.id
+                                }
+                                className="w-full min-w-[150px] p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500 disabled:opacity-50"
+                                aria-label={`Pickup type for ${item.name}`}
+                              >
+                                {CATALOG_PICKUP_TYPE_OPTIONS.map((pickupType) => (
+                                  <option key={pickupType} value={pickupType}>
+                                    {pickupType.replace(/_/g, " ")}
+                                  </option>
+                                ))}
+                              </select>
                             </td>
 
                             <td className="p-2 align-top text-zinc-300">
