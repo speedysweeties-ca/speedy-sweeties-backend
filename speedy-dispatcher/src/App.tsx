@@ -568,9 +568,11 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     if (activeTab !== "DRIVER_LOCATION") return;
 
     void fetchDrivers(token);
+    void fetchOrders(token, false);
 
     const intervalId = window.setInterval(() => {
       void fetchDrivers(token);
+      void fetchOrders(token, false);
     }, 3000);
 
     return () => {
@@ -638,6 +640,10 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   const mapRef = useRef<HTMLDivElement | null>(null);
   const googleMapRef = useRef<any>(null);
   const driverMarkersRef = useRef<Record<string, any>>({});
+  const orderMarkersRef = useRef<Record<string, any>>({});
+  const orderMarkerAddressesRef = useRef<Record<string, string>>({});
+  const orderGeocodingInFlightRef = useRef<Set<string>>(new Set());
+  const orderGeocodingFailedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (newOrderIds.length === 0) return;
@@ -658,7 +664,15 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         marker.setMap(null);
       });
 
+      Object.values(orderMarkersRef.current).forEach((marker) => {
+        marker.setMap(null);
+      });
+
       driverMarkersRef.current = {};
+      orderMarkersRef.current = {};
+      orderMarkerAddressesRef.current = {};
+      orderGeocodingInFlightRef.current = new Set();
+      orderGeocodingFailedRef.current = new Set();
       googleMapRef.current = null;
 
       if (mapRef.current) {
@@ -682,17 +696,29 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         typeof driver.longitude === "number"
     );
 
-    if (driversWithLocation.length === 0) {
+    const activeOrders = orders.filter((order) =>
+      ["PLACED", "DISPATCHED", "ACCEPTED", "OUT_FOR_DELIVERY"].includes(
+        order.orderStatus
+      )
+    );
+
+    if (driversWithLocation.length === 0 && activeOrders.length === 0) {
       clearMap();
       return;
     }
 
     if (!googleMapRef.current) {
       googleMapRef.current = new googleMaps.Map(mapRef.current, {
-        center: {
-          lat: driversWithLocation[0].latitude as number,
-          lng: driversWithLocation[0].longitude as number,
-        },
+        center:
+          driversWithLocation.length > 0
+            ? {
+                lat: driversWithLocation[0].latitude as number,
+                lng: driversWithLocation[0].longitude as number,
+              }
+            : {
+                lat: 43.5448,
+                lng: -80.2482,
+              },
         zoom: 13,
       });
     }
@@ -740,7 +766,106 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         driverMarkersRef.current[driver.id] = marker;
       }
     });
-  }, [activeTab, drivers, nowMs]);
+
+    const activeOrderIds = new Set(activeOrders.map((order) => order.id));
+
+    Object.entries(orderMarkersRef.current).forEach(([orderId, marker]) => {
+      if (!activeOrderIds.has(orderId)) {
+        marker.setMap(null);
+        delete orderMarkersRef.current[orderId];
+        delete orderMarkerAddressesRef.current[orderId];
+      }
+    });
+
+    activeOrders.forEach((order) => {
+      const fullAddress = [
+        order.addressLine1,
+        order.city,
+        order.province,
+        order.postalCode,
+        "Canada",
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      const title = [
+        `Order #${order.orderNumber}`,
+        order.customerName,
+        fullAddress,
+        `Status: ${order.orderStatus}`,
+        `Driver: ${getDriverDisplayName(order.assignedDriver)}`,
+      ].join("\n");
+
+      const existingMarker = orderMarkersRef.current[order.id];
+      const existingAddress = orderMarkerAddressesRef.current[order.id];
+
+      if (existingMarker && existingAddress === fullAddress) {
+        existingMarker.setTitle(title);
+        existingMarker.setLabel({
+          text: String(order.orderNumber),
+          fontWeight: "700",
+        });
+        return;
+      }
+
+      if (existingMarker && existingAddress !== fullAddress) {
+        existingMarker.setMap(null);
+        delete orderMarkersRef.current[order.id];
+        delete orderMarkerAddressesRef.current[order.id];
+      }
+
+      const geocodeKey = `${order.id}|${fullAddress}`;
+
+      if (orderGeocodingInFlightRef.current.has(geocodeKey)) return;
+      if (orderGeocodingFailedRef.current.has(geocodeKey)) return;
+
+      orderGeocodingInFlightRef.current.add(geocodeKey);
+
+      const geocoder = new googleMaps.Geocoder();
+
+      geocoder.geocode(
+        {
+          address: fullAddress,
+          componentRestrictions: {
+            country: "CA",
+          },
+          region: "CA",
+        },
+        (results: any[] | null, status: string) => {
+          orderGeocodingInFlightRef.current.delete(geocodeKey);
+
+          if (googleMapRef.current !== map) return;
+
+          const location = results?.[0]?.geometry?.location;
+
+          if (status !== "OK" || !location) {
+            console.warn(
+              `Unable to geocode delivery address for order #${order.orderNumber}. Status: ${status}`
+            );
+            orderGeocodingFailedRef.current.add(geocodeKey);
+            return;
+          }
+
+          const marker = new googleMaps.Marker({
+            position: location,
+            map,
+            title,
+            label: {
+              text: String(order.orderNumber),
+              fontWeight: "700",
+            },
+          });
+
+          orderMarkersRef.current[order.id] = marker;
+          orderMarkerAddressesRef.current[order.id] = fullAddress;
+
+          if (driversWithLocation.length === 0 && Object.keys(orderMarkersRef.current).length === 1) {
+            map.setCenter(location);
+          }
+        }
+      );
+    });
+  }, [activeTab, drivers, orders, nowMs]);
 
   const playNewOrderSound = () => {
     try {
@@ -4858,7 +4983,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             <div>
               {activeTab === "DRIVER_LOCATION" ? (
                 <p className="text-green-300">
-                  Driver GPS refresh is active every 3 seconds.
+                  Driver GPS and active delivery locations refresh every 3 seconds.
                 </p>
               ) : autoRefreshPaused ? (
                 <p className="text-amber-300">
@@ -5110,7 +5235,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             <div className="mb-6">
               <h2 className="text-2xl font-bold">Driver Location</h2>
               <p className="text-zinc-400 mt-1">
-                Live driver GPS positions. This page refreshes every 3 seconds.
+                Live driver GPS positions and active delivery locations. This page refreshes every 3 seconds.
               </p>
             </div>
 
