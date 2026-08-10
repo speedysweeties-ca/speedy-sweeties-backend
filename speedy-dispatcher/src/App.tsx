@@ -644,6 +644,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   const orderMarkerAddressesRef = useRef<Record<string, string>>({});
   const orderGeocodingInFlightRef = useRef<Set<string>>(new Set());
   const orderGeocodingFailedRef = useRef<Set<string>>(new Set());
+  const orderInfoWindowRef = useRef<any>(null);
 
   useEffect(() => {
     if (newOrderIds.length === 0) return;
@@ -673,6 +674,12 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       orderMarkerAddressesRef.current = {};
       orderGeocodingInFlightRef.current = new Set();
       orderGeocodingFailedRef.current = new Set();
+
+      if (orderInfoWindowRef.current) {
+        orderInfoWindowRef.current.close();
+        orderInfoWindowRef.current = null;
+      }
+
       googleMapRef.current = null;
 
       if (mapRef.current) {
@@ -735,14 +742,25 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
     driversWithLocation.forEach((driver) => {
       const existingMarker = driverMarkersRef.current[driver.id];
+      const driverDisplayName = getDriverDisplayName(driver);
+      const isRobDriver =
+        driverDisplayName.replace(/\s+/g, "").toLowerCase() === "robdriver";
 
       const position = {
         lat: driver.latitude as number,
         lng: driver.longitude as number,
       };
 
+      const robDriverIcon = isRobDriver
+        ? {
+            url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+            scaledSize: new googleMaps.Size(32, 32),
+            labelOrigin: new googleMaps.Point(16, 10),
+          }
+        : null;
+
       const title = [
-        getDriverDisplayName(driver),
+        driverDisplayName,
         `Status: ${getDriverLocationStatus(driver)}`,
         `Updated: ${formatDriverLocationAge(driver)}`,
         `Accuracy: ${formatDriverAccuracy(driver.locationAccuracyMeters)}`,
@@ -750,17 +768,23 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         `Orders: ${driver.activeOrderCount}`,
       ].join("\n");
 
+      const label = {
+        text: driverDisplayName.charAt(0).toUpperCase(),
+        ...(isRobDriver ? { color: "#ffffff", fontWeight: "700" } : {}),
+      };
+
       if (existingMarker) {
         existingMarker.setPosition(position);
         existingMarker.setTitle(title);
+        existingMarker.setIcon(robDriverIcon);
+        existingMarker.setLabel(label);
       } else {
         const marker = new googleMaps.Marker({
           position,
           map,
           title,
-          label: {
-            text: getDriverDisplayName(driver).charAt(0).toUpperCase(),
-          },
+          icon: robDriverIcon,
+          label,
         });
 
         driverMarkersRef.current[driver.id] = marker;
@@ -772,6 +796,12 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     Object.entries(orderMarkersRef.current).forEach(([orderId, marker]) => {
       if (!activeOrderIds.has(orderId)) {
         marker.setMap(null);
+
+        if (orderInfoWindowRef.current?.__orderId === orderId) {
+          orderInfoWindowRef.current.close();
+          orderInfoWindowRef.current.__orderId = null;
+        }
+
         delete orderMarkersRef.current[orderId];
         delete orderMarkerAddressesRef.current[orderId];
       }
@@ -788,13 +818,43 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         .filter(Boolean)
         .join(", ");
 
+      const driverName = getDriverDisplayName(order.assignedDriver);
+      const orderTime = formatOrderAge(order.createdAt);
+      const displayStatus = order.orderStatus.replace(/_/g, " ");
+
       const title = [
         `Order #${order.orderNumber}`,
         order.customerName,
         fullAddress,
-        `Status: ${order.orderStatus}`,
-        `Driver: ${getDriverDisplayName(order.assignedDriver)}`,
+        `Status: ${displayStatus}`,
+        `Driver: ${driverName}`,
+        `Order Time: ${orderTime}`,
       ].join("\n");
+
+      const escapeMapInfoText = (value: unknown) =>
+        String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+
+      const infoWindowContent = `
+        <div style="min-width:220px;max-width:300px;padding:4px 2px;color:#18181b;font-family:Arial,sans-serif;line-height:1.4;">
+          <div style="font-size:17px;font-weight:700;margin-bottom:6px;">
+            Order #${escapeMapInfoText(order.orderNumber)}
+          </div>
+          <div style="font-weight:700;margin-bottom:4px;">
+            ${escapeMapInfoText(order.customerName)}
+          </div>
+          <div style="margin-bottom:8px;">
+            ${escapeMapInfoText(fullAddress)}
+          </div>
+          <div><strong>Status:</strong> ${escapeMapInfoText(displayStatus)}</div>
+          <div><strong>Driver:</strong> ${escapeMapInfoText(driverName)}</div>
+          <div><strong>Order Time:</strong> ${escapeMapInfoText(orderTime)}</div>
+        </div>
+      `;
 
       const existingMarker = orderMarkersRef.current[order.id];
       const existingAddress = orderMarkerAddressesRef.current[order.id];
@@ -805,11 +865,23 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
           text: String(order.orderNumber),
           fontWeight: "700",
         });
+        existingMarker.__orderInfoContent = infoWindowContent;
+
+        if (orderInfoWindowRef.current?.__orderId === order.id) {
+          orderInfoWindowRef.current.setContent(infoWindowContent);
+        }
+
         return;
       }
 
       if (existingMarker && existingAddress !== fullAddress) {
         existingMarker.setMap(null);
+
+        if (orderInfoWindowRef.current?.__orderId === order.id) {
+          orderInfoWindowRef.current.close();
+          orderInfoWindowRef.current.__orderId = null;
+        }
+
         delete orderMarkersRef.current[order.id];
         delete orderMarkerAddressesRef.current[order.id];
       }
@@ -854,6 +926,18 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
               text: String(order.orderNumber),
               fontWeight: "700",
             },
+          });
+
+          marker.__orderInfoContent = infoWindowContent;
+
+          marker.addListener("click", () => {
+            if (!orderInfoWindowRef.current) {
+              orderInfoWindowRef.current = new googleMaps.InfoWindow();
+            }
+
+            orderInfoWindowRef.current.__orderId = order.id;
+            orderInfoWindowRef.current.setContent(marker.__orderInfoContent);
+            orderInfoWindowRef.current.open(map, marker);
           });
 
           orderMarkersRef.current[order.id] = marker;
