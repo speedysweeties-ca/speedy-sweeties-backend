@@ -196,9 +196,10 @@ type CatalogEditForm = {
 const CATALOG_PICKUP_TYPE_OPTIONS = [
   "UNKNOWN",
   "CONVENIENCE",
-  "GENERAL_RETAIL",
-  "GROCERY",
-  "PHARMACY",
+  "BEER_STORE",
+  "LCBO",
+  "VAPE",
+  "DISPENSARY",
   "OTHER",
 ] as const;
 
