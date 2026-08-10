@@ -105,6 +105,7 @@ type ActiveTab =
   | "DELIVERED_HISTORY"
   | "DRIVER_STATS"
   | "CATALOG"
+  | "PICKUP_LOCATIONS"
   | "CUSTOMERS"
   | "QR_TRACKING"
   | "DISPATCHER_CHECKLIST";
@@ -186,6 +187,33 @@ type CatalogEditForm = {
   size: string;
   category: string;
   source: string;
+  isActive: boolean;
+};
+
+type PickupLocation = {
+  id: string;
+  name: string;
+  pickupType: string;
+  addressLine1: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  latitude: number;
+  longitude: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type PickupLocationForm = {
+  name: string;
+  pickupType: string;
+  addressLine1: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  latitude: string;
+  longitude: string;
   isActive: boolean;
 };
 
@@ -337,6 +365,18 @@ const initialManualOrderForm: ManualOrderForm = {
   items: [createDefaultManualOrderItem()],
 };
 
+const initialPickupLocationForm: PickupLocationForm = {
+  name: "",
+  pickupType: "",
+  addressLine1: "",
+  city: "Guelph",
+  province: "ON",
+  postalCode: "",
+  latitude: "",
+  longitude: "",
+  isActive: true,
+};
+
 function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -346,6 +386,7 @@ function App() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [driverStatsLoading, setDriverStatsLoading] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [pickupLocationsLoading, setPickupLocationsLoading] = useState(false);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [qrTrackingLoading, setQrTrackingLoading] = useState(false);
   const [dispatcherChecklistLoading, setDispatcherChecklistLoading] = useState(false);
@@ -370,6 +411,14 @@ function App() {
   const [catalogTotalPages, setCatalogTotalPages] = useState(1);
   const [editingCatalogItemId, setEditingCatalogItemId] = useState<string | null>(null);
   const [catalogEditForm, setCatalogEditForm] = useState<CatalogEditForm | null>(null);
+
+  const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([]);
+  const [pickupLocationForm, setPickupLocationForm] = useState<PickupLocationForm>(
+    initialPickupLocationForm
+  );
+  const [editingPickupLocationId, setEditingPickupLocationId] = useState<string | null>(null);
+  const [pickupLocationEditForm, setPickupLocationEditForm] =
+    useState<PickupLocationForm | null>(null);
 
   const [customers, setCustomers] = useState<CustomerProfile[]>([]);
   const [customerProfileSearch, setCustomerProfileSearch] = useState("");
@@ -450,6 +499,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     activeTab === "DELIVERED_HISTORY" ||
     activeTab === "DRIVER_STATS" ||
     activeTab === "CATALOG" ||
+    activeTab === "PICKUP_LOCATIONS" ||
     activeTab === "CUSTOMERS" ||
     activeTab === "QR_TRACKING" ||
     activeTab === "DISPATCHER_CHECKLIST" ||
@@ -602,6 +652,13 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
     void fetchCatalogItems(token, true, catalogPage, catalogPageSize);
   }, [activeTab, token, catalogActiveFilter, catalogPage, catalogPageSize]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (activeTab !== "PICKUP_LOCATIONS") return;
+
+    void fetchPickupLocations(token, true);
+  }, [activeTab, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -1661,6 +1718,247 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setCatalogPage(safePage);
   };
 
+  const fetchPickupLocations = async (
+    authToken: string,
+    showLoader = true
+  ) => {
+    try {
+      if (showLoader) {
+        setPickupLocationsLoading(true);
+      }
+
+      const response = await fetch(
+        "https://speedy-api-lbfe.onrender.com/api/v1/pickup-locations",
+        {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setPickupLocations(data.locations || []);
+      } else {
+        alert(getApiErrorMessage(data, "Failed to load pickup locations"));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while loading pickup locations");
+    } finally {
+      if (showLoader) {
+        setPickupLocationsLoading(false);
+      }
+    }
+  };
+
+  const handlePickupLocationFormChange = (
+    field: keyof PickupLocationForm,
+    value: string | boolean
+  ) => {
+    setPickupLocationForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const validatePickupLocationForm = (form: PickupLocationForm) => {
+    if (!form.name.trim()) return "Location name is required";
+    if (!form.pickupType.trim()) return "Pickup type is required";
+    if (!form.addressLine1.trim()) return "Street address is required";
+    if (!form.city.trim()) return "City is required";
+    if (!form.province.trim()) return "Province is required";
+    if (!form.postalCode.trim()) return "Postal code is required";
+
+    const latitude = Number(form.latitude);
+    const longitude = Number(form.longitude);
+
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+      return "Latitude must be a number between -90 and 90";
+    }
+
+    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+      return "Longitude must be a number between -180 and 180";
+    }
+
+    return null;
+  };
+
+  const createPickupLocation = async () => {
+    if (!token) return;
+
+    const validationMessage = validatePickupLocationForm(pickupLocationForm);
+
+    if (validationMessage) {
+      alert(validationMessage);
+      return;
+    }
+
+    try {
+      setPickupLocationsLoading(true);
+
+      const response = await fetch(
+        "https://speedy-api-lbfe.onrender.com/api/v1/pickup-locations",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: pickupLocationForm.name.trim(),
+            pickupType: pickupLocationForm.pickupType.trim(),
+            addressLine1: pickupLocationForm.addressLine1.trim(),
+            city: pickupLocationForm.city.trim(),
+            province: pickupLocationForm.province.trim(),
+            postalCode: pickupLocationForm.postalCode.trim(),
+            latitude: Number(pickupLocationForm.latitude),
+            longitude: Number(pickupLocationForm.longitude),
+            isActive: pickupLocationForm.isActive,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setPickupLocationForm(initialPickupLocationForm);
+        await fetchPickupLocations(token, false);
+      } else {
+        alert(getApiErrorMessage(data, "Failed to create pickup location"));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while creating pickup location");
+    } finally {
+      setPickupLocationsLoading(false);
+    }
+  };
+
+  const handleStartEditPickupLocation = (location: PickupLocation) => {
+    setEditingPickupLocationId(location.id);
+    setPickupLocationEditForm({
+      name: location.name || "",
+      pickupType: location.pickupType || "",
+      addressLine1: location.addressLine1 || "",
+      city: location.city || "",
+      province: location.province || "",
+      postalCode: location.postalCode || "",
+      latitude: String(location.latitude ?? ""),
+      longitude: String(location.longitude ?? ""),
+      isActive: location.isActive,
+    });
+  };
+
+  const handlePickupLocationEditFieldChange = (
+    field: keyof PickupLocationForm,
+    value: string | boolean
+  ) => {
+    setPickupLocationEditForm((prev) => {
+      if (!prev) return prev;
+
+      return {
+        ...prev,
+        [field]: value,
+      };
+    });
+  };
+
+  const handleCancelPickupLocationEdit = () => {
+    setEditingPickupLocationId(null);
+    setPickupLocationEditForm(null);
+  };
+
+  const handleSavePickupLocation = async (locationId: string) => {
+    if (!token || !pickupLocationEditForm) return;
+
+    const validationMessage = validatePickupLocationForm(pickupLocationEditForm);
+
+    if (validationMessage) {
+      alert(validationMessage);
+      return;
+    }
+
+    try {
+      setPickupLocationsLoading(true);
+
+      const response = await fetch(
+        `https://speedy-api-lbfe.onrender.com/api/v1/pickup-locations/${locationId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: pickupLocationEditForm.name.trim(),
+            pickupType: pickupLocationEditForm.pickupType.trim(),
+            addressLine1: pickupLocationEditForm.addressLine1.trim(),
+            city: pickupLocationEditForm.city.trim(),
+            province: pickupLocationEditForm.province.trim(),
+            postalCode: pickupLocationEditForm.postalCode.trim(),
+            latitude: Number(pickupLocationEditForm.latitude),
+            longitude: Number(pickupLocationEditForm.longitude),
+            isActive: pickupLocationEditForm.isActive,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setEditingPickupLocationId(null);
+        setPickupLocationEditForm(null);
+        await fetchPickupLocations(token, false);
+      } else {
+        alert(getApiErrorMessage(data, "Failed to update pickup location"));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while updating pickup location");
+    } finally {
+      setPickupLocationsLoading(false);
+    }
+  };
+
+  const handleDeactivatePickupLocation = async (location: PickupLocation) => {
+    if (!token) return;
+
+    const shouldDeactivate = window.confirm(
+      `Deactivate "${location.name}"? Existing data will remain saved.`
+    );
+
+    if (!shouldDeactivate) return;
+
+    try {
+      setPickupLocationsLoading(true);
+
+      const response = await fetch(
+        `https://speedy-api-lbfe.onrender.com/api/v1/pickup-locations/${location.id}/deactivate`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        await fetchPickupLocations(token, false);
+      } else {
+        alert(getApiErrorMessage(data, "Failed to deactivate pickup location"));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while deactivating pickup location");
+    } finally {
+      setPickupLocationsLoading(false);
+    }
+  };
+
   const fetchCustomers = async (
     authToken: string,
     showLoader = true,
@@ -1981,6 +2279,11 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setCatalogTotalPages(1);
     setEditingCatalogItemId(null);
     setCatalogEditForm(null);
+    setPickupLocations([]);
+    setPickupLocationForm(initialPickupLocationForm);
+    setEditingPickupLocationId(null);
+    setPickupLocationEditForm(null);
+    setPickupLocationsLoading(false);
     setCustomers([]);
     setCustomerProfileSearch("");
     setEditingCustomerId(null);
@@ -3718,6 +4021,408 @@ const handleSaveEditedOrder = async (orderId: string) => {
     );
   };
 
+  const renderPickupLocations = () => {
+    return (
+      <div className="space-y-6">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Pickup Locations</h2>
+              <p className="text-zinc-400 mt-1">
+                Add and manage frequently used pickup points for future dispatch planning.
+              </p>
+              <p className="text-zinc-500 text-sm mt-2">
+                {pickupLocations.length} saved location
+                {pickupLocations.length === 1 ? "" : "s"}.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => token && void fetchPickupLocations(token, true)}
+              disabled={pickupLocationsLoading}
+              className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
+            >
+              {pickupLocationsLoading ? "Refreshing..." : "Refresh Locations"}
+            </button>
+          </div>
+
+          <div className="grid gap-3 mt-6 md:grid-cols-2 lg:grid-cols-4">
+            <input
+              type="text"
+              placeholder="Location Name"
+              value={pickupLocationForm.name}
+              onChange={(e) =>
+                handlePickupLocationFormChange("name", e.target.value)
+              }
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+            />
+
+            <input
+              type="text"
+              placeholder="Pickup Type"
+              value={pickupLocationForm.pickupType}
+              onChange={(e) =>
+                handlePickupLocationFormChange("pickupType", e.target.value)
+              }
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+            />
+
+            <input
+              type="text"
+              placeholder="Street Address"
+              value={pickupLocationForm.addressLine1}
+              onChange={(e) =>
+                handlePickupLocationFormChange("addressLine1", e.target.value)
+              }
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+            />
+
+            <input
+              type="text"
+              placeholder="City"
+              value={pickupLocationForm.city}
+              onChange={(e) =>
+                handlePickupLocationFormChange("city", e.target.value)
+              }
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+            />
+
+            <input
+              type="text"
+              placeholder="Province"
+              value={pickupLocationForm.province}
+              onChange={(e) =>
+                handlePickupLocationFormChange("province", e.target.value)
+              }
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+            />
+
+            <input
+              type="text"
+              placeholder="Postal Code"
+              value={pickupLocationForm.postalCode}
+              onChange={(e) =>
+                handlePickupLocationFormChange("postalCode", e.target.value)
+              }
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+            />
+
+            <input
+              type="number"
+              step="any"
+              placeholder="Latitude"
+              value={pickupLocationForm.latitude}
+              onChange={(e) =>
+                handlePickupLocationFormChange("latitude", e.target.value)
+              }
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+            />
+
+            <input
+              type="number"
+              step="any"
+              placeholder="Longitude"
+              value={pickupLocationForm.longitude}
+              onChange={(e) =>
+                handlePickupLocationFormChange("longitude", e.target.value)
+              }
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4 mt-4">
+            <label className="flex items-center gap-2 text-zinc-300">
+              <input
+                type="checkbox"
+                checked={pickupLocationForm.isActive}
+                onChange={(e) =>
+                  handlePickupLocationFormChange("isActive", e.target.checked)
+                }
+              />
+              Active
+            </label>
+
+            <button
+              type="button"
+              onClick={() => void createPickupLocation()}
+              disabled={pickupLocationsLoading}
+              className="px-5 py-3 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50 font-semibold"
+            >
+              {pickupLocationsLoading ? "Saving..." : "Add Pickup Location"}
+            </button>
+          </div>
+        </div>
+
+        {pickupLocationsLoading && pickupLocations.length === 0 ? (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-zinc-300">
+            Loading pickup locations...
+          </div>
+        ) : pickupLocations.length === 0 ? (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-zinc-300">
+            No pickup locations have been added yet.
+          </div>
+        ) : (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1250px] text-sm">
+                <thead className="bg-zinc-800 text-zinc-300">
+                  <tr>
+                    <th className="text-left p-3">Location</th>
+                    <th className="text-left p-3">Pickup Type</th>
+                    <th className="text-left p-3">Address</th>
+                    <th className="text-left p-3">Latitude</th>
+                    <th className="text-left p-3">Longitude</th>
+                    <th className="text-left p-3">Status</th>
+                    <th className="text-left p-3">Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {pickupLocations.map((location) => {
+                    const isEditing =
+                      editingPickupLocationId === location.id &&
+                      pickupLocationEditForm;
+
+                    return (
+                      <tr
+                        key={location.id}
+                        className="border-t border-zinc-800 hover:bg-zinc-800/40 transition"
+                      >
+                        {isEditing ? (
+                          <>
+                            <td className="p-2 align-top">
+                              <input
+                                type="text"
+                                value={pickupLocationEditForm.name}
+                                onChange={(e) =>
+                                  handlePickupLocationEditFieldChange(
+                                    "name",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              />
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <input
+                                type="text"
+                                value={pickupLocationEditForm.pickupType}
+                                onChange={(e) =>
+                                  handlePickupLocationEditFieldChange(
+                                    "pickupType",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              />
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <div className="grid gap-2">
+                                <input
+                                  type="text"
+                                  value={pickupLocationEditForm.addressLine1}
+                                  onChange={(e) =>
+                                    handlePickupLocationEditFieldChange(
+                                      "addressLine1",
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                                />
+                                <div className="grid grid-cols-3 gap-2">
+                                  <input
+                                    type="text"
+                                    value={pickupLocationEditForm.city}
+                                    onChange={(e) =>
+                                      handlePickupLocationEditFieldChange(
+                                        "city",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={pickupLocationEditForm.province}
+                                    onChange={(e) =>
+                                      handlePickupLocationEditFieldChange(
+                                        "province",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={pickupLocationEditForm.postalCode}
+                                    onChange={(e) =>
+                                      handlePickupLocationEditFieldChange(
+                                        "postalCode",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                                  />
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <input
+                                type="number"
+                                step="any"
+                                value={pickupLocationEditForm.latitude}
+                                onChange={(e) =>
+                                  handlePickupLocationEditFieldChange(
+                                    "latitude",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              />
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <input
+                                type="number"
+                                step="any"
+                                value={pickupLocationEditForm.longitude}
+                                onChange={(e) =>
+                                  handlePickupLocationEditFieldChange(
+                                    "longitude",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              />
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <label className="flex items-center gap-2 text-zinc-300">
+                                <input
+                                  type="checkbox"
+                                  checked={pickupLocationEditForm.isActive}
+                                  onChange={(e) =>
+                                    handlePickupLocationEditFieldChange(
+                                      "isActive",
+                                      e.target.checked
+                                    )
+                                  }
+                                />
+                                Active
+                              </label>
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <div className="flex flex-col gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void handleSavePickupLocation(location.id)
+                                  }
+                                  disabled={pickupLocationsLoading}
+                                  className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50 font-semibold"
+                                >
+                                  Save
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={handleCancelPickupLocationEdit}
+                                  disabled={pickupLocationsLoading}
+                                  className="px-3 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition disabled:opacity-50 font-semibold"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="p-3 align-top">
+                              <p className="font-semibold text-zinc-100">
+                                {location.name}
+                              </p>
+                              <p className="text-zinc-500 text-xs break-all">
+                                {location.id}
+                              </p>
+                            </td>
+
+                            <td className="p-3 align-top text-zinc-300">
+                              {location.pickupType}
+                            </td>
+
+                            <td className="p-3 align-top text-zinc-300">
+                              <div>{location.addressLine1}</div>
+                              <div className="text-zinc-500 text-xs">
+                                {location.city}, {location.province}{" "}
+                                {location.postalCode}
+                              </div>
+                            </td>
+
+                            <td className="p-3 align-top text-zinc-300">
+                              {location.latitude}
+                            </td>
+
+                            <td className="p-3 align-top text-zinc-300">
+                              {location.longitude}
+                            </td>
+
+                            <td className="p-3 align-top">
+                              <span
+                                className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold border ${
+                                  location.isActive
+                                    ? "bg-green-500/20 text-green-200 border-green-400/40"
+                                    : "bg-red-500/20 text-red-200 border-red-400/40"
+                                }`}
+                              >
+                                {location.isActive ? "Active" : "Inactive"}
+                              </span>
+                            </td>
+
+                            <td className="p-3 align-top">
+                              <div className="flex flex-col gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleStartEditPickupLocation(location)
+                                  }
+                                  className="px-3 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 transition font-semibold"
+                                >
+                                  Edit
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void handleDeactivatePickupLocation(location)
+                                  }
+                                  disabled={
+                                    !location.isActive || pickupLocationsLoading
+                                  }
+                                  className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50 font-semibold"
+                                >
+                                  Deactivate
+                                </button>
+                              </div>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderCustomerProfiles = () => {
     return (
       <div className="space-y-6">
@@ -4964,6 +5669,17 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                onClick={() => setActiveTab("PICKUP_LOCATIONS")}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${
+                  activeTab === "PICKUP_LOCATIONS"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-zinc-800 hover:bg-zinc-700"
+                }`}
+              >
+                Pickup Locations
+              </button>
+
+              <button
                 onClick={() => setActiveTab("CUSTOMERS")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "CUSTOMERS"
@@ -5000,6 +5716,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     void fetchCatalogItems(token, true);
                   }
 
+                  if (activeTab === "PICKUP_LOCATIONS") {
+                    void fetchPickupLocations(token, true);
+                  }
+
                   if (activeTab === "CUSTOMERS") {
                     void fetchCustomers(token, true);
                   }
@@ -5013,10 +5733,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     void fetchDispatcherChecklistHistory(token, false);
                   }
                 }}
-                disabled={dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading}
+                disabled={dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || pickupLocationsLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading}
                 className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
               >
-                {dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading
+                {dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || pickupLocationsLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading
                   ? "Refreshing..."
                   : "Refresh"}
               </button>
@@ -5408,6 +6128,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
           renderDriverStats()
         ) : activeTab === "CATALOG" ? (
           renderCatalogAdmin()
+        ) : activeTab === "PICKUP_LOCATIONS" ? (
+          renderPickupLocations()
         ) : activeTab === "CUSTOMERS" ? (
           renderCustomerProfiles()
         ) : activeTab === "QR_TRACKING" ? (
