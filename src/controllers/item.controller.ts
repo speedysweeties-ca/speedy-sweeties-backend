@@ -70,6 +70,7 @@ export const searchItemsController = async (
       size: true,
       category: true,
       source: true,
+      pickupType: true,
       popularityScore: true
     },
     take: 10,
@@ -199,6 +200,7 @@ export const updateCatalogItemController = async (
     size,
     category,
     source,
+    pickupType,
     isActive
   } = req.body;
 
@@ -242,6 +244,9 @@ export const updateCatalogItemController = async (
         typeof source === "string" && source.trim()
           ? source.trim()
           : null,
+      ...(typeof pickupType === "string" && pickupType.trim()
+        ? { pickupType: pickupType.trim().toUpperCase() }
+        : {}),
       ...(typeof isActive === "boolean" ? { isActive } : {})
     }
   });

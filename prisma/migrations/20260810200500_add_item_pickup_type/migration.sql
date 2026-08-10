@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "ItemCatalog" ADD COLUMN "pickupType" TEXT NOT NULL DEFAULT 'UNKNOWN';

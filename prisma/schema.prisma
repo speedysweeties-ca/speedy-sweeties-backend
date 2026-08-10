@@ -118,6 +118,7 @@ model ItemCatalog {
   brand           String?
   normalizedBrand String?
   source          String?
+  pickupType      String   @default("UNKNOWN")
   isActive        Boolean  @default(true)
   popularityScore Int      @default(0)
   createdAt       DateTime @default(now())
