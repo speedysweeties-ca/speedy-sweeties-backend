@@ -72,6 +72,11 @@ type DriverAssignedOrderPushPayload = {
   city?: string | null;
 };
 
+type PickupRoutingSummary = {
+  requiredPickupTypes: string[];
+  unknownItemCount: number;
+};
+
 /* ================= HELPERS ================= */
 
 const orderInclude = {
@@ -89,6 +94,53 @@ const orderInclude = {
 const normalize = (value: string) => value.trim().toLowerCase();
 
 const normalizePhone = (value: string) => value.replace(/\D/g, "");
+
+const normalizePickupType = (
+  value: string | null | undefined
+): string => {
+  const normalizedValue = String(value || "UNKNOWN").trim().toUpperCase();
+
+  return normalizedValue || "UNKNOWN";
+};
+
+const summarizePickupRouting = (
+  pickupTypes: Array<string | null | undefined>
+): PickupRoutingSummary => {
+  const requiredPickupTypes = new Set<string>();
+  let unknownItemCount = 0;
+
+  for (const pickupTypeValue of pickupTypes) {
+    const pickupType = normalizePickupType(pickupTypeValue);
+
+    if (pickupType === "UNKNOWN") {
+      unknownItemCount += 1;
+      continue;
+    }
+
+    requiredPickupTypes.add(pickupType);
+  }
+
+  return {
+    requiredPickupTypes: Array.from(requiredPickupTypes).sort((a, b) =>
+      a.localeCompare(b)
+    ),
+    unknownItemCount
+  };
+};
+
+const logPickupRoutingAdvisory = (
+  orderId: string,
+  pickupRouting: PickupRoutingSummary
+): void => {
+  const requiredTypesText =
+    pickupRouting.requiredPickupTypes.length > 0
+      ? pickupRouting.requiredPickupTypes.join(", ")
+      : "NONE";
+
+  console.log(
+    `[Pickup Routing Advisory] Order ${orderId}: required pickup types = ${requiredTypesText}; unknown item(s) = ${pickupRouting.unknownItemCount}.`
+  );
+};
 
 const LOYALTY_FREE_DELIVERY_NOTE =
   "LOYALTY REWARD: Customer earned free delivery. Subtract $12 from this order and let the customer know delivery is free.";
@@ -749,6 +801,8 @@ export const createOrderController = async (
       }
     });
 
+    const orderItemPickupTypes: Array<string | null | undefined> = [];
+
     for (const item of rawItems) {
       if (!item.name) continue;
 
@@ -768,6 +822,8 @@ export const createOrderController = async (
         });
       }
 
+      orderItemPickupTypes.push(catalogItem.pickupType);
+
       await tx.orderItem.create({
         data: {
           orderId: createdOrder.id,
@@ -778,6 +834,9 @@ export const createOrderController = async (
         }
       });
     }
+
+    const pickupRouting = summarizePickupRouting(orderItemPickupTypes);
+    logPickupRoutingAdvisory(createdOrder.id, pickupRouting);
 
     const autoDispatchNotification =
       await autoAssignCreatedOrderToLeastBusyOnlineDriver(tx, createdOrder.id);
@@ -933,6 +992,8 @@ export const updateOrderDetailsController = async (
       where: { orderId: id }
     });
 
+    const orderItemPickupTypes: Array<string | null | undefined> = [];
+
     for (const item of items) {
       if (!item.name) continue;
 
@@ -951,6 +1012,8 @@ export const updateOrderDetailsController = async (
         });
       }
 
+      orderItemPickupTypes.push(catalogItem.pickupType);
+
       await tx.orderItem.create({
         data: {
           orderId: id,
@@ -961,6 +1024,9 @@ export const updateOrderDetailsController = async (
         }
       });
     }
+
+    const pickupRouting = summarizePickupRouting(orderItemPickupTypes);
+    logPickupRoutingAdvisory(id, pickupRouting);
 
     await tx.order.update({
       where: { id },
