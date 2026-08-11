@@ -200,7 +200,6 @@ const CATALOG_PICKUP_TYPE_OPTIONS = [
   "LCBO",
   "VAPE",
   "DISPENSARY",
-  "OTHER",
 ] as const;
 
 type PickupLocation = {
@@ -4200,15 +4199,21 @@ const handleSaveEditedOrder = async (orderId: string) => {
               className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
             />
 
-            <input
-              type="text"
-              placeholder="Pickup Type"
-              value={pickupLocationForm.pickupType}
-              onChange={(e) =>
-                handlePickupLocationFormChange("pickupType", e.target.value)
-              }
-              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
-            />
+           <select
+  value={pickupLocationForm.pickupType}
+  onChange={(e) =>
+    handlePickupLocationFormChange("pickupType", e.target.value)
+  }
+  className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+>
+  <option value="">Select Pickup Type</option>
+  <option value="UNKNOWN">UNKNOWN</option>
+  <option value="CONVENIENCE">CONVENIENCE</option>
+  <option value="BEER_STORE">Beer Store</option>
+  <option value="LCBO">LCBO</option>
+  <option value="VAPE">Vape</option>
+  <option value="DISPENSARY">Dispensary</option>
+</select>
 
             <input
               type="text"
@@ -4334,17 +4339,26 @@ const handleSaveEditedOrder = async (orderId: string) => {
                         {isEditing ? (
                           <>
                             <td className="p-2 align-top">
-                              <input
-                                type="text"
-                                value={pickupLocationEditForm.name}
-                                onChange={(e) =>
-                                  handlePickupLocationEditFieldChange(
-                                    "name",
-                                    e.target.value
-                                  )
-                                }
-                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
-                              />
+				<select
+  				value={pickupLocationEditForm.pickupType}
+ 				onChange={(e) =>
+   			 	handlePickupLocationEditFieldChange(
+      				"pickupType",
+      				e.target.value
+    				)
+  				}
+  				className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+				>
+  				<option value="">Select Pickup Type</option>
+  				<option value="UNKNOWN">UNKNOWN</option>
+  				<option value="CONVENIENCE">CONVENIENCE</option>
+  				<option value="BEER_STORE">Beer Store</option>
+  				<option value="LCBO">LCBO</option>
+  				<option value="VAPE">Vape</option>
+  				<option value="DISPENSARY">Dispensary</option>
+				</select>
+                              
+
                             </td>
 
                             <td className="p-2 align-top">
