@@ -14,7 +14,15 @@ const getAuthUser = (req: Request): AuthenticatedUser | undefined => {
 };
 
 const driverOrderInclude = {
-  items: true,
+  items: {
+    include: {
+      itemCatalog: {
+        select: {
+          pickupType: true
+        }
+      }
+    }
+  },
   digitalReceipt: true,
   assignedDriver: {
     select: {
@@ -25,6 +33,22 @@ const driverOrderInclude = {
     }
   }
 } satisfies Prisma.OrderInclude;
+
+const ROUTABLE_PICKUP_TYPES = new Set([
+  "CONVENIENCE",
+  "GENERAL_RETAIL",
+  "GROCERY",
+  "PHARMACY",
+  "OTHER"
+]);
+
+const normalizePickupType = (
+  value: string | null | undefined
+): string => {
+  const normalizedValue = String(value || "UNKNOWN").trim().toUpperCase();
+
+  return normalizedValue || "UNKNOWN";
+};
 
 export const getDriverOrdersController = async (
   req: Request,
@@ -53,9 +77,86 @@ export const getDriverOrdersController = async (
     include: driverOrderInclude
   });
 
+  const ordersWithRouting = await Promise.all(
+    orders.map(async (order) => {
+      const requiredPickupTypes = Array.from(
+        new Set(
+          order.items
+            .map((item) =>
+              normalizePickupType(item.itemCatalog?.pickupType)
+            )
+            .filter((pickupType) => pickupType !== "UNKNOWN")
+        )
+      );
+
+      const unknownPickupItemCount = order.items.filter(
+        (item) =>
+          normalizePickupType(item.itemCatalog?.pickupType) === "UNKNOWN"
+      ).length;
+
+      const routablePickupTypes = requiredPickupTypes.filter((pickupType) =>
+        ROUTABLE_PICKUP_TYPES.has(pickupType)
+      );
+
+      const unsupportedPickupTypeCount =
+        requiredPickupTypes.length - routablePickupTypes.length;
+
+      const pickupRequired =
+        order.orderStatus !== OrderStatus.OUT_FOR_DELIVERY;
+
+      const pickupLocationCandidates =
+        pickupRequired && routablePickupTypes.length > 0
+          ? await prisma.pickupLocation.findMany({
+              where: {
+                isActive: true,
+                pickupType: {
+                  in: routablePickupTypes
+                }
+              },
+              select: {
+                id: true,
+                name: true,
+                pickupType: true,
+                addressLine1: true,
+                city: true,
+                province: true,
+                postalCode: true,
+                latitude: true,
+                longitude: true
+              },
+              orderBy: [
+                {
+                  pickupType: "asc"
+                },
+                {
+                  name: "asc"
+                }
+              ]
+            })
+          : [];
+
+      return {
+        ...order,
+        routingPlan: {
+          pickupRequired,
+          requiredPickupTypes: routablePickupTypes,
+          unknownPickupItemCount,
+          unsupportedPickupTypeCount,
+          pickupLocationCandidates,
+          destination: {
+            addressLine1: order.addressLine1,
+            city: order.city,
+            province: order.province,
+            postalCode: order.postalCode
+          }
+        }
+      };
+    })
+  );
+
   res.status(200).json({
     success: true,
-    count: orders.length,
-    orders
+    count: ordersWithRouting.length,
+    orders: ordersWithRouting
   });
 };
