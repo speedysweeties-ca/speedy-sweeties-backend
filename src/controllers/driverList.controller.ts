@@ -10,7 +10,8 @@ export const getAllDriversWithStatsController = async (
   const drivers = await prisma.user.findMany({
     where: {
       role: "DRIVER",
-      isActive: true
+      isActive: true,
+      isVisibleInDispatch: true
     },
     select: {
       id: true,

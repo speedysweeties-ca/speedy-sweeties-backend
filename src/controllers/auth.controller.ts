@@ -112,24 +112,31 @@ export const loginController = async (
     return;
   }
 
+  if (user.role === UserRole.DRIVER && !user.isVisibleInDispatch) {
+    res.status(403).json({
+      message: "This driver is currently hidden from dispatch. Contact dispatch for access."
+    });
+    return;
+  }
+
   let updatedUser = user;
 
-if (user.role === UserRole.DRIVER) {
-  updatedUser = await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      isOnline: true,
-      lastSeenAt: new Date(),
-      forceLogoutAt: null
-    }
-  });
-}
+  if (user.role === UserRole.DRIVER) {
+    updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isOnline: true,
+        lastSeenAt: new Date(),
+        forceLogoutAt: null
+      }
+    });
+  }
 
- const token = signAuthToken({
-  userId: updatedUser.id,
-  email: updatedUser.email,
-  role: updatedUser.role
-});
+  const token = signAuthToken({
+    userId: updatedUser.id,
+    email: updatedUser.email,
+    role: updatedUser.role
+  });
 
   res.status(200).json({
     message: "Login successful",

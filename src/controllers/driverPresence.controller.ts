@@ -135,6 +135,14 @@ export const setDriverOnlineController = async (
     return;
   }
 
+  if (!user.isActive || !user.isVisibleInDispatch) {
+    res.status(403).json({
+      success: false,
+      message: "This driver is not available in dispatch"
+    });
+    return;
+  }
+
   await prisma.user.update({
     where: { id: authUser.userId },
     data: {
@@ -215,6 +223,14 @@ export const heartbeatDriverController = async (
     res.status(404).json({
       success: false,
       message: "Driver not found"
+    });
+    return;
+  }
+
+  if (!user.isActive || !user.isVisibleInDispatch) {
+    res.status(403).json({
+      success: false,
+      message: "This driver is not available in dispatch"
     });
     return;
   }

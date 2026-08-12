@@ -553,6 +553,7 @@ const autoAssignCreatedOrderToLeastBusyOnlineDriver = async (
     where: {
       role: UserRole.DRIVER,
       isActive: true,
+      isVisibleInDispatch: true,
       isOnline: true
     },
     select: {

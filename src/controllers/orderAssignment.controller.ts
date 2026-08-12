@@ -143,7 +143,8 @@ export const assignDriverToOrderController = async (
     where: {
       id: driverId,
       role: UserRole.DRIVER,
-      isActive: true
+      isActive: true,
+      isVisibleInDispatch: true
     },
     select: {
       id: true,
@@ -161,7 +162,7 @@ export const assignDriverToOrderController = async (
   if (!driver) {
     res.status(404).json({
       success: false,
-      message: "Active driver not found"
+      message: "Active, visible driver not found"
     });
     return;
   }

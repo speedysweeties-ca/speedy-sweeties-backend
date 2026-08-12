@@ -15,7 +15,11 @@ import {
   setDriverOfflineController,
   heartbeatDriverController
 } from "../controllers/driverPresence.controller";
-import { forceLogoutDriverController } from "../controllers/adminDriver.controller";
+import {
+  forceLogoutDriverController,
+  getDriversForManagementController,
+  updateDriverDispatchVisibilityController
+} from "../controllers/adminDriver.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 import { requireRole } from "../middleware/role.middleware";
 
@@ -69,13 +73,30 @@ router.post(
 );
 
 /**
- * DRIVER LIST (ONLY SHOW ONLINE DRIVERS)
+ * LIVE DRIVER LIST (EXCLUDES DRIVERS HIDDEN FROM DISPATCH)
  */
 router.get(
   "/drivers",
   requireAuth,
   requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
   asyncHandler(getAllDriversWithStatsController)
+);
+
+/**
+ * DRIVER MANAGEMENT (INCLUDES BOTH VISIBLE AND HIDDEN DRIVERS)
+ */
+router.get(
+  "/drivers/manage",
+  requireAuth,
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
+  asyncHandler(getDriversForManagementController)
+);
+
+router.patch(
+  "/drivers/:id/dispatch-visibility",
+  requireAuth,
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
+  asyncHandler(updateDriverDispatchVisibilityController)
 );
 
 /**

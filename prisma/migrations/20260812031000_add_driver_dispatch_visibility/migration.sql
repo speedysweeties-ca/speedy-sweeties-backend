@@ -1,0 +1,1 @@
+ALTER TABLE "User" ADD COLUMN "isVisibleInDispatch" BOOLEAN NOT NULL DEFAULT true;

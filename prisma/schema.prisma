@@ -37,13 +37,14 @@ enum UserRole {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  role         UserRole
-  firstName    String?
-  lastName     String?
-  isActive     Boolean  @default(true)
+  id                  String   @id @default(uuid())
+  email               String   @unique
+  passwordHash        String
+  role                UserRole
+  firstName           String?
+  lastName            String?
+  isActive            Boolean  @default(true)
+  isVisibleInDispatch Boolean  @default(true)
 
   isOnline   Boolean   @default(false)
   lastSeenAt DateTime?
