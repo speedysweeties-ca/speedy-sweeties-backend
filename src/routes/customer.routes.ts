@@ -6,6 +6,7 @@ import { requireRole } from "../middleware/role.middleware";
 import {
   getCustomerByIdController,
   getCustomerLoyaltyController,
+  listCustomerRetentionController,
   listCustomersController,
   searchCustomersController,
   updateCustomerController,
@@ -34,6 +35,14 @@ router.get(
   requireAuth,
   requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
   asyncHandler(listCustomersController)
+);
+
+// 🔒 STAFF — customer retention / win-back dashboard
+router.get(
+  "/retention",
+  requireAuth,
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
+  asyncHandler(listCustomerRetentionController)
 );
 
 // 🔒 STAFF — get one customer profile with recent order history

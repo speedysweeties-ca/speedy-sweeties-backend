@@ -373,6 +373,142 @@ export const listCustomersController = async (
   });
 };
 
+
+export const listCustomerRetentionController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const customers = await prisma.customer.findMany({
+    where: {
+      orders: {
+        some: {
+          orderStatus: "DELIVERED",
+        },
+      },
+    },
+    select: {
+      id: true,
+      fullName: true,
+      phone: true,
+      email: true,
+      addressLine1: true,
+      city: true,
+      province: true,
+      postalCode: true,
+      dispatcherNotes: true,
+      orders: {
+        where: {
+          orderStatus: "DELIVERED",
+        },
+        select: {
+          deliveredAt: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
+
+  const nowMs = Date.now();
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+
+  const retentionCustomers = customers
+    .map((customer) => {
+      const completedOrderDates = customer.orders
+        .map((order) => order.deliveredAt || order.createdAt)
+        .filter((value): value is Date => Boolean(value))
+        .sort((a, b) => b.getTime() - a.getTime());
+
+      const lastOrderAt = completedOrderDates[0];
+
+      if (!lastOrderAt) {
+        return null;
+      }
+
+      const daysSinceLastOrder = Math.max(
+        0,
+        Math.floor((nowMs - lastOrderAt.getTime()) / millisecondsPerDay)
+      );
+
+      const retentionStatus =
+        daysSinceLastOrder >= 90
+          ? "WIN_BACK"
+          : daysSinceLastOrder >= 60
+            ? "LAPSED"
+            : daysSinceLastOrder >= 30
+              ? "AT_RISK"
+              : "ACTIVE";
+
+      return {
+        id: customer.id,
+        fullName: customer.fullName,
+        phone: customer.phone,
+        email: customer.email,
+        addressLine1: customer.addressLine1,
+        city: customer.city,
+        province: customer.province,
+        postalCode: customer.postalCode,
+        dispatcherNotes: customer.dispatcherNotes,
+        lastOrderAt,
+        daysSinceLastOrder,
+        completedOrders: completedOrderDates.length,
+        retentionStatus,
+      };
+    })
+    .filter(
+      (
+        customer
+      ): customer is {
+        id: string;
+        fullName: string;
+        phone: string;
+        email: string | null;
+        addressLine1: string;
+        city: string;
+        province: string;
+        postalCode: string;
+        dispatcherNotes: string | null;
+        lastOrderAt: Date;
+        daysSinceLastOrder: number;
+        completedOrders: number;
+        retentionStatus: "ACTIVE" | "AT_RISK" | "LAPSED" | "WIN_BACK";
+      } => customer !== null
+    )
+    .sort((a, b) => {
+      if (b.daysSinceLastOrder !== a.daysSinceLastOrder) {
+        return b.daysSinceLastOrder - a.daysSinceLastOrder;
+      }
+
+      return b.completedOrders - a.completedOrders;
+    });
+
+  const summary = retentionCustomers.reduce(
+    (totals, customer) => {
+      totals.total += 1;
+
+      if (customer.retentionStatus === "ACTIVE") totals.active += 1;
+      if (customer.retentionStatus === "AT_RISK") totals.atRisk += 1;
+      if (customer.retentionStatus === "LAPSED") totals.lapsed += 1;
+      if (customer.retentionStatus === "WIN_BACK") totals.winBack += 1;
+
+      return totals;
+    },
+    {
+      total: 0,
+      active: 0,
+      atRisk: 0,
+      lapsed: 0,
+      winBack: 0,
+    }
+  );
+
+  res.status(200).json({
+    success: true,
+    count: retentionCustomers.length,
+    summary,
+    customers: retentionCustomers,
+  });
+};
+
 export const getCustomerByIdController = async (
   req: Request<CustomerIdParams>,
   res: Response
