@@ -114,6 +114,7 @@ type ActiveTab =
   | "CREATE_MANUAL_ORDER"
   | "DRIVER_LOCATION"
   | "DELIVERED_HISTORY"
+  | "CUSTOMER_RETENTION"
   | "DRIVER_STATS"
   | "CATALOG"
   | "PICKUP_LOCATIONS"
@@ -255,6 +256,51 @@ type CustomerProfile = {
   _count?: {
     orders?: number;
   };
+};
+
+type CustomerRetentionStatus = "ACTIVE" | "AT_RISK" | "LAPSED" | "WIN_BACK";
+
+type CustomerRetentionFilter =
+  | "ALL"
+  | "ACTIVE"
+  | "30_PLUS"
+  | "60_PLUS"
+  | "90_PLUS";
+
+type CustomerRetentionItem = {
+  id: string;
+  fullName: string;
+  phone: string;
+  email?: string | null;
+  addressLine1: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  dispatcherNotes?: string | null;
+  lastOrderAt: string;
+  daysSinceLastOrder: number;
+  completedOrders: number;
+  retentionStatus: CustomerRetentionStatus;
+};
+
+type CustomerRetentionHistoryOrder = {
+  id: string;
+  orderNumber: number;
+  orderStatus: OrderStatus;
+  paymentMethod?: PaymentMethod;
+  itemsText?: string | null;
+  additionalNotes?: string | null;
+  createdAt?: string | null;
+  deliveredAt?: string | null;
+  items?: OrderItem[];
+};
+
+type CustomerRetentionHistoryProfile = {
+  id: string;
+  fullName: string;
+  phone: string;
+  email?: string | null;
+  orders?: CustomerRetentionHistoryOrder[];
 };
 
 type CustomerEditForm = {
@@ -411,6 +457,7 @@ function App() {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [pickupLocationsLoading, setPickupLocationsLoading] = useState(false);
   const [customersLoading, setCustomersLoading] = useState(false);
+  const [customerRetentionLoading, setCustomerRetentionLoading] = useState(false);
   const [qrTrackingLoading, setQrTrackingLoading] = useState(false);
   const [dispatcherChecklistLoading, setDispatcherChecklistLoading] = useState(false);
   const [autoDispatchEnabled, setAutoDispatchEnabled] = useState<boolean | null>(null);
@@ -453,6 +500,15 @@ function App() {
   const [customerProfileSearch, setCustomerProfileSearch] = useState("");
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
   const [customerEditForm, setCustomerEditForm] = useState<CustomerEditForm | null>(null);
+
+  const [retentionCustomers, setRetentionCustomers] = useState<CustomerRetentionItem[]>([]);
+  const [retentionFilter, setRetentionFilter] =
+    useState<CustomerRetentionFilter>("30_PLUS");
+  const [retentionSearch, setRetentionSearch] = useState("");
+  const [retentionHistoryCustomer, setRetentionHistoryCustomer] =
+    useState<CustomerRetentionHistoryProfile | null>(null);
+  const [retentionHistoryLoadingCustomerId, setRetentionHistoryLoadingCustomerId] =
+    useState<string | null>(null);
 
   const [qrTrackingCampaigns, setQrTrackingCampaigns] = useState<QrTrackingCampaign[]>([
     {
@@ -526,6 +582,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     activeTab === "CREATE_MANUAL_ORDER" ||
     activeTab === "DRIVER_LOCATION" ||
     activeTab === "DELIVERED_HISTORY" ||
+    activeTab === "CUSTOMER_RETENTION" ||
     activeTab === "DRIVER_STATS" ||
     activeTab === "CATALOG" ||
     activeTab === "PICKUP_LOCATIONS" ||
@@ -576,6 +633,80 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     );
   };
 
+
+  const retentionSummary = useMemo(() => {
+    return retentionCustomers.reduce(
+      (totals, customer) => {
+        totals.total += 1;
+
+        if (customer.retentionStatus === "ACTIVE") totals.active += 1;
+        if (customer.retentionStatus === "AT_RISK") totals.atRisk += 1;
+        if (customer.retentionStatus === "LAPSED") totals.lapsed += 1;
+        if (customer.retentionStatus === "WIN_BACK") totals.winBack += 1;
+
+        return totals;
+      },
+      {
+        total: 0,
+        active: 0,
+        atRisk: 0,
+        lapsed: 0,
+        winBack: 0,
+      }
+    );
+  }, [retentionCustomers]);
+
+  const filteredRetentionCustomers = useMemo(() => {
+    const cleanSearchTerm = normalizeCustomerSearchText(retentionSearch);
+    const digitSearchTerm = normalizeCustomerSearchDigits(retentionSearch);
+
+    return retentionCustomers
+      .filter((customer) => {
+        const matchesFilter =
+          retentionFilter === "ALL"
+            ? true
+            : retentionFilter === "ACTIVE"
+              ? customer.daysSinceLastOrder < 30
+              : retentionFilter === "30_PLUS"
+                ? customer.daysSinceLastOrder >= 30
+                : retentionFilter === "60_PLUS"
+                  ? customer.daysSinceLastOrder >= 60
+                  : customer.daysSinceLastOrder >= 90;
+
+        if (!matchesFilter) return false;
+
+        if (!cleanSearchTerm && !digitSearchTerm) return true;
+
+        const searchableText = [
+          customer.fullName,
+          customer.phone,
+          customer.email,
+          customer.addressLine1,
+          customer.city,
+          customer.province,
+          customer.postalCode,
+          customer.dispatcherNotes,
+        ]
+          .map(normalizeCustomerSearchText)
+          .join(" ");
+
+        const searchableDigits = [customer.phone, customer.postalCode]
+          .map(normalizeCustomerSearchDigits)
+          .join(" ");
+
+        return (
+          searchableText.includes(cleanSearchTerm) ||
+          (!!digitSearchTerm && searchableDigits.includes(digitSearchTerm))
+        );
+      })
+      .sort((a, b) => {
+        if (b.daysSinceLastOrder !== a.daysSinceLastOrder) {
+          return b.daysSinceLastOrder - a.daysSinceLastOrder;
+        }
+
+        return b.completedOrders - a.completedOrders;
+      });
+  }, [retentionCustomers, retentionFilter, retentionSearch]);
 
   const totalStatsDeliveries = useMemo(() => {
     return driverStats.reduce((total, stat) => total + stat.totalDeliveries, 0);
@@ -666,6 +797,13 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     void fetchDeliveredOrders(token, true);
     void fetchDrivers(token);
  }, [activeTab, token, historyPage, historyStartDate, historyEndDate, historyDriverIds]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (activeTab !== "CUSTOMER_RETENTION") return;
+
+    void fetchCustomerRetention(token, true);
+  }, [activeTab, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -2134,6 +2272,77 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       if (showLoader) {
         setCustomersLoading(false);
       }
+    }
+  };
+
+  const fetchCustomerRetention = async (
+    authToken: string,
+    showLoader = true
+  ) => {
+    try {
+      if (showLoader) {
+        setCustomerRetentionLoading(true);
+      }
+
+      const response = await fetch(
+        "https://speedy-api-lbfe.onrender.com/api/v1/customers/retention",
+        {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setRetentionCustomers(data.customers || []);
+      } else {
+        alert(getApiErrorMessage(data, "Failed to load customer retention"));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while loading customer retention");
+    } finally {
+      if (showLoader) {
+        setCustomerRetentionLoading(false);
+      }
+    }
+  };
+
+  const fetchRetentionCustomerHistory = async (
+    authToken: string,
+    customerId: string
+  ) => {
+    if (retentionHistoryCustomer?.id === customerId) {
+      setRetentionHistoryCustomer(null);
+      return;
+    }
+
+    try {
+      setRetentionHistoryLoadingCustomerId(customerId);
+
+      const response = await fetch(
+        `https://speedy-api-lbfe.onrender.com/api/v1/customers/${customerId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setRetentionHistoryCustomer(data.customer || null);
+      } else {
+        alert(getApiErrorMessage(data, "Failed to load customer order history"));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while loading customer order history");
+    } finally {
+      setRetentionHistoryLoadingCustomerId(null);
     }
   };
 
@@ -4689,6 +4898,344 @@ const handleSaveEditedOrder = async (orderId: string) => {
     );
   };
 
+  const renderCustomerRetention = () => {
+    const getRetentionStatusLabel = (status: CustomerRetentionStatus) => {
+      if (status === "ACTIVE") return "Active";
+      if (status === "AT_RISK") return "At Risk";
+      if (status === "LAPSED") return "Lapsed";
+      return "Win Back";
+    };
+
+    const getRetentionStatusClass = (status: CustomerRetentionStatus) => {
+      if (status === "ACTIVE") {
+        return "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
+      }
+
+      if (status === "AT_RISK") {
+        return "bg-yellow-500/15 text-yellow-300 border-yellow-500/30";
+      }
+
+      if (status === "LAPSED") {
+        return "bg-orange-500/15 text-orange-300 border-orange-500/30";
+      }
+
+      return "bg-red-500/15 text-red-300 border-red-500/30";
+    };
+
+    const retentionFilterButtons: Array<{
+      value: CustomerRetentionFilter;
+      label: string;
+      count: number;
+    }> = [
+      {
+        value: "ALL",
+        label: "All Customers",
+        count: retentionSummary.total,
+      },
+      {
+        value: "ACTIVE",
+        label: "Active 0–29 Days",
+        count: retentionSummary.active,
+      },
+      {
+        value: "30_PLUS",
+        label: "30+ Days",
+        count:
+          retentionSummary.atRisk +
+          retentionSummary.lapsed +
+          retentionSummary.winBack,
+      },
+      {
+        value: "60_PLUS",
+        label: "60+ Days",
+        count: retentionSummary.lapsed + retentionSummary.winBack,
+      },
+      {
+        value: "90_PLUS",
+        label: "90+ Days",
+        count: retentionSummary.winBack,
+      },
+    ];
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Customer Retention</h2>
+              <p className="text-zinc-400 mt-1">
+                Find customers who have stopped ordering and contact them directly.
+              </p>
+              <p className="text-zinc-500 text-sm mt-2">
+                Showing {filteredRetentionCustomers.length} customers for the current filter.
+              </p>
+            </div>
+
+            <button
+              onClick={() => token && void fetchCustomerRetention(token, true)}
+              disabled={customerRetentionLoading}
+              className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
+            >
+              {customerRetentionLoading ? "Refreshing..." : "Refresh Retention"}
+            </button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mt-6">
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+              <p className="text-sm text-emerald-300">Active 0–29 Days</p>
+              <p className="text-3xl font-bold mt-1">{retentionSummary.active}</p>
+            </div>
+
+            <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4">
+              <p className="text-sm text-yellow-300">At Risk 30–59 Days</p>
+              <p className="text-3xl font-bold mt-1">{retentionSummary.atRisk}</p>
+            </div>
+
+            <div className="rounded-xl border border-orange-500/30 bg-orange-500/10 p-4">
+              <p className="text-sm text-orange-300">Lapsed 60–89 Days</p>
+              <p className="text-3xl font-bold mt-1">{retentionSummary.lapsed}</p>
+            </div>
+
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+              <p className="text-sm text-red-300">Win Back 90+ Days</p>
+              <p className="text-3xl font-bold mt-1">{retentionSummary.winBack}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mt-6">
+            {retentionFilterButtons.map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                onClick={() => setRetentionFilter(filter.value)}
+                className={`px-4 py-2 rounded-lg border font-semibold transition ${
+                  retentionFilter === filter.value
+                    ? "bg-red-600 border-red-500 text-white"
+                    : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
+                }`}
+              >
+                {filter.label} ({filter.count})
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4">
+            <input
+              type="text"
+              placeholder="Search retention customers by name, phone, email, address, or notes"
+              value={retentionSearch}
+              onChange={(e) => setRetentionSearch(e.target.value)}
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+            />
+          </div>
+        </div>
+
+        {customerRetentionLoading && retentionCustomers.length === 0 ? (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-zinc-300">
+            Loading customer retention...
+          </div>
+        ) : filteredRetentionCustomers.length === 0 ? (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-zinc-300">
+            No customers match this retention filter.
+          </div>
+        ) : (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1250px] text-sm">
+                <thead className="bg-zinc-800 text-zinc-300">
+                  <tr>
+                    <th className="text-left p-3">Customer</th>
+                    <th className="text-left p-3">Last Order</th>
+                    <th className="text-left p-3">Days Since</th>
+                    <th className="text-left p-3">Completed Orders</th>
+                    <th className="text-left p-3">Status</th>
+                    <th className="text-left p-3">Phone / Email</th>
+                    <th className="text-left p-3">Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredRetentionCustomers.map((customer) => (
+                    <tr
+                      key={customer.id}
+                      className="border-t border-zinc-800 hover:bg-zinc-800/40 transition"
+                    >
+                      <td className="p-3 align-top">
+                        <p className="font-semibold text-zinc-100">{customer.fullName}</p>
+                        <p className="text-zinc-500 text-xs mt-1">
+                          {customer.addressLine1}, {customer.city}, {customer.province}{" "}
+                          {customer.postalCode}
+                        </p>
+                        {customer.dispatcherNotes ? (
+                          <p className="text-zinc-400 text-xs mt-2">
+                            Notes: {customer.dispatcherNotes}
+                          </p>
+                        ) : null}
+                      </td>
+
+                      <td className="p-3 align-top text-zinc-300">
+                        {renderStackedDateTime(customer.lastOrderAt)}
+                      </td>
+
+                      <td className="p-3 align-top">
+                        <span
+                          className={`font-bold ${
+                            customer.daysSinceLastOrder >= 90
+                              ? "text-red-300"
+                              : customer.daysSinceLastOrder >= 60
+                                ? "text-orange-300"
+                                : customer.daysSinceLastOrder >= 30
+                                  ? "text-yellow-300"
+                                  : "text-emerald-300"
+                          }`}
+                        >
+                          {customer.daysSinceLastOrder} days
+                        </span>
+                      </td>
+
+                      <td className="p-3 align-top text-zinc-200 font-semibold">
+                        {customer.completedOrders}
+                      </td>
+
+                      <td className="p-3 align-top">
+                        <span
+                          className={`inline-flex px-2.5 py-1 rounded-full border text-xs font-semibold ${getRetentionStatusClass(
+                            customer.retentionStatus
+                          )}`}
+                        >
+                          {getRetentionStatusLabel(customer.retentionStatus)}
+                        </span>
+                      </td>
+
+                      <td className="p-3 align-top text-zinc-300">
+                        <p>{customer.phone}</p>
+                        <p className="text-zinc-500 text-xs mt-1 break-all">
+                          {customer.email || "No email"}
+                        </p>
+                      </td>
+
+                      <td className="p-3 align-top">
+                        <div className="flex flex-wrap gap-2">
+                          <a
+                            href={`tel:${customer.phone}`}
+                            className="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition font-semibold"
+                          >
+                            Call
+                          </a>
+
+                          <a
+                            href={`sms:${customer.phone}`}
+                            className="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition font-semibold"
+                          >
+                            Text
+                          </a>
+
+                          {customer.email ? (
+                            <a
+                              href={`mailto:${customer.email}`}
+                              className="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition font-semibold"
+                            >
+                              Email
+                            </a>
+                          ) : null}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              token &&
+                              void fetchRetentionCustomerHistory(token, customer.id)
+                            }
+                            disabled={retentionHistoryLoadingCustomerId === customer.id}
+                            className="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition disabled:opacity-50 font-semibold"
+                          >
+                            {retentionHistoryLoadingCustomerId === customer.id
+                              ? "Loading..."
+                              : retentionHistoryCustomer?.id === customer.id
+                                ? "Hide History"
+                                : "View History"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {retentionHistoryCustomer ? (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-xl font-bold">
+                  Recent Order History — {retentionHistoryCustomer.fullName}
+                </h3>
+                <p className="text-zinc-400 text-sm mt-1">
+                  Up to the 20 most recent orders already stored on this customer profile.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setRetentionHistoryCustomer(null)}
+                className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition font-semibold"
+              >
+                Close History
+              </button>
+            </div>
+
+            {!retentionHistoryCustomer.orders ||
+            retentionHistoryCustomer.orders.length === 0 ? (
+              <p className="text-zinc-400 mt-5">No recent order history found.</p>
+            ) : (
+              <div className="overflow-x-auto mt-5">
+                <table className="w-full min-w-[900px] text-sm">
+                  <thead className="bg-zinc-800 text-zinc-300">
+                    <tr>
+                      <th className="text-left p-3">Order</th>
+                      <th className="text-left p-3">Status</th>
+                      <th className="text-left p-3">Placed</th>
+                      <th className="text-left p-3">Delivered</th>
+                      <th className="text-left p-3">Items</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {retentionHistoryCustomer.orders.map((order) => (
+                      <tr
+                        key={order.id}
+                        className="border-t border-zinc-800"
+                      >
+                        <td className="p-3 font-semibold">#{order.orderNumber}</td>
+                        <td className="p-3 text-zinc-300">
+                          {order.orderStatus.replace(/_/g, " ")}
+                        </td>
+                        <td className="p-3 text-zinc-300">
+                          {renderStackedDateTime(order.createdAt)}
+                        </td>
+                        <td className="p-3 text-zinc-300">
+                          {renderStackedDateTime(order.deliveredAt)}
+                        </td>
+                        <td className="p-3 text-zinc-300">
+                          {order.items && order.items.length > 0
+                            ? order.items
+                                .map((item) => `${item.quantity} × ${item.name}`)
+                                .join(", ")
+                            : order.itemsText || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   const renderCustomerProfiles = () => {
     return (
       <div className="space-y-6">
@@ -5913,6 +6460,17 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                onClick={() => setActiveTab("CUSTOMER_RETENTION")}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${
+                  activeTab === "CUSTOMER_RETENTION"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-zinc-800 hover:bg-zinc-700"
+                }`}
+              >
+                Customer Retention
+              </button>
+
+              <button
                 onClick={() => setActiveTab("DRIVER_STATS")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "DRIVER_STATS"
@@ -5976,6 +6534,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
                   if (activeTab === "DELIVERED_HISTORY") {
                     void fetchDeliveredOrders(token, true);
+                  }
+
+                  if (activeTab === "CUSTOMER_RETENTION") {
+                    void fetchCustomerRetention(token, true);
                   }
 
                   if (activeTab === "DRIVER_STATS") {
@@ -6489,6 +7051,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
           </div>
         ) : activeTab === "DELIVERED_HISTORY" ? (
           renderDeliveredHistory()
+        ) : activeTab === "CUSTOMER_RETENTION" ? (
+          renderCustomerRetention()
         ) : activeTab === "DRIVER_STATS" ? (
           renderDriverStats()
         ) : activeTab === "CATALOG" ? (
