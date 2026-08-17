@@ -1,1 +1,31 @@
+# Dependencies
+node_modules/
+
+# TypeScript build output
+dist/
+*.tsbuildinfo
+
+# Environment / secrets
 .env
+.env.local
+.env.*.local
+
+# IDE / machine-specific files
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary / backup working files
+*.working
+*.tmp
+*.bak
+*.old
+prisma/schema.prisma.backup*
+speedy-sweeties-backend-full.zip
