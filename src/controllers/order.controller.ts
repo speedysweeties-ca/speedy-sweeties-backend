@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import {
-  PrismaClient,
   Prisma,
   OrderStatus,
   OrderPriority,
@@ -8,8 +7,7 @@ import {
   UserRole
 } from "@prisma/client";
 import admin from "../config/firebase";
-
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma";
 
 /* ================= TYPES ================= */
 

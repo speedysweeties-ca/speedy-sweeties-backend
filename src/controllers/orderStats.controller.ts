@@ -1,7 +1,6 @@
-import { PrismaClient, OrderStatus, UserRole } from "@prisma/client";
+import { OrderStatus, UserRole } from "@prisma/client";
 import { Request, Response } from "express";
-
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma";
 
 const ACTIVE_STATUSES: OrderStatus[] = [
   "PLACED",

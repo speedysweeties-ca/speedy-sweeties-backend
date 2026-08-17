@@ -1,7 +1,6 @@
-import { PrismaClient, OrderStatus, Prisma } from "@prisma/client";
+import { OrderStatus, Prisma } from "@prisma/client";
 import { Request, Response } from "express";
-
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma";
 
 type AuthenticatedUser = {
   userId: string;

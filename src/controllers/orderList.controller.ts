@@ -1,7 +1,6 @@
-import { PrismaClient, OrderPriority, OrderStatus, Prisma } from "@prisma/client";
+import { OrderPriority, OrderStatus, Prisma } from "@prisma/client";
 import { Request, Response } from "express";
-
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma";
 
 const prioritySortOrder: Record<OrderPriority, number> = {
   HIGH: 0,

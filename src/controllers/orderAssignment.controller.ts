@@ -1,13 +1,11 @@
 import {
-  PrismaClient,
   UserRole,
   OrderStatus,
   OrderPriority
 } from "@prisma/client";
 import { Request, Response } from "express";
 import admin from "../config/firebase";
-
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma";
 
 type AssignDriverParams = {
   id: string;

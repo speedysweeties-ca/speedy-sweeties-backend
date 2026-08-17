@@ -1,7 +1,6 @@
-import { PrismaClient, OrderStatus, Prisma } from "@prisma/client";
+import { OrderStatus, Prisma } from "@prisma/client";
 import { Request, Response } from "express";
-
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma";
 
 const getMinutesBetween = (start?: Date | null, end?: Date | null): number | null => {
   if (!start || !end) return null;

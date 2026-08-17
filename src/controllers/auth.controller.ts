@@ -1,9 +1,8 @@
 import { Request, Response } from "express";
-import { PrismaClient, UserRole } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 import { hashPassword, comparePassword } from "../utils/hash";
 import { signAuthToken } from "../utils/jwt";
-
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma";
 
 type RegisterUserBody = {
   email: string;

@@ -1,8 +1,7 @@
 import { Request, Response } from "express";
-import { PrismaClient, OrderStatus, Prisma } from "@prisma/client";
+import { OrderStatus, Prisma } from "@prisma/client";
 import admin from "firebase-admin";
-
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma";
 
 type AuthenticatedUser = {
   userId: string;
