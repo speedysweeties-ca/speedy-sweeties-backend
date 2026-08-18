@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { OrderStatus, Prisma } from "@prisma/client";
-import admin from "firebase-admin";
+import admin from "../config/firebase";
 import { prisma } from "../lib/prisma";
 
 type AuthenticatedUser = {

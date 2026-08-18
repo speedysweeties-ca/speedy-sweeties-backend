@@ -14,6 +14,8 @@ export const env = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
   PORT: Number(process.env.PORT ?? 4000),
   DATABASE_URL: requireEnv("DATABASE_URL"),
+  JWT_SECRET: requireEnv("JWT_SECRET"),
+  FIREBASE_SERVICE_ACCOUNT_JSON: requireEnv("FIREBASE_SERVICE_ACCOUNT_JSON"),
   CORS_ORIGIN: process.env.CORS_ORIGIN ?? "*",
 
   GOOGLE_PLACES_API_KEY: process.env.GOOGLE_PLACES_API_KEY ?? "",

@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import { UserRole } from "@prisma/client";
+import { env } from "../config/env";
 
 export type AuthTokenPayload = {
   userId: string;
@@ -8,13 +9,7 @@ export type AuthTokenPayload = {
 };
 
 const getJwtSecret = (): string => {
-  const secret = process.env.JWT_SECRET;
-
-  if (!secret) {
-    throw new Error("JWT_SECRET is not set in environment variables.");
-  }
-
-  return secret;
+  return env.JWT_SECRET;
 };
 
 export const signAuthToken = (payload: AuthTokenPayload): string => {

@@ -1,12 +1,7 @@
 import admin from "firebase-admin";
+import { env } from "./env";
 
-const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-
-if (!serviceAccountJson) {
-  throw new Error("Missing FIREBASE_SERVICE_ACCOUNT_JSON environment variable");
-}
-
-const serviceAccount = JSON.parse(serviceAccountJson);
+const serviceAccount = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON);
 
 if (!admin.apps.length) {
   admin.initializeApp({
