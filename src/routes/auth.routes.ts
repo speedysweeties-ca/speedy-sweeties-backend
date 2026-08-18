@@ -27,6 +27,8 @@ const router = Router();
 
 router.post(
   "/register",
+  requireAuth,
+  requireRole([UserRole.ADMIN]),
   validateRequest(registerUserSchema),
   asyncHandler(registerUserController)
 );

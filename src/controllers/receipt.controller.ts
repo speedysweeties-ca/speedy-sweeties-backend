@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { UserRole } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 
 function toNumber(value: unknown): number {
@@ -71,7 +72,10 @@ export const createOrUpdateReceiptController = async (
     return;
   }
 
-  if (order.assignedDriverId && order.assignedDriverId !== user.userId) {
+  if (
+    user.role === UserRole.DRIVER &&
+    order.assignedDriverId !== user.userId
+  ) {
     res.status(403).json({
       success: false,
       message: "You can only create a receipt for your assigned order"
@@ -119,6 +123,23 @@ export const getReceiptByOrderController = async (
     res.status(400).json({
       success: false,
       message: "Order ID is required"
+    });
+    return;
+  }
+
+  const user = (req as any).user;
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { assignedDriverId: true }
+  });
+
+  if (
+    user?.role === UserRole.DRIVER &&
+    (!order || order.assignedDriverId !== user.userId)
+  ) {
+    res.status(403).json({
+      success: false,
+      message: "You can only view a receipt for your assigned order"
     });
     return;
   }

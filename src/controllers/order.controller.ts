@@ -1066,6 +1066,7 @@ export const updateOrderStatusController = async (
 ): Promise<void> => {
   const { id } = req.params;
   const { orderStatus, cancellationReason } = req.body;
+  const authUser = (req as any).user;
 
   const existingOrder = await prisma.order.findUnique({
     where: { id },
@@ -1075,6 +1076,7 @@ export const updateOrderStatusController = async (
       fcmToken: true,
       orderNumber: true,
       customerId: true,
+      assignedDriverId: true,
       assignedAt: true,
       dispatchedAt: true,
       acceptedAt: true,
@@ -1092,6 +1094,17 @@ export const updateOrderStatusController = async (
     res.status(404).json({
       success: false,
       message: "Order not found"
+    });
+    return;
+  }
+
+  if (
+    authUser?.role === UserRole.DRIVER &&
+    existingOrder.assignedDriverId !== authUser.userId
+  ) {
+    res.status(403).json({
+      success: false,
+      message: "Forbidden"
     });
     return;
   }

@@ -49,7 +49,11 @@ export const requireAuth = async (
   return;
 }
 
-    (req as any).user = payload;
+    (req as any).user = {
+      ...payload,
+      email: user.email,
+      role: user.role
+    };
 
     next();
   } catch (error) {
