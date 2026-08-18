@@ -36,6 +36,12 @@ enum UserRole {
   DRIVER
 }
 
+enum RetentionMessageStatus {
+  DRY_RUN
+  SENT
+  FAILED
+}
+
 model User {
   id                  String   @id @default(uuid())
   email               String   @unique
@@ -92,6 +98,11 @@ model Customer {
   notes              String?
   dispatcherNotes    String?
 
+  smsMarketingOptOut      Boolean   @default(false)
+  smsMarketingOptOutAt    DateTime?
+  smsExpressConsentAt     DateTime?
+  smsExpressConsentSource String?
+
   loyaltyCompletedOrders Int     @default(0)
   loyaltyProgressMonth   String?
   loyaltyRewardsEarned   Int     @default(0)
@@ -101,13 +112,43 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  orders Order[]
+  orders            Order[]
+  retentionMessages RetentionMessage[]
 
   @@index([normalizedPhone])
   @@index([normalizedFullName])
   @@index([normalizedEmail])
   @@index([city])
   @@index([loyaltyFreeDelivery])
+  @@index([smsMarketingOptOut])
+}
+
+model RetentionMessage {
+  id                 String                 @id @default(uuid())
+  customerId         String
+  triggerDays        Int                    @default(90)
+  inactivityAnchorAt DateTime
+  eligibleAt         DateTime
+  phone              String
+  messageBody        String
+  status             RetentionMessageStatus @default(DRY_RUN)
+  consentBasis       String?
+  provider           String?
+  providerMessageId  String?
+  errorMessage       String?
+  sentAt             DateTime?
+  returnedAt         DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, triggerDays, inactivityAnchorAt])
+  @@index([customerId])
+  @@index([status])
+  @@index([eligibleAt])
+  @@index([sentAt])
+  @@index([returnedAt])
 }
 
 model ItemCatalog {
