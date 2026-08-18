@@ -4,7 +4,7 @@ import {
   OrderPriority
 } from "@prisma/client";
 import { Request, Response } from "express";
-import admin from "../config/firebase";
+import { messaging } from "../config/firebase";
 import { prisma } from "../lib/prisma";
 
 type AssignDriverParams = {
@@ -37,7 +37,7 @@ const sendDriverAssignedOrderPush = async (
   const address = [addressLine1, city].filter(Boolean).join(", ");
 
   try {
-    await admin.messaging().send({
+    await messaging.send({
       token: driverFcmToken,
       notification: {
         title: "New Speedy Sweeties Order",

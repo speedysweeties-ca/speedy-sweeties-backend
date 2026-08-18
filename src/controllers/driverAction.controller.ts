@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { OrderStatus, Prisma } from "@prisma/client";
-import admin from "../config/firebase";
+import { messaging } from "../config/firebase";
 import { prisma } from "../lib/prisma";
 
 type AuthenticatedUser = {
@@ -64,7 +64,7 @@ const sendPushNotification = async (
   }
 
   try {
-    await admin.messaging().send({
+    await messaging.send({
       token: fcmToken,
       notification: {
         title,

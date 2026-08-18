@@ -6,7 +6,7 @@ import {
   PaymentMethod,
   UserRole
 } from "@prisma/client";
-import admin from "../config/firebase";
+import { messaging } from "../config/firebase";
 import { prisma } from "../lib/prisma";
 
 /* ================= TYPES ================= */
@@ -239,7 +239,7 @@ const sendDriverAssignedOrderPush = async (
   const address = [addressLine1, city].filter(Boolean).join(", ");
 
   try {
-    await admin.messaging().send({
+    await messaging.send({
       token: driverFcmToken,
       notification: {
         title: "New Speedy Sweeties Order",
@@ -285,7 +285,7 @@ const sendCustomerOutForDeliveryNotification = async (
       : "Your order is now out for delivery.";
 
   try {
-    await admin.messaging().send({
+    await messaging.send({
       token: fcmToken,
       notification: {
         title: "Speedy Sweeties",
@@ -320,7 +320,7 @@ const sendCustomerRewardEarnedNotification = async (
   }
 
   try {
-    await admin.messaging().send({
+    await messaging.send({
       token: fcmToken,
       notification: {
         title: "Speedy Sweeties 🎉",
@@ -353,7 +353,7 @@ const sendCustomerRewardAppliedNotification = async (
   }
 
   try {
-    await admin.messaging().send({
+    await messaging.send({
       token: fcmToken,
       notification: {
         title: "Speedy Sweeties 🎉",

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import admin from "../config/firebase";
+import { messaging } from "../config/firebase";
 import { env } from "../config/env";
 
 const router = Router();
@@ -40,7 +40,7 @@ router.post("/send", async (_req: Request, res: Response) => {
         }
       };
 
-      const response = await admin.messaging().send(message);
+      const response = await messaging.send(message);
       results.push(response);
     }
 
