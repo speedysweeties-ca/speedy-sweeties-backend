@@ -34,6 +34,13 @@ export const requireAuth = async (
       return;
     }
 
+    if (!user.isActive) {
+      res.status(401).json({
+        message: "Unauthorized"
+      });
+      return;
+    }
+
     // 🔥 FORCE LOGOUT CHECK
   if (user.forceLogoutAt) {
   res.status(401).json({

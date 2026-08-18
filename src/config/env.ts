@@ -10,13 +10,18 @@ function requireEnv(name: string): string {
   return value;
 }
 
+const NODE_ENV = process.env.NODE_ENV ?? "development";
+const CORS_ORIGIN =
+  process.env.CORS_ORIGIN ??
+  (NODE_ENV === "production" ? requireEnv("CORS_ORIGIN") : "*");
+
 export const env = {
-  NODE_ENV: process.env.NODE_ENV ?? "development",
+  NODE_ENV,
   PORT: Number(process.env.PORT ?? 4000),
   DATABASE_URL: requireEnv("DATABASE_URL"),
   JWT_SECRET: requireEnv("JWT_SECRET"),
   FIREBASE_SERVICE_ACCOUNT_JSON: requireEnv("FIREBASE_SERVICE_ACCOUNT_JSON"),
-  CORS_ORIGIN: process.env.CORS_ORIGIN ?? "*",
+  CORS_ORIGIN,
 
   GOOGLE_PLACES_API_KEY: process.env.GOOGLE_PLACES_API_KEY ?? "",
   GOOGLE_PLACE_ID: process.env.GOOGLE_PLACE_ID ?? "ChIJBSxQSViaK4gRaS6LjGPMvTs"

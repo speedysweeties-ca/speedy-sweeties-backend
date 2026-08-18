@@ -26,12 +26,15 @@ export function errorHandler(
   } else if (error instanceof Prisma.PrismaClientKnownRequestError) {
     statusCode = StatusCodes.BAD_REQUEST;
     message = "Database request error";
-    details = {
-      code: error.code,
-      meta: error.meta
-    };
+    details =
+      env.NODE_ENV === "development"
+        ? {
+            code: error.code,
+            meta: error.meta
+          }
+        : undefined;
   } else if (error instanceof Error) {
-    message = error.message;
+    message = env.NODE_ENV === "development" ? error.message : "Internal server error";
   }
 
   res.status(statusCode).json({

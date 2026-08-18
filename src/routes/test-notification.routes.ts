@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import admin from "../config/firebase";
+import { env } from "../config/env";
 
 const router = Router();
 
@@ -13,6 +14,13 @@ export const addToken = (token: string) => {
 };
 
 router.post("/send", async (_req: Request, res: Response) => {
+  if (env.NODE_ENV === "production") {
+    return res.status(404).json({
+      success: false,
+      message: "Route not found"
+    });
+  }
+
   if (savedTokens.length === 0) {
     return res.status(400).json({
       success: false,

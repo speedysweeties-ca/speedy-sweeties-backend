@@ -6,12 +6,15 @@ import routes from "./routes";
 import { env } from "./config/env";
 import { notFound } from "./middleware/notFound";
 import { errorHandler } from "./middleware/errorHandler";
+import { loginRateLimiter } from "./middleware/loginRateLimiter";
 import { prisma } from "./lib/prisma";
 
 // 🔥 ADD THIS LINE (initializes Firebase Admin)
 import "./config/firebase";
 
 const app = express();
+
+app.disable("x-powered-by");
 
 app.use(
   cors({
@@ -22,8 +25,8 @@ app.use(
 
 app.use(helmet());
 app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 
 app.get("/q/lighter", async (_req, res, next) => {
@@ -58,6 +61,7 @@ app.get("/q/lighter/stats", async (_req, res, next) => {
   }
 });
 
+app.use("/api/v1/auth/login", loginRateLimiter);
 app.use("/api/v1", routes);
 
 app.use(notFound);

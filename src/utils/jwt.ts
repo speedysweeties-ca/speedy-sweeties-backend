@@ -14,10 +14,13 @@ const getJwtSecret = (): string => {
 
 export const signAuthToken = (payload: AuthTokenPayload): string => {
   return jwt.sign(payload, getJwtSecret(), {
+    algorithm: "HS256",
     expiresIn: "7d"
   });
 };
 
 export const verifyAuthToken = (token: string): AuthTokenPayload => {
-  return jwt.verify(token, getJwtSecret()) as AuthTokenPayload;
+  return jwt.verify(token, getJwtSecret(), {
+    algorithms: ["HS256"]
+  }) as AuthTokenPayload;
 };
