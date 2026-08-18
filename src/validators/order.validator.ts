@@ -25,11 +25,6 @@ const orderIdParamsSchema = z.object({
   id: z.string().trim().min(1)
 });
 
-const listOrdersQuerySchema = z.object({
-  status: z.nativeEnum(OrderStatus).optional(),
-  customerEmail: z.string().trim().email().optional()
-});
-
 export const createOrderSchema = z.object({
   body: z.object({
     customerName: z.string().trim().min(2).max(120),
@@ -61,10 +56,6 @@ export const getOrderByIdSchema = z.object({
   params: orderIdParamsSchema
 });
 
-export const listOrdersSchema = z.object({
-  query: listOrdersQuerySchema
-});
-
 export const updateOrderStatusSchema = z.object({
   params: orderIdParamsSchema,
   body: z.object({
@@ -93,6 +84,5 @@ export const updateOrderDetailsSchema = z.object({
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>["body"];
-export type ListOrdersQueryInput = z.infer<typeof listOrdersSchema>["query"];
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>["body"];
 export type UpdateOrderDetailsInput = z.infer<typeof updateOrderDetailsSchema>["body"];
