@@ -165,6 +165,33 @@ export const assignDriverToOrderController = async (
     return;
   }
 
+  if (
+    existingOrder.assignedDriverId === driver.id &&
+    priority === undefined
+  ) {
+    const currentOrder = await prisma.order.findUniqueOrThrow({
+      where: { id },
+      include: {
+        items: true,
+        assignedDriver: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Driver assigned successfully",
+      order: currentOrder
+    });
+    return;
+  }
+
   const now = new Date();
   const wasAssignedToDifferentDriver = existingOrder.assignedDriverId !== driver.id;
 

@@ -43,6 +43,8 @@ async function runRetention90Job(): Promise<void> {
     );
   }
 
+  console.log("90-day retention job started in DRY_RUN mode.");
+
   const now = new Date();
   const customers = await prisma.customer.findMany({
     where: {

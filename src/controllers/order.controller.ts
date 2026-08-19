@@ -1165,26 +1165,89 @@ export const updateOrderStatusController = async (
     statusTimestampData.deliveredAt = existingOrder.deliveredAt ?? now;
   }
 
-  const updatedOrder = await prisma.order.update({
+  const updateData: Prisma.OrderUpdateInput =
+    orderStatus === OrderStatus.CANCELLED
+      ? {
+          orderStatus: OrderStatus.CANCELLED,
+          cancelledAt: now,
+          cancelledFromStatus: existingOrder.orderStatus,
+          cancellationReason: cleanedCancellationReason
+        }
+      : {
+          orderStatus,
+          ...statusTimestampData
+        };
+
+  const isNewOutForDeliveryTransition =
+    orderStatus === OrderStatus.OUT_FOR_DELIVERY &&
+    existingOrder.orderStatus !== OrderStatus.OUT_FOR_DELIVERY;
+
+  const isNewDeliveryTransition =
+    orderStatus === OrderStatus.DELIVERED &&
+    existingOrder.orderStatus !== OrderStatus.DELIVERED;
+
+  const transitionUpdate = await prisma.order.updateMany({
+    where: {
+      id,
+      orderStatus: existingOrder.orderStatus
+    },
+    data: updateData
+  });
+
+  if (transitionUpdate.count === 0) {
+    const currentOrder = await prisma.order.findUniqueOrThrow({
+      where: { id },
+      include: orderInclude
+    });
+
+    if (
+      orderStatus !== OrderStatus.CANCELLED &&
+      currentOrder.orderStatus === orderStatus
+    ) {
+      res.status(200).json({
+        success: true,
+        message: "Order status updated successfully",
+        order: currentOrder
+      });
+      return;
+    }
+
+    if (
+      orderStatus === OrderStatus.CANCELLED &&
+      currentOrder.orderStatus === OrderStatus.DELIVERED
+    ) {
+      res.status(400).json({
+        success: false,
+        message: "Delivered orders cannot be cancelled"
+      });
+      return;
+    }
+
+    if (
+      orderStatus === OrderStatus.CANCELLED &&
+      currentOrder.orderStatus === OrderStatus.CANCELLED
+    ) {
+      res.status(400).json({
+        success: false,
+        message: "Order is already cancelled"
+      });
+      return;
+    }
+
+    res.status(400).json({
+      success: false,
+      message: "Order status cannot be updated from its current status"
+    });
+    return;
+  }
+
+  const updatedOrder = await prisma.order.findUniqueOrThrow({
     where: { id },
-    data:
-      orderStatus === OrderStatus.CANCELLED
-        ? {
-            orderStatus: OrderStatus.CANCELLED,
-            cancelledAt: now,
-            cancelledFromStatus: existingOrder.orderStatus,
-            cancellationReason: cleanedCancellationReason
-          }
-        : {
-            orderStatus,
-            ...statusTimestampData
-          },
     include: orderInclude
   });
 
   const shouldNotifyCustomer =
-    orderStatus === OrderStatus.OUT_FOR_DELIVERY &&
-    existingOrder.orderStatus !== OrderStatus.OUT_FOR_DELIVERY;
+    isNewOutForDeliveryTransition && transitionUpdate?.count === 1;
 
   if (shouldNotifyCustomer) {
     await sendCustomerOutForDeliveryNotification(
@@ -1195,8 +1258,8 @@ export const updateOrderStatusController = async (
   }
 
   const shouldApplyLoyalty =
-    orderStatus === OrderStatus.DELIVERED &&
-    existingOrder.orderStatus !== OrderStatus.DELIVERED &&
+    isNewDeliveryTransition &&
+    transitionUpdate?.count === 1 &&
     hasAppFcmToken(existingOrder.fcmToken);
 
   if (shouldApplyLoyalty) {

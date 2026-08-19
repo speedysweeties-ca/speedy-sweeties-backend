@@ -262,11 +262,24 @@ export const driverActionController = async (
   }
 
   if (action === "OUT_FOR_DELIVERY") {
+    if (order.orderStatus === OrderStatus.OUT_FOR_DELIVERY) {
+      const currentOrder = await prisma.order.findUniqueOrThrow({
+        where: { id },
+        include: orderInclude
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Order marked OUT_FOR_DELIVERY",
+        order: currentOrder
+      });
+      return;
+    }
+
     const canMarkOutForDelivery =
       order.orderStatus === OrderStatus.PLACED ||
       order.orderStatus === OrderStatus.DISPATCHED ||
-      order.orderStatus === OrderStatus.ACCEPTED ||
-      order.orderStatus === OrderStatus.OUT_FOR_DELIVERY;
+      order.orderStatus === OrderStatus.ACCEPTED;
 
     if (!canMarkOutForDelivery) {
       res.status(400).json({
@@ -276,25 +289,70 @@ export const driverActionController = async (
       return;
     }
 
-    const updated = await prisma.order.update({
-      where: { id },
+    const outForDeliveryUpdate = await prisma.order.updateMany({
+      where: {
+        id,
+        assignedDriverId: user.userId,
+        orderStatus: order.orderStatus
+      },
       data: {
         orderStatus: OrderStatus.OUT_FOR_DELIVERY,
         dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now,
         acceptedAt: order.acceptedAt ?? now,
         outForDeliveryAt: order.outForDeliveryAt ?? now
-      },
+      }
+    });
+
+    if (outForDeliveryUpdate.count === 0) {
+      const currentOrder = await prisma.order.findUnique({
+        where: { id },
+        include: orderInclude
+      });
+
+      if (currentOrder?.orderStatus === OrderStatus.OUT_FOR_DELIVERY) {
+        res.status(200).json({
+          success: true,
+          message: "Order marked OUT_FOR_DELIVERY",
+          order: currentOrder
+        });
+        return;
+      }
+
+      if (currentOrder?.orderStatus === OrderStatus.DELIVERED) {
+        res.status(200).json({
+          success: true,
+          message: "Order already delivered",
+          order: currentOrder
+        });
+        return;
+      }
+
+      if (currentOrder?.orderStatus === OrderStatus.CANCELLED) {
+        res.status(400).json({
+          success: false,
+          message: "Cancelled orders cannot be updated"
+        });
+        return;
+      }
+
+      res.status(400).json({
+        success: false,
+        message: "Order cannot be marked out for delivery from its current status"
+      });
+      return;
+    }
+
+    const updated = await prisma.order.findUniqueOrThrow({
+      where: { id },
       include: orderInclude
     });
 
-    if (order.orderStatus !== OrderStatus.OUT_FOR_DELIVERY) {
       await sendPushNotification(
         order.fcmToken,
         "Speedy Sweeties 🚗",
         "Your order is now out for delivery!",
         "ORDER_OUT_FOR_DELIVERY"
       );
-    }
 
     res.status(200).json({
       success: true,
@@ -319,15 +377,53 @@ export const driverActionController = async (
       return;
     }
 
-    const updated = await prisma.order.update({
-      where: { id },
+    const deliveryUpdate = await prisma.order.updateMany({
+      where: {
+        id,
+        assignedDriverId: user.userId,
+        orderStatus: order.orderStatus
+      },
       data: {
         orderStatus: OrderStatus.DELIVERED,
         dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now,
         acceptedAt: order.acceptedAt ?? now,
         outForDeliveryAt: order.outForDeliveryAt ?? now,
         deliveredAt: order.deliveredAt ?? now
-      },
+      }
+    });
+
+    if (deliveryUpdate.count === 0) {
+      const currentOrder = await prisma.order.findUnique({
+        where: { id },
+        include: orderInclude
+      });
+
+      if (currentOrder?.orderStatus === OrderStatus.DELIVERED) {
+        res.status(200).json({
+          success: true,
+          message: "Order already delivered",
+          order: currentOrder
+        });
+        return;
+      }
+
+      if (currentOrder?.orderStatus === OrderStatus.CANCELLED) {
+        res.status(400).json({
+          success: false,
+          message: "Cancelled orders cannot be updated"
+        });
+        return;
+      }
+
+      res.status(400).json({
+        success: false,
+        message: "Order cannot be marked delivered from its current status"
+      });
+      return;
+    }
+
+    const updated = await prisma.order.findUniqueOrThrow({
+      where: { id },
       include: orderInclude
     });
 
