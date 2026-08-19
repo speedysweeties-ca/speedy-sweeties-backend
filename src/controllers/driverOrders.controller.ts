@@ -76,71 +76,96 @@ export const getDriverOrdersController = async (
     include: driverOrderInclude
   });
 
-  const ordersWithRouting = await Promise.all(
-    orders.map(async (order) => {
-      const requiredPickupTypes = Array.from(
-        new Set(
-          order.items
-            .map((item) =>
-              normalizePickupType(item.itemCatalog?.pickupType)
-            )
-            .filter((pickupType) => pickupType !== "UNKNOWN")
-        )
-      );
+  const pickupRequirements = orders.map((order) => {
+    const requiredPickupTypes = Array.from(
+      new Set(
+        order.items
+          .map((item) => normalizePickupType(item.itemCatalog?.pickupType))
+          .filter((pickupType) => pickupType !== "UNKNOWN")
+      )
+    );
 
-      const unknownPickupItemCount = order.items.filter(
-        (item) =>
-          normalizePickupType(item.itemCatalog?.pickupType) === "UNKNOWN"
-      ).length;
+    const unknownPickupItemCount = order.items.filter(
+      (item) => normalizePickupType(item.itemCatalog?.pickupType) === "UNKNOWN"
+    ).length;
 
-      const routablePickupTypes = requiredPickupTypes.filter((pickupType) =>
-        ROUTABLE_PICKUP_TYPES.has(pickupType)
-      );
+    const routablePickupTypes = requiredPickupTypes.filter((pickupType) =>
+      ROUTABLE_PICKUP_TYPES.has(pickupType)
+    );
 
-      const unsupportedPickupTypeCount =
-        requiredPickupTypes.length - routablePickupTypes.length;
+    const unsupportedPickupTypeCount =
+      requiredPickupTypes.length - routablePickupTypes.length;
 
-      const pickupRequired =
-        order.orderStatus !== OrderStatus.OUT_FOR_DELIVERY;
+    const pickupRequired = order.orderStatus !== OrderStatus.OUT_FOR_DELIVERY;
+
+    return {
+      pickupRequired,
+      routablePickupTypes,
+      unknownPickupItemCount,
+      unsupportedPickupTypeCount
+    };
+  });
+
+  const requestedPickupTypes = Array.from(
+    new Set(
+      pickupRequirements
+        .filter((requirement) => requirement.pickupRequired)
+        .flatMap((requirement) => requirement.routablePickupTypes)
+    )
+  );
+
+  const pickupLocations =
+    requestedPickupTypes.length > 0
+      ? await prisma.pickupLocation.findMany({
+          where: {
+            isActive: true,
+            pickupType: {
+              in: requestedPickupTypes
+            }
+          },
+          select: {
+            id: true,
+            name: true,
+            pickupType: true,
+            addressLine1: true,
+            city: true,
+            province: true,
+            postalCode: true,
+            latitude: true,
+            longitude: true
+          },
+          orderBy: [
+            {
+              pickupType: "asc"
+            },
+            {
+              name: "asc"
+            }
+          ]
+        })
+      : [];
+
+  const ordersWithRouting = orders.map((order, index) => {
+    const pickupRequirement = pickupRequirements[index];
 
       const pickupLocationCandidates =
-        pickupRequired && routablePickupTypes.length > 0
-          ? await prisma.pickupLocation.findMany({
-              where: {
-                isActive: true,
-                pickupType: {
-                  in: routablePickupTypes
-                }
-              },
-              select: {
-                id: true,
-                name: true,
-                pickupType: true,
-                addressLine1: true,
-                city: true,
-                province: true,
-                postalCode: true,
-                latitude: true,
-                longitude: true
-              },
-              orderBy: [
-                {
-                  pickupType: "asc"
-                },
-                {
-                  name: "asc"
-                }
-              ]
-            })
+        pickupRequirement.pickupRequired &&
+        pickupRequirement.routablePickupTypes.length > 0
+          ? pickupLocations.filter((location) =>
+              pickupRequirement.routablePickupTypes.includes(
+                location.pickupType
+              )
+            )
           : [];
 
       return {
         ...order,
         routingPlan: {
-          pickupRequired,
-          requiredPickupTypes: routablePickupTypes,
-          unknownPickupItemCount,
-          unsupportedPickupTypeCount,
+          pickupRequired: pickupRequirement.pickupRequired,
+          requiredPickupTypes: pickupRequirement.routablePickupTypes,
+          unknownPickupItemCount: pickupRequirement.unknownPickupItemCount,
+          unsupportedPickupTypeCount:
+            pickupRequirement.unsupportedPickupTypeCount,
           pickupLocationCandidates,
           destination: {
             addressLine1: order.addressLine1,
@@ -150,8 +175,7 @@ export const getDriverOrdersController = async (
           }
         }
       };
-    })
-  );
+    });
 
   res.status(200).json({
     success: true,

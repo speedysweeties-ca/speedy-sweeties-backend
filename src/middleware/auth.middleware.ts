@@ -1,8 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAuthToken } from "../utils/jwt";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma";
 
 export const requireAuth = async (
   req: Request,
