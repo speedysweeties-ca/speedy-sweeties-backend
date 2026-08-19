@@ -234,10 +234,19 @@ export const driverActionController = async (
   const now = new Date();
 
   if (action === "ACCEPTED") {
+    if (order.orderStatus === OrderStatus.ACCEPTED) {
+      const currentOrder = await prisma.order.findUniqueOrThrow({
+        where: { id },
+        include: orderInclude
+      });
+
+      res.status(200).json({ success: true, message: "Order accepted", order: currentOrder });
+      return;
+    }
+
     const canAccept =
       order.orderStatus === OrderStatus.PLACED ||
-      order.orderStatus === OrderStatus.DISPATCHED ||
-      order.orderStatus === OrderStatus.ACCEPTED;
+      order.orderStatus === OrderStatus.DISPATCHED;
 
     if (!canAccept) {
       res.status(400).json({
@@ -247,13 +256,44 @@ export const driverActionController = async (
       return;
     }
 
-    const updated = await prisma.order.update({
-      where: { id },
+    const acceptanceUpdate = await prisma.order.updateMany({
+      where: {
+        id,
+        assignedDriverId: user.userId,
+        orderStatus: order.orderStatus
+      },
       data: {
         orderStatus: OrderStatus.ACCEPTED,
         dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now,
         acceptedAt: order.acceptedAt ?? now
-      },
+      }
+    });
+
+    if (acceptanceUpdate.count === 0) {
+      const currentOrder = await prisma.order.findUnique({
+        where: { id },
+        include: orderInclude
+      });
+
+      if (currentOrder?.orderStatus === OrderStatus.ACCEPTED) {
+        res.status(200).json({ success: true, message: "Order accepted", order: currentOrder });
+        return;
+      }
+
+      if (currentOrder?.orderStatus === OrderStatus.CANCELLED) {
+        res.status(400).json({ success: false, message: "Cancelled orders cannot be updated" });
+        return;
+      }
+
+      res.status(400).json({
+        success: false,
+        message: "Order cannot be accepted from its current status"
+      });
+      return;
+    }
+
+    const updated = await prisma.order.findUniqueOrThrow({
+      where: { id },
       include: orderInclude
     });
 

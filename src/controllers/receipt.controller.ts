@@ -55,27 +55,78 @@ export const createOrUpdateReceiptController = async (
     return;
   }
 
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    select: {
-      id: true,
-      orderNumber: true,
-      assignedDriverId: true
+  const receiptResult = await prisma.$transaction(async (tx) => {
+    if (user.role === UserRole.DRIVER) {
+      const assignedOrders = await tx.$queryRaw<
+        Array<{ id: string; orderNumber: number }>
+      >`
+        SELECT "id", "orderNumber"
+        FROM "Order"
+        WHERE "id" = ${orderId} AND "assignedDriverId" = ${user.userId}
+        FOR UPDATE
+      `;
+
+      if (assignedOrders.length === 0) {
+        const existingOrder = await tx.order.findUnique({
+          where: { id: orderId },
+          select: { id: true }
+        });
+
+        return existingOrder ? { kind: "forbidden" as const } : { kind: "notFound" as const };
+      }
+
+      const order = assignedOrders[0];
+      const receipt = await tx.digitalReceipt.upsert({
+        where: { orderId },
+        update: { itemTotal, deliveryCharge, taxOrFees, grandTotal, notes },
+        create: {
+          orderId,
+          receiptNumber: `SS-${order.orderNumber}`,
+          createdByDriverId: user.userId,
+          itemTotal,
+          deliveryCharge,
+          taxOrFees,
+          grandTotal,
+          notes
+        }
+      });
+
+      return { kind: "saved" as const, receipt };
     }
+
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: { orderNumber: true }
+    });
+
+    if (!order) {
+      return { kind: "notFound" as const };
+    }
+
+    const receipt = await tx.digitalReceipt.upsert({
+      where: { orderId },
+      update: { itemTotal, deliveryCharge, taxOrFees, grandTotal, notes },
+      create: {
+        orderId,
+        receiptNumber: `SS-${order.orderNumber}`,
+        createdByDriverId: user.userId,
+        itemTotal,
+        deliveryCharge,
+        taxOrFees,
+        grandTotal,
+        notes
+      }
+    });
+
+    return { kind: "saved" as const, receipt };
   });
 
-  if (!order) {
-    res.status(404).json({
-      success: false,
-      message: "Order not found"
-    });
+  if (receiptResult.kind === "notFound") {
+    res.status(404).json({ success: false, message: "Order not found" });
     return;
   }
 
-  if (
-    user.role === UserRole.DRIVER &&
-    order.assignedDriverId !== user.userId
-  ) {
+  if (receiptResult.kind === "forbidden") {
     res.status(403).json({
       success: false,
       message: "You can only create a receipt for your assigned order"
@@ -83,33 +134,10 @@ export const createOrUpdateReceiptController = async (
     return;
   }
 
-  const receiptNumber = `SS-${order.orderNumber}`;
-
-  const receipt = await prisma.digitalReceipt.upsert({
-    where: { orderId },
-    update: {
-      itemTotal,
-      deliveryCharge,
-      taxOrFees,
-      grandTotal,
-      notes
-    },
-    create: {
-      orderId,
-      receiptNumber,
-      createdByDriverId: user.userId,
-      itemTotal,
-      deliveryCharge,
-      taxOrFees,
-      grandTotal,
-      notes
-    }
-  });
-
   res.status(200).json({
     success: true,
     message: "Digital receipt saved",
-    data: receipt
+    data: receiptResult.receipt
   });
 };
 

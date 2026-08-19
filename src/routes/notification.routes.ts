@@ -15,7 +15,7 @@ router.post("/fcm-token", (req: Request, res: Response) => {
 
   saveCustomerFcmToken(token);
 
-  console.log("🔥 Saved FCM Token:", token);
+  console.log("Customer FCM token registration received");
 
   return res.status(200).json({
     success: true,

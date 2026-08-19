@@ -103,8 +103,8 @@ export const assignDriverToOrderController = async (
   }
 
   if (driverId === null) {
-    const updatedOrder = await prisma.order.update({
-      where: { id },
+    const unassignmentUpdate = await prisma.order.updateMany({
+      where: { id, orderStatus: existingOrder.orderStatus },
       data: {
         assignedDriverId: null,
         assignedAt: null,
@@ -115,16 +115,29 @@ export const assignDriverToOrderController = async (
             }
           : {}),
         ...(priority ? { priority } : {})
-      },
+      }
+    });
+
+    if (unassignmentUpdate.count === 0) {
+      const currentOrder = await prisma.order.findUnique({ where: { id } });
+      const isFinalOrder =
+        currentOrder?.orderStatus === OrderStatus.DELIVERED ||
+        currentOrder?.orderStatus === OrderStatus.CANCELLED;
+      res.status(isFinalOrder ? 400 : 409).json({
+        success: false,
+        message: isFinalOrder
+          ? "Cannot assign a driver to a delivered or cancelled order"
+          : "Order changed before driver assignment could be completed"
+      });
+      return;
+    }
+
+    const updatedOrder = await prisma.order.findUniqueOrThrow({
+      where: { id },
       include: {
         items: true,
         assignedDriver: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true
-          }
+          select: { id: true, firstName: true, lastName: true, email: true }
         }
       }
     });
@@ -199,11 +212,11 @@ export const assignDriverToOrderController = async (
     existingOrder.orderStatus === OrderStatus.PLACED ||
     existingOrder.orderStatus === OrderStatus.DISPATCHED;
 
-  const updatedOrder = await prisma.order.update({
-    where: { id },
+  const assignmentUpdate = await prisma.order.updateMany({
+    where: { id, orderStatus: existingOrder.orderStatus },
     data: {
       assignedDriverId: driver.id,
-      assignedAt: now,
+      assignedAt: wasAssignedToDifferentDriver ? now : existingOrder.assignedAt ?? now,
       ...(shouldMarkDispatched
         ? {
             orderStatus: OrderStatus.DISPATCHED,
@@ -211,16 +224,29 @@ export const assignDriverToOrderController = async (
           }
         : {}),
       ...(priority ? { priority } : {})
-    },
+    }
+  });
+
+  if (assignmentUpdate.count === 0) {
+    const currentOrder = await prisma.order.findUnique({ where: { id } });
+    const isFinalOrder =
+      currentOrder?.orderStatus === OrderStatus.DELIVERED ||
+      currentOrder?.orderStatus === OrderStatus.CANCELLED;
+    res.status(isFinalOrder ? 400 : 409).json({
+      success: false,
+      message: isFinalOrder
+        ? "Cannot assign a driver to a delivered or cancelled order"
+        : "Order changed before driver assignment could be completed"
+    });
+    return;
+  }
+
+  const updatedOrder = await prisma.order.findUniqueOrThrow({
+    where: { id },
     include: {
       items: true,
       assignedDriver: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true
-        }
+        select: { id: true, firstName: true, lastName: true, email: true }
       }
     }
   });
