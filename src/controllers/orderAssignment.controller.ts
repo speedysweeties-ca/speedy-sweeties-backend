@@ -58,7 +58,7 @@ const sendDriverAssignedOrderPush = async (
 
     console.log("Driver assigned order push sent");
   } catch (error) {
-    console.error("Failed to send driver assigned order push:", error);
+    console.error("Failed to send driver assigned order push:", error instanceof Error ? error.name : typeof error);
   }
 };
 

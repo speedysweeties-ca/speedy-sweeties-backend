@@ -7,6 +7,7 @@ import { env } from "./config/env";
 import { notFound } from "./middleware/notFound";
 import { errorHandler } from "./middleware/errorHandler";
 import { loginRateLimiter } from "./middleware/loginRateLimiter";
+import { qrStatisticsRateLimiter } from "./middleware/qrStatisticsRateLimiter";
 import { prisma } from "./lib/prisma";
 
 // 🔥 ADD THIS LINE (initializes Firebase Admin)
@@ -15,6 +16,7 @@ import "./config/firebase";
 const app = express();
 
 app.disable("x-powered-by");
+app.set("trust proxy", 1);
 
 app.use(
   cors({
@@ -24,7 +26,14 @@ app.use(
 );
 
 app.use(helmet());
-app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
+// Do not log request URLs in production: token-based tracking URLs contain credentials.
+app.use(
+  morgan(
+    env.NODE_ENV === "production"
+      ? ":method :status :res[content-length] :response-time ms"
+      : "dev"
+  )
+);
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
@@ -43,7 +52,7 @@ app.get("/q/lighter", async (_req, res, next) => {
   }
 });
 
-app.get("/q/lighter/stats", async (_req, res, next) => {
+app.get("/q/lighter/stats", qrStatisticsRateLimiter, async (_req, res, next) => {
   try {
     const totalScans = await prisma.qrScan.count({
       where: {

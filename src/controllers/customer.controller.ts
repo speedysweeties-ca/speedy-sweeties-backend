@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
+import { verifyCustomerLoyaltyToken } from "../utils/jwt";
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
@@ -123,6 +124,74 @@ const sortCustomersBySearchRelevance = (
     .map((entry) => entry.customer);
 };
 
+const loyaltyCustomerSelect = {
+  id: true,
+  loyaltyCompletedOrders: true,
+  loyaltyProgressMonth: true,
+  loyaltyRewardsEarned: true,
+  loyaltyRewardsUsed: true,
+  loyaltyFreeDelivery: true,
+};
+
+const emptyLoyaltyResponse = {
+  success: true,
+  found: false,
+  loyalty: {
+    loyaltyCompletedOrders: 0,
+    loyaltyRewardsEarned: 0,
+    loyaltyRewardsUsed: 0,
+    loyaltyFreeDelivery: false,
+    deliveriesRemaining: 10,
+  },
+};
+
+const getLoyaltyResponseForCustomerId = async (customerId: string) => {
+  const currentLoyaltyMonth = getCurrentLoyaltyMonth();
+  let customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: loyaltyCustomerSelect,
+  });
+
+  if (!customer) return null;
+
+  if (customer.loyaltyProgressMonth !== currentLoyaltyMonth) {
+    await prisma.customer.updateMany({
+      where: {
+        id: customer.id,
+        OR: [
+          { loyaltyProgressMonth: null },
+          { loyaltyProgressMonth: { not: currentLoyaltyMonth } },
+        ],
+      },
+      data: {
+        loyaltyCompletedOrders: 0,
+        loyaltyProgressMonth: currentLoyaltyMonth,
+      },
+    });
+
+    customer = await prisma.customer.findUnique({
+      where: { id: customer.id },
+      select: loyaltyCustomerSelect,
+    });
+
+    if (!customer) return null;
+  }
+
+  return {
+    success: true,
+    found: true,
+    loyalty: {
+      loyaltyCompletedOrders: customer.loyaltyCompletedOrders,
+      loyaltyRewardsEarned: customer.loyaltyRewardsEarned,
+      loyaltyRewardsUsed: customer.loyaltyRewardsUsed,
+      loyaltyFreeDelivery: customer.loyaltyFreeDelivery,
+      deliveriesRemaining: customer.loyaltyFreeDelivery
+        ? 0
+        : Math.max(10 - customer.loyaltyCompletedOrders, 0),
+    },
+  };
+};
+
 export const getCustomerLoyaltyController = async (
   req: Request,
   res: Response
@@ -145,98 +214,52 @@ export const getCustomerLoyaltyController = async (
     return;
   }
 
-  const currentLoyaltyMonth = getCurrentLoyaltyMonth();
-
-  let customer = await prisma.customer.findFirst({
+  const customer = await prisma.customer.findFirst({
     where: {
       OR: [
         ...(phone ? [{ normalizedPhone: phone }] : []),
         ...(email ? [{ normalizedEmail: email }] : []),
       ],
     },
-    select: {
-      id: true,
-      loyaltyCompletedOrders: true,
-      loyaltyProgressMonth: true,
-      loyaltyRewardsEarned: true,
-      loyaltyRewardsUsed: true,
-      loyaltyFreeDelivery: true,
-    },
+    select: loyaltyCustomerSelect,
   });
 
   if (!customer) {
-    res.status(200).json({
-      success: true,
-      found: false,
-      loyalty: {
-        loyaltyCompletedOrders: 0,
-        loyaltyRewardsEarned: 0,
-        loyaltyRewardsUsed: 0,
-        loyaltyFreeDelivery: false,
-        deliveriesRemaining: 10,
-      },
-    });
+    res.status(200).json(emptyLoyaltyResponse);
     return;
   }
 
-  if (customer.loyaltyProgressMonth !== currentLoyaltyMonth) {
-    await prisma.customer.updateMany({
-      where: {
-        id: customer.id,
-        OR: [
-          { loyaltyProgressMonth: null },
-          { loyaltyProgressMonth: { not: currentLoyaltyMonth } },
-        ],
-      },
-      data: {
-        loyaltyCompletedOrders: 0,
-        loyaltyProgressMonth: currentLoyaltyMonth,
-      },
-    });
+  const loyaltyResponse = await getLoyaltyResponseForCustomerId(customer.id);
+  res.status(200).json(loyaltyResponse ?? emptyLoyaltyResponse);
+};
 
-    customer = await prisma.customer.findUnique({
-      where: { id: customer.id },
-      select: {
-        id: true,
-        loyaltyCompletedOrders: true,
-        loyaltyProgressMonth: true,
-        loyaltyRewardsEarned: true,
-        loyaltyRewardsUsed: true,
-        loyaltyFreeDelivery: true,
-      },
-    });
+export const getCustomerLoyaltyByTokenController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length)
+    : null;
 
-    if (!customer) {
-      res.status(200).json({
-        success: true,
-        found: false,
-        loyalty: {
-          loyaltyCompletedOrders: 0,
-          loyaltyRewardsEarned: 0,
-          loyaltyRewardsUsed: 0,
-          loyaltyFreeDelivery: false,
-          deliveriesRemaining: 10,
-        },
-      });
-      return;
-    }
+  if (!token) {
+    res.status(401).json({ success: false, message: "Unauthorized" });
+    return;
   }
 
-  const deliveriesRemaining = customer.loyaltyFreeDelivery
-    ? 0
-    : Math.max(10 - customer.loyaltyCompletedOrders, 0);
+  try {
+    const payload = verifyCustomerLoyaltyToken(token);
+    const loyaltyResponse = await getLoyaltyResponseForCustomerId(payload.sub);
 
-  res.status(200).json({
-    success: true,
-    found: true,
-    loyalty: {
-      loyaltyCompletedOrders: customer.loyaltyCompletedOrders,
-      loyaltyRewardsEarned: customer.loyaltyRewardsEarned,
-      loyaltyRewardsUsed: customer.loyaltyRewardsUsed,
-      loyaltyFreeDelivery: customer.loyaltyFreeDelivery,
-      deliveriesRemaining,
-    },
-  });
+    if (!loyaltyResponse) {
+      res.status(401).json({ success: false, message: "Unauthorized" });
+      return;
+    }
+
+    res.status(200).json(loyaltyResponse);
+  } catch (_error) {
+    res.status(401).json({ success: false, message: "Unauthorized" });
+  }
 };
 
 export const searchCustomersController = async (

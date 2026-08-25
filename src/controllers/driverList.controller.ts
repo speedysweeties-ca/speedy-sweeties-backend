@@ -1,11 +1,13 @@
 import { OrderStatus } from "@prisma/client";
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
+import { isDriverFresh } from "../utils/driverFreshness";
 
 export const getAllDriversWithStatsController = async (
   _req: Request,
   res: Response
 ): Promise<void> => {
+  const now = new Date();
   const drivers = await prisma.user.findMany({
     where: {
       role: "DRIVER",
@@ -56,7 +58,7 @@ export const getAllDriversWithStatsController = async (
     firstName: driver.firstName,
     lastName: driver.lastName,
     email: driver.email,
-    isOnline: driver.isOnline,
+    isOnline: driver.isOnline && isDriverFresh(driver.lastSeenAt, now),
     lastSeenAt: driver.lastSeenAt,
 
     latitude: driver.latitude,

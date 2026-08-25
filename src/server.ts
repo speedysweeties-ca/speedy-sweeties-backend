@@ -32,13 +32,13 @@ async function shutdown(signal: string): Promise<void> {
     }
   } catch (error) {
     exitCode = 1;
-    console.error("Failed to close HTTP server cleanly", error);
+    console.error("Failed to close HTTP server cleanly", error instanceof Error ? error.name : typeof error);
   } finally {
     try {
       await prisma.$disconnect();
     } catch (error) {
       exitCode = 1;
-      console.error("Failed to disconnect Prisma cleanly", error);
+      console.error("Failed to disconnect Prisma cleanly", error instanceof Error ? error.name : typeof error);
     }
 
     clearTimeout(forceExitTimeout);
@@ -55,7 +55,7 @@ async function startServer(): Promise<void> {
       console.log(`Server running on http://localhost:${env.PORT}`);
     });
   } catch (error) {
-    console.error("Failed to start server", error);
+    console.error("Failed to start server", error instanceof Error ? error.name : typeof error);
     process.exit(1);
   }
 }

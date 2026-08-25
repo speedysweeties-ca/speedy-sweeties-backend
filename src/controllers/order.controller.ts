@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { createHash, randomBytes } from "crypto";
 import {
   Prisma,
   OrderStatus,
@@ -8,11 +9,20 @@ import {
 } from "@prisma/client";
 import { messaging } from "../config/firebase";
 import { prisma } from "../lib/prisma";
+import { signCustomerLoyaltyToken } from "../utils/jwt";
+import {
+  getDriverFreshnessCutoff,
+  isDriverLocationFresh
+} from "../utils/driverFreshness";
 
 /* ================= TYPES ================= */
 
 type IdParams = {
   id: string;
+};
+
+type TrackingTokenParams = {
+  token: string;
 };
 
 type UpdateStatusBody = {
@@ -88,6 +98,45 @@ const orderInclude = {
     }
   }
 } satisfies Prisma.OrderInclude;
+
+const publicTrackingOrderInclude = {
+  digitalReceipt: {
+    select: {
+      grandTotal: true
+    }
+  },
+  assignedDriver: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      latitude: true,
+      longitude: true,
+      lastSeenAt: true,
+      locationUpdatedAt: true
+    }
+  }
+} satisfies Prisma.OrderInclude;
+
+type PublicTrackingOrder = Prisma.OrderGetPayload<{
+  include: typeof publicTrackingOrderInclude;
+}>;
+
+const TRACKING_TOKEN_LIFETIME_MS = 48 * 60 * 60 * 1000;
+
+const createTrackingCredential = (): {
+  token: string;
+  hash: string;
+  expiresAt: Date;
+} => {
+  const token = randomBytes(32).toString("base64url");
+
+  return {
+    token,
+    hash: createHash("sha256").update(token).digest("hex"),
+    expiresAt: new Date(Date.now() + TRACKING_TOKEN_LIFETIME_MS)
+  };
+};
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
@@ -260,7 +309,7 @@ const sendDriverAssignedOrderPush = async (
 
     console.log("Driver assigned order push sent");
   } catch (error) {
-    console.error("Failed to send driver assigned order push:", error);
+    console.error("Failed to send driver assigned order push:", error instanceof Error ? error.name : typeof error);
   }
 };
 
@@ -307,7 +356,7 @@ const sendCustomerOutForDeliveryNotification = async (
 
     console.log("Customer OUT_FOR_DELIVERY notification sent");
   } catch (error) {
-    console.error("Failed to send customer OUT_FOR_DELIVERY notification:", error);
+    console.error("Failed to send customer OUT_FOR_DELIVERY notification:", error instanceof Error ? error.name : typeof error);
   }
 };
 
@@ -340,7 +389,7 @@ const sendCustomerRewardEarnedNotification = async (
 
     console.log("Customer loyalty reward notification sent");
   } catch (error) {
-    console.error("Failed to send loyalty reward notification:", error);
+    console.error("Failed to send loyalty reward notification:", error instanceof Error ? error.name : typeof error);
   }
 };
 
@@ -373,7 +422,7 @@ const sendCustomerRewardAppliedNotification = async (
 
     console.log("Customer loyalty reward applied notification sent");
   } catch (error) {
-    console.error("Failed to send loyalty reward applied notification:", error);
+    console.error("Failed to send loyalty reward applied notification:", error instanceof Error ? error.name : typeof error);
   }
 };
 
@@ -547,12 +596,17 @@ const autoAssignCreatedOrderToLeastBusyOnlineDriver = async (
     return null;
   }
 
+  const freshnessCutoff = getDriverFreshnessCutoff();
+
   const onlineDrivers = await tx.user.findMany({
     where: {
       role: UserRole.DRIVER,
       isActive: true,
       isVisibleInDispatch: true,
-      isOnline: true
+      isOnline: true,
+      lastSeenAt: {
+        gte: freshnessCutoff
+      }
     },
     select: {
       id: true,
@@ -625,12 +679,8 @@ const autoAssignCreatedOrderToLeastBusyOnlineDriver = async (
     }
   });
 
-  const driverName =
-    `${selected.driver.firstName ?? ""} ${selected.driver.lastName ?? ""}`.trim() ||
-    selected.driver.email;
-
   console.log(
-    `Auto-dispatched order ${orderId} to ${driverName} with ${selected.activeOrderCount} active order(s).`
+    `Auto-dispatch selected an online driver with ${selected.activeOrderCount} active order(s).`
   );
 
   if (shouldSendDriverPush(selected.driver) && selected.driver.driverFcmToken) {
@@ -781,6 +831,8 @@ export const createOrderController = async (
       });
     }
 
+    const trackingCredential = createTrackingCredential();
+
     const createdOrder = await tx.order.create({
       data: {
         customerId: customer.id,
@@ -796,7 +848,9 @@ export const createOrderController = async (
         paymentMethod,
         orderStatus: OrderStatus.PLACED,
         priority: OrderPriority.NORMAL,
-        fcmToken: appFcmToken
+        fcmToken: appFcmToken,
+        trackingTokenHash: trackingCredential.hash,
+        trackingTokenExpiresAt: trackingCredential.expiresAt
       }
     });
 
@@ -847,11 +901,18 @@ export const createOrderController = async (
 
     return {
       order,
-      autoDispatchNotification
+      autoDispatchNotification,
+      trackingToken: trackingCredential.token
     };
   });
 
-  const { order, autoDispatchNotification } = transactionResult;
+  const { order, autoDispatchNotification, trackingToken } = transactionResult;
+  const loyaltyAccessToken = signCustomerLoyaltyToken(customer.id);
+  const {
+    trackingTokenHash: _trackingTokenHash,
+    trackingTokenExpiresAt: _trackingTokenExpiresAt,
+    ...orderResponse
+  } = order;
 
   if (autoDispatchNotification) {
     await sendDriverAssignedOrderPush(
@@ -870,7 +931,9 @@ export const createOrderController = async (
   res.status(201).json({
     success: true,
     message: "Order created successfully",
-    order
+    order: orderResponse,
+    trackingToken,
+    loyaltyAccessToken
   });
 };
 
@@ -1307,6 +1370,42 @@ export const updateOrderPriorityController = async (
   });
 };
 
+const sendPublicOrderTrackingResponse = (
+  order: PublicTrackingOrder,
+  res: Response
+): void => {
+  const driver = order.assignedDriver;
+  const hasFreshLocation =
+    order.orderStatus === OrderStatus.OUT_FOR_DELIVERY &&
+    driver !== null &&
+    isDriverLocationFresh(driver.lastSeenAt, driver.locationUpdatedAt);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      orderStatus: order.orderStatus,
+      receiptTotal: receiptTotalToNumber(order.digitalReceipt?.grandTotal ?? null),
+      driver: driver
+        ? {
+            name: `${driver.firstName ?? ""} ${driver.lastName ?? ""}`.trim(),
+            latitude: hasFreshLocation ? driver.latitude ?? null : null,
+            longitude: hasFreshLocation ? driver.longitude ?? null : null,
+            lastUpdated: hasFreshLocation ? driver.locationUpdatedAt ?? null : null
+          }
+        : null
+    }
+  });
+};
+
+const sendPublicTrackingNotFound = (res: Response): void => {
+  res.status(404).json({
+    success: false,
+    message: "Order not found"
+  });
+};
+
 export const getPublicOrderTrackingController = async (
   req: Request<IdParams>,
   res: Response
@@ -1316,54 +1415,52 @@ export const getPublicOrderTrackingController = async (
   try {
     const order = await prisma.order.findUnique({
       where: { id },
-      include: {
-        digitalReceipt: {
-          select: {
-            grandTotal: true
-          }
-        },
-        assignedDriver: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            latitude: true,
-            longitude: true,
-            locationUpdatedAt: true
-          }
-        }
-      }
+      include: publicTrackingOrderInclude
     });
 
     if (!order) {
-      res.status(404).json({
-        success: false,
-        message: "Order not found"
-      });
+      sendPublicTrackingNotFound(res);
       return;
     }
 
-    const driver = order.assignedDriver;
-
-    res.status(200).json({
-      success: true,
-      data: {
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        orderStatus: order.orderStatus,
-        receiptTotal: receiptTotalToNumber(order.digitalReceipt?.grandTotal ?? null),
-        driver: driver
-          ? {
-              name: `${driver.firstName ?? ""} ${driver.lastName ?? ""}`.trim(),
-              latitude: driver.latitude ?? null,
-              longitude: driver.longitude ?? null,
-              lastUpdated: driver.locationUpdatedAt ?? null
-            }
-          : null
-      }
-    });
+    sendPublicOrderTrackingResponse(order, res);
   } catch (error) {
-    console.error("Tracking error:", error);
+    console.error("Tracking error:", error instanceof Error ? error.name : typeof error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch tracking info"
+    });
+  }
+};
+
+export const getPublicOrderTrackingByTokenController = async (
+  req: Request<TrackingTokenParams>,
+  res: Response
+): Promise<void> => {
+  const tokenHash = createHash("sha256")
+    .update(req.params.token)
+    .digest("hex");
+
+  try {
+    const order = await prisma.order.findFirst({
+      where: {
+        trackingTokenHash: tokenHash,
+        trackingTokenExpiresAt: {
+          gt: new Date()
+        }
+      },
+      include: publicTrackingOrderInclude
+    });
+
+    if (!order) {
+      sendPublicTrackingNotFound(res);
+      return;
+    }
+
+    sendPublicOrderTrackingResponse(order, res);
+  } catch (error) {
+    console.error("Tracking token error:", error instanceof Error ? error.name : typeof error);
 
     res.status(500).json({
       success: false,

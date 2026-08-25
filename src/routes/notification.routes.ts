@@ -1,9 +1,9 @@
 import { Router, Request, Response } from "express";
-import { saveCustomerFcmToken } from "../services/pushNotification.service";
+import { notificationRegistrationRateLimiter } from "../middleware/notificationRegistrationRateLimiter";
 
 const router = Router();
 
-router.post("/fcm-token", (req: Request, res: Response) => {
+router.post("/fcm-token", notificationRegistrationRateLimiter, (req: Request, res: Response) => {
   const { token } = req.body;
 
   if (!token) {
@@ -12,8 +12,6 @@ router.post("/fcm-token", (req: Request, res: Response) => {
       message: "Token is required"
     });
   }
-
-  saveCustomerFcmToken(token);
 
   console.log("Customer FCM token registration received");
 

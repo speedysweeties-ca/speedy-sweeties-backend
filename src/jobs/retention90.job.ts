@@ -173,6 +173,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error("90-day retention job failed:", error);
+  console.error("90-day retention job failed:", error instanceof Error ? error.name : typeof error);
   process.exit(1);
 });

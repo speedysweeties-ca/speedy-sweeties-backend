@@ -84,7 +84,7 @@ const sendPushNotification = async (
 
     console.log(`${type} push sent`);
   } catch (error) {
-    console.error(`${type} push failed:`, error);
+    console.error(`${type} push failed:`, error instanceof Error ? error.name : typeof error);
   }
 };
 
