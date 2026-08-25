@@ -51,7 +51,7 @@ router.post("/send", async (_req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error("Push error:", error);
+    console.error("Push error:", error instanceof Error ? error.name : typeof error);
     return res.status(500).json({
       success: false,
       message: "Failed to send push"

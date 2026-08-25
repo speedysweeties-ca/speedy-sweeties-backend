@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { UserRole } from "@prisma/client";
 import { asyncHandler } from "../utils/asyncHandler";
+import { itemSearchRateLimiter } from "../middleware/itemSearchRateLimiter";
 import { requireAuth } from "../middleware/auth.middleware";
 import { requireRole } from "../middleware/role.middleware";
 import {
@@ -15,6 +16,7 @@ const router = Router();
 // ✅ PUBLIC — customer app autocomplete search
 router.get(
   "/search",
+  itemSearchRateLimiter,
   asyncHandler(searchItemsController)
 );
 

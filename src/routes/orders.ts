@@ -3,6 +3,8 @@ import { UserRole } from "@prisma/client";
 import { asyncHandler } from "../utils/asyncHandler";
 import { validateRequest } from "../middleware/validateRequest";
 import { requireAuth } from "../middleware/auth.middleware";
+import { orderCreationRateLimiter } from "../middleware/orderCreationRateLimiter";
+import { orderTrackingRateLimiter } from "../middleware/orderTrackingRateLimiter";
 import { requireRole } from "../middleware/role.middleware";
 
 import {
@@ -19,6 +21,7 @@ import {
   getAutoDispatchSettingsController,
   getOrderByIdController,
   getPublicOrderTrackingController,
+  getPublicOrderTrackingByTokenController,
   updateAutoDispatchSettingsController,
   updateOrderStatusController,
   updateOrderPriorityController,
@@ -42,13 +45,22 @@ const router = Router();
 // ✅ PUBLIC — customers create orders
 router.post(
   "/",
+  orderCreationRateLimiter,
   validateRequest(createOrderSchema),
   asyncHandler(createOrderController)
 );
 
 // ✅ PUBLIC — customer tracking by order ID
 router.get(
+  "/track-token/:token",
+  orderTrackingRateLimiter,
+  asyncHandler(getPublicOrderTrackingByTokenController)
+);
+
+// Keep the legacy UUID route for existing Customer Android versions.
+router.get(
   "/track/:id",
+  orderTrackingRateLimiter,
   asyncHandler(getPublicOrderTrackingController)
 );
 
@@ -174,11 +186,11 @@ router.post(
   asyncHandler(driverActionController)
 );
 
-// 🔒 STAFF + DRIVER — update status (legacy)
+// 🔒 STAFF — update status (legacy)
 router.patch(
   "/:id/status",
   requireAuth,
-  requireRole([UserRole.ADMIN, UserRole.DISPATCHER, UserRole.DRIVER]),
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
   validateRequest(updateOrderStatusSchema),
   asyncHandler(updateOrderStatusController)
 );
