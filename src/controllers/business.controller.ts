@@ -32,16 +32,24 @@ type GooglePlaceDetailsResponse = {
 };
 
 const TORONTO_TIME_ZONE = "America/Toronto";
+const GOOGLE_PLACES_TIMEOUT_MS = 5_000;
 
-function getFallbackStatus(): {
+export type BusinessStatus = {
   success: boolean;
   source: string;
   isOpen: boolean;
   label: string;
-  estimatedDelivery: string;
+  estimatedDelivery: string | null;
   message: string;
   nextOpenText: string | null;
-} {
+  googleStatus?: number;
+  placeId?: string;
+  businessName?: string;
+  regularHours?: string[];
+  currentHours?: string[];
+};
+
+function getFallbackStatus(): BusinessStatus {
   return {
     success: true,
     source: "fallback",
@@ -222,29 +230,38 @@ function buildNextOpenText(place: GooglePlaceDetailsResponse): string | null {
   );
 }
 
-export async function getBusinessStatus(_req: Request, res: Response) {
+export async function getCurrentBusinessStatus(): Promise<BusinessStatus> {
   try {
     if (!env.GOOGLE_PLACES_API_KEY || !env.GOOGLE_PLACE_ID) {
-      return res.status(StatusCodes.OK).json(getFallbackStatus());
+      return getFallbackStatus();
     }
 
     const url = `https://places.googleapis.com/v1/places/${env.GOOGLE_PLACE_ID}`;
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), GOOGLE_PLACES_TIMEOUT_MS);
 
-    const googleResponse = await fetch(url, {
-      method: "GET",
-      headers: {
-        "X-Goog-Api-Key": env.GOOGLE_PLACES_API_KEY,
-        "X-Goog-FieldMask":
-          "id,displayName,regularOpeningHours,currentOpeningHours"
-      }
-    });
+    let googleResponse: Awaited<ReturnType<typeof fetch>>;
+
+    try {
+      googleResponse = await fetch(url, {
+        method: "GET",
+        headers: {
+          "X-Goog-Api-Key": env.GOOGLE_PLACES_API_KEY,
+          "X-Goog-FieldMask":
+            "id,displayName,regularOpeningHours,currentOpeningHours"
+        },
+        signal: abortController.signal
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!googleResponse.ok) {
-      return res.status(StatusCodes.OK).json({
+      return {
         ...getFallbackStatus(),
         source: "fallback_google_error",
         googleStatus: googleResponse.status
-      });
+      };
     }
 
     const place = (await googleResponse.json()) as GooglePlaceDetailsResponse;
@@ -255,15 +272,15 @@ export async function getBusinessStatus(_req: Request, res: Response) {
       null;
 
     if (openNow === null) {
-      return res.status(StatusCodes.OK).json({
+      return {
         ...getFallbackStatus(),
         source: "fallback_missing_hours"
-      });
+      };
     }
 
     const nextOpenText = openNow ? null : buildNextOpenText(place);
 
-    return res.status(StatusCodes.OK).json({
+    return {
       success: true,
       source: "google_places",
       placeId: place.id ?? env.GOOGLE_PLACE_ID,
@@ -277,11 +294,23 @@ export async function getBusinessStatus(_req: Request, res: Response) {
       nextOpenText,
       regularHours: place.regularOpeningHours?.weekdayDescriptions ?? [],
       currentHours: place.currentOpeningHours?.weekdayDescriptions ?? []
-    });
+    };
   } catch (_error) {
-    return res.status(StatusCodes.OK).json({
+    return {
       ...getFallbackStatus(),
       source: "fallback_exception"
-    });
+    };
   }
+}
+
+export async function isBusinessConfirmedClosed(): Promise<boolean> {
+  const status = await getCurrentBusinessStatus();
+
+  return status.source === "google_places" && status.isOpen === false;
+}
+
+export async function getBusinessStatus(_req: Request, res: Response) {
+  const status = await getCurrentBusinessStatus();
+
+  return res.status(StatusCodes.OK).json(status);
 }
