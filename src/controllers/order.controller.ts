@@ -10,6 +10,7 @@ import {
 import { messaging } from "../config/firebase";
 import { prisma } from "../lib/prisma";
 import { signCustomerLoyaltyToken } from "../utils/jwt";
+import { isBusinessConfirmedClosed } from "./business.controller";
 import {
   getDriverFreshnessCutoff,
   isDriverLocationFresh
@@ -753,6 +754,14 @@ export const createOrderController = async (
   req: Request,
   res: Response
 ) => {
+  if (await isBusinessConfirmedClosed()) {
+    res.status(409).json({
+      success: false,
+      message: "Ordering is currently unavailable while Speedy Sweeties is closed."
+    });
+    return;
+  }
+
   const {
     customerName,
     customerPhone,
