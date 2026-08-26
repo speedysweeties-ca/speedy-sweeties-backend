@@ -1,79 +1,96 @@
-# Speedy Sweeties Backend - Phase 1
+# Speedy Sweeties Backend
 
-Production-style backend for a local delivery ordering app built with:
+Production API for the Speedy Sweeties delivery operation. It is built with Node.js, TypeScript, Express, Prisma, PostgreSQL, and Firebase Admin.
 
-- Node.js
-- TypeScript
-- Express
-- PostgreSQL
-- Prisma
-- Zod
+The API is consumed by the Customer Android app, Driver Android app, and Dispatcher web app.
 
-## What this includes
+## What it supports
 
-- Order model
-- Order items model
-- Create order endpoint
-- Fetch order by ID endpoint
-- List orders endpoint
-- Update order status endpoint
-- Validation
-- Error handling
-- Environment config
-- Clean folder structure
+- Customer order creation, item search, business status, and public order tracking
+- Dispatcher/staff order management, driver assignment, priority, catalog, customer, pickup-location, and checklist management
+- Driver presence, heartbeat/location updates, assigned-order workflow, and digital receipts
+- Customer loyalty progress and retention data
+- Firebase notification delivery and QR campaign statistics
 
-## Endpoints
+## Roles and order workflow
 
-- `GET /api/v1/health`
-- `POST /api/v1/orders`
-- `GET /api/v1/orders`
-- `GET /api/v1/orders/:id`
-- `PATCH /api/v1/orders/:id/status`
+Roles are `ADMIN`, `DISPATCHER`, and `DRIVER`. Staff/dispatch performs assignment and internal order management. Drivers use the constrained `driver-action` workflow rather than the generic staff status endpoint.
 
-## Local setup
-
-1. Install packages
-
-```bash
-npm install
-```
-
-2. Create PostgreSQL database
-
-Database name example:
+The normal lifecycle is:
 
 ```text
-speedy_sweeties
+PLACED → DISPATCHED → ACCEPTED → OUT_FOR_DELIVERY → DELIVERED
 ```
 
-3. Copy env file
+An order can be `CANCELLED` where appropriate. Driver-created digital receipts are the authoritative final-total record; client-estimated values are not authoritative.
+
+## Security and compatibility notes
+
+- JWT authentication and role-based access control protect staff and driver routes.
+- Public order creation, tracking, loyalty, notification registration, and item search are rate limited.
+- `GET /api/v1/orders/track-token/:token` supports opaque tracking credentials.
+- `GET /api/v1/orders/track/:id` is retained temporarily for compatibility with older Customer Android releases.
+- `GET /api/v1/customers/loyalty-token` is the token-based loyalty lookup. The legacy public loyalty lookup remains temporarily for compatibility.
+- Drivers are considered stale/offline for dispatch and public tracking after one hour without a fresh heartbeat/location update.
+- Production access logs omit request URLs so tracking credentials are not logged. Operational errors retain safe context without request bodies, credentials, notification payloads, or personal data.
+
+Never commit JWT secrets, Firebase service-account JSON, database URLs, passwords, or issued tokens.
+
+## API groups
+
+All API routes below are under `/api/v1` unless noted otherwise.
+
+| Area | Examples |
+| --- | --- |
+| Health | `GET /health` |
+| Public orders | `POST /orders`, `GET /orders/track-token/:token`, legacy `GET /orders/track/:id` |
+| Public customer data | `GET /customers/loyalty`, `GET /customers/loyalty-token`, `GET /business/status`, `GET /items/search` |
+| Staff orders | `/orders`, `/orders/:id/assign-driver`, `/orders/:id/edit`, `/orders/:id/priority`, auto-dispatch settings and stats |
+| Driver workflow | `GET /driver/orders`, `POST /driver/online`, `/driver/offline`, `/driver/heartbeat`, `POST /orders/:id/driver-action` |
+| Receipts | `POST /orders/:id/receipt`, `GET /orders/:id/receipt` |
+| Staff operations | `/auth/drivers`, `/customers`, `/customers/retention`, `/pickup-locations`, `/dispatcher-checklist` |
+
+QR campaign redirect/statistics routes are outside the API prefix: `GET /q/lighter` and `GET /q/lighter/stats`.
+
+## Local development
+
+1. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+2. Create a local `.env` from `.env.example` and supply local development values. Do not copy production credentials into source control.
+
+3. Generate and validate Prisma Client/schema:
+
+   ```bash
+   npx prisma generate
+   npx prisma format --check
+   npx prisma validate
+   ```
+
+4. Start the development server:
+
+   ```bash
+   npm run dev
+   ```
+
+Useful project scripts:
 
 ```bash
-cp .env.example .env
+npm run build
+npm start
+npm run prisma:generate
+npm run prisma:migrate
+npm run prisma:studio
+npm run retention:90
 ```
 
-Or create `.env` manually on Windows.
+`npm run prisma:migrate` runs `prisma migrate dev` and is for local development only. Production releases use reviewed, committed migrations. Never run `prisma migrate reset` against a production database.
 
-4. Generate Prisma client
+The default local health check is:
 
-```bash
-npx prisma generate
-```
-
-5. Run migration
-
-```bash
-npx prisma migrate dev --name init
-```
-
-6. Start dev server
-
-```bash
-npm run dev
-```
-
-## Health check
-
-```bash
-curl http://localhost:4000/api/v1/health
+```text
+GET http://localhost:4000/api/v1/health
 ```

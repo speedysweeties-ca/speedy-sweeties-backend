@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { API_BASE_URL, API_V1_BASE_URL } from "./apiConfig";
 
 
 type OrderStatus =
@@ -515,8 +516,8 @@ function App() {
       campaign: "lighter",
       label: "Bic Lighter",
       totalScans: 0,
-      trackingUrl: "https://speedy-api-lbfe.onrender.com/q/lighter",
-      statsUrl: "https://speedy-api-lbfe.onrender.com/q/lighter/stats",
+      trackingUrl: `${API_BASE_URL}/q/lighter`,
+      statsUrl: `${API_BASE_URL}/q/lighter/stats`,
     },
   ]);
 
@@ -1534,7 +1535,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         setDispatcherChecklistLoading(true);
       }
 
-      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/dispatcher-checklist/today", {
+      const response = await fetch(`${API_V1_BASE_URL}/dispatcher-checklist/today`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
@@ -1569,7 +1570,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         setDispatcherChecklistLoading(true);
       }
 
-      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/dispatcher-checklist/history?limit=14", {
+      const response = await fetch(`${API_V1_BASE_URL}/dispatcher-checklist/history?limit=14`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
@@ -1599,7 +1600,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       setCompletingChecklistItemId(itemId);
 
       const response = await fetch(
-        `https://speedy-api-lbfe.onrender.com/api/v1/dispatcher-checklist/items/${itemId}/complete`,
+        `${API_V1_BASE_URL}/dispatcher-checklist/items/${itemId}/complete`,
         {
           method: "PATCH",
           headers: {
@@ -1631,7 +1632,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         setQrTrackingLoading(true);
       }
 
-      const response = await fetch("https://speedy-api-lbfe.onrender.com/q/lighter/stats");
+      const response = await fetch(`${API_BASE_URL}/q/lighter/stats`);
       const data = await response.json();
 
       if (response.ok) {
@@ -1640,8 +1641,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
             campaign: data.campaign || "lighter",
             label: "Bic Lighter",
             totalScans: Number(data.totalScans || 0),
-            trackingUrl: "https://speedy-api-lbfe.onrender.com/q/lighter",
-            statsUrl: "https://speedy-api-lbfe.onrender.com/q/lighter/stats",
+            trackingUrl: `${API_BASE_URL}/q/lighter`,
+            statsUrl: `${API_BASE_URL}/q/lighter/stats`,
           },
         ]);
       } else {
@@ -1688,7 +1689,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         setAutoDispatchLoading(true);
       }
 
-      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders/auto-dispatch", {
+      const response = await fetch(`${API_V1_BASE_URL}/orders/auto-dispatch`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
@@ -1731,7 +1732,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     try {
       setAutoDispatchUpdating(true);
 
-      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders/auto-dispatch", {
+      const response = await fetch(`${API_V1_BASE_URL}/orders/auto-dispatch`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -1763,7 +1764,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
   const fetchDrivers = async (authToken: string) => {
     try {
-     const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/auth/drivers", {
+     const response = await fetch(`${API_V1_BASE_URL}/auth/drivers`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
@@ -1789,7 +1790,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       }
 
       const response = await fetch(
-        "https://speedy-api-lbfe.onrender.com/api/v1/auth/drivers/manage",
+        `${API_V1_BASE_URL}/auth/drivers/manage`,
         {
           headers: {
             Authorization: `Bearer ${authToken}`,
@@ -1832,7 +1833,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       setUpdatingDriverVisibilityId(driver.id);
 
       const response = await fetch(
-        `https://speedy-api-lbfe.onrender.com/api/v1/auth/drivers/${driver.id}/dispatch-visibility`,
+        `${API_V1_BASE_URL}/auth/drivers/${driver.id}/dispatch-visibility`,
         {
           method: "PATCH",
           headers: {
@@ -1883,7 +1884,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         Math.max(1, pageSizeOverride ?? catalogPageSize)
       );
 
-      let url = "https://speedy-api-lbfe.onrender.com/api/v1/items";
+      let url = `${API_V1_BASE_URL}/items`;
       const params = new URLSearchParams();
 
       params.append("page", String(requestedPage));
@@ -1988,7 +1989,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       }
 
       const response = await fetch(
-        "https://speedy-api-lbfe.onrender.com/api/v1/pickup-locations",
+        `${API_V1_BASE_URL}/pickup-locations`,
         {
           headers: {
             Authorization: `Bearer ${authToken}`,
@@ -2059,7 +2060,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       setPickupLocationsLoading(true);
 
       const response = await fetch(
-        "https://speedy-api-lbfe.onrender.com/api/v1/pickup-locations",
+        `${API_V1_BASE_URL}/pickup-locations`,
         {
           method: "POST",
           headers: {
@@ -2144,7 +2145,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       setPickupLocationsLoading(true);
 
       const response = await fetch(
-        `https://speedy-api-lbfe.onrender.com/api/v1/pickup-locations/${locationId}`,
+        `${API_V1_BASE_URL}/pickup-locations/${locationId}`,
         {
           method: "PATCH",
           headers: {
@@ -2195,7 +2196,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       setPickupLocationsLoading(true);
 
       const response = await fetch(
-        `https://speedy-api-lbfe.onrender.com/api/v1/pickup-locations/${location.id}/deactivate`,
+        `${API_V1_BASE_URL}/pickup-locations/${location.id}/deactivate`,
         {
           method: "PATCH",
           headers: {
@@ -2233,8 +2234,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       const params = new URLSearchParams();
 
       let url = searchTerm
-        ? "https://speedy-api-lbfe.onrender.com/api/v1/customers/search"
-        : "https://speedy-api-lbfe.onrender.com/api/v1/customers";
+        ? `${API_V1_BASE_URL}/customers/search`
+        : `${API_V1_BASE_URL}/customers`;
 
       if (searchTerm) {
         params.append("query", searchTerm);
@@ -2285,7 +2286,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       }
 
       const response = await fetch(
-        "https://speedy-api-lbfe.onrender.com/api/v1/customers/retention",
+        `${API_V1_BASE_URL}/customers/retention`,
         {
           headers: {
             Authorization: `Bearer ${authToken}`,
@@ -2323,7 +2324,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       setRetentionHistoryLoadingCustomerId(customerId);
 
       const response = await fetch(
-        `https://speedy-api-lbfe.onrender.com/api/v1/customers/${customerId}`,
+        `${API_V1_BASE_URL}/customers/${customerId}`,
         {
           headers: {
             Authorization: `Bearer ${authToken}`,
@@ -2352,7 +2353,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         setDriverStatsLoading(true);
       }
 
-      let url = "https://speedy-api-lbfe.onrender.com/api/v1/orders/driver-stats";
+      let url = `${API_V1_BASE_URL}/orders/driver-stats`;
 
       const params = new URLSearchParams();
 
@@ -2402,7 +2403,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       }
 
       const buildHistoryUrl = (status: "DELIVERED" | "CANCELLED") => {
-        let url = `https://speedy-api-lbfe.onrender.com/api/v1/orders?status=${status}&page=${historyPage}`;
+        let url = `${API_V1_BASE_URL}/orders?status=${status}&page=${historyPage}`;
         const params = new URLSearchParams();
 
         if (historyStartDate) {
@@ -2486,7 +2487,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         setDashboardLoading(true);
       }
 
-      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders", {
+      const response = await fetch(`${API_V1_BASE_URL}/orders`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
@@ -2546,7 +2547,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     try {
       setLoginLoading(true);
 
-      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/auth/login", {
+      const response = await fetch(`${API_V1_BASE_URL}/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2626,8 +2627,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         campaign: "lighter",
         label: "Bic Lighter",
         totalScans: 0,
-        trackingUrl: "https://speedy-api-lbfe.onrender.com/q/lighter",
-        statsUrl: "https://speedy-api-lbfe.onrender.com/q/lighter/stats",
+        trackingUrl: `${API_BASE_URL}/q/lighter`,
+        statsUrl: `${API_BASE_URL}/q/lighter/stats`,
       },
     ]);
     setAutoDispatchEnabled(null);
@@ -2657,7 +2658,7 @@ const updateOrderStatus = async (
     setUpdatingOrderId(orderId);
 
     const response = await fetch(
-      `https://speedy-api-lbfe.onrender.com/api/v1/orders/${orderId}/status`,
+      `${API_V1_BASE_URL}/orders/${orderId}/status`,
       {
         method: "PATCH",
         headers: {
@@ -2737,7 +2738,7 @@ const updateOrderPriority = async (
     setUpdatingOrderId(orderId);
 
     const response = await fetch(
-      `https://speedy-api-lbfe.onrender.com/api/v1/orders/${orderId}/priority`,
+      `${API_V1_BASE_URL}/orders/${orderId}/priority`,
       {
         method: "PATCH",
         headers: {
@@ -2851,7 +2852,7 @@ const handleEditItemNameChange = async (index: number, value: string) => {
 
   try {
     const response = await fetch(
-      `https://speedy-api-lbfe.onrender.com/api/v1/items/search?query=${encodeURIComponent(value)}`,
+      `${API_V1_BASE_URL}/items/search?query=${encodeURIComponent(value)}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -2982,7 +2983,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
     setUpdatingOrderId(orderId);
 
     const response = await fetch(
-      `https://speedy-api-lbfe.onrender.com/api/v1/orders/${orderId}/edit`,
+      `${API_V1_BASE_URL}/orders/${orderId}/edit`,
       {
         method: "PATCH",
         headers: {
@@ -3036,7 +3037,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
       setUpdatingOrderId(orderId);
 
       const response = await fetch(
-        `https://speedy-api-lbfe.onrender.com/api/v1/orders/${orderId}/assign-driver`,
+        `${API_V1_BASE_URL}/orders/${orderId}/assign-driver`,
         {
           method: "PATCH",
           headers: {
@@ -3073,7 +3074,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
     try {
       const response = await fetch(
-        `https://speedy-api-lbfe.onrender.com/api/v1/auth/drivers/${driverId}/force-logout`,
+        `${API_V1_BASE_URL}/auth/drivers/${driverId}/force-logout`,
         {
           method: "PATCH",
           headers: {
@@ -3196,7 +3197,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
    try {
      const response = await fetch(
-       `https://speedy-api-lbfe.onrender.com/api/v1/customers/search?query=${encodeURIComponent(
+       `${API_V1_BASE_URL}/customers/search?query=${encodeURIComponent(
          value
        )}`,
        {
@@ -3301,7 +3302,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
     try {
       const response = await fetch(
-        `https://speedy-api-lbfe.onrender.com/api/v1/items/search?query=${encodeURIComponent(value)}`,
+        `${API_V1_BASE_URL}/items/search?query=${encodeURIComponent(value)}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -3487,7 +3488,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
     try {
       setManualOrderLoading(true);
 
-      const response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders", {
+      const response = await fetch(`${API_V1_BASE_URL}/orders`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -3617,7 +3618,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
       setUpdatingCatalogPickupTypeId(item.id);
 
       const response = await fetch(
-        `https://speedy-api-lbfe.onrender.com/api/v1/items/${item.id}`,
+        `${API_V1_BASE_URL}/items/${item.id}`,
         {
           method: "PATCH",
           headers: {
@@ -3674,7 +3675,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
       setCatalogLoading(true);
 
       const response = await fetch(
-        `https://speedy-api-lbfe.onrender.com/api/v1/items/${itemId}`,
+        `${API_V1_BASE_URL}/items/${itemId}`,
         {
           method: "PATCH",
           headers: {
@@ -3723,7 +3724,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
       setCatalogLoading(true);
 
       const response = await fetch(
-        `https://speedy-api-lbfe.onrender.com/api/v1/items/${item.id}/deactivate`,
+        `${API_V1_BASE_URL}/items/${item.id}/deactivate`,
         {
           method: "PATCH",
           headers: {
@@ -3802,7 +3803,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
       setCustomersLoading(true);
 
       const response = await fetch(
-        `https://speedy-api-lbfe.onrender.com/api/v1/customers/${customerId}`,
+        `${API_V1_BASE_URL}/customers/${customerId}`,
         {
           method: "PATCH",
           headers: {
@@ -5960,7 +5961,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     <th className="text-left p-2">Out For Delivery</th>
                     <th className="text-left p-2">Completed / Cancelled</th>
                     <th className="text-left p-2">Total Time</th>
-                    <th className="text-left p-2">Receipt</th>
+                    <th className="text-left p-2">Final Receipt</th>
                     <th className="text-left p-2">Items</th>
                   </tr>
                 </thead>
@@ -6060,7 +6061,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                         {order.digitalReceipt ? (
                           <div className="space-y-2 min-w-[150px]">
                             <p className="font-semibold text-green-300 whitespace-nowrap">
-                              {formatReceiptMoney(order.digitalReceipt.grandTotal)}
+                              Final Receipt: {formatReceiptMoney(order.digitalReceipt.grandTotal)}
                               {getReceiptExtraStops(order.digitalReceipt.notes) > 0 && (
                                 <span className="ml-1 text-xs font-semibold text-zinc-300">
                                   • {getReceiptExtraStops(order.digitalReceipt.notes)} stops
@@ -7328,7 +7329,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
       if (selectedCustomer?.id && token) {
         try {
           await fetch(
-           `https://speedy-api-lbfe.onrender.com/api/v1/customers/${selectedCustomer.id}/dispatcher-notes`,
+           `${API_V1_BASE_URL}/customers/${selectedCustomer.id}/dispatcher-notes`,
            {
              method: "PATCH",
              headers: {
