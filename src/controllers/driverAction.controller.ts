@@ -29,10 +29,6 @@ const orderInclude = {
   }
 } satisfies Prisma.OrderInclude;
 
-const hasAppFcmToken = (fcmToken: string | null | undefined): boolean => {
-  return typeof fcmToken === "string" && fcmToken.trim().length > 0;
-};
-
 const LOYALTY_TIME_ZONE = "America/Toronto";
 
 const getCurrentLoyaltyMonth = (date: Date = new Date()): string => {
@@ -94,11 +90,6 @@ const applyCustomerLoyaltyForDeliveredOrder = async (
 ): Promise<void> => {
   if (!customerId) {
     console.log("No customerId found for delivered order. Loyalty not updated.");
-    return;
-  }
-
-  if (!hasAppFcmToken(fcmToken)) {
-    console.log("Order has no app FCM token. Loyalty not updated.");
     return;
   }
 

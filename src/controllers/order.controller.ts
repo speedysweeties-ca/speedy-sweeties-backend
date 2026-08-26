@@ -436,11 +436,6 @@ const applyCustomerLoyaltyForDeliveredOrder = async (
     return;
   }
 
-  if (!hasAppFcmToken(fcmToken)) {
-    console.log("Order has no app FCM token. Loyalty not updated.");
-    return;
-  }
-
   const currentLoyaltyMonth = getCurrentLoyaltyMonth();
 
   const loyaltyResult = await prisma.$transaction(async (tx) => {
@@ -780,7 +775,6 @@ export const createOrderController = async (
   } = req.body;
 
   const appFcmToken = hasAppFcmToken(fcmToken) ? String(fcmToken).trim() : null;
-  const isCustomerAppOrder = hasAppFcmToken(appFcmToken);
 
   const baseNotes = [additionalNotes, deliveryInstructions, notes]
     .filter(Boolean)
@@ -820,8 +814,7 @@ export const createOrderController = async (
     });
   }
 
-  const shouldApplyFreeDeliveryReward =
-    isCustomerAppOrder && customer.loyaltyFreeDelivery === true;
+  const shouldApplyFreeDeliveryReward = customer.loyaltyFreeDelivery === true;
 
   const finalNotes = shouldApplyFreeDeliveryReward
     ? [...baseNotes, LOYALTY_FREE_DELIVERY_NOTE].join(" | ")
@@ -1330,9 +1323,7 @@ export const updateOrderStatusController = async (
   }
 
   const shouldApplyLoyalty =
-    isNewDeliveryTransition &&
-    transitionUpdate?.count === 1 &&
-    hasAppFcmToken(existingOrder.fcmToken);
+    isNewDeliveryTransition && transitionUpdate?.count === 1;
 
   if (shouldApplyLoyalty) {
     await applyCustomerLoyaltyForDeliveredOrder(
