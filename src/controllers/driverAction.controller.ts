@@ -223,11 +223,7 @@ export const driverActionController = async (
   }
 
   if (order.orderStatus === OrderStatus.DELIVERED) {
-    res.status(200).json({
-      success: true,
-      message: "Order already delivered",
-      order
-    });
+    res.status(409).json({ success: false, message: "Order is already delivered" });
     return;
   }
 
@@ -235,12 +231,7 @@ export const driverActionController = async (
 
   if (action === "ACCEPTED") {
     if (order.orderStatus === OrderStatus.ACCEPTED) {
-      const currentOrder = await prisma.order.findUniqueOrThrow({
-        where: { id },
-        include: orderInclude
-      });
-
-      res.status(200).json({ success: true, message: "Order accepted", order: currentOrder });
+      res.status(409).json({ success: false, message: "Order is already accepted" });
       return;
     }
 
@@ -276,7 +267,7 @@ export const driverActionController = async (
       });
 
       if (currentOrder?.orderStatus === OrderStatus.ACCEPTED) {
-        res.status(200).json({ success: true, message: "Order accepted", order: currentOrder });
+        res.status(409).json({ success: false, message: "Order is already accepted" });
         return;
       }
 
@@ -303,23 +294,14 @@ export const driverActionController = async (
 
   if (action === "OUT_FOR_DELIVERY") {
     if (order.orderStatus === OrderStatus.OUT_FOR_DELIVERY) {
-      const currentOrder = await prisma.order.findUniqueOrThrow({
-        where: { id },
-        include: orderInclude
-      });
-
-      res.status(200).json({
-        success: true,
-        message: "Order marked OUT_FOR_DELIVERY",
-        order: currentOrder
+      res.status(409).json({
+        success: false,
+        message: "Order is already out for delivery"
       });
       return;
     }
 
-    const canMarkOutForDelivery =
-      order.orderStatus === OrderStatus.PLACED ||
-      order.orderStatus === OrderStatus.DISPATCHED ||
-      order.orderStatus === OrderStatus.ACCEPTED;
+    const canMarkOutForDelivery = order.orderStatus === OrderStatus.ACCEPTED;
 
     if (!canMarkOutForDelivery) {
       res.status(400).json({
@@ -350,19 +332,17 @@ export const driverActionController = async (
       });
 
       if (currentOrder?.orderStatus === OrderStatus.OUT_FOR_DELIVERY) {
-        res.status(200).json({
-          success: true,
-          message: "Order marked OUT_FOR_DELIVERY",
-          order: currentOrder
+        res.status(409).json({
+          success: false,
+          message: "Order is already out for delivery"
         });
         return;
       }
 
       if (currentOrder?.orderStatus === OrderStatus.DELIVERED) {
-        res.status(200).json({
-          success: true,
-          message: "Order already delivered",
-          order: currentOrder
+        res.status(409).json({
+          success: false,
+          message: "Order is already delivered"
         });
         return;
       }
@@ -403,11 +383,7 @@ export const driverActionController = async (
   }
 
   if (action === "DELIVERED") {
-    const canMarkDelivered =
-      order.orderStatus === OrderStatus.PLACED ||
-      order.orderStatus === OrderStatus.DISPATCHED ||
-      order.orderStatus === OrderStatus.ACCEPTED ||
-      order.orderStatus === OrderStatus.OUT_FOR_DELIVERY;
+    const canMarkDelivered = order.orderStatus === OrderStatus.OUT_FOR_DELIVERY;
 
     if (!canMarkDelivered) {
       res.status(400).json({
@@ -439,10 +415,9 @@ export const driverActionController = async (
       });
 
       if (currentOrder?.orderStatus === OrderStatus.DELIVERED) {
-        res.status(200).json({
-          success: true,
-          message: "Order already delivered",
-          order: currentOrder
+        res.status(409).json({
+          success: false,
+          message: "Order is already delivered"
         });
         return;
       }
