@@ -745,11 +745,19 @@ export const updateAutoDispatchSettingsController = async (
   });
 };
 
-export const createOrderController = async (
+type CreateOrderOptions = {
+  bypassBusinessHours: boolean;
+};
+
+const createOrder = async (
   req: Request,
-  res: Response
-) => {
-  if (await isBusinessConfirmedClosed()) {
+  res: Response,
+  options: CreateOrderOptions
+): Promise<void> => {
+  if (
+    !options.bypassBusinessHours &&
+    (await isBusinessConfirmedClosed())
+  ) {
     res.status(409).json({
       success: false,
       message: "Ordering is currently unavailable while Speedy Sweeties is closed."
@@ -937,6 +945,20 @@ export const createOrderController = async (
     trackingToken,
     loyaltyAccessToken
   });
+};
+
+export const createOrderController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  await createOrder(req, res, { bypassBusinessHours: false });
+};
+
+export const createManualOrderController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  await createOrder(req, res, { bypassBusinessHours: true });
 };
 
 export const getOrderByIdController = async (

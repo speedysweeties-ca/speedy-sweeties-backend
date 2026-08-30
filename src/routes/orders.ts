@@ -17,6 +17,7 @@ import {
 import { assignDriverSchema } from "../validators/orderAssignment.validator";
 
 import {
+  createManualOrderController,
   createOrderController,
   getAutoDispatchSettingsController,
   getOrderByIdController,
@@ -48,6 +49,16 @@ router.post(
   orderCreationRateLimiter,
   validateRequest(createOrderSchema),
   asyncHandler(createOrderController)
+);
+
+// 🔒 STAFF — manual order creation (allowed outside business hours)
+router.post(
+  "/manual",
+  requireAuth,
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
+  orderCreationRateLimiter,
+  validateRequest(createOrderSchema),
+  asyncHandler(createManualOrderController)
 );
 
 // ✅ PUBLIC — customer tracking by order ID

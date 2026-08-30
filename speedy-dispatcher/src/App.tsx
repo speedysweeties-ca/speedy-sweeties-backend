@@ -3488,10 +3488,11 @@ const handleSaveEditedOrder = async (orderId: string) => {
     try {
       setManualOrderLoading(true);
 
-      const response = await fetch(`${API_V1_BASE_URL}/orders`, {
+      const response = await fetch(`${API_V1_BASE_URL}/orders/manual`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           customerName,
