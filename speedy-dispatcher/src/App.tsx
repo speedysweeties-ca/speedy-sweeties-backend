@@ -416,6 +416,160 @@ const isValidCanadianPostalCode = (postalCode: string) => {
   return /^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/.test(postalCode.trim());
 };
 
+type GoogleAddressComponent = {
+  long_name?: string;
+  short_name?: string;
+  types?: string[];
+};
+
+type GoogleGeocodeResult = {
+  address_components?: GoogleAddressComponent[];
+  partial_match?: boolean;
+  types?: string[];
+  geometry?: {
+    location?: unknown;
+    location_type?: string;
+  };
+};
+
+const normalizeGeocodeText = (value: string | null | undefined) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+const normalizePostalCodeForGeocoding = (value: string | null | undefined) => {
+  const compact = String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+
+  return compact.length === 6
+    ? `${compact.slice(0, 3)} ${compact.slice(3)}`
+    : String(value || "").trim().toUpperCase();
+};
+
+const civicStreetSuffixPattern =
+  /\b(?:street|st|road|rd|drive|dr|avenue|ave|lane|ln|boulevard|blvd|highway|hwy|court|ct|crescent|cres|way|trail|trl|terrace|ter|place|pl|circle|cir|parkway|pkwy|line|concession)\b/i;
+
+const trailingDeliveryInstructionPattern =
+  /\s+(?:[-–—,;|:]\s*)?(?:(?:please\s+)?(?:use\s+)?(?:side|back|rear|front)\s+(?:door|entrance)|basement(?:\s+(?:door|entrance|unit))?|buzz(?:\s+(?:code|unit|apartment|apt|suite))?|call\b|ring\s+(?:the\s+)?(?:doorbell|bell)|leave\s+(?:it\s+)?(?:at|by|near|beside)\b|door\s+code\b)/i;
+
+const sanitizeAddressLineForGeocoding = (addressLine1: string) => {
+  const normalizedAddress = addressLine1.trim().replace(/\s+/g, " ");
+  const instructionIndex = normalizedAddress.search(
+    trailingDeliveryInstructionPattern
+  );
+
+  if (instructionIndex <= 0) return normalizedAddress;
+
+  const civicAddress = normalizedAddress
+    .slice(0, instructionIndex)
+    .replace(/[\s,–—;|:-]+$/g, "")
+    .trim();
+
+  if (!/\d/.test(civicAddress) || !civicStreetSuffixPattern.test(civicAddress)) {
+    return normalizedAddress;
+  }
+
+  return civicAddress;
+};
+
+const getGeocodeComponent = (
+  result: GoogleGeocodeResult,
+  componentTypes: string[]
+) =>
+  result.address_components?.find((component) =>
+    component.types?.some((type) => componentTypes.includes(type))
+  );
+
+const geocodeComponentMatches = (
+  component: GoogleAddressComponent | undefined,
+  allowedValues: Set<string>
+) => {
+  if (!component) return false;
+
+  return [component.long_name, component.short_name]
+    .map(normalizeGeocodeText)
+    .some((value) => allowedValues.has(value));
+};
+
+const selectValidatedOrderGeocodeResult = (
+  results: GoogleGeocodeResult[] | null,
+  order: Order
+) => {
+  const submittedMunicipality = normalizeGeocodeText(order.city);
+  const allowedMunicipalities = new Set(
+    [submittedMunicipality, "guelph"].filter(Boolean)
+  );
+  const submittedPostalCode = normalizePostalCodeForGeocoding(
+    order.postalCode
+  ).replace(/\s/g, "");
+
+  const validCandidates = (results || []).flatMap((result) => {
+    const country = getGeocodeComponent(result, ["country"]);
+    const province = getGeocodeComponent(result, [
+      "administrative_area_level_1",
+    ]);
+    const municipality = getGeocodeComponent(result, [
+      "locality",
+      "postal_town",
+      "administrative_area_level_3",
+      "sublocality_level_1",
+    ]);
+    const postalCode = getGeocodeComponent(result, ["postal_code"]);
+    const googlePostalCode = normalizePostalCodeForGeocoding(
+      postalCode?.short_name || postalCode?.long_name
+    ).replace(/\s/g, "");
+    const locationType = result.geometry?.location_type || "";
+    const resultTypes = result.types || [];
+    const hasStreetNumber = Boolean(
+      getGeocodeComponent(result, ["street_number"])
+    );
+    const hasCivicResultType = resultTypes.some((type) =>
+      ["street_address", "premise", "subpremise", "establishment"].includes(
+        type
+      )
+    );
+
+    if (!result.geometry?.location || result.partial_match === true) return [];
+    if (locationType === "APPROXIMATE") return [];
+    if (!hasStreetNumber && !hasCivicResultType) return [];
+    if (!geocodeComponentMatches(country, new Set(["ca", "canada"]))) return [];
+    if (!geocodeComponentMatches(province, new Set(["on", "ontario"]))) return [];
+    if (!geocodeComponentMatches(municipality, allowedMunicipalities)) return [];
+    if (
+      submittedPostalCode &&
+      googlePostalCode &&
+      submittedPostalCode !== googlePostalCode
+    ) {
+      return [];
+    }
+
+    const municipalityValues = new Set(
+      [municipality?.long_name, municipality?.short_name].map(
+        normalizeGeocodeText
+      )
+    );
+    const score =
+      (googlePostalCode === submittedPostalCode ? 5 : 0) +
+      (submittedMunicipality && municipalityValues.has(submittedMunicipality)
+        ? 4
+        : 2) +
+      (locationType === "ROOFTOP"
+        ? 4
+        : locationType === "RANGE_INTERPOLATED"
+          ? 3
+          : 1) +
+      (resultTypes.includes("street_address") ? 2 : 0) +
+      (hasStreetNumber ? 1 : 0);
+
+    return [{ result, score }];
+  });
+
+  return validCandidates.sort((a, b) => b.score - a.score)[0]?.result || null;
+};
+
 const isValidPhone = (phone: string) => {
   const digitsOnly = phone.replace(/\D/g, "");
   return digitsOnly.length === 10 || digitsOnly.length === 11;
@@ -783,7 +937,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
     const intervalId = window.setInterval(() => {
       void fetchDrivers(token);
-      void fetchOrders(token, false);
     }, 3000);
 
     return () => {
@@ -873,9 +1026,11 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   const driverMarkersRef = useRef<Record<string, any>>({});
   const orderMarkersRef = useRef<Record<string, any>>({});
   const orderMarkerAddressesRef = useRef<Record<string, string>>({});
+  const orderAuthoritativeGeocodeKeysRef = useRef<Record<string, string>>({});
   const orderGeocodingInFlightRef = useRef<Set<string>>(new Set());
   const orderGeocodingFailedRef = useRef<Set<string>>(new Set());
   const orderInfoWindowRef = useRef<any>(null);
+  const ordersRequestSequenceRef = useRef(0);
 
   useEffect(() => {
     if (newOrderIds.length === 0) return;
@@ -903,6 +1058,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       driverMarkersRef.current = {};
       orderMarkersRef.current = {};
       orderMarkerAddressesRef.current = {};
+      orderAuthoritativeGeocodeKeysRef.current = {};
       orderGeocodingInFlightRef.current = new Set();
       orderGeocodingFailedRef.current = new Set();
 
@@ -1024,6 +1180,12 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
     const activeOrderIds = new Set(activeOrders.map((order) => order.id));
 
+    Object.keys(orderAuthoritativeGeocodeKeysRef.current).forEach((orderId) => {
+      if (!activeOrderIds.has(orderId)) {
+        delete orderAuthoritativeGeocodeKeysRef.current[orderId];
+      }
+    });
+
     Object.entries(orderMarkersRef.current).forEach(([orderId, marker]) => {
       if (!activeOrderIds.has(orderId)) {
         marker.setMap(null);
@@ -1035,6 +1197,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
         delete orderMarkersRef.current[orderId];
         delete orderMarkerAddressesRef.current[orderId];
+        delete orderAuthoritativeGeocodeKeysRef.current[orderId];
       }
     });
 
@@ -1048,6 +1211,18 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       ]
         .filter(Boolean)
         .join(", ");
+      const geocodingAddress = [
+        sanitizeAddressLineForGeocoding(order.addressLine1),
+        order.city?.trim(),
+        order.province?.trim(),
+        normalizePostalCodeForGeocoding(order.postalCode),
+        "Canada",
+      ]
+        .filter(Boolean)
+        .join(", ");
+      const geocodeKey = `${order.id}|${geocodingAddress.toLowerCase()}`;
+
+      orderAuthoritativeGeocodeKeysRef.current[order.id] = geocodeKey;
 
       const driverName = getDriverDisplayName(order.assignedDriver);
       const orderTime = formatOrderAge(order.createdAt);
@@ -1090,7 +1265,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       const existingMarker = orderMarkersRef.current[order.id];
       const existingAddress = orderMarkerAddressesRef.current[order.id];
 
-      if (existingMarker && existingAddress === fullAddress) {
+      if (existingMarker && existingAddress === geocodingAddress) {
         existingMarker.setTitle(title);
         existingMarker.setLabel({
           text: String(order.orderNumber),
@@ -1105,7 +1280,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         return;
       }
 
-      if (existingMarker && existingAddress !== fullAddress) {
+      if (existingMarker && existingAddress !== geocodingAddress) {
         existingMarker.setMap(null);
 
         if (orderInfoWindowRef.current?.__orderId === order.id) {
@@ -1117,8 +1292,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         delete orderMarkerAddressesRef.current[order.id];
       }
 
-      const geocodeKey = `${order.id}|${fullAddress}`;
-
       if (orderGeocodingInFlightRef.current.has(geocodeKey)) return;
       if (orderGeocodingFailedRef.current.has(geocodeKey)) return;
 
@@ -1128,25 +1301,40 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
       geocoder.geocode(
         {
-          address: fullAddress,
+          address: geocodingAddress,
           componentRestrictions: {
             country: "CA",
           },
           region: "CA",
         },
-        (results: any[] | null, status: string) => {
+        (results: GoogleGeocodeResult[] | null, status: string) => {
           orderGeocodingInFlightRef.current.delete(geocodeKey);
 
           if (googleMapRef.current !== map) return;
+          if (
+            orderAuthoritativeGeocodeKeysRef.current[order.id] !== geocodeKey
+          ) {
+            return;
+          }
 
-          const location = results?.[0]?.geometry?.location;
+          const selectedResult =
+            status === "OK"
+              ? selectValidatedOrderGeocodeResult(results, order)
+              : null;
+          const location = selectedResult?.geometry?.location;
 
-          if (status !== "OK" || !location) {
+          if (!location) {
             console.warn(
-              `Unable to geocode delivery address for order #${order.orderNumber}. Status: ${status}`
+              `Order #${order.orderNumber} was left unmapped: no verified Guelph/Ontario geocoding result (${status}).`
             );
             orderGeocodingFailedRef.current.add(geocodeKey);
             return;
+          }
+
+          const markerToReplace = orderMarkersRef.current[order.id];
+
+          if (markerToReplace) {
+            markerToReplace.setMap(null);
           }
 
           const marker = new googleMaps.Marker({
@@ -1172,7 +1360,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
           });
 
           orderMarkersRef.current[order.id] = marker;
-          orderMarkerAddressesRef.current[order.id] = fullAddress;
+          orderMarkerAddressesRef.current[order.id] = geocodingAddress;
 
           if (driversWithLocation.length === 0 && Object.keys(orderMarkersRef.current).length === 1) {
             map.setCenter(location);
@@ -2482,6 +2670,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   };
 
   const fetchOrders = async (authToken: string, showLoader = true) => {
+    const requestSequence = ++ordersRequestSequenceRef.current;
+
     try {
       if (showLoader) {
         setDashboardLoading(true);
@@ -2495,7 +2685,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
       const data = await response.json();
 
-      console.log("ORDERS:", data);
+      if (requestSequence !== ordersRequestSequenceRef.current) return;
 
       if (response.ok) {
         const fetchedOrders: Order[] = data.orders || [];
@@ -2534,6 +2724,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         alert(getApiErrorMessage(data, "Failed to load orders"));
       }
     } catch (error) {
+      if (requestSequence !== ordersRequestSequenceRef.current) return;
+
       console.error(error);
       alert("Server error while loading orders");
     } finally {
