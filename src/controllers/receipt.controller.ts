@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
-import { UserRole } from "@prisma/client";
+import { OrderStatus, UserRole } from "@prisma/client";
+import { messaging } from "../config/firebase";
 import { prisma } from "../lib/prisma";
 
 const MAX_FINAL_RECEIPT_TOTAL = 50_000;
@@ -25,6 +26,53 @@ function toNumber(value: unknown): number {
 }
 
 const toCents = (value: number): number => Math.round(value * 100);
+
+type LockedDriverOrder = {
+  id: string;
+  orderNumber: number;
+  orderStatus: OrderStatus;
+  assignedAt: Date | null;
+  dispatchedAt: Date | null;
+  acceptedAt: Date | null;
+  outForDeliveryAt: Date | null;
+  fcmToken: string | null;
+};
+
+const sendOutForDeliveryNotification = async (
+  fcmToken: string | null,
+  grandTotal: number
+): Promise<void> => {
+  if (!fcmToken) {
+    return;
+  }
+
+  try {
+    await messaging.send({
+      token: fcmToken,
+      notification: {
+        title: "Speedy Sweeties 🚗",
+        body: `Your order is now out for delivery! Total: $${grandTotal.toFixed(2)}.`
+      },
+      data: {
+        type: "ORDER_OUT_FOR_DELIVERY",
+        status: OrderStatus.OUT_FOR_DELIVERY,
+        receiptTotal: grandTotal.toFixed(2)
+      },
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "speedy_sweeties_orders",
+          sound: "default"
+        }
+      }
+    });
+  } catch (error) {
+    console.error(
+      "ORDER_OUT_FOR_DELIVERY push failed:",
+      error instanceof Error ? error.name : typeof error
+    );
+  }
+};
 
 function getOrderIdFromParams(req: Request): string {
   const rawId = req.params.id;
@@ -91,10 +139,16 @@ export const createOrUpdateReceiptController = async (
 
   const receiptResult = await prisma.$transaction(async (tx) => {
     if (user.role === UserRole.DRIVER) {
-      const assignedOrders = await tx.$queryRaw<
-        Array<{ id: string; orderNumber: number }>
-      >`
-        SELECT "id", "orderNumber"
+      const assignedOrders = await tx.$queryRaw<Array<LockedDriverOrder>>`
+        SELECT
+          "id",
+          "orderNumber",
+          "orderStatus",
+          "assignedAt",
+          "dispatchedAt",
+          "acceptedAt",
+          "outForDeliveryAt",
+          "fcmToken"
         FROM "Order"
         WHERE "id" = ${orderId} AND "assignedDriverId" = ${user.userId}
         FOR UPDATE
@@ -125,7 +179,39 @@ export const createOrUpdateReceiptController = async (
         }
       });
 
-      return { kind: "saved" as const, receipt };
+      if (order.orderStatus !== OrderStatus.ACCEPTED) {
+        return {
+          kind: "saved" as const,
+          receipt,
+          transitionedToOutForDelivery: false,
+          order: null,
+          fcmToken: null
+        };
+      }
+
+      const now = new Date();
+      const updatedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          orderStatus: OrderStatus.OUT_FOR_DELIVERY,
+          dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now,
+          acceptedAt: order.acceptedAt ?? now,
+          outForDeliveryAt: order.outForDeliveryAt ?? now
+        },
+        select: {
+          id: true,
+          orderStatus: true,
+          outForDeliveryAt: true
+        }
+      });
+
+      return {
+        kind: "saved" as const,
+        receipt,
+        transitionedToOutForDelivery: true,
+        order: updatedOrder,
+        fcmToken: order.fcmToken
+      };
     }
 
     const order = await tx.order.findUnique({
@@ -152,7 +238,13 @@ export const createOrUpdateReceiptController = async (
       }
     });
 
-    return { kind: "saved" as const, receipt };
+    return {
+      kind: "saved" as const,
+      receipt,
+      transitionedToOutForDelivery: false,
+      order: null,
+      fcmToken: null
+    };
   });
 
   if (receiptResult.kind === "notFound") {
@@ -168,10 +260,17 @@ export const createOrUpdateReceiptController = async (
     return;
   }
 
+  if (receiptResult.transitionedToOutForDelivery) {
+    await sendOutForDeliveryNotification(receiptResult.fcmToken, grandTotal);
+  }
+
   res.status(200).json({
     success: true,
-    message: "Digital receipt saved",
-    data: receiptResult.receipt
+    message: receiptResult.transitionedToOutForDelivery
+      ? "Digital receipt saved and order marked OUT_FOR_DELIVERY"
+      : "Digital receipt saved",
+    data: receiptResult.receipt,
+    ...(receiptResult.order ? { order: receiptResult.order } : {})
   });
 };
 
