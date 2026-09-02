@@ -6,6 +6,12 @@ import {
   shouldUseLegacyBrowserGeocoding,
   type DeliveryGeocodeStatus,
 } from "./deliveryLocation";
+import {
+  buildAddressRequestFields,
+  parseGoogleAutocompleteAddress,
+  type GoogleAddressComponent,
+  type GoogleAutocompletePlace,
+} from "./addressFields";
 
 
 type OrderStatus =
@@ -94,7 +100,6 @@ type Order = {
   addressLine1: string;
   city?: string;
   province?: string;
-  postalCode?: string;
   phone?: string;
   email?: string;
   paymentMethod?: PaymentMethod;
@@ -147,7 +152,6 @@ type ManualOrderForm = {
   addressLine1: string;
   city: string;
   province: string;
-  postalCode: string;
   paymentMethod: PaymentMethod;
   additionalNotes: string;
   dispatcherNotes: string;
@@ -161,7 +165,6 @@ type EditOrderForm = {
   addressLine1: string;
   city: string;
   province: string;
-  postalCode: string;
   paymentMethod: PaymentMethod;
   additionalNotes: string;
   items: ManualOrderItem[];
@@ -175,7 +178,6 @@ type CustomerSuggestion = {
   addressLine1: string;
   city: string;
   province: string;
-  postalCode: string;
   dispatcherNotes?: string | null;
 };
 
@@ -234,7 +236,6 @@ type PickupLocation = {
   addressLine1: string;
   city: string;
   province: string;
-  postalCode: string;
   latitude: number;
   longitude: number;
   isActive: boolean;
@@ -248,7 +249,6 @@ type PickupLocationForm = {
   addressLine1: string;
   city: string;
   province: string;
-  postalCode: string;
   latitude: string;
   longitude: string;
   isActive: boolean;
@@ -262,7 +262,6 @@ type CustomerProfile = {
   addressLine1: string;
   city: string;
   province: string;
-  postalCode: string;
   dispatcherNotes?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -288,7 +287,6 @@ type CustomerRetentionItem = {
   addressLine1: string;
   city: string;
   province: string;
-  postalCode: string;
   dispatcherNotes?: string | null;
   lastOrderAt: string;
   daysSinceLastOrder: number;
@@ -323,7 +321,6 @@ type CustomerEditForm = {
   addressLine1: string;
   city: string;
   province: string;
-  postalCode: string;
   dispatcherNotes: string;
 };
 
@@ -424,16 +421,6 @@ const isValidEmail = (email: string) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 };
 
-const isValidCanadianPostalCode = (postalCode: string) => {
-  return /^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/.test(postalCode.trim());
-};
-
-type GoogleAddressComponent = {
-  long_name?: string;
-  short_name?: string;
-  types?: string[];
-};
-
 type GoogleGeocodeResult = {
   address_components?: GoogleAddressComponent[];
   partial_match?: boolean;
@@ -442,17 +429,6 @@ type GoogleGeocodeResult = {
     location?: unknown;
     location_type?: string;
   };
-};
-
-type GoogleAutocompletePlace = {
-  address_components?: GoogleAddressComponent[];
-};
-
-type StructuredAutocompleteAddress = {
-  addressLine1: string;
-  city: string;
-  province: string;
-  postalCode: string;
 };
 
 type GoogleMapsEventListener = {
@@ -492,16 +468,6 @@ const normalizeGeocodeText = (value: string | null | undefined) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
-
-const normalizePostalCodeForGeocoding = (value: string | null | undefined) => {
-  const compact = String(value || "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "");
-
-  return compact.length === 6
-    ? `${compact.slice(0, 3)} ${compact.slice(3)}`
-    : String(value || "").trim().toUpperCase();
-};
 
 const civicStreetSuffixPattern =
   /\b(?:street|st|road|rd|drive|dr|avenue|ave|lane|ln|boulevard|blvd|highway|hwy|court|ct|crescent|cres|way|trail|trl|terrace|ter|place|pl|circle|cir|parkway|pkwy|line|concession)\b/i;
@@ -556,9 +522,6 @@ const selectValidatedOrderGeocodeResult = (
   const allowedMunicipalities = new Set(
     [submittedMunicipality, "guelph"].filter(Boolean)
   );
-  const submittedPostalCode = normalizePostalCodeForGeocoding(
-    order.postalCode
-  ).replace(/\s/g, "");
 
   const validCandidates = (results || []).flatMap((result) => {
     const country = getGeocodeComponent(result, ["country"]);
@@ -571,10 +534,6 @@ const selectValidatedOrderGeocodeResult = (
       "administrative_area_level_3",
       "sublocality_level_1",
     ]);
-    const postalCode = getGeocodeComponent(result, ["postal_code"]);
-    const googlePostalCode = normalizePostalCodeForGeocoding(
-      postalCode?.short_name || postalCode?.long_name
-    ).replace(/\s/g, "");
     const locationType = result.geometry?.location_type || "";
     const resultTypes = result.types || [];
     const hasStreetNumber = Boolean(
@@ -592,21 +551,12 @@ const selectValidatedOrderGeocodeResult = (
     if (!geocodeComponentMatches(country, new Set(["ca", "canada"]))) return [];
     if (!geocodeComponentMatches(province, new Set(["on", "ontario"]))) return [];
     if (!geocodeComponentMatches(municipality, allowedMunicipalities)) return [];
-    if (
-      submittedPostalCode &&
-      googlePostalCode &&
-      submittedPostalCode !== googlePostalCode
-    ) {
-      return [];
-    }
-
     const municipalityValues = new Set(
       [municipality?.long_name, municipality?.short_name].map(
         normalizeGeocodeText
       )
     );
     const score =
-      (googlePostalCode === submittedPostalCode ? 5 : 0) +
       (submittedMunicipality && municipalityValues.has(submittedMunicipality)
         ? 4
         : 2) +
@@ -624,45 +574,6 @@ const selectValidatedOrderGeocodeResult = (
   return validCandidates.sort((a, b) => b.score - a.score)[0]?.result || null;
 };
 
-const parseGoogleAutocompleteAddress = (
-  place: GoogleAutocompletePlace
-): StructuredAutocompleteAddress | null => {
-  const streetNumber = getGeocodeComponent(place, ["street_number"]);
-  const route = getGeocodeComponent(place, ["route"]);
-  const subpremise = getGeocodeComponent(place, ["subpremise"]);
-  const municipality = getGeocodeComponent(place, [
-    "locality",
-    "postal_town",
-    "administrative_area_level_3",
-  ]);
-  const province = getGeocodeComponent(place, [
-    "administrative_area_level_1",
-  ]);
-  const postalCode = getGeocodeComponent(place, ["postal_code"]);
-
-  const streetAddress = [streetNumber?.long_name, route?.long_name]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
-  const unit = subpremise?.long_name?.trim();
-  const addressLine1 = unit ? `${streetAddress} Unit ${unit}` : streetAddress;
-  const city = municipality?.long_name?.trim() || "";
-  const provinceValue =
-    province?.short_name?.trim() || province?.long_name?.trim() || "";
-  const postalCodeValue = normalizePostalCodeForGeocoding(
-    postalCode?.short_name || postalCode?.long_name
-  );
-
-  if (!addressLine1 || !city || !provinceValue || !postalCodeValue) return null;
-
-  return {
-    addressLine1,
-    city,
-    province: provinceValue,
-    postalCode: postalCodeValue,
-  };
-};
-
 const isValidPhone = (phone: string) => {
   const digitsOnly = phone.replace(/\D/g, "");
   return digitsOnly.length === 10 || digitsOnly.length === 11;
@@ -676,7 +587,6 @@ const initialManualOrderForm: ManualOrderForm = {
   dispatcherNotes: "",
   city: "Guelph",
   province: "ON",
-  postalCode: "N1G 4N3",
   paymentMethod: "CASH",
   additionalNotes: "",
   items: [createDefaultManualOrderItem()],
@@ -688,7 +598,6 @@ const initialPickupLocationForm: PickupLocationForm = {
   addressLine1: "",
   city: "Guelph",
   province: "ON",
-  postalCode: "",
   latitude: "",
   longitude: "",
   isActive: true,
@@ -865,15 +774,12 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       customer.addressLine1,
       customer.city,
       customer.province,
-      customer.postalCode,
       customer.dispatcherNotes,
     ]
       .map(normalizeCustomerSearchText)
       .join(" ");
 
-    const searchableDigits = [customer.phone, customer.postalCode]
-      .map(normalizeCustomerSearchDigits)
-      .join(" ");
+    const searchableDigits = normalizeCustomerSearchDigits(customer.phone);
 
     return (
       searchableText.includes(cleanSearchTerm) ||
@@ -932,15 +838,12 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
           customer.addressLine1,
           customer.city,
           customer.province,
-          customer.postalCode,
           customer.dispatcherNotes,
         ]
           .map(normalizeCustomerSearchText)
           .join(" ");
 
-        const searchableDigits = [customer.phone, customer.postalCode]
-          .map(normalizeCustomerSearchDigits)
-          .join(" ");
+        const searchableDigits = normalizeCustomerSearchDigits(customer.phone);
 
         return (
           searchableText.includes(cleanSearchTerm) ||
@@ -1394,7 +1297,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         order.addressLine1,
         order.city,
         order.province,
-        order.postalCode,
         "Canada",
       ]
         .filter(Boolean)
@@ -1403,7 +1305,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         sanitizeAddressLineForGeocoding(order.addressLine1),
         order.city?.trim(),
         order.province?.trim(),
-        normalizePostalCodeForGeocoding(order.postalCode),
         "Canada",
       ]
         .filter(Boolean)
@@ -2438,7 +2339,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     if (!form.addressLine1.trim()) return "Street address is required";
     if (!form.city.trim()) return "City is required";
     if (!form.province.trim()) return "Province is required";
-    if (!form.postalCode.trim()) return "Postal code is required";
 
     const latitude = Number(form.latitude);
     const longitude = Number(form.longitude);
@@ -2478,10 +2378,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
           body: JSON.stringify({
             name: pickupLocationForm.name.trim(),
             pickupType: pickupLocationForm.pickupType.trim(),
-            addressLine1: pickupLocationForm.addressLine1.trim(),
-            city: pickupLocationForm.city.trim(),
-            province: pickupLocationForm.province.trim(),
-            postalCode: pickupLocationForm.postalCode.trim(),
+            ...buildAddressRequestFields(pickupLocationForm),
             latitude: Number(pickupLocationForm.latitude),
             longitude: Number(pickupLocationForm.longitude),
             isActive: pickupLocationForm.isActive,
@@ -2513,7 +2410,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       addressLine1: location.addressLine1 || "",
       city: location.city || "",
       province: location.province || "",
-      postalCode: location.postalCode || "",
       latitude: String(location.latitude ?? ""),
       longitude: String(location.longitude ?? ""),
       isActive: location.isActive,
@@ -2563,10 +2459,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
           body: JSON.stringify({
             name: pickupLocationEditForm.name.trim(),
             pickupType: pickupLocationEditForm.pickupType.trim(),
-            addressLine1: pickupLocationEditForm.addressLine1.trim(),
-            city: pickupLocationEditForm.city.trim(),
-            province: pickupLocationEditForm.province.trim(),
-            postalCode: pickupLocationEditForm.postalCode.trim(),
+            ...buildAddressRequestFields(pickupLocationEditForm),
             latitude: Number(pickupLocationEditForm.latitude),
             longitude: Number(pickupLocationEditForm.longitude),
             isActive: pickupLocationEditForm.isActive,
@@ -3184,7 +3077,6 @@ const createEditFormFromOrder = (order: Order): EditOrderForm => ({
   addressLine1: order.addressLine1 || "",
   city: order.city || "Guelph",
   province: order.province || "ON",
-  postalCode: order.postalCode || "",
   paymentMethod: order.paymentMethod || "CASH",
   additionalNotes: order.additionalNotes || "",
   items:
@@ -3374,11 +3266,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
     return;
   }
 
-  if (!editOrderForm.postalCode.trim()) {
-    alert("Postal code is required");
-    return;
-  }
-
   const cleanedItems = editOrderForm.items
     .map((item) => ({
       name: item.itemName.trim(),
@@ -3406,10 +3293,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
           customerName: editOrderForm.customerName.trim(),
           customerPhone: editOrderForm.customerPhone.trim(),
           customerEmail: editOrderForm.customerEmail.trim(),
-          addressLine1: editOrderForm.addressLine1.trim(),
-          city: editOrderForm.city.trim(),
-          province: editOrderForm.province.trim(),
-          postalCode: editOrderForm.postalCode.trim(),
+          ...buildAddressRequestFields(editOrderForm),
           paymentMethod: editOrderForm.paymentMethod,
           additionalNotes: editOrderForm.additionalNotes.trim(),
           items: cleanedItems.map((item) => ({
@@ -3578,7 +3462,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
       addressLine1: customer.addressLine1 || "",
       city: customer.city || "Guelph",
       province: customer.province || "ON",
-      postalCode: customer.postalCode || "",
       dispatcherNotes: customer.dispatcherNotes || ""
     }));
 
@@ -3799,7 +3682,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
     const addressLine1 = manualOrderForm.addressLine1.trim();
     const city = manualOrderForm.city.trim();
     const province = manualOrderForm.province.trim();
-    const postalCode = manualOrderForm.postalCode.trim();
     const additionalNotes = manualOrderForm.additionalNotes.trim();
     const dispatcherNotes = manualOrderForm.dispatcherNotes.trim();
 
@@ -3840,16 +3722,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
     if (!province) {
       alert("Province is required.");
-      return;
-    }
-
-    if (!postalCode) {
-      alert("Postal code is required.");
-      return;
-    }
-
-    if (!isValidCanadianPostalCode(postalCode)) {
-      alert("Please enter a valid Canadian postal code, like N1H 1A1.");
       return;
     }
 
@@ -3909,10 +3781,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
           customerName,
           customerPhone,
           customerEmail,
-          addressLine1,
-          city,
-          province,
-          postalCode,
+          ...buildAddressRequestFields({ addressLine1, city, province }),
           items: validItems.map((item) => ({
             name: item.name,
             quantity: item.quantity,
@@ -4169,7 +4038,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
       addressLine1: customer.addressLine1 || "",
       city: customer.city || "Guelph",
       province: customer.province || "ON",
-      postalCode: customer.postalCode || "",
       dispatcherNotes: customer.dispatcherNotes || "",
     });
   };
@@ -4226,10 +4094,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             fullName: customerEditForm.fullName.trim(),
             phone: customerEditForm.phone.trim(),
             email: customerEditForm.email.trim(),
-            addressLine1: customerEditForm.addressLine1.trim(),
-            city: customerEditForm.city.trim(),
-            province: customerEditForm.province.trim(),
-            postalCode: customerEditForm.postalCode.trim(),
+            ...buildAddressRequestFields(customerEditForm),
             dispatcherNotes: customerEditForm.dispatcherNotes.trim(),
           }),
         }
@@ -4978,16 +4843,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
             />
 
             <input
-              type="text"
-              placeholder="Postal Code"
-              value={pickupLocationForm.postalCode}
-              onChange={(e) =>
-                handlePickupLocationFormChange("postalCode", e.target.value)
-              }
-              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
-            />
-
-            <input
               type="number"
               step="any"
               placeholder="Latitude"
@@ -5120,7 +4975,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                   }
                                   className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
                                 />
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-2 gap-2">
                                   <input
                                     type="text"
                                     value={pickupLocationEditForm.city}
@@ -5138,17 +4993,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                     onChange={(e) =>
                                       handlePickupLocationEditFieldChange(
                                         "province",
-                                        e.target.value
-                                      )
-                                    }
-                                    className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={pickupLocationEditForm.postalCode}
-                                    onChange={(e) =>
-                                      handlePickupLocationEditFieldChange(
-                                        "postalCode",
                                         e.target.value
                                       )
                                     }
@@ -5246,8 +5090,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                             <td className="p-3 align-top text-zinc-300">
                               <div>{location.addressLine1}</div>
                               <div className="text-zinc-500 text-xs">
-                                {location.city}, {location.province}{" "}
-                                {location.postalCode}
+                                {location.city}, {location.province}
                               </div>
                             </td>
 
@@ -5476,8 +5319,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                       <td className="p-3 align-top">
                         <p className="font-semibold text-zinc-100">{customer.fullName}</p>
                         <p className="text-zinc-500 text-xs mt-1">
-                          {customer.addressLine1}, {customer.city}, {customer.province}{" "}
-                          {customer.postalCode}
+                          {customer.addressLine1}, {customer.city}, {customer.province}
                         </p>
                         {customer.dispatcherNotes ? (
                           <p className="text-zinc-400 text-xs mt-2">
@@ -5684,7 +5526,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
           >
             <input
               type="text"
-              placeholder="Search customers by name, phone, email, city, or postal code"
+              placeholder="Search customers by name, phone, email, or city"
               value={customerProfileSearch}
               onChange={(e) => setCustomerProfileSearch(e.target.value)}
               className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
@@ -5793,7 +5635,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                   className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
                                 />
 
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-2 gap-2">
                                   <input
                                     type="text"
                                     value={customerEditForm.city}
@@ -5812,14 +5654,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                     className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
                                   />
 
-                                  <input
-                                    type="text"
-                                    value={customerEditForm.postalCode}
-                                    onChange={(e) =>
-                                      handleCustomerEditFieldChange("postalCode", e.target.value)
-                                    }
-                                    className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
-                                  />
                                 </div>
                               </div>
                             </td>
@@ -5878,7 +5712,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                             <td className="p-2 align-top text-zinc-300">
                               <p>{customer.addressLine1}</p>
                               <p className="text-zinc-500 text-xs mt-1">
-                                {[customer.city, customer.province, customer.postalCode]
+                                {[customer.city, customer.province]
                                   .filter(Boolean)
                                   .join(", ")}
                               </p>
@@ -5991,14 +5825,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
             placeholder="Province"
             value={editOrderForm.province}
             onChange={(e) => handleEditOrderFieldChange("province", e.target.value)}
-            className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
-          />
-
-          <input
-            type="text"
-            placeholder="Postal Code"
-            value={editOrderForm.postalCode}
-            onChange={(e) => handleEditOrderFieldChange("postalCode", e.target.value)}
             className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
           />
 
@@ -6420,7 +6246,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                       <td className="p-2 align-top text-zinc-300">
                         <p>{order.addressLine1}</p>
                         <p className="text-zinc-500 text-xs mt-1">
-                          {[order.city, order.province, order.postalCode]
+                          {[order.city, order.province]
                             .filter(Boolean)
                             .join(", ")}
                         </p>
@@ -7286,9 +7112,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
                         <h2 className="text-xl font-semibold">{order.customerName}</h2>
                         <p className="text-zinc-400 mt-1">{order.addressLine1}</p>
-                        {(order.city || order.province || order.postalCode) && (
+                        {(order.city || order.province) && (
                           <p className="text-zinc-500 text-sm mt-1">
-                            {[order.city, order.province, order.postalCode]
+                            {[order.city, order.province]
                               .filter(Boolean)
                               .join(", ")}
                           </p>
@@ -7427,7 +7253,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     .map((order) => (
                       <p key={`unmapped-${order.id}`}>
                         Order #{order.orderNumber}: {order.addressLine1},{" "}
-                        {[order.city, order.province, order.postalCode]
+                        {[order.city, order.province]
                           .filter(Boolean)
                           .join(", ")}
                       </p>
@@ -7561,7 +7387,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                         </div>
                         <div className="text-zinc-500 text-xs">
                           {customer.addressLine1}, {customer.city},{" "}
-                          {customer.province} {customer.postalCode}
+                          {customer.province}
                         </div>
                       </button>
                     ))}
@@ -7598,7 +7424,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                         </div>
                         <div className="text-zinc-500 text-xs">
                           {customer.addressLine1}, {customer.city},{" "}
-                          {customer.province} {customer.postalCode}
+                          {customer.province}
                         </div>
                       </button>
                     ))}
@@ -7646,16 +7472,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 value={manualOrderForm.province}
                 onChange={(e) =>
                   handleManualOrderFieldChange("province", e.target.value)
-                }
-              />
-
-              <input
-                type="text"
-                placeholder="Postal Code"
-                className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
-                value={manualOrderForm.postalCode}
-                onChange={(e) =>
-                  handleManualOrderFieldChange("postalCode", e.target.value)
                 }
               />
 
