@@ -12,6 +12,10 @@ import {
   type GoogleAddressComponent,
   type GoogleAutocompletePlace,
 } from "./addressFields";
+import {
+  buildManualOrderNotesPayload,
+  recurringDriverNotesForCustomer,
+} from "./manualOrderNotes";
 
 
 type OrderStatus =
@@ -154,6 +158,7 @@ type ManualOrderForm = {
   province: string;
   paymentMethod: PaymentMethod;
   additionalNotes: string;
+  recurringDriverNotes: string;
   dispatcherNotes: string;
   items: ManualOrderItem[];
 };
@@ -179,6 +184,7 @@ type CustomerSuggestion = {
   city: string;
   province: string;
   dispatcherNotes?: string | null;
+  recurringDriverNotes?: string | null;
 };
 
 type ItemSuggestion = {
@@ -585,6 +591,7 @@ const initialManualOrderForm: ManualOrderForm = {
   customerEmail: "example@yahoo.com",
   addressLine1: "",
   dispatcherNotes: "",
+  recurringDriverNotes: "",
   city: "Guelph",
   province: "ON",
   paymentMethod: "CASH",
@@ -3462,6 +3469,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
       addressLine1: customer.addressLine1 || "",
       city: customer.city || "Guelph",
       province: customer.province || "ON",
+      recurringDriverNotes: recurringDriverNotesForCustomer(
+        customer.recurringDriverNotes
+      ),
       dispatcherNotes: customer.dispatcherNotes || ""
     }));
 
@@ -3682,7 +3692,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
     const addressLine1 = manualOrderForm.addressLine1.trim();
     const city = manualOrderForm.city.trim();
     const province = manualOrderForm.province.trim();
-    const additionalNotes = manualOrderForm.additionalNotes.trim();
+    const manualOrderNotes = buildManualOrderNotesPayload(
+      manualOrderForm.additionalNotes,
+      manualOrderForm.recurringDriverNotes
+    );
     const dispatcherNotes = manualOrderForm.dispatcherNotes.trim();
 
     if (!customerName) {
@@ -3795,7 +3808,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
           discount: 0,
           total: 0,
           paymentMethod: manualOrderForm.paymentMethod,
-          additionalNotes,
+          ...manualOrderNotes,
           dispatcherNotes,
         }),
       });
@@ -7585,6 +7598,25 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 value={manualOrderForm.additionalNotes}
                 onChange={(e) =>
                   handleManualOrderFieldChange("additionalNotes", e.target.value)
+                }
+              />
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-zinc-400 text-xs mb-1">
+                Recurring Driver Notes
+              </label>
+
+              <textarea
+                value={manualOrderForm.recurringDriverNotes}
+                placeholder="Recurring driver-visible notes (e.g. $10 distance charge)"
+                rows={3}
+                className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500 resize-none"
+                onChange={(e) =>
+                  handleManualOrderFieldChange(
+                    "recurringDriverNotes",
+                    e.target.value
+                  )
                 }
               />
             </div>
