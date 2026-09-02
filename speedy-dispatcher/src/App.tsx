@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE_URL, API_V1_BASE_URL } from "./apiConfig";
+import {
+  getVerifiedDeliveryPosition,
+  needsDeliveryLocationReview,
+  shouldUseLegacyBrowserGeocoding,
+  type DeliveryGeocodeStatus,
+} from "./deliveryLocation";
 
 
 type OrderStatus =
@@ -108,6 +114,12 @@ type Order = {
   cancelledFromStatus?: OrderStatus | null;
   cancellationReason?: string | null;
   updatedAt?: string;
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
+  geocodeStatus?: DeliveryGeocodeStatus | null;
+  geocodedAddress?: string | null;
+  geocodePlaceId?: string | null;
+  geocodeAddressFingerprint?: string | null;
 };
 
 type ActiveTab =
@@ -432,6 +444,48 @@ type GoogleGeocodeResult = {
   };
 };
 
+type GoogleAutocompletePlace = {
+  address_components?: GoogleAddressComponent[];
+};
+
+type StructuredAutocompleteAddress = {
+  addressLine1: string;
+  city: string;
+  province: string;
+  postalCode: string;
+};
+
+type GoogleMapsEventListener = {
+  remove?: () => void;
+};
+
+type GooglePlacesAutocompleteInstance = {
+  addListener: (
+    eventName: "place_changed",
+    callback: () => void
+  ) => GoogleMapsEventListener;
+  getPlace: () => GoogleAutocompletePlace;
+};
+
+type GooglePlacesNamespace = {
+  Autocomplete: new (
+    input: HTMLInputElement,
+    options: {
+      componentRestrictions: { country: string };
+      fields: string[];
+      types: string[];
+    }
+  ) => GooglePlacesAutocompleteInstance;
+};
+
+type GooglePlacesWindow = Window & {
+  google?: {
+    maps?: {
+      places?: GooglePlacesNamespace;
+    };
+  };
+};
+
 const normalizeGeocodeText = (value: string | null | undefined) =>
   String(value || "")
     .trim()
@@ -568,6 +622,45 @@ const selectValidatedOrderGeocodeResult = (
   });
 
   return validCandidates.sort((a, b) => b.score - a.score)[0]?.result || null;
+};
+
+const parseGoogleAutocompleteAddress = (
+  place: GoogleAutocompletePlace
+): StructuredAutocompleteAddress | null => {
+  const streetNumber = getGeocodeComponent(place, ["street_number"]);
+  const route = getGeocodeComponent(place, ["route"]);
+  const subpremise = getGeocodeComponent(place, ["subpremise"]);
+  const municipality = getGeocodeComponent(place, [
+    "locality",
+    "postal_town",
+    "administrative_area_level_3",
+  ]);
+  const province = getGeocodeComponent(place, [
+    "administrative_area_level_1",
+  ]);
+  const postalCode = getGeocodeComponent(place, ["postal_code"]);
+
+  const streetAddress = [streetNumber?.long_name, route?.long_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const unit = subpremise?.long_name?.trim();
+  const addressLine1 = unit ? `${streetAddress} Unit ${unit}` : streetAddress;
+  const city = municipality?.long_name?.trim() || "";
+  const provinceValue =
+    province?.short_name?.trim() || province?.long_name?.trim() || "";
+  const postalCodeValue = normalizePostalCodeForGeocoding(
+    postalCode?.short_name || postalCode?.long_name
+  );
+
+  if (!addressLine1 || !city || !provinceValue || !postalCodeValue) return null;
+
+  return {
+    addressLine1,
+    city,
+    province: provinceValue,
+    postalCode: postalCodeValue,
+  };
 };
 
 const isValidPhone = (phone: string) => {
@@ -1022,6 +1115,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   }, [newOrderIds]);
 
   const mapRef = useRef<HTMLDivElement | null>(null);
+  const manualAddressInputRef = useRef<HTMLInputElement | null>(null);
+  const editAddressInputRef = useRef<HTMLInputElement | null>(null);
   const googleMapRef = useRef<any>(null);
   const driverMarkersRef = useRef<Record<string, any>>({});
   const orderMarkersRef = useRef<Record<string, any>>({});
@@ -1031,6 +1126,99 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   const orderGeocodingFailedRef = useRef<Set<string>>(new Set());
   const orderInfoWindowRef = useRef<any>(null);
   const ordersRequestSequenceRef = useRef(0);
+
+  useEffect(() => {
+    if (activeTab !== "CREATE_MANUAL_ORDER") return;
+
+    let placeChangedListener: GoogleMapsEventListener | null = null;
+    let retryTimer: number | null = null;
+
+    const installAutocomplete = () => {
+      const input = manualAddressInputRef.current;
+      const googleMaps = (window as GooglePlacesWindow).google?.maps;
+
+      if (!input || !googleMaps?.places?.Autocomplete) return false;
+
+      const autocomplete = new googleMaps.places.Autocomplete(input, {
+        componentRestrictions: { country: "ca" },
+        fields: ["address_components"],
+        types: ["address"],
+      });
+
+      placeChangedListener = autocomplete.addListener("place_changed", () => {
+        const selectedAddress = parseGoogleAutocompleteAddress(
+          autocomplete.getPlace()
+        );
+
+        if (!selectedAddress) return;
+        setManualOrderForm((current) => ({
+          ...current,
+          ...selectedAddress,
+        }));
+      });
+      return true;
+    };
+
+    if (!installAutocomplete()) {
+      retryTimer = window.setInterval(() => {
+        if (installAutocomplete() && retryTimer !== null) {
+          window.clearInterval(retryTimer);
+          retryTimer = null;
+        }
+      }, 250);
+    }
+
+    return () => {
+      if (retryTimer !== null) window.clearInterval(retryTimer);
+      placeChangedListener?.remove?.();
+    };
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!editingOrderId) return;
+
+    let placeChangedListener: GoogleMapsEventListener | null = null;
+    let retryTimer: number | null = null;
+
+    const installAutocomplete = () => {
+      const input = editAddressInputRef.current;
+      const googleMaps = (window as GooglePlacesWindow).google?.maps;
+
+      if (!input || !googleMaps?.places?.Autocomplete) return false;
+
+      const autocomplete = new googleMaps.places.Autocomplete(input, {
+        componentRestrictions: { country: "ca" },
+        fields: ["address_components"],
+        types: ["address"],
+      });
+
+      placeChangedListener = autocomplete.addListener("place_changed", () => {
+        const selectedAddress = parseGoogleAutocompleteAddress(
+          autocomplete.getPlace()
+        );
+
+        if (!selectedAddress) return;
+        setEditOrderForm((current) =>
+          current ? { ...current, ...selectedAddress } : current
+        );
+      });
+      return true;
+    };
+
+    if (!installAutocomplete()) {
+      retryTimer = window.setInterval(() => {
+        if (installAutocomplete() && retryTimer !== null) {
+          window.clearInterval(retryTimer);
+          retryTimer = null;
+        }
+      }, 250);
+    }
+
+    return () => {
+      if (retryTimer !== null) window.clearInterval(retryTimer);
+      placeChangedListener?.remove?.();
+    };
+  }, [editingOrderId]);
 
   useEffect(() => {
     if (newOrderIds.length === 0) return;
@@ -1221,8 +1409,19 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         .filter(Boolean)
         .join(", ");
       const geocodeKey = `${order.id}|${geocodingAddress.toLowerCase()}`;
+      const verifiedPosition = getVerifiedDeliveryPosition(order);
+      const useLegacyBrowserGeocoding =
+        shouldUseLegacyBrowserGeocoding(order);
+      const markerLocationKey = verifiedPosition
+        ? [
+            "verified",
+            order.geocodeAddressFingerprint || "no-fingerprint",
+            verifiedPosition.lat,
+            verifiedPosition.lng,
+          ].join("|")
+        : geocodeKey;
 
-      orderAuthoritativeGeocodeKeysRef.current[order.id] = geocodeKey;
+      orderAuthoritativeGeocodeKeysRef.current[order.id] = markerLocationKey;
 
       const driverName = getDriverDisplayName(order.assignedDriver);
       const orderTime = formatOrderAge(order.createdAt);
@@ -1265,7 +1464,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       const existingMarker = orderMarkersRef.current[order.id];
       const existingAddress = orderMarkerAddressesRef.current[order.id];
 
-      if (existingMarker && existingAddress === geocodingAddress) {
+      if (existingMarker && existingAddress === markerLocationKey) {
         existingMarker.setTitle(title);
         existingMarker.setLabel({
           text: String(order.orderNumber),
@@ -1280,7 +1479,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         return;
       }
 
-      if (existingMarker && existingAddress !== geocodingAddress) {
+      if (existingMarker && existingAddress !== markerLocationKey) {
         existingMarker.setMap(null);
 
         if (orderInfoWindowRef.current?.__orderId === order.id) {
@@ -1290,6 +1489,54 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
         delete orderMarkersRef.current[order.id];
         delete orderMarkerAddressesRef.current[order.id];
+      }
+
+      const installOrderMarker = (position: unknown, locationKey: string) => {
+        const marker = new googleMaps.Marker({
+          position,
+          map,
+          title,
+          label: {
+            text: String(order.orderNumber),
+            fontWeight: "700",
+          },
+        });
+
+        marker.__orderInfoContent = infoWindowContent;
+        marker.addListener("click", () => {
+          if (!orderInfoWindowRef.current) {
+            orderInfoWindowRef.current = new googleMaps.InfoWindow();
+          }
+
+          orderInfoWindowRef.current.__orderId = order.id;
+          orderInfoWindowRef.current.setContent(marker.__orderInfoContent);
+          orderInfoWindowRef.current.open(map, marker);
+        });
+
+        orderMarkersRef.current[order.id] = marker;
+        orderMarkerAddressesRef.current[order.id] = locationKey;
+
+        if (
+          driversWithLocation.length === 0 &&
+          Object.keys(orderMarkersRef.current).length === 1
+        ) {
+          map.setCenter(position);
+        }
+      };
+
+      if (verifiedPosition) {
+        installOrderMarker(verifiedPosition, markerLocationKey);
+        return;
+      }
+
+      if (!useLegacyBrowserGeocoding) {
+        if (!orderGeocodingFailedRef.current.has(markerLocationKey)) {
+          console.warn(
+            `Order ${order.id} was left unmapped because its delivery location is not verified.`
+          );
+          orderGeocodingFailedRef.current.add(markerLocationKey);
+        }
+        return;
       }
 
       if (orderGeocodingInFlightRef.current.has(geocodeKey)) return;
@@ -1325,7 +1572,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
           if (!location) {
             console.warn(
-              `Order #${order.orderNumber} was left unmapped: no verified Guelph/Ontario geocoding result (${status}).`
+              `Order ${order.id} was left unmapped: the rolling-deployment fallback found no validated result (${status}).`
             );
             orderGeocodingFailedRef.current.add(geocodeKey);
             return;
@@ -1337,34 +1584,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
             markerToReplace.setMap(null);
           }
 
-          const marker = new googleMaps.Marker({
-            position: location,
-            map,
-            title,
-            label: {
-              text: String(order.orderNumber),
-              fontWeight: "700",
-            },
-          });
-
-          marker.__orderInfoContent = infoWindowContent;
-
-          marker.addListener("click", () => {
-            if (!orderInfoWindowRef.current) {
-              orderInfoWindowRef.current = new googleMaps.InfoWindow();
-            }
-
-            orderInfoWindowRef.current.__orderId = order.id;
-            orderInfoWindowRef.current.setContent(marker.__orderInfoContent);
-            orderInfoWindowRef.current.open(map, marker);
-          });
-
-          orderMarkersRef.current[order.id] = marker;
-          orderMarkerAddressesRef.current[order.id] = geocodingAddress;
-
-          if (driversWithLocation.length === 0 && Object.keys(orderMarkersRef.current).length === 1) {
-            map.setCenter(location);
-          }
+          installOrderMarker(location, geocodeKey);
         }
       );
     });
@@ -3349,8 +3569,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
   };
 
   const selectCustomerSuggestion = (customer: CustomerSuggestion) => {
-        console.log("SELECTED CUSTOMER:", customer);
-      setSelectedCustomer(customer);
+    setSelectedCustomer(customer);
     setManualOrderForm((prev) => ({
       ...prev,
       customerName: customer.fullName || "",
@@ -5747,12 +5966,17 @@ const handleSaveEditedOrder = async (orderId: string) => {
           />
 
           <input
+            ref={editAddressInputRef}
             type="text"
             placeholder="Address Line 1"
             value={editOrderForm.addressLine1}
             onChange={(e) => handleEditOrderFieldChange("addressLine1", e.target.value)}
             className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500 md:col-span-2"
           />
+
+          <p className="text-zinc-500 text-xs md:col-span-2 -mt-2">
+            Select a suggestion to fill the civic address, or enter an unusual valid address manually. Put access instructions in Additional Notes.
+          </p>
 
           <input
             type="text"
@@ -7069,6 +7293,11 @@ const handleSaveEditedOrder = async (orderId: string) => {
                               .join(", ")}
                           </p>
                         )}
+                        {needsDeliveryLocationReview(order) && (
+                          <p className="text-amber-300 text-sm font-semibold mt-2">
+                            ⚠ Map location could not be verified
+                          </p>
+                        )}
                       </div>
 
                       <span
@@ -7172,6 +7401,40 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 borderRadius: "12px",
               }}
             />
+
+            {orders.some(
+              (order) =>
+                ["PLACED", "DISPATCHED", "ACCEPTED", "OUT_FOR_DELIVERY"].includes(
+                  order.orderStatus
+                ) && needsDeliveryLocationReview(order)
+            ) && (
+              <div className="mt-4 rounded-xl border border-amber-700 bg-amber-950/40 p-4">
+                <p className="font-semibold text-amber-200">
+                  ⚠ Active orders requiring map-location review
+                </p>
+                <div className="mt-2 space-y-2 text-sm text-amber-100">
+                  {orders
+                    .filter(
+                      (order) =>
+                        [
+                          "PLACED",
+                          "DISPATCHED",
+                          "ACCEPTED",
+                          "OUT_FOR_DELIVERY",
+                        ].includes(order.orderStatus) &&
+                        needsDeliveryLocationReview(order)
+                    )
+                    .map((order) => (
+                      <p key={`unmapped-${order.id}`}>
+                        Order #{order.orderNumber}: {order.addressLine1},{" "}
+                        {[order.city, order.province, order.postalCode]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </p>
+                    ))}
+                </div>
+              </div>
+            )}
 
             <div className="mt-6">
               <h3 className="text-lg font-bold mb-3">Driver GPS Details</h3>
@@ -7354,6 +7617,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               />
 
               <input
+                ref={manualAddressInputRef}
                 type="text"
                 placeholder="Address Line 1"
                 className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500 md:col-span-2"
@@ -7362,6 +7626,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   handleManualOrderFieldChange("addressLine1", e.target.value)
                 }
               />
+
+              <p className="text-zinc-500 text-xs -mt-2 md:col-span-2">
+                Select a suggestion to fill the civic address, or type an unusual valid address manually. Keep delivery instructions in Additional Notes.
+              </p>
 
               <input
                 type="text"
