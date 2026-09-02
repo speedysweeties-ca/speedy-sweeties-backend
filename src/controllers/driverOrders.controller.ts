@@ -12,7 +12,7 @@ const getAuthUser = (req: Request): AuthenticatedUser | undefined => {
   return (req as Request & { user?: AuthenticatedUser }).user;
 };
 
-const driverOrderInclude = {
+export const driverOrderInclude = {
   items: {
     include: {
       itemCatalog: {
@@ -32,6 +32,17 @@ const driverOrderInclude = {
     }
   }
 } satisfies Prisma.OrderInclude;
+
+export const withDriverRoutingPlan = <
+  TOrder extends object,
+  TRoutingPlan extends object
+>(
+  order: TOrder,
+  routingPlan: TRoutingPlan
+): TOrder & { routingPlan: TRoutingPlan } => ({
+  ...order,
+  routingPlan
+});
 
 const ROUTABLE_PICKUP_TYPES = new Set([
   "CONVENIENCE",
@@ -158,23 +169,20 @@ export const getDriverOrdersController = async (
             )
           : [];
 
-      return {
-        ...order,
-        routingPlan: {
-          pickupRequired: pickupRequirement.pickupRequired,
-          requiredPickupTypes: pickupRequirement.routablePickupTypes,
-          unknownPickupItemCount: pickupRequirement.unknownPickupItemCount,
-          unsupportedPickupTypeCount:
-            pickupRequirement.unsupportedPickupTypeCount,
-          pickupLocationCandidates,
-          destination: {
-            addressLine1: order.addressLine1,
-            city: order.city,
-            province: order.province,
-            postalCode: order.postalCode
-          }
+      return withDriverRoutingPlan(order, {
+        pickupRequired: pickupRequirement.pickupRequired,
+        requiredPickupTypes: pickupRequirement.routablePickupTypes,
+        unknownPickupItemCount: pickupRequirement.unknownPickupItemCount,
+        unsupportedPickupTypeCount:
+          pickupRequirement.unsupportedPickupTypeCount,
+        pickupLocationCandidates,
+        destination: {
+          addressLine1: order.addressLine1,
+          city: order.city,
+          province: order.province,
+          postalCode: order.postalCode
         }
-      };
+      });
     });
 
   res.status(200).json({

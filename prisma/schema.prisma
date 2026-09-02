@@ -90,19 +90,20 @@ model User {
 }
 
 model Customer {
-  id                 String  @id @default(uuid())
-  fullName           String
-  normalizedFullName String
-  phone              String
-  normalizedPhone    String
-  email              String?
-  normalizedEmail    String?
-  addressLine1       String
-  city               String
-  province           String
-  postalCode         String?
-  notes              String?
-  dispatcherNotes    String?
+  id                   String  @id @default(uuid())
+  fullName             String
+  normalizedFullName   String
+  phone                String
+  normalizedPhone      String
+  email                String?
+  normalizedEmail      String?
+  addressLine1         String
+  city                 String
+  province             String
+  postalCode           String?
+  notes                String?
+  dispatcherNotes      String?
+  recurringDriverNotes String?
 
   smsMarketingOptOut      Boolean   @default(false)
   smsMarketingOptOutAt    DateTime?

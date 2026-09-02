@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { OrderStatus, PaymentMethod } from "@prisma/client";
 
+import { RECURRING_DRIVER_NOTES_MAX_LENGTH } from "../services/recurringDriverNotes.service";
+
 const phoneRegex = /^[0-9()+\-.\s]{7,20}$/;
 
 const MAX_CUSTOMER_ITEM_ESTIMATE = 10_000;
@@ -68,6 +70,16 @@ export const createOrderSchema = z.object({
   })
 });
 
+export const createManualOrderSchema = createOrderSchema.extend({
+  body: createOrderSchema.shape.body.safeExtend({
+    recurringDriverNotes: z
+      .string()
+      .trim()
+      .max(RECURRING_DRIVER_NOTES_MAX_LENGTH)
+      .optional()
+  })
+});
+
 export const getOrderByIdSchema = z.object({
   params: orderIdParamsSchema
 });
@@ -96,5 +108,8 @@ export const updateOrderDetailsSchema = z.object({
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>["body"];
+export type CreateManualOrderInput = z.infer<
+  typeof createManualOrderSchema
+>["body"];
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>["body"];
 export type UpdateOrderDetailsInput = z.infer<typeof updateOrderDetailsSchema>["body"];

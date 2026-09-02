@@ -8,6 +8,7 @@ import { orderTrackingRateLimiter } from "../middleware/orderTrackingRateLimiter
 import { requireRole } from "../middleware/role.middleware";
 
 import {
+  createManualOrderSchema,
   createOrderSchema,
   getOrderByIdSchema,
   updateOrderStatusSchema,
@@ -57,7 +58,7 @@ router.post(
   requireAuth,
   requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
   orderCreationRateLimiter,
-  validateRequest(createOrderSchema),
+  validateRequest(createManualOrderSchema),
   asyncHandler(createManualOrderController)
 );
 

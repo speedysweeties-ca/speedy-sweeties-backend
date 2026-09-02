@@ -22,6 +22,11 @@ import {
   DeliveryLocationData,
   geocodeDeliveryAddress
 } from "../services/deliveryGeocoding.service";
+import {
+  combineOrderNotes,
+  persistSubmittedRecurringDriverNotes,
+  resolveRecurringDriverNotes
+} from "../services/recurringDriverNotes.service";
 
 /* ================= TYPES ================= */
 
@@ -753,6 +758,7 @@ export const updateAutoDispatchSettingsController = async (
 
 type CreateOrderOptions = {
   bypassBusinessHours: boolean;
+  acceptRecurringDriverNotes: boolean;
 };
 
 const sendDeliveryAddressValidationError = (
@@ -798,8 +804,13 @@ const createOrder = async (
     deliveryInstructions,
     notes,
     dispatcherNotes,
+    recurringDriverNotes,
     fcmToken
   } = req.body;
+
+  const recurringDriverNotesSubmitted =
+    options.acceptRecurringDriverNotes &&
+    Object.prototype.hasOwnProperty.call(req.body, "recurringDriverNotes");
 
   const appFcmToken = hasAppFcmToken(fcmToken) ? String(fcmToken).trim() : null;
 
@@ -816,11 +827,6 @@ const createOrder = async (
     if (sendDeliveryAddressValidationError(error, res)) return;
     throw error;
   }
-
-  const baseNotes = [additionalNotes, deliveryInstructions, notes]
-    .filter(Boolean)
-    .map((v) => String(v).trim())
-    .filter(Boolean);
 
   const normalizedEmail = customerEmail ? normalize(customerEmail) : null;
   const normalizedPhone = normalizePhone(customerPhone);
@@ -855,10 +861,22 @@ const createOrder = async (
   }
 
   const shouldApplyFreeDeliveryReward = customer.loyaltyFreeDelivery === true;
-
-  const finalNotes = shouldApplyFreeDeliveryReward
-    ? [...baseNotes, LOYALTY_FREE_DELIVERY_NOTE].join(" | ")
-    : baseNotes.join(" | ");
+  const recurringDriverNotesPlan = resolveRecurringDriverNotes({
+    isManualOrder: options.acceptRecurringDriverNotes,
+    submitted: recurringDriverNotesSubmitted,
+    submittedValue: recurringDriverNotes,
+    storedValue: customer.recurringDriverNotes
+  });
+  const finalNotes = combineOrderNotes(
+    [
+      recurringDriverNotesPlan.snapshot,
+      additionalNotes,
+      deliveryInstructions,
+      notes,
+      shouldApplyFreeDeliveryReward ? LOYALTY_FREE_DELIVERY_NOTE : null
+    ],
+    options.acceptRecurringDriverNotes
+  );
 
   const transactionResult = await prisma.$transaction(async (tx) => {
     if (shouldApplyFreeDeliveryReward) {
@@ -885,7 +903,7 @@ const createOrder = async (
         city: city.trim(),
         province: province.trim(),
         itemsText: rawItems.map((i) => `${i.quantity}x ${i.name}`).join(", "),
-        additionalNotes: finalNotes || null,
+        additionalNotes: finalNotes,
         paymentMethod,
         orderStatus: OrderStatus.PLACED,
         priority: OrderPriority.NORMAL,
@@ -895,6 +913,12 @@ const createOrder = async (
         ...deliveryLocation
       }
     });
+
+    await persistSubmittedRecurringDriverNotes(
+      tx,
+      customer.id,
+      recurringDriverNotesPlan.customerUpdate
+    );
 
     const orderItemPickupTypes: Array<string | null | undefined> = [];
 
@@ -989,14 +1013,20 @@ export const createOrderController = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  await createOrder(req, res, { bypassBusinessHours: false });
+  await createOrder(req, res, {
+    bypassBusinessHours: false,
+    acceptRecurringDriverNotes: false
+  });
 };
 
 export const createManualOrderController = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  await createOrder(req, res, { bypassBusinessHours: true });
+  await createOrder(req, res, {
+    bypassBusinessHours: true,
+    acceptRecurringDriverNotes: true
+  });
 };
 
 export const getOrderByIdController = async (

@@ -39,12 +39,33 @@ type CustomerSearchResult = {
   province: string;
   postalCode: string | null;
   dispatcherNotes: string | null;
+  recurringDriverNotes: string | null;
   createdAt: Date;
   updatedAt: Date;
   _count: {
     orders: number;
   };
 };
+
+export const dispatcherCustomerLookupSelect = {
+  id: true,
+  fullName: true,
+  phone: true,
+  email: true,
+  addressLine1: true,
+  city: true,
+  province: true,
+  postalCode: true,
+  dispatcherNotes: true,
+  recurringDriverNotes: true,
+  createdAt: true,
+  updatedAt: true,
+  _count: {
+    select: {
+      orders: true
+    }
+  }
+} as const;
 
 const cleanStringOrNull = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
@@ -294,24 +315,7 @@ export const searchCustomersController = async (
     orderBy: {
       updatedAt: "desc",
     },
-    select: {
-      id: true,
-      fullName: true,
-      phone: true,
-      email: true,
-      addressLine1: true,
-      city: true,
-      province: true,
-      postalCode: true,
-      dispatcherNotes: true,
-      createdAt: true,
-      updatedAt: true,
-      _count: {
-        select: {
-          orders: true,
-        },
-      },
-    },
+    select: dispatcherCustomerLookupSelect,
   });
 
   const sortedCustomers = sortCustomersBySearchRelevance(
@@ -356,24 +360,7 @@ export const listCustomersController = async (
       updatedAt: "desc",
     },
     take: normalizedQuery.length >= 2 ? 100 : 100,
-    select: {
-      id: true,
-      fullName: true,
-      phone: true,
-      email: true,
-      addressLine1: true,
-      city: true,
-      province: true,
-      postalCode: true,
-      dispatcherNotes: true,
-      createdAt: true,
-      updatedAt: true,
-      _count: {
-        select: {
-          orders: true,
-        },
-      },
-    },
+    select: dispatcherCustomerLookupSelect,
   });
 
   const finalCustomers =
