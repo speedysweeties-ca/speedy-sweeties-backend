@@ -10,6 +10,17 @@ function requireEnv(name: string): string {
   return value;
 }
 
+function numberEnv(name: string, fallback: number): number {
+  const rawValue = process.env[name];
+  const value = rawValue === undefined ? fallback : Number(rawValue);
+
+  if (!Number.isFinite(value)) {
+    throw new Error(`Invalid numeric environment variable: ${name}`);
+  }
+
+  return value;
+}
+
 const NODE_ENV = process.env.NODE_ENV ?? "development";
 const CORS_ORIGIN =
   process.env.CORS_ORIGIN ??
@@ -24,5 +35,8 @@ export const env = {
   CORS_ORIGIN,
 
   GOOGLE_PLACES_API_KEY: process.env.GOOGLE_PLACES_API_KEY ?? "",
-  GOOGLE_PLACE_ID: process.env.GOOGLE_PLACE_ID ?? "ChIJBSxQSViaK4gRaS6LjGPMvTs"
+  GOOGLE_PLACE_ID: process.env.GOOGLE_PLACE_ID ?? "ChIJBSxQSViaK4gRaS6LjGPMvTs",
+
+  GOOGLE_GEOCODING_API_KEY: process.env.GOOGLE_GEOCODING_API_KEY ?? "",
+  GOOGLE_GEOCODING_TIMEOUT_MS: numberEnv("GOOGLE_GEOCODING_TIMEOUT_MS", 5_000)
 };

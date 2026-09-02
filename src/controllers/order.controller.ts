@@ -15,6 +15,13 @@ import {
   getDriverFreshnessCutoff,
   isDriverLocationFresh
 } from "../utils/driverFreshness";
+import {
+  createDeliveryAddressFingerprint,
+  DeliveryAddressInput,
+  DeliveryAddressValidationError,
+  DeliveryLocationData,
+  geocodeDeliveryAddress
+} from "../services/deliveryGeocoding.service";
 
 /* ================= TYPES ================= */
 
@@ -749,6 +756,20 @@ type CreateOrderOptions = {
   bypassBusinessHours: boolean;
 };
 
+const sendDeliveryAddressValidationError = (
+  error: unknown,
+  res: Response
+): boolean => {
+  if (!(error instanceof DeliveryAddressValidationError)) return false;
+
+  res.status(400).json({
+    success: false,
+    code: error.code,
+    message: error.message
+  });
+  return true;
+};
+
 const createOrder = async (
   req: Request,
   res: Response,
@@ -783,6 +804,21 @@ const createOrder = async (
   } = req.body;
 
   const appFcmToken = hasAppFcmToken(fcmToken) ? String(fcmToken).trim() : null;
+
+  const deliveryAddress: DeliveryAddressInput = {
+    addressLine1,
+    city,
+    province,
+    postalCode
+  };
+  let deliveryLocation: DeliveryLocationData;
+
+  try {
+    deliveryLocation = await geocodeDeliveryAddress(deliveryAddress);
+  } catch (error) {
+    if (sendDeliveryAddressValidationError(error, res)) return;
+    throw error;
+  }
 
   const baseNotes = [additionalNotes, deliveryInstructions, notes]
     .filter(Boolean)
@@ -860,7 +896,8 @@ const createOrder = async (
         priority: OrderPriority.NORMAL,
         fcmToken: appFcmToken,
         trackingTokenHash: trackingCredential.hash,
-        trackingTokenExpiresAt: trackingCredential.expiresAt
+        trackingTokenExpiresAt: trackingCredential.expiresAt,
+        ...deliveryLocation
       }
     });
 
@@ -921,6 +958,12 @@ const createOrder = async (
   const {
     trackingTokenHash: _trackingTokenHash,
     trackingTokenExpiresAt: _trackingTokenExpiresAt,
+    deliveryLatitude: _deliveryLatitude,
+    deliveryLongitude: _deliveryLongitude,
+    geocodeStatus: _geocodeStatus,
+    geocodedAddress: _geocodedAddress,
+    geocodePlaceId: _geocodePlaceId,
+    geocodeAddressFingerprint: _geocodeAddressFingerprint,
     ...orderResponse
   } = order;
 
@@ -1033,6 +1076,35 @@ export const updateOrderDetailsController = async (
   const normalizedPhone = normalizePhone(customerPhone);
   const normalizedName = normalize(customerName);
 
+  const nextDeliveryAddress: DeliveryAddressInput = {
+    addressLine1,
+    city,
+    province,
+    postalCode
+  };
+  const existingAddressFingerprint = createDeliveryAddressFingerprint({
+    addressLine1: existingOrder.addressLine1,
+    city: existingOrder.city,
+    province: existingOrder.province,
+    postalCode: existingOrder.postalCode
+  });
+  const nextAddressFingerprint =
+    createDeliveryAddressFingerprint(nextDeliveryAddress);
+  const civicAddressChanged =
+    existingAddressFingerprint !== nextAddressFingerprint;
+  let replacementDeliveryLocation: DeliveryLocationData | null = null;
+
+  if (civicAddressChanged) {
+    try {
+      replacementDeliveryLocation = await geocodeDeliveryAddress(
+        nextDeliveryAddress
+      );
+    } catch (error) {
+      if (sendDeliveryAddressValidationError(error, res)) return;
+      throw error;
+    }
+  }
+
   const updatedOrder = await prisma.$transaction(async (tx) => {
     let customer = await tx.customer.findFirst({
       where: {
@@ -1130,7 +1202,8 @@ export const updateOrderDetailsController = async (
           typeof additionalNotes === "string" && additionalNotes.trim()
             ? additionalNotes.trim()
             : null,
-        paymentMethod
+        paymentMethod,
+        ...(replacementDeliveryLocation ?? {})
       }
     });
 

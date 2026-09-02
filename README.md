@@ -20,6 +20,13 @@ The normal lifecycle is:
 
 ```text
 PLACED → DISPATCHED → ACCEPTED → OUT_FOR_DELIVERY → DELIVERED
+
+Delivery destinations are normalized, verified, and stored by the backend for use
+by dispatcher and driver clients. See `docs/delivery-location.md` for configuration,
+failure policy, and the optional dry-run backfill.
+
+Delivery-address verification currently has no distance-radius restriction. It
+continues to require a consistent Canadian, Ontario civic address.
 ```
 
 An order can be `CANCELLED` where appropriate. Driver-created digital receipts are the authoritative final-total record; client-estimated values are not authoritative.

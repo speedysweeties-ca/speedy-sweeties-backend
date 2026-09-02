@@ -42,6 +42,12 @@ enum RetentionMessageStatus {
   FAILED
 }
 
+enum DeliveryGeocodeStatus {
+  VERIFIED
+  NEEDS_REVIEW
+  UNVERIFIED
+}
+
 model User {
   id                  String   @id @default(uuid())
   email               String   @unique
@@ -206,6 +212,13 @@ model Order {
   cancelledFromStatus OrderStatus?
   cancellationReason  String?
 
+  deliveryLatitude          Float?
+  deliveryLongitude         Float?
+  geocodeStatus             DeliveryGeocodeStatus?
+  geocodedAddress           String?
+  geocodePlaceId            String?
+  geocodeAddressFingerprint String?
+
   customerId String?
 
   assignedDriverId String?
@@ -225,6 +238,7 @@ model Order {
   @@index([dispatchedAt])
   @@index([cancelledAt])
   @@index([cancelledFromStatus])
+  @@index([geocodeStatus])
 }
 
 model OrderItem {
