@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { OrderStatus, PaymentMethod } from "@prisma/client";
 
-const postalCodeRegex = /^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/;
 const phoneRegex = /^[0-9()+\-.\s]{7,20}$/;
 
 const MAX_CUSTOMER_ITEM_ESTIMATE = 10_000;
@@ -42,10 +41,6 @@ export const createOrderSchema = z.object({
     addressLine2: z.string().trim().max(200).optional(),
     city: z.string().trim().min(2).max(100),
     province: z.string().trim().min(2).max(100),
-    postalCode: z
-      .string()
-      .trim()
-      .regex(postalCodeRegex, "Invalid Canadian postal code"),
     deliveryInstructions: z.string().trim().max(500).optional(),
     notes: z.string().trim().max(1000).optional(),
     dispatcherNotes: z.string().trim().max(1000).optional(),
@@ -94,10 +89,6 @@ export const updateOrderDetailsSchema = z.object({
     addressLine1: z.string().trim().min(3).max(200),
     city: z.string().trim().min(2).max(100),
     province: z.string().trim().min(2).max(100),
-    postalCode: z
-      .string()
-      .trim()
-      .regex(postalCodeRegex, "Invalid Canadian postal code"),
     additionalNotes: z.string().trim().max(1000).optional().nullable(),
     paymentMethod: z.nativeEnum(PaymentMethod),
     items: z.array(editableOrderItemSchema).min(1)

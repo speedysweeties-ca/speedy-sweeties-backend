@@ -6,7 +6,6 @@ export type DeliveryAddressInput = {
   addressLine1: string;
   city: string;
   province: string;
-  postalCode: string;
 };
 
 export type DeliveryLocationData = {
@@ -59,16 +58,12 @@ type CandidateEvaluation = {
 };
 
 export class DeliveryAddressValidationError extends Error {
-  readonly code: "INVALID_DELIVERY_ADDRESS" | "POSTAL_CODE_MISMATCH";
+  readonly code: "INVALID_DELIVERY_ADDRESS";
 
-  constructor(
-    message: string,
-    code: "INVALID_DELIVERY_ADDRESS" | "POSTAL_CODE_MISMATCH" =
-      "INVALID_DELIVERY_ADDRESS"
-  ) {
+  constructor(message: string) {
     super(message);
     this.name = "DeliveryAddressValidationError";
-    this.code = code;
+    this.code = "INVALID_DELIVERY_ADDRESS";
   }
 }
 
@@ -80,14 +75,6 @@ const trailingDeliveryInstructionPattern =
 
 const normalizeWhitespace = (value: string): string =>
   value.trim().replace(/\s+/g, " ");
-
-export const normalizeCanadianPostalCode = (value: string): string => {
-  const compact = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-
-  return compact.length === 6
-    ? `${compact.slice(0, 3)} ${compact.slice(3)}`
-    : normalizeWhitespace(value).toUpperCase();
-};
 
 export const sanitizeAddressLineForGeocoding = (
   addressLine1: string
@@ -123,7 +110,6 @@ export const buildCanonicalDeliveryAddress = (
     sanitizeAddressLineForGeocoding(address.addressLine1),
     normalizeWhitespace(address.city),
     normalizeProvince(address.province),
-    normalizeCanadianPostalCode(address.postalCode),
     "Canada"
   ].join(", ");
 
@@ -201,14 +187,6 @@ const isProvinceOntario = (result: GoogleGeocodeResult): boolean =>
     getComponent(result, ["administrative_area_level_1"])
   ).some((value) => ["on", "ontario"].includes(value));
 
-const compactPostalCode = (value: string): string =>
-  normalizeCanadianPostalCode(value).replace(/\s/g, "");
-
-const candidatePostalCode = (result: GoogleGeocodeResult): string => {
-  const component = getComponent(result, ["postal_code"]);
-  return compactPostalCode(component?.short_name || component?.long_name || "");
-};
-
 const hasCivicPrecision = (result: GoogleGeocodeResult): boolean => {
   const resultTypes = result.types || [];
   const locationType = result.geometry?.location_type || "";
@@ -226,8 +204,6 @@ export const selectVerifiedGeocodeCandidate = (
   results: GoogleGeocodeResult[],
   address: DeliveryAddressInput
 ): GoogleGeocodeResult | null => {
-  const submittedPostalCode = compactPostalCode(address.postalCode);
-
   const evaluated = results.flatMap((result): CandidateEvaluation[] => {
     const latitude = result.geometry?.location?.lat;
     const longitude = result.geometry?.location?.lng;
@@ -239,19 +215,9 @@ export const selectVerifiedGeocodeCandidate = (
     if (!municipalityMatches(result, address.city)) return [];
     if (!hasCivicPrecision(result)) return [];
 
-    const googlePostalCode = candidatePostalCode(result);
-    if (
-      submittedPostalCode &&
-      googlePostalCode &&
-      submittedPostalCode !== googlePostalCode
-    ) {
-      return [];
-    }
-
     const locationType = result.geometry?.location_type || "";
     const resultTypes = result.types || [];
     const score =
-      (googlePostalCode === submittedPostalCode ? 8 : 0) +
       (locationType === "ROOFTOP"
         ? 5
         : locationType === "RANGE_INTERPOLATED"
@@ -277,24 +243,6 @@ const needsReviewLocation = (
   geocodePlaceId: null,
   geocodeAddressFingerprint: createDeliveryAddressFingerprint(address)
 });
-
-const responseHasPostalMismatch = (
-  results: GoogleGeocodeResult[],
-  address: DeliveryAddressInput
-): boolean => {
-  const submittedPostalCode = compactPostalCode(address.postalCode);
-
-  return results.some((result) => {
-    const googlePostalCode = candidatePostalCode(result);
-    return (
-      isCountryCanada(result) &&
-      isProvinceOntario(result) &&
-      municipalityMatches(result, address.city) &&
-      Boolean(googlePostalCode) &&
-      googlePostalCode !== submittedPostalCode
-    );
-  });
-};
 
 export const geocodeDeliveryAddress = async (
   address: DeliveryAddressInput,
@@ -340,13 +288,6 @@ export const geocodeDeliveryAddress = async (
     const selectedResult = selectVerifiedGeocodeCandidate(results, address);
 
     if (!selectedResult) {
-      if (responseHasPostalMismatch(results, address)) {
-        throw new DeliveryAddressValidationError(
-          "The postal code does not match the selected address.",
-          "POSTAL_CODE_MISMATCH"
-        );
-      }
-
       throw new DeliveryAddressValidationError(
         "Please select a valid delivery address."
       );

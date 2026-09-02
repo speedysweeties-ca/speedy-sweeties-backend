@@ -59,7 +59,6 @@ export const createPickupLocationController = async (
     addressLine1,
     city,
     province,
-    postalCode,
     latitude,
     longitude,
     isActive
@@ -75,14 +74,12 @@ export const createPickupLocationController = async (
     typeof city !== "string" ||
     !city.trim() ||
     typeof province !== "string" ||
-    !province.trim() ||
-    typeof postalCode !== "string" ||
-    !postalCode.trim()
+    !province.trim()
   ) {
     return res.status(400).json({
       success: false,
       message:
-        "name, pickupType, addressLine1, city, province, and postalCode are required"
+        "name, pickupType, addressLine1, city, and province are required"
     });
   }
 
@@ -110,7 +107,6 @@ export const createPickupLocationController = async (
       addressLine1: addressLine1.trim(),
       city: city.trim(),
       province: province.trim(),
-      postalCode: postalCode.trim().toUpperCase(),
       latitude: parsedLatitude,
       longitude: parsedLongitude,
       ...(typeof isActive === "boolean" ? { isActive } : {})
@@ -147,7 +143,6 @@ export const updatePickupLocationController = async (
     addressLine1,
     city,
     province,
-    postalCode,
     latitude,
     longitude,
     isActive
@@ -198,9 +193,6 @@ export const updatePickupLocationController = async (
         : {}),
       ...(typeof province === "string" && province.trim()
         ? { province: province.trim() }
-        : {}),
-      ...(typeof postalCode === "string" && postalCode.trim()
-        ? { postalCode: postalCode.trim().toUpperCase() }
         : {}),
       ...(parsedLatitude !== undefined ? { latitude: parsedLatitude } : {}),
       ...(parsedLongitude !== undefined ? { longitude: parsedLongitude } : {}),

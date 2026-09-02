@@ -39,7 +39,6 @@ const run = async (): Promise<void> => {
       addressLine1: true,
       city: true,
       province: true,
-      postalCode: true,
       deliveryLatitude: true,
       deliveryLongitude: true,
       geocodeStatus: true,
@@ -57,8 +56,7 @@ const run = async (): Promise<void> => {
     const address = {
       addressLine1: order.addressLine1,
       city: order.city,
-      province: order.province,
-      postalCode: order.postalCode
+      province: order.province
     };
     const fingerprint = createDeliveryAddressFingerprint(address);
     const isCurrentVerifiedLocation =
@@ -87,8 +85,7 @@ const run = async (): Promise<void> => {
             id: order.id,
             addressLine1: order.addressLine1,
             city: order.city,
-            province: order.province,
-            postalCode: order.postalCode
+            province: order.province
           },
           data: location
         });
@@ -104,8 +101,7 @@ const run = async (): Promise<void> => {
             id: order.id,
             addressLine1: order.addressLine1,
             city: order.city,
-            province: order.province,
-            postalCode: order.postalCode
+            province: order.province
           },
           data: {
             deliveryLatitude: null,

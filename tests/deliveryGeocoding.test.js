@@ -6,7 +6,6 @@ const {
   createDeliveryAddressFingerprint,
   geocodeDeliveryAddress,
   hasCivicAddressChanged,
-  normalizeCanadianPostalCode,
   sanitizeAddressLineForGeocoding,
   selectVerifiedGeocodeCandidate
 } = require("../dist/services/deliveryGeocoding.service.js");
@@ -14,8 +13,7 @@ const {
 const address = {
   addressLine1: "10A Industrial Dr",
   city: "Guelph",
-  province: "Ontario",
-  postalCode: "N1X 1X1"
+  province: "Ontario"
 };
 
 const result = (overrides = {}) => ({
@@ -47,14 +45,10 @@ const serviceOptions = (payload) => ({
   fetchImplementation: async () => response(payload)
 });
 
-test("normalizes Canadian postal codes", () => {
-  assert.equal(normalizeCanadianPostalCode("n1x1x1"), "N1X 1X1");
-});
-
-test("canonical address uses structured civic fields", () => {
+test("canonical address uses complete structured street fields without postal code", () => {
   assert.equal(
     buildCanonicalDeliveryAddress(address),
-    "10A Industrial Dr, Guelph, ON, N1X 1X1, Canada"
+    "10A Industrial Dr, Guelph, ON, Canada"
   );
 });
 
@@ -78,7 +72,7 @@ test("instruction-only changes keep the same civic fingerprint", () => {
   assert.equal(first, second);
 });
 
-test("valid Ontario civic address is VERIFIED with authoritative coordinates", async () => {
+test("valid complete address without postalCode returns coordinates for order storage", async () => {
   const location = await geocodeDeliveryAddress(
     address,
     serviceOptions({ status: "OK", results: [result()] })
@@ -98,21 +92,27 @@ test("candidate selection evaluates all results rather than accepting the first"
   assert.equal(selected?.place_id, "verified-place");
 });
 
-test("postal-code mismatch is rejected with a correction error", async () => {
-  const mismatched = result({
-    address_components: result().address_components.map((component) =>
-      component.types.includes("postal_code")
-        ? { ...component, long_name: "N1H 7A6", short_name: "N1H 7A6" }
-        : component
-    )
-  });
-  await assert.rejects(
-    geocodeDeliveryAddress(
-      address,
-      serviceOptions({ status: "OK", results: [mismatched] })
-    ),
-    (error) => error.code === "POSTAL_CODE_MISMATCH"
+test("a supplied incorrect postalCode is ignored by geocoding", async () => {
+  let requestedUrl = "";
+  const location = await geocodeDeliveryAddress(
+    { ...address, postalCode: "K1A 0A9" },
+    {
+      apiKey: "test-key",
+      fetchImplementation: async (url) => {
+        requestedUrl = String(url);
+        return response({ status: "OK", results: [result()] });
+      }
+    }
   );
+
+  assert.equal(location.geocodeStatus, "VERIFIED");
+  assert.equal(location.deliveryLatitude, 43.53);
+  assert.equal(location.deliveryLongitude, -80.22);
+  assert.equal(
+    new URL(requestedUrl).searchParams.get("address"),
+    "10A Industrial Dr, Guelph, ON, Canada"
+  );
+  assert.equal(requestedUrl.includes("K1A"), false);
 });
 
 test("wrong municipality is rejected", async () => {
@@ -152,8 +152,7 @@ test("valid Ontario addresses are not rejected based on distance from Guelph", a
   const ottawaAddress = {
     addressLine1: "111 Wellington St",
     city: "Ottawa",
-    province: "Ontario",
-    postalCode: "K1A 0A9"
+    province: "Ontario"
   };
   const ottawaResult = result({
     address_components: result().address_components.map((component) => {
@@ -194,6 +193,27 @@ test("low-confidence partial matches are rejected", async () => {
       address,
       serviceOptions({ status: "OK", results: [result({ partial_match: true })] })
     )
+  );
+});
+
+test("an incomplete street result without civic precision is rejected", async () => {
+  const incompleteResult = result({
+    address_components: result().address_components.filter(
+      (component) => !component.types.includes("street_number")
+    ),
+    types: ["route"],
+    geometry: {
+      location: { lat: 43.53, lng: -80.22 },
+      location_type: "GEOMETRIC_CENTER"
+    }
+  });
+
+  await assert.rejects(
+    geocodeDeliveryAddress(
+      { ...address, addressLine1: "Industrial Dr" },
+      serviceOptions({ status: "OK", results: [incompleteResult] })
+    ),
+    /valid delivery address/
   );
 });
 

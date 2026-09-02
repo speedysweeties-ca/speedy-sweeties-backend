@@ -68,7 +68,6 @@ type UpdateOrderDetailsBody = {
   addressLine1: string;
   city: string;
   province: string;
-  postalCode: string;
   additionalNotes?: string | null;
   paymentMethod: PaymentMethod;
   items: UpdateOrderItemInput[];
@@ -793,7 +792,6 @@ const createOrder = async (
     addressLine1,
     city,
     province,
-    postalCode,
     items,
     paymentMethod,
     additionalNotes,
@@ -808,8 +806,7 @@ const createOrder = async (
   const deliveryAddress: DeliveryAddressInput = {
     addressLine1,
     city,
-    province,
-    postalCode
+    province
   };
   let deliveryLocation: DeliveryLocationData;
 
@@ -850,7 +847,6 @@ const createOrder = async (
         addressLine1: addressLine1.trim(),
         city: city.trim(),
         province: province.trim(),
-        postalCode: postalCode.trim().toUpperCase(),
         loyaltyProgressMonth: getCurrentLoyaltyMonth(),
         dispatcherNotes:
           typeof dispatcherNotes === "string" ? dispatcherNotes.trim() : null
@@ -888,7 +884,6 @@ const createOrder = async (
         addressLine1: addressLine1.trim(),
         city: city.trim(),
         province: province.trim(),
-        postalCode: postalCode.trim().toUpperCase(),
         itemsText: rawItems.map((i) => `${i.quantity}x ${i.name}`).join(", "),
         additionalNotes: finalNotes || null,
         paymentMethod,
@@ -1042,7 +1037,6 @@ export const updateOrderDetailsController = async (
     addressLine1,
     city,
     province,
-    postalCode,
     additionalNotes,
     paymentMethod,
     items
@@ -1079,14 +1073,12 @@ export const updateOrderDetailsController = async (
   const nextDeliveryAddress: DeliveryAddressInput = {
     addressLine1,
     city,
-    province,
-    postalCode
+    province
   };
   const existingAddressFingerprint = createDeliveryAddressFingerprint({
     addressLine1: existingOrder.addressLine1,
     city: existingOrder.city,
-    province: existingOrder.province,
-    postalCode: existingOrder.postalCode
+    province: existingOrder.province
   });
   const nextAddressFingerprint =
     createDeliveryAddressFingerprint(nextDeliveryAddress);
@@ -1124,7 +1116,6 @@ export const updateOrderDetailsController = async (
           addressLine1: addressLine1.trim(),
           city: city.trim(),
           province: province.trim(),
-          postalCode: postalCode.trim().toUpperCase(),
           loyaltyProgressMonth: getCurrentLoyaltyMonth()
         }
       });
@@ -1140,8 +1131,7 @@ export const updateOrderDetailsController = async (
           normalizedEmail,
           addressLine1: addressLine1.trim(),
           city: city.trim(),
-          province: province.trim(),
-          postalCode: postalCode.trim().toUpperCase()
+          province: province.trim()
         }
       });
     }
@@ -1196,7 +1186,6 @@ export const updateOrderDetailsController = async (
         addressLine1: addressLine1.trim(),
         city: city.trim(),
         province: province.trim(),
-        postalCode: postalCode.trim().toUpperCase(),
         itemsText: items.map((i) => `${i.quantity}x ${i.name}`).join(", "),
         additionalNotes:
           typeof additionalNotes === "string" && additionalNotes.trim()

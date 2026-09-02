@@ -37,7 +37,7 @@ type CustomerSearchResult = {
   addressLine1: string;
   city: string;
   province: string;
-  postalCode: string;
+  postalCode: string | null;
   dispatcherNotes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -71,7 +71,6 @@ const getCustomerSearchScore = (
   const email = normalize(customer.email || "");
   const address = normalize(customer.addressLine1 || "");
   const city = normalize(customer.city || "");
-  const postalCode = normalize(customer.postalCode || "");
   const phone = normalizePhone(customer.phone || "");
 
   if (name === query) return 1000;
@@ -79,8 +78,6 @@ const getCustomerSearchScore = (
   if (address === query) return 850;
   if (address.startsWith(query)) return 800;
   if (address.includes(query)) return 750;
-  if (postalCode === query) return 700;
-  if (postalCode.includes(query)) return 650;
   if (city === query) return 600;
   if (city.includes(query)) return 550;
   if (name.includes(query)) return 500;
@@ -291,7 +288,6 @@ export const searchCustomersController = async (
         { normalizedEmail: { contains: normalizedQuery } },
         { addressLine1: { contains: searchText, mode: "insensitive" } },
         { city: { contains: searchText, mode: "insensitive" } },
-        { postalCode: { contains: searchText, mode: "insensitive" } },
       ],
     },
     take: 100,
@@ -353,7 +349,6 @@ export const listCustomersController = async (
               { normalizedEmail: { contains: normalizedQuery } },
               { addressLine1: { contains: searchText, mode: "insensitive" } },
               { city: { contains: searchText, mode: "insensitive" } },
-              { postalCode: { contains: searchText, mode: "insensitive" } },
             ],
           }
         : {},
@@ -488,7 +483,7 @@ export const listCustomerRetentionController = async (
         addressLine1: string;
         city: string;
         province: string;
-        postalCode: string;
+        postalCode: string | null;
         dispatcherNotes: string | null;
         lastOrderAt: Date;
         daysSinceLastOrder: number;
@@ -607,7 +602,6 @@ export const updateCustomerController = async (
     addressLine1,
     city,
     province,
-    postalCode,
     dispatcherNotes,
   } = req.body;
 
@@ -638,11 +632,6 @@ export const updateCustomerController = async (
       ? province.trim()
       : existingCustomer.province;
 
-  const cleanedPostalCode =
-    typeof postalCode === "string" && postalCode.trim()
-      ? postalCode.trim().toUpperCase()
-      : existingCustomer.postalCode;
-
   const updatedCustomer = await prisma.customer.update({
     where: { id },
     data: {
@@ -655,7 +644,6 @@ export const updateCustomerController = async (
       addressLine1: cleanedAddressLine1,
       city: cleanedCity,
       province: cleanedProvince,
-      postalCode: cleanedPostalCode,
       dispatcherNotes:
         typeof dispatcherNotes === "string"
           ? dispatcherNotes.trim()

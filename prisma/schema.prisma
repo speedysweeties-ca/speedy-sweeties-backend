@@ -100,7 +100,7 @@ model Customer {
   addressLine1       String
   city               String
   province           String
-  postalCode         String
+  postalCode         String?
   notes              String?
   dispatcherNotes    String?
 
@@ -191,7 +191,7 @@ model Order {
   addressLine1           String
   city                   String
   province               String
-  postalCode             String
+  postalCode             String?
   phone                  String
   email                  String
   itemsText              String
@@ -355,7 +355,7 @@ model PickupLocation {
   addressLine1 String
   city         String
   province     String
-  postalCode   String
+  postalCode   String?
   latitude     Float
   longitude    Float
   isActive     Boolean  @default(true)
