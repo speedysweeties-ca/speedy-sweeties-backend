@@ -2,6 +2,17 @@ import { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 
+const CATALOG_PICKUP_TYPE_OPTIONS = [
+  "UNKNOWN",
+  "CONVENIENCE",
+  "BEER_STORE",
+  "LCBO",
+  "VAPE",
+  "DISPENSARY"
+] as const;
+
+type CatalogPickupType = (typeof CATALOG_PICKUP_TYPE_OPTIONS)[number];
+
 const normalize = (value: string) => value.trim().toLowerCase();
 
 const normalizeOptional = (value: unknown): string | null => {
@@ -9,6 +20,23 @@ const normalizeOptional = (value: unknown): string | null => {
 
   const trimmed = value.trim();
   return trimmed ? trimmed.toLowerCase() : null;
+};
+
+const parseCatalogPickupTypeFilter = (
+  value: unknown
+): CatalogPickupType | null | undefined => {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") return null;
+
+  const normalizedValue = value.trim().toUpperCase();
+
+  if (!normalizedValue) return undefined;
+
+  return (
+    CATALOG_PICKUP_TYPE_OPTIONS.find(
+      (pickupType) => pickupType === normalizedValue
+    ) ?? null
+  );
 };
 
 export const searchItemsController = async (
@@ -94,10 +122,18 @@ export const listCatalogItemsController = async (
   req: Request,
   res: Response
 ) => {
-  const { query, isActive, page, limit } = req.query;
+  const { query, isActive, page, limit, pickupType } = req.query;
 
   const searchText = typeof query === "string" ? query.trim() : "";
   const normalizedQuery = searchText ? normalize(searchText) : "";
+  const pickupTypeFilter = parseCatalogPickupTypeFilter(pickupType);
+
+  if (pickupTypeFilter === null) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid pickup type"
+    });
+  }
 
   const activeFilter =
     isActive === "true" ? true :
@@ -119,6 +155,7 @@ export const listCatalogItemsController = async (
 
   const where: Prisma.ItemCatalogWhereInput = {
     ...(activeFilter !== undefined ? { isActive: activeFilter } : {}),
+    ...(pickupTypeFilter ? { pickupType: pickupTypeFilter } : {}),
     ...(normalizedQuery.length >= 2
       ? {
           OR: [
