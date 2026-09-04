@@ -831,41 +831,28 @@ const createOrder = async (
   const normalizedEmail = customerEmail ? normalize(customerEmail) : null;
   const normalizedPhone = normalizePhone(customerPhone);
   const normalizedName = normalize(customerName);
+  const orderAddressSnapshot = {
+    addressLine1: addressLine1.trim(),
+    city: city.trim(),
+    province: province.trim()
+  };
 
   const incomingItems: CreateOrderItemInput[] = Array.isArray(items) ? items : [];
   const rawItems: CreateOrderItemInput[] = expandCreateOrderItems(incomingItems);
 
-  let customer = await prisma.customer.findFirst({
+  const matchedCustomer = await prisma.customer.findFirst({
     where: {
       OR: [{ normalizedPhone }, ...(normalizedEmail ? [{ normalizedEmail }] : [])]
     }
   });
 
-  if (!customer) {
-    customer = await prisma.customer.create({
-      data: {
-        fullName: customerName.trim(),
-        normalizedFullName: normalizedName,
-        phone: customerPhone.trim(),
-        normalizedPhone,
-        email: normalizedEmail,
-        normalizedEmail,
-        addressLine1: addressLine1.trim(),
-        city: city.trim(),
-        province: province.trim(),
-        loyaltyProgressMonth: getCurrentLoyaltyMonth(),
-        dispatcherNotes:
-          typeof dispatcherNotes === "string" ? dispatcherNotes.trim() : null
-      }
-    });
-  }
-
-  const shouldApplyFreeDeliveryReward = customer.loyaltyFreeDelivery === true;
+  const shouldApplyFreeDeliveryReward =
+    matchedCustomer?.loyaltyFreeDelivery === true;
   const recurringDriverNotesPlan = resolveRecurringDriverNotes({
     isManualOrder: options.acceptRecurringDriverNotes,
     submitted: recurringDriverNotesSubmitted,
     submittedValue: recurringDriverNotes,
-    storedValue: customer.recurringDriverNotes
+    storedValue: matchedCustomer?.recurringDriverNotes
   });
   const finalNotes = combineOrderNotes(
     [
@@ -879,6 +866,23 @@ const createOrder = async (
   );
 
   const transactionResult = await prisma.$transaction(async (tx) => {
+    const customer =
+      matchedCustomer ??
+      (await tx.customer.create({
+        data: {
+          fullName: customerName.trim(),
+          normalizedFullName: normalizedName,
+          phone: customerPhone.trim(),
+          normalizedPhone,
+          email: normalizedEmail,
+          normalizedEmail,
+          ...orderAddressSnapshot,
+          loyaltyProgressMonth: getCurrentLoyaltyMonth(),
+          dispatcherNotes:
+            typeof dispatcherNotes === "string" ? dispatcherNotes.trim() : null
+        }
+      }));
+
     if (shouldApplyFreeDeliveryReward) {
       await tx.customer.update({
         where: { id: customer.id },
@@ -899,9 +903,7 @@ const createOrder = async (
         customerName: customerName.trim(),
         phone: customerPhone.trim(),
         email: customerEmail.trim().toLowerCase(),
-        addressLine1: addressLine1.trim(),
-        city: city.trim(),
-        province: province.trim(),
+        ...orderAddressSnapshot,
         itemsText: rawItems.map((i) => `${i.quantity}x ${i.name}`).join(", "),
         additionalNotes: finalNotes,
         paymentMethod,
@@ -912,6 +914,11 @@ const createOrder = async (
         trackingTokenExpiresAt: trackingCredential.expiresAt,
         ...deliveryLocation
       }
+    });
+
+    await tx.customer.update({
+      where: { id: customer.id },
+      data: orderAddressSnapshot
     });
 
     await persistSubmittedRecurringDriverNotes(
@@ -968,12 +975,13 @@ const createOrder = async (
     return {
       order,
       autoDispatchNotification,
-      trackingToken: trackingCredential.token
+      trackingToken: trackingCredential.token,
+      customerId: customer.id
     };
   });
 
-  const { order, autoDispatchNotification, trackingToken } = transactionResult;
-  const loyaltyAccessToken = signCustomerLoyaltyToken(customer.id);
+  const { order, autoDispatchNotification, trackingToken, customerId } = transactionResult;
+  const loyaltyAccessToken = signCustomerLoyaltyToken(customerId);
   const {
     trackingTokenHash: _trackingTokenHash,
     trackingTokenExpiresAt: _trackingTokenExpiresAt,

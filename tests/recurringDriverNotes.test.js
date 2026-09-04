@@ -121,59 +121,60 @@ test("manual creation atomically snapshots and persists against the resolved cus
   );
   replaceForTest(
     t,
-    prisma.customer,
-    "create",
-    async () => ({
-      ...existingCustomer,
-      id: "newly-created-customer",
-      recurringDriverNotes: null
-    })
-  );
-  replaceForTest(t, prisma, "$transaction", async (callback) => {
-    const pendingCustomerUpdates = [];
-    let createdOrder;
-    const tx = {
-      customer: {
-        update: async (args) => {
-          pendingCustomerUpdates.push(args);
-          return existingCustomer;
-        }
-      },
-      order: {
-        create: async ({ data }) => {
-          if (failOrderCreation) throw new Error("simulated order failure");
-          createdOrder = { id: `order-${createdOrders.length + 1}`, ...data };
-          return createdOrder;
+    prisma,
+    "$transaction",
+    async (callback) => {
+      const pendingCustomerUpdates = [];
+      let createdOrder;
+      const tx = {
+        customer: {
+          create: async ({ data }) => ({
+            ...existingCustomer,
+            ...data,
+            id: "newly-created-customer",
+            recurringDriverNotes: null
+          }),
+          update: async (args) => {
+            pendingCustomerUpdates.push(args);
+            return existingCustomer;
+          }
         },
-        findUniqueOrThrow: async () => ({
-          ...createdOrder,
-          items: [],
-          assignedDriver: null
-        })
-      },
-      itemCatalog: {
-        findFirst: async () => ({
-          id: "catalog-item",
-          pickupType: "OTHER"
-        }),
-        create: async () => ({
-          id: "catalog-item",
-          pickupType: "OTHER"
-        })
-      },
-      orderItem: {
-        create: async () => ({ id: "order-item" })
-      },
-      systemSetting: {
-        findUnique: async () => ({ value: "false" })
-      }
-    };
+        order: {
+          create: async ({ data }) => {
+            if (failOrderCreation) throw new Error("simulated order failure");
+            createdOrder = { id: `order-${createdOrders.length + 1}`, ...data };
+            return createdOrder;
+          },
+          findUniqueOrThrow: async () => ({
+            ...createdOrder,
+            items: [],
+            assignedDriver: null
+          })
+        },
+        itemCatalog: {
+          findFirst: async () => ({
+            id: "catalog-item",
+            pickupType: "OTHER"
+          }),
+          create: async () => ({
+            id: "catalog-item",
+            pickupType: "OTHER"
+          })
+        },
+        orderItem: {
+          create: async () => ({ id: "order-item" })
+        },
+        systemSetting: {
+          findUnique: async () => ({ value: "false" })
+        }
+      };
 
-    const result = await callback(tx);
-    customerUpdates.push(...pendingCustomerUpdates);
-    createdOrders.push(createdOrder);
-    return result;
-  });
+      const result = await callback(tx);
+      customerUpdates.push(...pendingCustomerUpdates);
+      createdOrders.push(createdOrder);
+      return result;
+    }
+  );
 
   const manualResponse = responseRecorder();
   await createManualOrderController(
@@ -195,6 +196,14 @@ test("manual creation atomically snapshots and persists against the resolved cus
   );
   assert.deepEqual(customerUpdates[0], {
     where: { id: "resolved-customer" },
+    data: {
+      addressLine1: "10A Industrial Dr",
+      city: "Guelph",
+      province: "Ontario"
+    }
+  });
+  assert.deepEqual(customerUpdates[1], {
+    where: { id: "resolved-customer" },
     data: { recurringDriverNotes: "$10 distance charge" }
   });
 
@@ -212,7 +221,15 @@ test("manual creation atomically snapshots and persists against the resolved cus
 
   assert.equal(newCustomerResponse.statusCode, 201);
   assert.equal(createdOrders[1].customerId, "newly-created-customer");
-  assert.deepEqual(customerUpdates[1], {
+  assert.deepEqual(customerUpdates[2], {
+    where: { id: "newly-created-customer" },
+    data: {
+      addressLine1: "10A Industrial Dr",
+      city: "Guelph",
+      province: "Ontario"
+    }
+  });
+  assert.deepEqual(customerUpdates[3], {
     where: { id: "newly-created-customer" },
     data: { recurringDriverNotes: "New customer note" }
   });
@@ -232,7 +249,15 @@ test("manual creation atomically snapshots and persists against the resolved cus
 
   assert.equal(publicResponse.statusCode, 201);
   assert.equal(createdOrders[2].additionalNotes, "Public order note");
-  assert.equal(customerUpdates.length, 2);
+  assert.equal(customerUpdates.length, 5);
+  assert.deepEqual(customerUpdates[4], {
+    where: { id: "resolved-customer" },
+    data: {
+      addressLine1: "10A Industrial Dr",
+      city: "Guelph",
+      province: "Ontario"
+    }
+  });
 
   failOrderCreation = true;
   await assert.rejects(
@@ -247,7 +272,7 @@ test("manual creation atomically snapshots and persists against the resolved cus
     ),
     /simulated order failure/
   );
-  assert.equal(customerUpdates.length, 2);
+  assert.equal(customerUpdates.length, 5);
 });
 
 test("existing notes are snapshotted when an older dispatcher omits the field without scheduling an update", () => {
