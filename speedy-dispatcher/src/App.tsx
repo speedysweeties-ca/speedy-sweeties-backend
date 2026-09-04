@@ -643,6 +643,9 @@ function App() {
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogActiveFilter, setCatalogActiveFilter] = useState<"all" | "active" | "inactive">("all");
+  const [catalogPickupTypeFilter, setCatalogPickupTypeFilter] = useState<
+    (typeof CATALOG_PICKUP_TYPE_OPTIONS)[number] | ""
+  >("");
   const [catalogPage, setCatalogPage] = useState(1);
   const [catalogPageSize, setCatalogPageSize] = useState(50);
   const [catalogTotalItems, setCatalogTotalItems] = useState(0);
@@ -975,7 +978,14 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     if (activeTab !== "CATALOG") return;
 
     void fetchCatalogItems(token, true, catalogPage, catalogPageSize);
-  }, [activeTab, token, catalogActiveFilter, catalogPage, catalogPageSize]);
+  }, [
+    activeTab,
+    token,
+    catalogActiveFilter,
+    catalogPickupTypeFilter,
+    catalogPage,
+    catalogPageSize,
+  ]);
 
   useEffect(() => {
     if (!token) return;
@@ -2216,6 +2226,10 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
       if (catalogActiveFilter === "inactive") {
         params.append("isActive", "false");
+      }
+
+      if (catalogPickupTypeFilter) {
+        params.append("pickupType", catalogPickupTypeFilter);
       }
 
       url += `?${params.toString()}`;
@@ -3946,6 +3960,13 @@ const handleSaveEditedOrder = async (orderId: string) => {
               : prev
           );
         }
+
+        if (
+          catalogPickupTypeFilter &&
+          normalizedPickupType !== catalogPickupTypeFilter
+        ) {
+          await fetchCatalogItems(token, false);
+        }
       } else {
         alert(getApiErrorMessage(data, "Failed to update pickup type"));
       }
@@ -4416,7 +4437,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
           </div>
 
           <form
-            className="grid gap-3 md:grid-cols-[1fr_220px_160px_auto] mt-6"
+            className="grid gap-3 mt-6 md:items-end md:grid-cols-[minmax(0,1fr)_180px_180px_160px_auto]"
             onSubmit={(e) => {
               e.preventDefault();
               handleCatalogSearch();
@@ -4446,6 +4467,37 @@ const handleSaveEditedOrder = async (orderId: string) => {
               <option value="active">Active only</option>
               <option value="inactive">Inactive only</option>
             </select>
+
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor="catalog-pickup-type"
+                className="text-sm font-medium text-zinc-300"
+              >
+                Pickup Type
+              </label>
+              <select
+                id="catalog-pickup-type"
+                value={catalogPickupTypeFilter}
+                onChange={(e) => {
+                  setCatalogPickupTypeFilter(
+                    e.target.value as
+                      | (typeof CATALOG_PICKUP_TYPE_OPTIONS)[number]
+                      | ""
+                  );
+                  setCatalogPage(1);
+                  setEditingCatalogItemId(null);
+                  setCatalogEditForm(null);
+                }}
+                className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+              >
+                <option value="">All Pickup Types</option>
+                {CATALOG_PICKUP_TYPE_OPTIONS.map((pickupType) => (
+                  <option key={pickupType} value={pickupType}>
+                    {pickupType.replace(/_/g, " ")}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <select
               value={catalogPageSize}
