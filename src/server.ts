@@ -2,11 +2,13 @@ import { Server } from "node:http";
 import app from "./app";
 import { env } from "./config/env";
 import { prisma } from "./lib/prisma";
+import { startUndispatchedOrderAlertMonitor } from "./services/undispatchedOrderAlert.service";
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 let server: Server | undefined;
 let isShuttingDown = false;
+let stopUndispatchedOrderAlertMonitor: (() => void) | undefined;
 
 async function shutdown(signal: string): Promise<void> {
   if (isShuttingDown) {
@@ -15,6 +17,8 @@ async function shutdown(signal: string): Promise<void> {
 
   isShuttingDown = true;
   console.log(`${signal} received. Starting graceful shutdown.`);
+
+  stopUndispatchedOrderAlertMonitor?.();
 
   const forceExitTimeout = setTimeout(() => {
     console.error("Graceful shutdown timed out. Forcing process exit.");
@@ -54,6 +58,8 @@ async function startServer(): Promise<void> {
     server = app.listen(env.PORT, () => {
       console.log(`Server running on http://localhost:${env.PORT}`);
     });
+
+    stopUndispatchedOrderAlertMonitor = startUndispatchedOrderAlertMonitor();
   } catch (error) {
     console.error("Failed to start server", error instanceof Error ? error.name : typeof error);
     process.exit(1);
