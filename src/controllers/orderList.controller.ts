@@ -112,6 +112,12 @@ export const listAllOrdersController = async (
             lastName: true,
             email: true
           }
+        },
+        dispatchedBy: {
+          select: {
+            firstName: true,
+            lastName: true
+          }
         }
       }
     }),
