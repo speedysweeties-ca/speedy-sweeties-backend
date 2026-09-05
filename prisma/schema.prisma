@@ -213,6 +213,9 @@ model Order {
   cancelledFromStatus OrderStatus?
   cancellationReason  String?
 
+  undispatchedAlertClaimedAt DateTime?
+  undispatchedAlertSentAt    DateTime?
+
   deliveryLatitude          Float?
   deliveryLongitude         Float?
   geocodeStatus             DeliveryGeocodeStatus?
@@ -237,6 +240,7 @@ model Order {
   @@index([priority])
   @@index([createdAt])
   @@index([dispatchedAt])
+  @@index([undispatchedAlertSentAt])
   @@index([cancelledAt])
   @@index([cancelledFromStatus])
   @@index([geocodeStatus])
