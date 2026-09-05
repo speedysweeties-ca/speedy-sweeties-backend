@@ -18,9 +18,24 @@ const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 
+const allowedCorsOrigins = env.CORS_ORIGIN.split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const allowAllCorsOrigins = allowedCorsOrigins.includes("*");
+
 app.use(
   cors({
-    origin: env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN,
+    origin(origin, callback) {
+      if (
+        !origin ||
+        allowAllCorsOrigins ||
+        allowedCorsOrigins.includes(origin)
+      ) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("CORS origin is not allowed"));
+    },
     credentials: true
   })
 );
