@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { createHash, randomBytes } from "crypto";
 import {
+  DispatchSource,
   Prisma,
   OrderStatus,
   OrderPriority,
@@ -27,6 +28,7 @@ import {
   persistSubmittedRecurringDriverNotes,
   resolveRecurringDriverNotes
 } from "../services/recurringDriverNotes.service";
+import { getFirstDispatchAttribution } from "../utils/dispatchAttribution";
 
 /* ================= TYPES ================= */
 
@@ -107,6 +109,12 @@ const orderInclude = {
       firstName: true,
       lastName: true,
       email: true
+    }
+  },
+  dispatchedBy: {
+    select: {
+      firstName: true,
+      lastName: true
     }
   }
 } satisfies Prisma.OrderInclude;
@@ -676,6 +684,8 @@ const autoAssignCreatedOrderToLeastBusyOnlineDriver = async (
       assignedDriverId: selected.driver.id,
       assignedAt: now,
       dispatchedAt: now,
+      dispatchedByUserId: null,
+      dispatchSource: DispatchSource.AUTO,
       orderStatus: OrderStatus.DISPATCHED
     },
     select: {
@@ -1266,6 +1276,8 @@ export const updateOrderStatusController = async (
       assignedDriverId: true,
       assignedAt: true,
       dispatchedAt: true,
+      dispatchedByUserId: true,
+      dispatchSource: true,
       acceptedAt: true,
       outForDeliveryAt: true,
       deliveredAt: true,
@@ -1325,21 +1337,29 @@ export const updateOrderStatusController = async (
       ? cancellationReason.trim()
       : null;
 
-  const statusTimestampData: Prisma.OrderUpdateInput = {};
+  const statusTimestampData: Prisma.OrderUncheckedUpdateManyInput = {};
+
+  const firstDispatchAttribution = getFirstDispatchAttribution(
+    existingOrder.dispatchedAt,
+    authUser
+  );
 
   if (orderStatus === OrderStatus.DISPATCHED) {
     statusTimestampData.dispatchedAt = existingOrder.dispatchedAt ?? now;
+    Object.assign(statusTimestampData, firstDispatchAttribution);
   }
 
   if (orderStatus === OrderStatus.ACCEPTED) {
     statusTimestampData.dispatchedAt =
       existingOrder.dispatchedAt ?? existingOrder.assignedAt ?? now;
+    Object.assign(statusTimestampData, firstDispatchAttribution);
     statusTimestampData.acceptedAt = existingOrder.acceptedAt ?? now;
   }
 
   if (orderStatus === OrderStatus.OUT_FOR_DELIVERY) {
     statusTimestampData.dispatchedAt =
       existingOrder.dispatchedAt ?? existingOrder.assignedAt ?? now;
+    Object.assign(statusTimestampData, firstDispatchAttribution);
     statusTimestampData.acceptedAt = existingOrder.acceptedAt ?? now;
     statusTimestampData.outForDeliveryAt = existingOrder.outForDeliveryAt ?? now;
   }
@@ -1347,12 +1367,13 @@ export const updateOrderStatusController = async (
   if (orderStatus === OrderStatus.DELIVERED) {
     statusTimestampData.dispatchedAt =
       existingOrder.dispatchedAt ?? existingOrder.assignedAt ?? now;
+    Object.assign(statusTimestampData, firstDispatchAttribution);
     statusTimestampData.acceptedAt = existingOrder.acceptedAt ?? now;
     statusTimestampData.outForDeliveryAt = existingOrder.outForDeliveryAt ?? now;
     statusTimestampData.deliveredAt = existingOrder.deliveredAt ?? now;
   }
 
-  const updateData: Prisma.OrderUpdateInput =
+  const updateData: Prisma.OrderUncheckedUpdateManyInput =
     orderStatus === OrderStatus.CANCELLED
       ? {
           orderStatus: OrderStatus.CANCELLED,

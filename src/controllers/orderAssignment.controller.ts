@@ -6,6 +6,7 @@ import {
 import { Request, Response } from "express";
 import { messaging } from "../config/firebase";
 import { prisma } from "../lib/prisma";
+import { getFirstDispatchAttribution } from "../utils/dispatchAttribution";
 
 type AssignDriverParams = {
   id: string;
@@ -68,6 +69,14 @@ export const assignDriverToOrderController = async (
 ): Promise<void> => {
   const { id } = req.params;
   const { driverId, priority } = req.body;
+  const authUser = (req as Request & {
+    user?: { userId: string; role: UserRole };
+  }).user;
+
+  if (!authUser?.userId) {
+    res.status(401).json({ success: false, message: "Unauthorized" });
+    return;
+  }
 
   const existingOrder = await prisma.order.findUnique({
     where: { id },
@@ -111,7 +120,9 @@ export const assignDriverToOrderController = async (
         ...(existingOrder.orderStatus === OrderStatus.DISPATCHED
           ? {
               orderStatus: OrderStatus.PLACED,
-              dispatchedAt: null
+              dispatchedAt: null,
+              dispatchedByUserId: null,
+              dispatchSource: null
             }
           : {}),
         ...(priority ? { priority } : {})
@@ -138,6 +149,9 @@ export const assignDriverToOrderController = async (
         items: true,
         assignedDriver: {
           select: { id: true, firstName: true, lastName: true, email: true }
+        },
+        dispatchedBy: {
+          select: { firstName: true, lastName: true }
         }
       }
     });
@@ -193,6 +207,12 @@ export const assignDriverToOrderController = async (
             lastName: true,
             email: true
           }
+        },
+        dispatchedBy: {
+          select: {
+            firstName: true,
+            lastName: true
+          }
         }
       }
     });
@@ -220,7 +240,8 @@ export const assignDriverToOrderController = async (
       ...(shouldMarkDispatched
         ? {
             orderStatus: OrderStatus.DISPATCHED,
-            dispatchedAt: existingOrder.dispatchedAt ?? now
+            dispatchedAt: existingOrder.dispatchedAt ?? now,
+            ...getFirstDispatchAttribution(existingOrder.dispatchedAt, authUser)
           }
         : {}),
       ...(priority ? { priority } : {})
@@ -247,6 +268,9 @@ export const assignDriverToOrderController = async (
       items: true,
       assignedDriver: {
         select: { id: true, firstName: true, lastName: true, email: true }
+      },
+      dispatchedBy: {
+        select: { firstName: true, lastName: true }
       }
     }
   });

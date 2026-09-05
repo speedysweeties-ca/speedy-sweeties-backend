@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
-import { OrderStatus, Prisma } from "@prisma/client";
+import { OrderStatus, Prisma, UserRole } from "@prisma/client";
 import { messaging } from "../config/firebase";
 import { prisma } from "../lib/prisma";
+import { getFirstDispatchAttribution } from "../utils/dispatchAttribution";
 
 type AuthenticatedUser = {
   userId: string;
@@ -25,6 +26,12 @@ const orderInclude = {
       firstName: true,
       lastName: true,
       email: true
+    }
+  },
+  dispatchedBy: {
+    select: {
+      firstName: true,
+      lastName: true
     }
   }
 } satisfies Prisma.OrderInclude;
@@ -247,6 +254,10 @@ export const driverActionController = async (
       data: {
         orderStatus: OrderStatus.ACCEPTED,
         dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now,
+        ...getFirstDispatchAttribution(order.dispatchedAt, {
+          userId: user.userId,
+          role: UserRole.DRIVER
+        }),
         acceptedAt: order.acceptedAt ?? now
       }
     });
@@ -311,6 +322,10 @@ export const driverActionController = async (
       data: {
         orderStatus: OrderStatus.OUT_FOR_DELIVERY,
         dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now,
+        ...getFirstDispatchAttribution(order.dispatchedAt, {
+          userId: user.userId,
+          role: UserRole.DRIVER
+        }),
         acceptedAt: order.acceptedAt ?? now,
         outForDeliveryAt: order.outForDeliveryAt ?? now
       }
@@ -393,6 +408,10 @@ export const driverActionController = async (
       data: {
         orderStatus: OrderStatus.DELIVERED,
         dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now,
+        ...getFirstDispatchAttribution(order.dispatchedAt, {
+          userId: user.userId,
+          role: UserRole.DRIVER
+        }),
         acceptedAt: order.acceptedAt ?? now,
         outForDeliveryAt: order.outForDeliveryAt ?? now,
         deliveredAt: order.deliveredAt ?? now

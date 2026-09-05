@@ -48,6 +48,12 @@ enum DeliveryGeocodeStatus {
   UNVERIFIED
 }
 
+enum DispatchSource {
+  MANUAL
+  AUTO
+  DRIVER
+}
+
 model User {
   id                  String   @id @default(uuid())
   email               String   @unique
@@ -79,6 +85,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   assignedOrders       Order[]                         @relation("DriverOrders")
+  dispatchedOrders     Order[]                         @relation("DispatchedOrders")
   checklistCompletions DispatcherChecklistCompletion[] @relation("ChecklistCompletedBy")
 
   @@index([role])
@@ -206,6 +213,8 @@ model Order {
   updatedAt              DateTime      @updatedAt
 
   dispatchedAt        DateTime?
+  dispatchedByUserId  String?
+  dispatchSource      DispatchSource?
   acceptedAt          DateTime?
   outForDeliveryAt    DateTime?
   deliveredAt         DateTime?
@@ -230,12 +239,14 @@ model Order {
 
   customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   assignedDriver User?     @relation("DriverOrders", fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  dispatchedBy   User?     @relation("DispatchedOrders", fields: [dispatchedByUserId], references: [id], onDelete: SetNull)
 
   items          OrderItem[]
   digitalReceipt DigitalReceipt?
 
   @@index([customerId])
   @@index([assignedDriverId])
+  @@index([dispatchedByUserId])
   @@index([orderStatus])
   @@index([priority])
   @@index([createdAt])

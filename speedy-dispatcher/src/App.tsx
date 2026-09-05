@@ -28,6 +28,8 @@ type OrderStatus =
 
 type PaymentMethod = "CASH" | "DEBIT" | "VISA" | "MASTERCARD" | "ETRANSFER";
 
+type DispatchSource = "MANUAL" | "AUTO" | "DRIVER";
+
 type OrderItem = {
   id?: string;
   name: string;
@@ -54,6 +56,11 @@ type AssignedDriver = {
   firstName?: string | null;
   lastName?: string | null;
   email: string;
+};
+
+type DispatcherIdentity = {
+  firstName?: string | null;
+  lastName?: string | null;
 };
 
 type DriverOption = {
@@ -114,6 +121,8 @@ type Order = {
   items?: OrderItem[];
   digitalReceipt?: DigitalReceipt | null;
   assignedDriver?: AssignedDriver | null;
+  dispatchedBy?: DispatcherIdentity | null;
+  dispatchSource?: DispatchSource | null;
   createdAt?: string;
   dispatchedAt?: string;
   acceptedAt?: string;
@@ -1840,6 +1849,18 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim();
 
     return fullName || user.email;
+  };
+
+  const getDispatcherDisplayName = (order: Order) => {
+    if (order.dispatchedBy) {
+      const fullName = `${order.dispatchedBy.firstName || ""} ${order.dispatchedBy.lastName || ""}`.trim();
+      return fullName || "Name not set";
+    }
+
+    if (order.dispatchSource === "AUTO") return "Auto Dispatch";
+    if (order.dispatchSource === "DRIVER") return "Driver accepted";
+
+    return "Not recorded";
   };
 
   const formatBusinessDate = (value?: string | null) => {
@@ -6255,7 +6276,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
              <>
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1180px] text-xs">
+              <table className="w-full min-w-[1280px] text-xs">
                 <thead className="bg-zinc-800 text-zinc-300">
                   <tr>
                     <th className="text-left p-2">Order #</th>
@@ -6265,6 +6286,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     <th className="text-left p-2">Address</th>
                     <th className="text-left p-2">Placed</th>
                     <th className="text-left p-2">Dispatched</th>
+                    <th className="text-left p-2">Dispatched By</th>
                     <th className="text-left p-2">Accepted</th>
                     <th className="text-left p-2">Out For Delivery</th>
                     <th className="text-left p-2">Completed / Cancelled</th>
@@ -6323,6 +6345,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
                       <td className="p-2 align-top">
                         {renderStackedDateTime(order.dispatchedAt)}
+                      </td>
+
+                      <td className="p-2 align-top">
+                        <p className="font-semibold">{getDispatcherDisplayName(order)}</p>
                       </td>
 
                       <td className="p-2 align-top">
