@@ -8,6 +8,13 @@ type OrderStatus =
 
 type PaymentMethod = "CASH" | "DEBIT" | "VISA" | "MASTERCARD" | "ETRANSFER";
 
+type OrderSource =
+  | "UNKNOWN"
+  | "ANDROID_APP"
+  | "IOS_APP"
+  | "WEBFLOW"
+  | "DISPATCHER_MANUAL";
+
 type GrowthPeriodMetrics = {
   totalOrders: number;
   deliveredOrders: number;
@@ -15,6 +22,8 @@ type GrowthPeriodMetrics = {
   activeOrders: number;
   uniqueDeliveredCustomers: number;
   newCustomers: number;
+  newCustomersWithRepeatOrder: number;
+  secondOrderConversionRate: number | null;
   returningCustomers: number;
   returningCustomerRate: number | null;
   completionRate: number | null;
@@ -32,7 +41,37 @@ type GrowthPeriodMetrics = {
     receiptRate: number | null;
     dispatchTimestampRate: number | null;
     deliveryTimeRate: number | null;
+    orderSourceRate: number | null;
+    campaignTagRate: number | null;
   };
+  sources: Array<{
+    source: OrderSource;
+    totalOrders: number;
+    deliveredOrders: number;
+    cancelledOrders: number;
+    uniqueDeliveredCustomers: number;
+    newCustomers: number;
+    returningCustomers: number;
+    newCustomersWithRepeatOrder: number;
+    secondOrderConversionRate: number | null;
+    completionRate: number | null;
+    deliveryFeesRecorded: number;
+  }>;
+  campaigns: Array<{
+    utmSource: string | null;
+    utmMedium: string | null;
+    utmCampaign: string | null;
+    referralCode: string | null;
+    orderSources: OrderSource[];
+    totalOrders: number;
+    deliveredOrders: number;
+    cancelledOrders: number;
+    newCustomers: number;
+    newCustomersWithRepeatOrder: number;
+    secondOrderConversionRate: number | null;
+    completionRate: number | null;
+    deliveryFeesRecorded: number;
+  }>;
   daily: Array<{
     date: string;
     totalOrders: number;
@@ -85,6 +124,20 @@ const formatNumber = (value: number | null, suffix = ""): string => {
 
 const formatDateKey = (value: string): string => {
   return dateFormatter.format(new Date(`${value}T12:00:00-04:00`));
+};
+
+const orderSourceLabels: Record<OrderSource, string> = {
+  UNKNOWN: "Unknown / Historical",
+  ANDROID_APP: "Android App",
+  IOS_APP: "iPhone App",
+  WEBFLOW: "Website",
+  DISPATCHER_MANUAL: "Manual / Telephone"
+};
+
+const campaignName = (
+  campaign: GrowthPeriodMetrics["campaigns"][number]
+): string => {
+  return campaign.utmCampaign || campaign.referralCode || "Tagged traffic";
 };
 
 const changeFromPrevious = (
@@ -312,6 +365,9 @@ export function GrowthCommandCentre({
         .slice(0, 8)
         .map((row) => ({ label: String(row.hour), value: row.totalOrders }))
     : [];
+  const activeSources = current
+    ? current.sources.filter((row) => row.totalOrders > 0)
+    : [];
 
   return (
     <div className="space-y-6">
@@ -429,6 +485,36 @@ export function GrowthCommandCentre({
           </section>
 
           <section className="grid gap-4 md:grid-cols-3">
+            <MetricCard
+              label="Second-Order Conversion"
+              value={formatNumber(current.secondOrderConversionRate, "%")}
+              comparison={pointChangeFromPrevious(
+                current.secondOrderConversionRate,
+                previous.secondOrderConversionRate
+              )}
+              note={`${current.newCustomersWithRepeatOrder} of ${current.newCustomers} new customers ordered again by period end`}
+            />
+            <MetricCard
+              label="Order Source Recorded"
+              value={formatNumber(current.dataCoverage.orderSourceRate, "%")}
+              comparison={pointChangeFromPrevious(
+                current.dataCoverage.orderSourceRate,
+                previous.dataCoverage.orderSourceRate
+              )}
+              note="Historical orders remain Unknown until new tracking data arrives"
+            />
+            <MetricCard
+              label="Campaign-Tagged Orders"
+              value={formatNumber(current.dataCoverage.campaignTagRate, "%")}
+              comparison={pointChangeFromPrevious(
+                current.dataCoverage.campaignTagRate,
+                previous.dataCoverage.campaignTagRate
+              )}
+              note="Optional UTM or referral tags used to measure advertising"
+            />
+          </section>
+
+          <section className="grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
               <p className="text-sm font-semibold text-zinc-400">Active Right Now</p>
               <p className="mt-2 text-3xl font-black">{data.live.activeOrders}</p>
@@ -472,6 +558,122 @@ export function GrowthCommandCentre({
             <div className="mt-5">
               <DailyOrdersChart data={current.daily} />
             </div>
+          </section>
+
+          <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-xl">
+            <h3 className="text-xl font-bold">Where Orders Come From</h3>
+            <p className="mt-1 text-sm text-zinc-400">
+              Order volume uses the source saved on each order. New customers are credited to their first completed order.
+            </p>
+            <div className="mt-5 overflow-x-auto">
+              <table className="min-w-[920px] w-full text-left text-sm">
+                <thead className="border-b border-zinc-700 text-xs uppercase tracking-wide text-zinc-400">
+                  <tr>
+                    <th className="px-3 py-3">Source</th>
+                    <th className="px-3 py-3 text-right">Orders</th>
+                    <th className="px-3 py-3 text-right">Completed</th>
+                    <th className="px-3 py-3 text-right">New</th>
+                    <th className="px-3 py-3 text-right">Returning</th>
+                    <th className="px-3 py-3 text-right">Completion</th>
+                    <th className="px-3 py-3 text-right">Delivery Fees</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeSources.map((source) => (
+                    <tr key={source.source} className="border-b border-zinc-800 last:border-0">
+                      <td className="px-3 py-4 font-semibold text-white">
+                        {orderSourceLabels[source.source]}
+                      </td>
+                      <td className="px-3 py-4 text-right">{source.totalOrders}</td>
+                      <td className="px-3 py-4 text-right">{source.deliveredOrders}</td>
+                      <td className="px-3 py-4 text-right">{source.newCustomers}</td>
+                      <td className="px-3 py-4 text-right">{source.returningCustomers}</td>
+                      <td className="px-3 py-4 text-right">
+                        {formatNumber(source.completionRate, "%")}
+                      </td>
+                      <td className="px-3 py-4 text-right font-semibold text-emerald-300">
+                        {currencyFormatter.format(source.deliveryFeesRecorded)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-xs text-zinc-500">
+              Returning-customer counts are unique within each source and can overlap if one customer uses more than one ordering surface.
+            </p>
+          </section>
+
+          <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-xl">
+            <h3 className="text-xl font-bold">Campaign Performance</h3>
+            <p className="mt-1 text-sm text-zinc-400">
+              UTM and referral tags show which advertising creates completed orders and repeat customers.
+            </p>
+            {current.campaigns.length === 0 ? (
+              <div className="mt-5 rounded-xl border border-dashed border-zinc-700 bg-zinc-800/40 p-5 text-zinc-400">
+                No campaign-tagged orders yet. Tracking begins as each ordering surface is connected.
+              </div>
+            ) : (
+              <div className="mt-5 overflow-x-auto">
+                <table className="min-w-[1080px] w-full text-left text-sm">
+                  <thead className="border-b border-zinc-700 text-xs uppercase tracking-wide text-zinc-400">
+                    <tr>
+                      <th className="px-3 py-3">Campaign</th>
+                      <th className="px-3 py-3">Traffic</th>
+                      <th className="px-3 py-3">Order Surface</th>
+                      <th className="px-3 py-3 text-right">Orders</th>
+                      <th className="px-3 py-3 text-right">Completed</th>
+                      <th className="px-3 py-3 text-right">New</th>
+                      <th className="px-3 py-3 text-right">Ordered Again</th>
+                      <th className="px-3 py-3 text-right">Completion</th>
+                      <th className="px-3 py-3 text-right">Delivery Fees</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {current.campaigns.map((campaign) => (
+                      <tr
+                        key={JSON.stringify([
+                          campaign.utmSource,
+                          campaign.utmMedium,
+                          campaign.utmCampaign,
+                          campaign.referralCode
+                        ])}
+                        className="border-b border-zinc-800 last:border-0"
+                      >
+                        <td className="px-3 py-4 font-semibold text-white">
+                          {campaignName(campaign)}
+                        </td>
+                        <td className="px-3 py-4 text-zinc-300">
+                          {[campaign.utmSource, campaign.utmMedium]
+                            .filter(Boolean)
+                            .join(" / ") || "Referral"}
+                        </td>
+                        <td className="px-3 py-4 text-zinc-300">
+                          {campaign.orderSources
+                            .map((source) => orderSourceLabels[source])
+                            .join(", ")}
+                        </td>
+                        <td className="px-3 py-4 text-right">{campaign.totalOrders}</td>
+                        <td className="px-3 py-4 text-right">{campaign.deliveredOrders}</td>
+                        <td className="px-3 py-4 text-right">{campaign.newCustomers}</td>
+                        <td className="px-3 py-4 text-right">
+                          {campaign.newCustomersWithRepeatOrder}
+                        </td>
+                        <td className="px-3 py-4 text-right">
+                          {formatNumber(campaign.completionRate, "%")}
+                        </td>
+                        <td className="px-3 py-4 text-right font-semibold text-emerald-300">
+                          {currencyFormatter.format(campaign.deliveryFeesRecorded)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="mt-3 text-xs text-zinc-500">
+              “Ordered Again” means a new customer reached at least two completed orders by the selected period’s end.
+            </p>
           </section>
 
           <section className="grid gap-6 lg:grid-cols-2">
@@ -567,7 +769,8 @@ export function GrowthCommandCentre({
                   ["Customer linked", current.dataCoverage.customerLinkRate],
                   ["Receipt recorded", current.dataCoverage.receiptRate],
                   ["Dispatch timestamp", current.dataCoverage.dispatchTimestampRate],
-                  ["Delivery-time timestamp", current.dataCoverage.deliveryTimeRate]
+                  ["Delivery-time timestamp", current.dataCoverage.deliveryTimeRate],
+                  ["Order source recorded", current.dataCoverage.orderSourceRate]
                 ].map(([label, value]) => (
                   <div key={String(label)}>
                     <div className="mb-1 flex justify-between text-sm">

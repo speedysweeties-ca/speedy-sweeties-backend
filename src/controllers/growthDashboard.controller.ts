@@ -7,6 +7,8 @@ import {
   buildGrowthDashboardDateRange,
   buildGrowthPeriodMetrics,
   buildLiveGrowthSnapshot,
+  DeliveredOrderCountByCustomer,
+  FirstDeliveredOrderByCustomer,
   GrowthDashboardOrder
 } from "../services/growthDashboard.service";
 import { ApiError } from "../utils/ApiError";
@@ -15,33 +17,64 @@ const readDateQuery = (value: unknown): string | undefined => {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 };
 
-const getFirstDeliveredDates = async (
+const getFirstDeliveredOrders = async (
   customerIds: string[]
-): Promise<Map<string, Date>> => {
+): Promise<FirstDeliveredOrderByCustomer> => {
+  if (customerIds.length === 0) return new Map();
+
+  const deliveredOrders = await prisma.order.findMany({
+    where: {
+      customerId: { in: customerIds },
+      orderStatus: OrderStatus.DELIVERED
+    },
+    select: {
+      customerId: true,
+      createdAt: true,
+      orderSource: true,
+      utmSource: true,
+      utmMedium: true,
+      utmCampaign: true,
+      utmContent: true,
+      utmTerm: true,
+      referralCode: true
+    },
+    orderBy: [{ customerId: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+    distinct: ["customerId"]
+  });
+
+  const firstDeliveredOrderByCustomer: FirstDeliveredOrderByCustomer = new Map();
+  for (const order of deliveredOrders) {
+    if (order.customerId) {
+      firstDeliveredOrderByCustomer.set(order.customerId, order);
+    }
+  }
+
+  return firstDeliveredOrderByCustomer;
+};
+
+const getDeliveredOrderCounts = async (
+  customerIds: string[],
+  endExclusiveUtc: Date
+): Promise<DeliveredOrderCountByCustomer> => {
   if (customerIds.length === 0) return new Map();
 
   const deliveredCustomers = await prisma.order.groupBy({
     by: ["customerId"],
     where: {
       customerId: { in: customerIds },
-      orderStatus: OrderStatus.DELIVERED
+      orderStatus: OrderStatus.DELIVERED,
+      createdAt: { lt: endExclusiveUtc }
     },
-    _min: {
-      createdAt: true
-    }
+    _count: { _all: true }
   });
 
-  const firstDeliveredAtByCustomer = new Map<string, Date>();
-  for (const customer of deliveredCustomers) {
-    if (customer.customerId && customer._min.createdAt) {
-      firstDeliveredAtByCustomer.set(
-        customer.customerId,
-        customer._min.createdAt
-      );
-    }
-  }
-
-  return firstDeliveredAtByCustomer;
+  return new Map(
+    deliveredCustomers.flatMap((customer) =>
+      customer.customerId
+        ? [[customer.customerId, customer._count._all] as const]
+        : []
+    )
+  );
 };
 
 export const getGrowthDashboardController = async (
@@ -81,6 +114,13 @@ export const getGrowthDashboardController = async (
         customerId: true,
         paymentMethod: true,
         orderStatus: true,
+        orderSource: true,
+        utmSource: true,
+        utmMedium: true,
+        utmCampaign: true,
+        utmContent: true,
+        utmTerm: true,
+        referralCode: true,
         createdAt: true,
         dispatchedAt: true,
         deliveredAt: true,
@@ -131,7 +171,15 @@ export const getGrowthDashboardController = async (
         .filter((customerId): customerId is string => Boolean(customerId))
     )
   );
-  const firstDeliveredAtByCustomer = await getFirstDeliveredDates(customerIds);
+  const [
+    firstDeliveredOrderByCustomer,
+    currentDeliveredOrderCountByCustomer,
+    previousDeliveredOrderCountByCustomer
+  ] = await Promise.all([
+    getFirstDeliveredOrders(customerIds),
+    getDeliveredOrderCounts(customerIds, currentRange.endExclusiveUtc),
+    getDeliveredOrderCounts(customerIds, previousRange.endExclusiveUtc)
+  ]);
 
   res.status(StatusCodes.OK).json({
     success: true,
@@ -150,12 +198,14 @@ export const getGrowthDashboardController = async (
     current: buildGrowthPeriodMetrics(
       currentOrders,
       currentRange,
-      firstDeliveredAtByCustomer
+      firstDeliveredOrderByCustomer,
+      currentDeliveredOrderCountByCustomer
     ),
     previous: buildGrowthPeriodMetrics(
       previousOrders,
       previousRange,
-      firstDeliveredAtByCustomer
+      firstDeliveredOrderByCustomer,
+      previousDeliveredOrderCountByCustomer
     ),
     live: buildLiveGrowthSnapshot(activeOrders)
   });

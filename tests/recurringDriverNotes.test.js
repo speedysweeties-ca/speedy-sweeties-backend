@@ -190,6 +190,7 @@ test("manual creation atomically snapshots and persists against the resolved cus
 
   assert.equal(manualResponse.statusCode, 201);
   assert.equal(createdOrders[0].customerId, "resolved-customer");
+  assert.equal(createdOrders[0].orderSource, "DISPATCHER_MANUAL");
   assert.equal(
     createdOrders[0].additionalNotes,
     "$10 distance charge | Leave at side door"
@@ -241,6 +242,7 @@ test("manual creation atomically snapshots and persists against the resolved cus
       body: {
         ...createOrderBody,
         additionalNotes: "Public order note",
+        orderSource: "DISPATCHER_MANUAL",
         recurringDriverNotes: "Attempted public change"
       }
     },
@@ -248,6 +250,7 @@ test("manual creation atomically snapshots and persists against the resolved cus
   );
 
   assert.equal(publicResponse.statusCode, 201);
+  assert.equal(createdOrders[2].orderSource, "UNKNOWN");
   assert.equal(createdOrders[2].additionalNotes, "Public order note");
   assert.equal(customerUpdates.length, 5);
   assert.deepEqual(customerUpdates[4], {

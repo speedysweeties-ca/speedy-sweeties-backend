@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "crypto";
 import {
   DispatchSource,
   Prisma,
+  OrderSource,
   OrderStatus,
   OrderPriority,
   PaymentMethod,
@@ -769,6 +770,34 @@ export const updateAutoDispatchSettingsController = async (
 type CreateOrderOptions = {
   bypassBusinessHours: boolean;
   acceptRecurringDriverNotes: boolean;
+  orderSourceOverride?: OrderSource;
+};
+
+const normalizeAttributionValue = (
+  value: unknown,
+  lowercase = false
+): string | null => {
+  if (typeof value !== "string") return null;
+  const cleaned = value.trim();
+  if (!cleaned) return null;
+  return lowercase ? cleaned.toLowerCase() : cleaned;
+};
+
+const PUBLIC_ORDER_SOURCES = new Set<OrderSource>([
+  OrderSource.UNKNOWN,
+  OrderSource.ANDROID_APP,
+  OrderSource.IOS_APP,
+  OrderSource.WEBFLOW
+]);
+
+const resolveOrderSource = (
+  requestedSource: unknown,
+  override?: OrderSource
+): OrderSource => {
+  if (override) return override;
+  return PUBLIC_ORDER_SOURCES.has(requestedSource as OrderSource)
+    ? (requestedSource as OrderSource)
+    : OrderSource.UNKNOWN;
 };
 
 const sendDeliveryAddressValidationError = (
@@ -815,7 +844,14 @@ const createOrder = async (
     notes,
     dispatcherNotes,
     recurringDriverNotes,
-    fcmToken
+    fcmToken,
+    orderSource,
+    utmSource,
+    utmMedium,
+    utmCampaign,
+    utmContent,
+    utmTerm,
+    referralCode
   } = req.body;
 
   const recurringDriverNotesSubmitted =
@@ -917,6 +953,13 @@ const createOrder = async (
         itemsText: rawItems.map((i) => `${i.quantity}x ${i.name}`).join(", "),
         additionalNotes: finalNotes,
         paymentMethod,
+        orderSource: resolveOrderSource(orderSource, options.orderSourceOverride),
+        utmSource: normalizeAttributionValue(utmSource, true),
+        utmMedium: normalizeAttributionValue(utmMedium, true),
+        utmCampaign: normalizeAttributionValue(utmCampaign),
+        utmContent: normalizeAttributionValue(utmContent),
+        utmTerm: normalizeAttributionValue(utmTerm),
+        referralCode: normalizeAttributionValue(referralCode, true),
         orderStatus: OrderStatus.PLACED,
         priority: OrderPriority.NORMAL,
         fcmToken: appFcmToken,
@@ -1043,7 +1086,8 @@ export const createManualOrderController = async (
 ): Promise<void> => {
   await createOrder(req, res, {
     bypassBusinessHours: true,
-    acceptRecurringDriverNotes: true
+    acceptRecurringDriverNotes: true,
+    orderSourceOverride: OrderSource.DISPATCHER_MANUAL
   });
 };
 

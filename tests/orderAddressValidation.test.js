@@ -31,6 +31,31 @@ test("order creation validation accepts a complete address without postalCode", 
   assert.equal(parsed.success, true);
 });
 
+test("order creation validation accepts public attribution fields", () => {
+  const parsed = createOrderSchema.safeParse({
+    body: {
+      ...createOrderBody,
+      orderSource: "IOS_APP",
+      utmSource: "meta",
+      utmMedium: "paid_social",
+      utmCampaign: "Guelph Growth",
+      referralCode: "fall-10"
+    }
+  });
+
+  assert.equal(parsed.success, true);
+  assert.equal(parsed.data.body.orderSource, "IOS_APP");
+  assert.equal(parsed.data.body.utmCampaign, "Guelph Growth");
+});
+
+test("public order creation cannot claim the dispatcher-manual source", () => {
+  const parsed = createOrderSchema.safeParse({
+    body: { ...createOrderBody, orderSource: "DISPATCHER_MANUAL" }
+  });
+
+  assert.equal(parsed.success, false);
+});
+
 test("order creation validation ignores a supplied invalid postalCode", () => {
   const parsed = createOrderSchema.safeParse({
     body: { ...createOrderBody, postalCode: "definitely-wrong" }
