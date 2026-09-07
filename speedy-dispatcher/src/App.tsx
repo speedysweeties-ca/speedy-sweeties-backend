@@ -6857,22 +6857,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
-                onClick={() => {
-                  setActiveTab("GROWTH_COMMAND_CENTRE");
-                  if (token) {
-                    void fetchGrowthDashboard(token, true);
-                  }
-                }}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  activeTab === "GROWTH_COMMAND_CENTRE"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-zinc-800 hover:bg-zinc-700"
-                }`}
-              >
-                Growth
-              </button>
-
-              <button
                 onClick={() => setActiveTab("CREATE_MANUAL_ORDER")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "CREATE_MANUAL_ORDER"
@@ -6892,6 +6876,73 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 }`}
               >
                 Delivered History
+              </button>
+
+              <button
+                onClick={() => setActiveTab("CATALOG")}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${
+                  activeTab === "CATALOG"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-zinc-800 hover:bg-zinc-700"
+                }`}
+              >
+                Catalog
+              </button>
+
+              <button
+                onClick={() => setActiveTab("CUSTOMERS")}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${
+                  activeTab === "CUSTOMERS"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-zinc-800 hover:bg-zinc-700"
+                }`}
+              >
+                Customers
+              </button>
+
+              <button
+                onClick={() => setShowDriverPanel((prev) => !prev)}
+                className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition font-semibold"
+              >
+                Drivers
+              </button>
+
+              <button
+                onClick={() => setActiveTab("DRIVER_LOCATION")}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${
+                  activeTab === "DRIVER_LOCATION"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-zinc-800 hover:bg-zinc-700"
+                }`}
+              >
+                Driver Location
+              </button>
+
+              <button
+                onClick={() => setActiveTab("DISPATCHER_CHECKLIST")}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${
+                  activeTab === "DISPATCHER_CHECKLIST"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-zinc-800 hover:bg-zinc-700"
+                }`}
+              >
+                Daily Responsibilities
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab("GROWTH_COMMAND_CENTRE");
+                  if (token) {
+                    void fetchGrowthDashboard(token, true);
+                  }
+                }}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${
+                  activeTab === "GROWTH_COMMAND_CENTRE"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-zinc-800 hover:bg-zinc-700"
+                }`}
+              >
+                Growth
               </button>
 
               <button
@@ -6917,17 +6968,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
-                onClick={() => setActiveTab("CATALOG")}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  activeTab === "CATALOG"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-zinc-800 hover:bg-zinc-700"
-                }`}
-              >
-                Catalog
-              </button>
-
-              <button
                 onClick={() => setActiveTab("PICKUP_LOCATIONS")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "PICKUP_LOCATIONS"
@@ -6936,24 +6976,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 }`}
               >
                 Pickup Locations
-              </button>
-
-              <button
-                onClick={() => setActiveTab("CUSTOMERS")}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  activeTab === "CUSTOMERS"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-zinc-800 hover:bg-zinc-700"
-                }`}
-              >
-                Customers
-              </button>
-
-              <button
-                onClick={() => setShowDriverPanel((prev) => !prev)}
-                className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition font-semibold"
-              >
-                Drivers
               </button>
 
               <button
@@ -7013,17 +7035,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
-                onClick={() => setActiveTab("DRIVER_LOCATION")}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  activeTab === "DRIVER_LOCATION"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-zinc-800 hover:bg-zinc-700"
-                }`}
-              >
-                Driver Location
-              </button>
-
-              <button
                 onClick={() => setActiveTab("QR_TRACKING")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "QR_TRACKING"
@@ -7032,17 +7043,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 }`}
               >
                 QR Code Tracking
-              </button>
-
-              <button
-                onClick={() => setActiveTab("DISPATCHER_CHECKLIST")}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  activeTab === "DISPATCHER_CHECKLIST"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-zinc-800 hover:bg-zinc-700"
-                }`}
-              >
-                Daily Responsibilities
               </button>
 
               <button
