@@ -30,6 +30,7 @@ import {
   resolveRecurringDriverNotes
 } from "../services/recurringDriverNotes.service";
 import { getFirstDispatchAttribution } from "../utils/dispatchAttribution";
+import { resolveOrderSourceAttribution } from "../utils/orderSourceAttribution";
 
 /* ================= TYPES ================= */
 
@@ -783,23 +784,6 @@ const normalizeAttributionValue = (
   return lowercase ? cleaned.toLowerCase() : cleaned;
 };
 
-const PUBLIC_ORDER_SOURCES = new Set<OrderSource>([
-  OrderSource.UNKNOWN,
-  OrderSource.ANDROID_APP,
-  OrderSource.IOS_APP,
-  OrderSource.WEBFLOW
-]);
-
-const resolveOrderSource = (
-  requestedSource: unknown,
-  override?: OrderSource
-): OrderSource => {
-  if (override) return override;
-  return PUBLIC_ORDER_SOURCES.has(requestedSource as OrderSource)
-    ? (requestedSource as OrderSource)
-    : OrderSource.UNKNOWN;
-};
-
 const sendDeliveryAddressValidationError = (
   error: unknown,
   res: Response
@@ -953,7 +937,11 @@ const createOrder = async (
         itemsText: rawItems.map((i) => `${i.quantity}x ${i.name}`).join(", "),
         additionalNotes: finalNotes,
         paymentMethod,
-        orderSource: resolveOrderSource(orderSource, options.orderSourceOverride),
+        orderSource: resolveOrderSourceAttribution({
+          requestedSource: orderSource,
+          requestOrigin: req.headers?.origin,
+          override: options.orderSourceOverride
+        }),
         utmSource: normalizeAttributionValue(utmSource, true),
         utmMedium: normalizeAttributionValue(utmMedium, true),
         utmCampaign: normalizeAttributionValue(utmCampaign),
