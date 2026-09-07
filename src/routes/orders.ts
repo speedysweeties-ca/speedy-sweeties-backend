@@ -36,6 +36,7 @@ import { listAllOrdersController } from "../controllers/orderList.controller";
 import { getDriverOrdersController } from "../controllers/driverOrders.controller";
 import { driverActionController } from "../controllers/driverAction.controller";
 import { getDriverStatsController } from "../controllers/driverStats.controller";
+import { getGrowthDashboardController } from "../controllers/growthDashboard.controller";
 
 import {
   createOrUpdateReceiptController,
@@ -121,6 +122,14 @@ router.get(
   requireAuth,
   requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
   asyncHandler(getDriverStatsController)
+);
+
+// 🔒 STAFF — owner growth command centre
+router.get(
+  "/growth-dashboard",
+  requireAuth,
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
+  asyncHandler(getGrowthDashboardController)
 );
 
 // 🔒 DRIVER — only their orders

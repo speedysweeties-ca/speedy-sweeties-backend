@@ -16,6 +16,33 @@ import {
   buildManualOrderNotesPayload,
   recurringDriverNotesForCustomer,
 } from "./manualOrderNotes";
+import {
+  GrowthCommandCentre,
+  type GrowthDashboardData,
+} from "./GrowthCommandCentre";
+
+const getTorontoDateInputValue = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Toronto",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const getPart = (type: string) =>
+    parts.find((part) => part.type === type)?.value || "";
+
+  return `${getPart("year")}-${getPart("month")}-${getPart("day")}`;
+};
+
+const shiftDateInputValue = (dateValue: string, days: number) => {
+  const date = new Date(`${dateValue}T12:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+
+const defaultGrowthEndDate = getTorontoDateInputValue();
+const defaultGrowthStartDate = shiftDateInputValue(defaultGrowthEndDate, -29);
 
 
 type OrderStatus =
@@ -142,6 +169,7 @@ type Order = {
 
 type ActiveTab =
   | "LIVE_ORDERS"
+  | "GROWTH_COMMAND_CENTRE"
   | "CREATE_MANUAL_ORDER"
   | "DRIVER_LOCATION"
   | "DELIVERED_HISTORY"
@@ -627,6 +655,7 @@ function App() {
   const [manualOrderLoading, setManualOrderLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [driverStatsLoading, setDriverStatsLoading] = useState(false);
+  const [growthDashboardLoading, setGrowthDashboardLoading] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [pickupLocationsLoading, setPickupLocationsLoading] = useState(false);
   const [customersLoading, setCustomersLoading] = useState(false);
@@ -642,6 +671,7 @@ function App() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [deliveredOrders, setDeliveredOrders] = useState<Order[]>([]);
   const [driverStats, setDriverStats] = useState<DriverStat[]>([]);
+  const [growthDashboard, setGrowthDashboard] = useState<GrowthDashboardData | null>(null);
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
   const [managedDrivers, setManagedDrivers] = useState<DriverManagementItem[]>([]);
   const [driverManagementLoading, setDriverManagementLoading] = useState(false);
@@ -717,6 +747,9 @@ function App() {
   const [statsStartDate, setStatsStartDate] = useState("");
   const [statsEndDate, setStatsEndDate] = useState("");
 
+  const [growthStartDate, setGrowthStartDate] = useState(defaultGrowthStartDate);
+  const [growthEndDate, setGrowthEndDate] = useState(defaultGrowthEndDate);
+
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("LIVE_ORDERS");
   const [showDriverPanel, setShowDriverPanel] = useState(false);
@@ -756,6 +789,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
   const autoRefreshPaused =
     activeTab === "CREATE_MANUAL_ORDER" ||
+    activeTab === "GROWTH_COMMAND_CENTRE" ||
     activeTab === "DRIVER_LOCATION" ||
     activeTab === "DELIVERED_HISTORY" ||
     activeTab === "CUSTOMER_RETENTION" ||
@@ -2736,6 +2770,56 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       if (showLoader) {
         setDriverStatsLoading(false);
       }
+    }
+  };
+
+  const fetchGrowthDashboard = async (
+    authToken: string,
+    showLoader = true,
+    range?: { startDate: string; endDate: string }
+  ) => {
+    try {
+      if (showLoader) {
+        setGrowthDashboardLoading(true);
+      }
+
+      const params = new URLSearchParams({
+        startDate: range?.startDate ?? growthStartDate,
+        endDate: range?.endDate ?? growthEndDate,
+      });
+      const response = await fetch(
+        `${API_V1_BASE_URL}/orders/growth-dashboard?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        }
+      );
+      const data = await response.json();
+
+      if (response.ok) {
+        setGrowthDashboard(data);
+      } else {
+        alert(getApiErrorMessage(data, "Failed to load growth dashboard"));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while loading the growth dashboard");
+    } finally {
+      if (showLoader) {
+        setGrowthDashboardLoading(false);
+      }
+    }
+  };
+
+  const applyGrowthDatePreset = (days: number) => {
+    const endDate = getTorontoDateInputValue();
+    const startDate = shiftDateInputValue(endDate, -(days - 1));
+    setGrowthEndDate(endDate);
+    setGrowthStartDate(startDate);
+
+    if (token) {
+      void fetchGrowthDashboard(token, true, { startDate, endDate });
     }
   };
 
@@ -6773,6 +6857,22 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                onClick={() => {
+                  setActiveTab("GROWTH_COMMAND_CENTRE");
+                  if (token) {
+                    void fetchGrowthDashboard(token, true);
+                  }
+                }}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${
+                  activeTab === "GROWTH_COMMAND_CENTRE"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-zinc-800 hover:bg-zinc-700"
+                }`}
+              >
+                Growth
+              </button>
+
+              <button
                 onClick={() => setActiveTab("CREATE_MANUAL_ORDER")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "CREATE_MANUAL_ORDER"
@@ -6879,6 +6979,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     void fetchDriverStats(token, true);
                   }
 
+                  if (activeTab === "GROWTH_COMMAND_CENTRE") {
+                    void fetchGrowthDashboard(token, true);
+                  }
+
                   if (activeTab === "CATALOG") {
                     void fetchCatalogItems(token, true);
                   }
@@ -6900,10 +7004,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     void fetchDispatcherChecklistHistory(token, false);
                   }
                 }}
-                disabled={dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || pickupLocationsLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading}
+                disabled={dashboardLoading || historyLoading || driverStatsLoading || growthDashboardLoading || catalogLoading || pickupLocationsLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading}
                 className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
               >
-                {dashboardLoading || historyLoading || driverStatsLoading || catalogLoading || pickupLocationsLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading
+                {dashboardLoading || historyLoading || driverStatsLoading || growthDashboardLoading || catalogLoading || pickupLocationsLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading
                   ? "Refreshing..."
                   : "Refresh"}
               </button>
@@ -7301,6 +7405,17 @@ const handleSaveEditedOrder = async (orderId: string) => {
               })}
             </div>
           )
+        ) : activeTab === "GROWTH_COMMAND_CENTRE" ? (
+          <GrowthCommandCentre
+            data={growthDashboard}
+            loading={growthDashboardLoading}
+            startDate={growthStartDate}
+            endDate={growthEndDate}
+            onStartDateChange={setGrowthStartDate}
+            onEndDateChange={setGrowthEndDate}
+            onPresetDays={applyGrowthDatePreset}
+            onRefresh={() => token && void fetchGrowthDashboard(token, true)}
+          />
         ) : activeTab === "DRIVER_LOCATION" ? (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
             <div className="mb-6">
