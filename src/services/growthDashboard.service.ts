@@ -1,4 +1,4 @@
-import { OrderStatus, PaymentMethod } from "@prisma/client";
+import { OrderSource, OrderStatus, PaymentMethod } from "@prisma/client";
 
 const TORONTO_TIME_ZONE = "America/Toronto";
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -9,6 +9,13 @@ const ACTIVE_ORDER_STATUSES = new Set<OrderStatus>([
   OrderStatus.ACCEPTED,
   OrderStatus.OUT_FOR_DELIVERY
 ]);
+const ORDER_SOURCES: OrderSource[] = [
+  OrderSource.UNKNOWN,
+  OrderSource.ANDROID_APP,
+  OrderSource.IOS_APP,
+  OrderSource.WEBFLOW,
+  OrderSource.DISPATCHER_MANUAL
+];
 
 type DecimalLike =
   | number
@@ -25,6 +32,13 @@ export type GrowthDashboardOrder = {
   createdAt: Date;
   dispatchedAt: Date | null;
   deliveredAt: Date | null;
+  orderSource: OrderSource;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  utmContent: string | null;
+  utmTerm: string | null;
+  referralCode: string | null;
   digitalReceipt: {
     deliveryCharge: DecimalLike;
     grandTotal: DecimalLike;
@@ -39,7 +53,24 @@ export type GrowthDashboardDateRange = {
   days: number;
 };
 
-type FirstDeliveredAtByCustomer = Map<string, Date>;
+export type FirstDeliveredOrderAttribution = Pick<
+  GrowthDashboardOrder,
+  | "createdAt"
+  | "orderSource"
+  | "utmSource"
+  | "utmMedium"
+  | "utmCampaign"
+  | "utmContent"
+  | "utmTerm"
+  | "referralCode"
+>;
+
+export type FirstDeliveredOrderByCustomer = Map<
+  string,
+  FirstDeliveredOrderAttribution
+>;
+
+export type DeliveredOrderCountByCustomer = Map<string, number>;
 
 const round = (value: number, digits = 1): number => {
   const multiplier = 10 ** digits;
@@ -233,7 +264,8 @@ const createDateKeys = (range: GrowthDashboardDateRange): string[] => {
 export const buildGrowthPeriodMetrics = (
   orders: GrowthDashboardOrder[],
   range: GrowthDashboardDateRange,
-  firstDeliveredAtByCustomer: FirstDeliveredAtByCustomer
+  firstDeliveredOrderByCustomer: FirstDeliveredOrderByCustomer,
+  deliveredOrderCountByCustomer: DeliveredOrderCountByCustomer = new Map()
 ) => {
   const statusCounts: Record<OrderStatus, number> = {
     PLACED: 0,
@@ -266,6 +298,38 @@ export const buildGrowthPeriodMetrics = (
   const dispatchMinutes: number[] = [];
   const totalOrderMinutes: number[] = [];
   const deliveredCustomerIds = new Set<string>();
+  const sourceRows = new Map(
+    ORDER_SOURCES.map((source) => [
+      source,
+      {
+        source,
+        totalOrders: 0,
+        deliveredOrders: 0,
+        cancelledOrders: 0,
+        deliveredCustomerIds: new Set<string>(),
+        returningCustomerIds: new Set<string>(),
+        newCustomerIds: new Set<string>(),
+        repeatedNewCustomerIds: new Set<string>(),
+        deliveryFeesRecorded: 0
+      }
+    ])
+  );
+  const campaignRows = new Map<
+    string,
+    {
+      utmSource: string | null;
+      utmMedium: string | null;
+      utmCampaign: string | null;
+      referralCode: string | null;
+      orderSources: Set<OrderSource>;
+      totalOrders: number;
+      deliveredOrders: number;
+      cancelledOrders: number;
+      newCustomerIds: Set<string>;
+      repeatedNewCustomerIds: Set<string>;
+      deliveryFeesRecorded: number;
+    }
+  >();
   let deliveredOrdersWithCustomer = 0;
   let deliveredOrdersWithReceipt = 0;
   let deliveredOrdersWithDispatchTimestamp = 0;
@@ -274,10 +338,79 @@ export const buildGrowthPeriodMetrics = (
   let dispatchesOverFiveMinutes = 0;
   let deliveryFeesRecorded = 0;
   let receiptSalesTotal = 0;
+  let ordersWithKnownSource = 0;
+  let ordersWithCampaignTag = 0;
+
+  const campaignKeyFor = (
+    attribution: Pick<
+      GrowthDashboardOrder,
+      "utmSource" | "utmMedium" | "utmCampaign" | "referralCode"
+    >
+  ): string | null => {
+    const values = [
+      attribution.utmSource,
+      attribution.utmMedium,
+      attribution.utmCampaign,
+      attribution.referralCode
+    ].map((value) => value?.trim() || null);
+
+    return values.some(Boolean)
+      ? JSON.stringify(values.map((value) => value?.toLocaleLowerCase() || null))
+      : null;
+  };
+
+  const getCampaignRow = (
+    attribution: Pick<
+      GrowthDashboardOrder,
+      | "orderSource"
+      | "utmSource"
+      | "utmMedium"
+      | "utmCampaign"
+      | "referralCode"
+    >
+  ) => {
+    const key = campaignKeyFor(attribution);
+    if (!key) return null;
+
+    let row = campaignRows.get(key);
+    if (!row) {
+      row = {
+        utmSource: attribution.utmSource,
+        utmMedium: attribution.utmMedium,
+        utmCampaign: attribution.utmCampaign,
+        referralCode: attribution.referralCode,
+        orderSources: new Set<OrderSource>(),
+        totalOrders: 0,
+        deliveredOrders: 0,
+        cancelledOrders: 0,
+        newCustomerIds: new Set<string>(),
+        repeatedNewCustomerIds: new Set<string>(),
+        deliveryFeesRecorded: 0
+      };
+      campaignRows.set(key, row);
+    }
+
+    row.orderSources.add(attribution.orderSource);
+    return row;
+  };
 
   for (const order of orders) {
     statusCounts[order.orderStatus] += 1;
     paymentCounts[order.paymentMethod] += 1;
+    if (order.orderSource !== OrderSource.UNKNOWN) ordersWithKnownSource += 1;
+
+    const sourceRow = sourceRows.get(order.orderSource)!;
+    sourceRow.totalOrders += 1;
+    const campaignRow = getCampaignRow(order);
+    if (campaignRow) {
+      ordersWithCampaignTag += 1;
+      campaignRow.totalOrders += 1;
+    }
+
+    if (order.orderStatus === OrderStatus.CANCELLED) {
+      sourceRow.cancelledOrders += 1;
+      if (campaignRow) campaignRow.cancelledOrders += 1;
+    }
 
     const dateKey = formatTorontoDateKey(order.createdAt);
     const daily = dailyByDate.get(dateKey);
@@ -302,9 +435,13 @@ export const buildGrowthPeriodMetrics = (
 
     if (order.orderStatus !== OrderStatus.DELIVERED) continue;
 
+    sourceRow.deliveredOrders += 1;
+    if (campaignRow) campaignRow.deliveredOrders += 1;
+
     if (order.customerId) {
       deliveredOrdersWithCustomer += 1;
       deliveredCustomerIds.add(order.customerId);
+      sourceRow.deliveredCustomerIds.add(order.customerId);
     }
 
     if (minutesToDispatch !== null) deliveredOrdersWithDispatchTimestamp += 1;
@@ -318,20 +455,51 @@ export const buildGrowthPeriodMetrics = (
 
     if (order.digitalReceipt) {
       deliveredOrdersWithReceipt += 1;
-      deliveryFeesRecorded += decimalToNumber(order.digitalReceipt.deliveryCharge);
+      const orderDeliveryFee = decimalToNumber(
+        order.digitalReceipt.deliveryCharge
+      );
+      deliveryFeesRecorded += orderDeliveryFee;
       receiptSalesTotal += decimalToNumber(order.digitalReceipt.grandTotal);
+      sourceRow.deliveryFeesRecorded += orderDeliveryFee;
+      if (campaignRow) campaignRow.deliveryFeesRecorded += orderDeliveryFee;
     }
   }
 
   let newCustomers = 0;
   let returningCustomers = 0;
+  let newCustomersWithRepeatOrder = 0;
 
   for (const customerId of deliveredCustomerIds) {
-    const firstDeliveredAt = firstDeliveredAtByCustomer.get(customerId);
-    if (firstDeliveredAt && firstDeliveredAt < range.startUtc) {
+    const firstDeliveredOrder = firstDeliveredOrderByCustomer.get(customerId);
+    if (firstDeliveredOrder && firstDeliveredOrder.createdAt < range.startUtc) {
       returningCustomers += 1;
+
+      for (const sourceRow of sourceRows.values()) {
+        if (sourceRow.deliveredCustomerIds.has(customerId)) {
+          sourceRow.returningCustomerIds.add(customerId);
+        }
+      }
     } else {
       newCustomers += 1;
+
+      const acquisitionSource =
+        firstDeliveredOrder?.orderSource ?? OrderSource.UNKNOWN;
+      const acquisitionSourceRow = sourceRows.get(acquisitionSource)!;
+      acquisitionSourceRow.newCustomerIds.add(customerId);
+
+      const repeated = (deliveredOrderCountByCustomer.get(customerId) ?? 0) >= 2;
+      if (repeated) {
+        newCustomersWithRepeatOrder += 1;
+        acquisitionSourceRow.repeatedNewCustomerIds.add(customerId);
+      }
+
+      if (firstDeliveredOrder) {
+        const acquisitionCampaignRow = getCampaignRow(firstDeliveredOrder);
+        acquisitionCampaignRow?.newCustomerIds.add(customerId);
+        if (repeated) {
+          acquisitionCampaignRow?.repeatedNewCustomerIds.add(customerId);
+        }
+      }
     }
   }
 
@@ -350,6 +518,11 @@ export const buildGrowthPeriodMetrics = (
       statusCounts.OUT_FOR_DELIVERY,
     uniqueDeliveredCustomers: deliveredCustomerIds.size,
     newCustomers,
+    newCustomersWithRepeatOrder,
+    secondOrderConversionRate: percentage(
+      newCustomersWithRepeatOrder,
+      newCustomers
+    ),
     returningCustomers,
     returningCustomerRate: percentage(
       returningCustomers,
@@ -378,8 +551,54 @@ export const buildGrowthPeriodMetrics = (
         deliveredOrdersWithDispatchTimestamp,
         deliveredOrders
       ),
-      deliveryTimeRate: percentage(deliveredOrdersWithDuration, deliveredOrders)
+      deliveryTimeRate: percentage(deliveredOrdersWithDuration, deliveredOrders),
+      orderSourceRate: percentage(ordersWithKnownSource, orders.length),
+      campaignTagRate: percentage(ordersWithCampaignTag, orders.length)
     },
+    sources: Array.from(sourceRows.values())
+      .map((row) => ({
+        source: row.source,
+        totalOrders: row.totalOrders,
+        deliveredOrders: row.deliveredOrders,
+        cancelledOrders: row.cancelledOrders,
+        uniqueDeliveredCustomers: row.deliveredCustomerIds.size,
+        newCustomers: row.newCustomerIds.size,
+        returningCustomers: row.returningCustomerIds.size,
+        newCustomersWithRepeatOrder: row.repeatedNewCustomerIds.size,
+        secondOrderConversionRate: percentage(
+          row.repeatedNewCustomerIds.size,
+          row.newCustomerIds.size
+        ),
+        completionRate: percentage(
+          row.deliveredOrders,
+          row.deliveredOrders + row.cancelledOrders
+        ),
+        deliveryFeesRecorded: round(row.deliveryFeesRecorded, 2)
+      }))
+      .sort((left, right) => right.totalOrders - left.totalOrders),
+    campaigns: Array.from(campaignRows.values())
+      .map((row) => ({
+        utmSource: row.utmSource,
+        utmMedium: row.utmMedium,
+        utmCampaign: row.utmCampaign,
+        referralCode: row.referralCode,
+        orderSources: Array.from(row.orderSources),
+        totalOrders: row.totalOrders,
+        deliveredOrders: row.deliveredOrders,
+        cancelledOrders: row.cancelledOrders,
+        newCustomers: row.newCustomerIds.size,
+        newCustomersWithRepeatOrder: row.repeatedNewCustomerIds.size,
+        secondOrderConversionRate: percentage(
+          row.repeatedNewCustomerIds.size,
+          row.newCustomerIds.size
+        ),
+        completionRate: percentage(
+          row.deliveredOrders,
+          row.deliveredOrders + row.cancelledOrders
+        ),
+        deliveryFeesRecorded: round(row.deliveryFeesRecorded, 2)
+      }))
+      .sort((left, right) => right.totalOrders - left.totalOrders),
     daily: Array.from(dailyByDate.values()),
     weekdays: weekdayOrder.map((weekday) => weekdayByName.get(weekday)!),
     hours: Array.from(hourlyByHour.values())

@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { OrderStatus, PaymentMethod } = require("@prisma/client");
+const { OrderSource, OrderStatus, PaymentMethod } = require("@prisma/client");
 const {
   buildGrowthDashboardDateRange,
   buildGrowthPeriodMetrics,
@@ -16,6 +16,13 @@ const createOrder = (overrides) => ({
   createdAt: new Date("2026-03-05T17:00:00.000Z"),
   dispatchedAt: null,
   deliveredAt: null,
+  orderSource: OrderSource.UNKNOWN,
+  utmSource: null,
+  utmMedium: null,
+  utmCampaign: null,
+  utmContent: null,
+  utmTerm: null,
+  referralCode: null,
   digitalReceipt: null,
   ...overrides
 });
@@ -57,6 +64,10 @@ test("growth metrics reconcile customers, quality, and receipt coverage", () => 
     createOrder({
       id: "delivered-new",
       customerId: "customer-new",
+      orderSource: OrderSource.IOS_APP,
+      utmSource: "meta",
+      utmMedium: "paid_social",
+      utmCampaign: "Guelph Growth",
       orderStatus: OrderStatus.DELIVERED,
       createdAt: new Date("2026-03-05T17:00:00.000Z"),
       dispatchedAt: new Date("2026-03-05T17:04:00.000Z"),
@@ -66,6 +77,7 @@ test("growth metrics reconcile customers, quality, and receipt coverage", () => 
     createOrder({
       id: "delivered-returning",
       customerId: "customer-returning",
+      orderSource: OrderSource.DISPATCHER_MANUAL,
       paymentMethod: PaymentMethod.DEBIT,
       orderStatus: OrderStatus.DELIVERED,
       createdAt: new Date("2026-03-06T18:00:00.000Z"),
@@ -75,6 +87,10 @@ test("growth metrics reconcile customers, quality, and receipt coverage", () => 
     }),
     createOrder({
       id: "cancelled",
+      orderSource: OrderSource.WEBFLOW,
+      utmSource: "meta",
+      utmMedium: "paid_social",
+      utmCampaign: "Guelph Growth",
       orderStatus: OrderStatus.CANCELLED,
       createdAt: new Date("2026-03-07T19:00:00.000Z")
     }),
@@ -84,15 +100,44 @@ test("growth metrics reconcile customers, quality, and receipt coverage", () => 
       createdAt: new Date("2026-03-08T20:00:00.000Z")
     })
   ];
-  const firstDeliveredAtByCustomer = new Map([
-    ["customer-new", new Date("2026-03-05T17:00:00.000Z")],
-    ["customer-returning", new Date("2026-01-10T17:00:00.000Z")]
+  const firstDeliveredOrderByCustomer = new Map([
+    [
+      "customer-new",
+      {
+        createdAt: new Date("2026-03-05T17:00:00.000Z"),
+        orderSource: OrderSource.IOS_APP,
+        utmSource: "meta",
+        utmMedium: "paid_social",
+        utmCampaign: "Guelph Growth",
+        utmContent: null,
+        utmTerm: null,
+        referralCode: null
+      }
+    ],
+    [
+      "customer-returning",
+      {
+        createdAt: new Date("2026-01-10T17:00:00.000Z"),
+        orderSource: OrderSource.DISPATCHER_MANUAL,
+        utmSource: null,
+        utmMedium: null,
+        utmCampaign: null,
+        utmContent: null,
+        utmTerm: null,
+        referralCode: null
+      }
+    ]
+  ]);
+  const deliveredOrderCountByCustomer = new Map([
+    ["customer-new", 2],
+    ["customer-returning", 4]
   ]);
 
   const result = buildGrowthPeriodMetrics(
     orders,
     range,
-    firstDeliveredAtByCustomer
+    firstDeliveredOrderByCustomer,
+    deliveredOrderCountByCustomer
   );
 
   assert.equal(result.totalOrders, 4);
@@ -100,6 +145,8 @@ test("growth metrics reconcile customers, quality, and receipt coverage", () => 
   assert.equal(result.cancelledOrders, 1);
   assert.equal(result.activeOrders, 1);
   assert.equal(result.newCustomers, 1);
+  assert.equal(result.newCustomersWithRepeatOrder, 1);
+  assert.equal(result.secondOrderConversionRate, 100);
   assert.equal(result.returningCustomers, 1);
   assert.equal(result.returningCustomerRate, 50);
   assert.equal(result.completionRate, 66.7);
@@ -114,7 +161,45 @@ test("growth metrics reconcile customers, quality, and receipt coverage", () => 
     customerLinkRate: 100,
     receiptRate: 100,
     dispatchTimestampRate: 100,
-    deliveryTimeRate: 100
+    deliveryTimeRate: 100,
+    orderSourceRate: 75,
+    campaignTagRate: 50
+  });
+  const iosSource = result.sources.find(
+    (row) => row.source === OrderSource.IOS_APP
+  );
+  assert.deepEqual(iosSource, {
+    source: OrderSource.IOS_APP,
+    totalOrders: 1,
+    deliveredOrders: 1,
+    cancelledOrders: 0,
+    uniqueDeliveredCustomers: 1,
+    newCustomers: 1,
+    returningCustomers: 0,
+    newCustomersWithRepeatOrder: 1,
+    secondOrderConversionRate: 100,
+    completionRate: 100,
+    deliveryFeesRecorded: 10.64
+  });
+  const manualSource = result.sources.find(
+    (row) => row.source === OrderSource.DISPATCHER_MANUAL
+  );
+  assert.equal(manualSource.returningCustomers, 1);
+  assert.equal(result.campaigns.length, 1);
+  assert.deepEqual(result.campaigns[0], {
+    utmSource: "meta",
+    utmMedium: "paid_social",
+    utmCampaign: "Guelph Growth",
+    referralCode: null,
+    orderSources: [OrderSource.IOS_APP, OrderSource.WEBFLOW],
+    totalOrders: 2,
+    deliveredOrders: 1,
+    cancelledOrders: 1,
+    newCustomers: 1,
+    newCustomersWithRepeatOrder: 1,
+    secondOrderConversionRate: 100,
+    completionRate: 50,
+    deliveryFeesRecorded: 10.64
   });
   assert.equal(
     result.daily.reduce((sum, day) => sum + day.totalOrders, 0),

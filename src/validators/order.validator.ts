@@ -34,6 +34,15 @@ const orderIdParamsSchema = z.object({
   id: z.string().trim().min(1)
 });
 
+const publicOrderSourceSchema = z.enum([
+  "UNKNOWN",
+  "ANDROID_APP",
+  "IOS_APP",
+  "WEBFLOW"
+]);
+
+const attributionField = z.string().trim().max(150).optional();
+
 export const createOrderSchema = z.object({
   body: z.object({
     customerName: z.string().trim().min(2).max(120),
@@ -53,7 +62,14 @@ export const createOrderSchema = z.object({
     tip: moneyField,
     discount: moneyField,
     total: moneyField,
-    paymentMethod: z.nativeEnum(PaymentMethod)
+    paymentMethod: z.nativeEnum(PaymentMethod),
+    orderSource: publicOrderSourceSchema.optional(),
+    utmSource: attributionField,
+    utmMedium: attributionField,
+    utmCampaign: attributionField,
+    utmContent: attributionField,
+    utmTerm: attributionField,
+    referralCode: attributionField
   }).superRefine((order, ctx) => {
     const estimatedItemTotal = order.items.reduce(
       (sum, item) => sum + item.unitPrice * item.quantity,
