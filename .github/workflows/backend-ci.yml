@@ -11,8 +11,10 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     env:
-      # Used only for Prisma schema parsing; no database command in this workflow connects to it.
+      # CI-only values. No database command in this workflow connects to this URL.
       DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/speedy_sweeties_ci?schema=public
+      JWT_SECRET: ci-only-secret
+      FIREBASE_SERVICE_ACCOUNT_JSON: '{}'
     steps:
       - uses: actions/checkout@v4
 
@@ -22,7 +24,7 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: npm ci
 
       - name: Check Prisma formatting
@@ -35,4 +37,15 @@ jobs:
         run: npx prisma generate
 
       - name: Build backend
+        run: npm run build
+
+      - name: Test routing preview service
+        run: node --test tests/routingPreview.test.js
+
+      - name: Install dispatcher dependencies
+        working-directory: speedy-dispatcher
+        run: npm ci
+
+      - name: Build dispatcher
+        working-directory: speedy-dispatcher
         run: npm run build
