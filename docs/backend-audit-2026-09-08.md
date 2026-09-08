@@ -18,11 +18,17 @@ This audit started from `main` on 2026-09-08. All remediation work remains isola
 ### Hardening added on this branch
 
 - Central Pickup Type definitions.
-- Pickup Location create/list/update validation.
-- Unsupported Pickup Types are rejected.
+- Official Pickup Type vocabulary standardized as `UNKNOWN`, `CONVENIENCE`, `BEER_STORE`, `LCBO`, `VAPE`, and `DISPENSARY`.
+- The five routable types are `CONVENIENCE`, `BEER_STORE`, `LCBO`, `VAPE`, and `DISPENSARY`.
+- Legacy routing-only values `GENERAL_RETAIL`, `GROCERY`, `PHARMACY`, and `OTHER` are no longer accepted as official Pickup Types.
+- Driver routing requirements now use the same official vocabulary as Item Catalog and Pickup Locations.
+- Item Catalog filtering and editing use the shared backend Pickup Type parser, preventing arbitrary strings from being saved.
+- Pickup Location create/list/update validation uses the same shared parser.
 - `UNKNOWN` cannot be used for a real Pickup Location.
 - Optional `postalCode` is now persisted by create/update and can be cleared.
-- Regression tests cover the Phase 2 CRUD rules.
+- Regression tests cover the Phase 2 CRUD and Pickup Type rules.
+
+The current Dispatcher UI already presented the same six official values, so no Dispatcher UI vocabulary change was required.
 
 ### Important live-behavior boundary
 
@@ -96,9 +102,8 @@ Manual assignment availability rules were also not changed because that would al
 
 1. Populate real Guelph Pickup Location records.
 2. Verify coordinates and active/inactive status.
-3. Reconcile the driver routing helper's Pickup Type vocabulary with the catalog values before routing UI or auto-dispatch depends on it.
-4. Add stronger location duplicate/uniqueness policy once the real dataset is known.
-5. Only in a later phase, design pickup-distance-aware automatic assignment.
+3. Add stronger location duplicate/uniqueness policy once the real dataset is known.
+4. Only in a later phase, design pickup-distance-aware automatic assignment.
 
 ## Verification
 
@@ -108,9 +113,13 @@ Regression tests were added for:
 - duplicate-order fingerprint/reservation behavior;
 - allowed and rejected order-status transitions;
 - persistent FCM registration;
-- Pickup Location validation and postal-code persistence.
+- Pickup Location validation and postal-code persistence;
+- the official Pickup Type vocabulary;
+- rejection of legacy routing aliases;
+- driver routing recognition of every official routable Pickup Type;
+- Item Catalog rejection of non-standard Pickup Types.
 
-Backend CI was expanded to run the backend test suite in addition to Prisma validation and TypeScript compilation.
+Backend CI runs the backend test suite in addition to Prisma validation and TypeScript compilation.
 
 ## Explicit non-changes
 
