@@ -37,6 +37,7 @@ import { getDriverOrdersController } from "../controllers/driverOrders.controlle
 import { driverActionController } from "../controllers/driverAction.controller";
 import { getDriverStatsController } from "../controllers/driverStats.controller";
 import { getGrowthDashboardController } from "../controllers/growthDashboard.controller";
+import { getRoutingPreviewController } from "../controllers/routingPreview.controller";
 
 import {
   createOrUpdateReceiptController,
@@ -146,6 +147,15 @@ router.get(
   requireAuth,
   requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
   asyncHandler(listAllOrdersController)
+);
+
+// 🔒 STAFF — read-only routing preview for one order
+router.get(
+  "/:id/routing-preview",
+  requireAuth,
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
+  validateRequest(getOrderByIdSchema),
+  asyncHandler(getRoutingPreviewController)
 );
 
 // 🔒 STAFF — single order
