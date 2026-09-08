@@ -1,9 +1,15 @@
 import { prisma } from "../lib/prisma";
 import { GUELPH_CORE_PICKUP_LOCATIONS } from "../data/guelphPickupLocations";
+import { GUELPH_CONVENIENCE_PICKUP_LOCATIONS } from "../data/guelphConveniencePickupLocations";
 import { geocodeDeliveryAddress } from "../services/deliveryGeocoding.service";
 import { isSamePickupLocation } from "../services/pickupLocationSeedMatching.service";
 
 const applyChanges = process.env.PICKUP_LOCATION_SEED_APPLY === "true";
+
+const pickupLocationsToSeed = [
+  ...GUELPH_CORE_PICKUP_LOCATIONS,
+  ...GUELPH_CONVENIENCE_PICKUP_LOCATIONS
+];
 
 const main = async (): Promise<void> => {
   let created = 0;
@@ -15,7 +21,7 @@ const main = async (): Promise<void> => {
     `Pickup Location seed starting in ${applyChanges ? "APPLY" : "DRY-RUN"} mode.`
   );
 
-  for (const seedLocation of GUELPH_CORE_PICKUP_LOCATIONS) {
+  for (const seedLocation of pickupLocationsToSeed) {
     const geocoded = await geocodeDeliveryAddress({
       addressLine1: seedLocation.addressLine1,
       city: seedLocation.city,
