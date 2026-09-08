@@ -11,8 +11,12 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     env:
-      # Used only for Prisma schema parsing; no database command in this workflow connects to it.
+      NODE_ENV: test
+      # Used only for Prisma schema parsing and unit tests; CI does not connect to this database.
       DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/speedy_sweeties_ci?schema=public
+      JWT_SECRET: speedy-sweeties-ci-test-secret-not-for-production
+      # Firebase is replaced with a non-network stub when NODE_ENV=test.
+      FIREBASE_SERVICE_ACCOUNT_JSON: '{}'
     steps:
       - uses: actions/checkout@v4
 
