@@ -8,6 +8,15 @@ import {
   type RoutingPreviewMatrixResult
 } from "../services/routingPreview.service";
 import {
+  computeTrafficAwareRouteMatrixToDestinations,
+  type MultiDestinationRouteMatrixResult
+} from "../services/multiDestinationRouteMatrix.service";
+import {
+  PICKUP_STORE_CLOSING_BUFFER_MINUTES,
+  selectPickupStoreRecommendations,
+  type PickupStoreCandidate
+} from "../services/pickupStoreRouting.service";
+import {
   isDriverFresh,
   isDriverLocationFresh
 } from "../utils/driverFreshness";
@@ -18,7 +27,17 @@ type CachedRoutingPreview = {
   matrix: RoutingPreviewMatrixResult[];
 };
 
+type CachedPickupRoutingMatrix = {
+  key: string;
+  expiresAtMs: number;
+  matrix: MultiDestinationRouteMatrixResult[];
+};
+
 const routingPreviewCache = new Map<string, CachedRoutingPreview>();
+const pickupRoutingMatrixCache = new Map<string, CachedPickupRoutingMatrix>();
+
+const normalizePickupType = (value: string | null | undefined): string =>
+  String(value || "UNKNOWN").trim().toUpperCase() || "UNKNOWN";
 
 const buildCacheKey = (
   orderId: string,
@@ -31,6 +50,35 @@ const buildCacheKey = (
     destinationLatitude.toFixed(6),
     destinationLongitude.toFixed(6),
     [...routeableDriverIds].sort().join(",")
+  ].join("|");
+
+const buildPickupRoutingCacheKey = (
+  orderId: string,
+  routeableDriverIds: string[],
+  stores: Array<
+    PickupStoreCandidate & {
+      currentHoursUpdatedAt: Date | null;
+      regularHoursUpdatedAt: Date | null;
+      manualHoursOverrideUpdatedAt: Date | null;
+    }
+  >
+): string =>
+  [
+    orderId,
+    [...routeableDriverIds].sort().join(","),
+    stores
+      .map((store) =>
+        [
+          store.id,
+          store.latitude.toFixed(6),
+          store.longitude.toFixed(6),
+          store.currentHoursUpdatedAt?.toISOString() ?? "",
+          store.regularHoursUpdatedAt?.toISOString() ?? "",
+          store.manualHoursOverrideUpdatedAt?.toISOString() ?? ""
+        ].join(":")
+      )
+      .sort()
+      .join(",")
   ].join("|");
 
 const toMinutes = (durationSeconds: number | null): number | null =>
@@ -61,7 +109,16 @@ export const getOrderRoutingPreviewController = async (
       orderStatus: true,
       deliveryLatitude: true,
       deliveryLongitude: true,
-      geocodeStatus: true
+      geocodeStatus: true,
+      items: {
+        select: {
+          itemCatalog: {
+            select: {
+              pickupType: true
+            }
+          }
+        }
+      }
     }
   });
 
@@ -73,6 +130,16 @@ export const getOrderRoutingPreviewController = async (
     });
     return;
   }
+
+  const itemPickupTypes = order.items.map((item) =>
+    normalizePickupType(item.itemCatalog?.pickupType)
+  );
+  const unknownItemCount = itemPickupTypes.filter(
+    (pickupType) => pickupType === "UNKNOWN"
+  ).length;
+  const requiredPickupTypes = Array.from(
+    new Set(itemPickupTypes.filter((pickupType) => pickupType !== "UNKNOWN"))
+  ).sort((a, b) => a.localeCompare(b));
 
   const hasStoredDestination =
     order.deliveryLatitude !== null && order.deliveryLongitude !== null;
@@ -150,6 +217,42 @@ export const getOrderRoutingPreviewController = async (
     routeableDrivers.map((driver) => driver.id)
   );
 
+  const pickupStores =
+    requiredPickupTypes.length === 0
+      ? []
+      : ((await prisma.pickupLocation.findMany({
+          where: {
+            isActive: true,
+            pickupType: {
+              in: requiredPickupTypes
+            }
+          },
+          select: {
+            id: true,
+            name: true,
+            pickupType: true,
+            addressLine1: true,
+            city: true,
+            province: true,
+            latitude: true,
+            longitude: true,
+            googleBusinessStatus: true,
+            regularOpeningHours: true,
+            currentOpeningHours: true,
+            manualHoursOverride: true,
+            currentHoursUpdatedAt: true,
+            regularHoursUpdatedAt: true,
+            manualHoursOverrideUpdatedAt: true
+          },
+          orderBy: [{ pickupType: "asc" }, { name: "asc" }]
+        })) as Array<
+          PickupStoreCandidate & {
+            currentHoursUpdatedAt: Date | null;
+            regularHoursUpdatedAt: Date | null;
+            manualHoursOverrideUpdatedAt: Date | null;
+          }
+        >);
+
   const cacheKey = buildCacheKey(
     order.id,
     destinationLatitude,
@@ -203,6 +306,53 @@ export const getOrderRoutingPreviewController = async (
     }
   }
 
+  let pickupMatrix: MultiDestinationRouteMatrixResult[] = [];
+  let pickupRoutingError: string | null = null;
+
+  if (routeableDrivers.length > 0 && pickupStores.length > 0) {
+    const pickupCacheKey = buildPickupRoutingCacheKey(
+      order.id,
+      routeableDrivers.map((driver) => driver.id),
+      pickupStores
+    );
+    const cachedPickup = pickupRoutingMatrixCache.get(order.id);
+    const canUsePickupCache =
+      !forceRefresh &&
+      cachedPickup?.key === pickupCacheKey &&
+      cachedPickup.expiresAtMs > now.getTime();
+
+    if (canUsePickupCache && cachedPickup) {
+      pickupMatrix = cachedPickup.matrix;
+    } else {
+      try {
+        pickupMatrix = await computeTrafficAwareRouteMatrixToDestinations(
+          routeableDrivers.map((driver) => ({
+            id: driver.id,
+            latitude: Number(driver.latitude),
+            longitude: Number(driver.longitude)
+          })),
+          pickupStores.map((store) => ({
+            id: store.id,
+            latitude: store.latitude,
+            longitude: store.longitude
+          }))
+        );
+
+        pickupRoutingMatrixCache.set(order.id, {
+          key: pickupCacheKey,
+          expiresAtMs:
+            now.getTime() + env.ROUTING_PREVIEW_CACHE_SECONDS * 1000,
+          matrix: pickupMatrix
+        });
+      } catch (error) {
+        pickupRoutingError =
+          error instanceof RoutingPreviewUnavailableError
+            ? error.message
+            : "Pickup-store routing is temporarily unavailable.";
+      }
+    }
+  }
+
   const matrixByDriverId = new Map(
     matrix.map((result) => [result.driverId, result])
   );
@@ -211,6 +361,18 @@ export const getOrderRoutingPreviewController = async (
     .map((driver) => {
       const matrixResult = matrixByDriverId.get(driver.id);
       const locationAvailable = routeableDriverIds.has(driver.id);
+      const pickupRecommendations = locationAvailable
+        ? selectPickupStoreRecommendations({
+            driverId: driver.id,
+            requiredPickupTypes,
+            stores: pickupStores,
+            matrix: pickupMatrix,
+            generatedAt: now
+          })
+        : requiredPickupTypes.map((pickupType) => ({
+            pickupType,
+            unavailable: true as const
+          }));
 
       return {
         driverId: driver.id,
@@ -225,7 +387,8 @@ export const getOrderRoutingPreviewController = async (
         routeAvailable: matrixResult?.routeAvailable ?? false,
         etaMinutes: toMinutes(matrixResult?.durationSeconds ?? null),
         durationSeconds: matrixResult?.durationSeconds ?? null,
-        distanceMeters: matrixResult?.distanceMeters ?? null
+        distanceMeters: matrixResult?.distanceMeters ?? null,
+        pickupRecommendations
       };
     })
     .sort((a, b) => {
@@ -252,6 +415,12 @@ export const getOrderRoutingPreviewController = async (
       orderStatus: order.orderStatus,
       latitude: destinationLatitude,
       longitude: destinationLongitude
+    },
+    pickupRouting: {
+      requiredPickupTypes,
+      unknownItemCount,
+      closingBufferMinutes: PICKUP_STORE_CLOSING_BUFFER_MINUTES,
+      error: pickupRoutingError
     },
     fastestDriverId:
       formattedDrivers.find((driver) => driver.etaMinutes !== null)?.driverId ??
