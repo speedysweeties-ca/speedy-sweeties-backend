@@ -9,6 +9,7 @@ import testNotificationRoutes from "./test-notification.routes";
 import businessRoutes from "./business.routes";
 import dispatcherChecklistRoutes from "./dispatcherChecklist.routes";
 import pickupLocationRoutes from "./pickupLocation.routes";
+import routingPreviewRoutes from "./routingPreview.routes";
 
 const router = Router();
 
@@ -29,5 +30,6 @@ router.use("/test-notification", testNotificationRoutes);
 router.use("/business", businessRoutes);
 router.use("/dispatcher-checklist", dispatcherChecklistRoutes);
 router.use("/pickup-locations", pickupLocationRoutes);
+router.use("/routing-preview", routingPreviewRoutes);
 
 export default router;
