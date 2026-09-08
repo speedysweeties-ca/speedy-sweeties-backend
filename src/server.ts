@@ -4,6 +4,7 @@ import { env } from "./config/env";
 import { prisma } from "./lib/prisma";
 import { startUndispatchedOrderAlertMonitor } from "./services/undispatchedOrderAlert.service";
 import { runPickupLocationDryRun } from "./services/pickupLocationDryRun.service";
+import { runPickupLocationApply } from "./services/pickupLocationApply.service";
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -62,7 +63,21 @@ async function startServer(): Promise<void> {
 
     stopUndispatchedOrderAlertMonitor = startUndispatchedOrderAlertMonitor();
 
-    if (process.env.PICKUP_LOCATION_DRY_RUN_ON_START === "true") {
+    const runDryRun = process.env.PICKUP_LOCATION_DRY_RUN_ON_START === "true";
+    const runApply = process.env.PICKUP_LOCATION_APPLY_ON_START === "true";
+
+    if (runDryRun && runApply) {
+      console.error(
+        "Pickup Location dry-run and apply flags are both enabled. Neither job will run."
+      );
+    } else if (runApply) {
+      void runPickupLocationApply().catch((error) => {
+        console.error(
+          "Pickup Location apply failed",
+          error instanceof Error ? error.message : typeof error
+        );
+      });
+    } else if (runDryRun) {
       void runPickupLocationDryRun().catch((error) => {
         console.error(
           "Pickup Location dry run failed",
