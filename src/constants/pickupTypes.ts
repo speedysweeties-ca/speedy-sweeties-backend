@@ -9,6 +9,17 @@ export const PICKUP_TYPE_OPTIONS = [
 
 export type PickupTypeValue = (typeof PICKUP_TYPE_OPTIONS)[number];
 
+export const ROUTABLE_PICKUP_TYPE_OPTIONS = [
+  "CONVENIENCE",
+  "BEER_STORE",
+  "LCBO",
+  "VAPE",
+  "DISPENSARY"
+] as const;
+
+export type RoutablePickupTypeValue =
+  (typeof ROUTABLE_PICKUP_TYPE_OPTIONS)[number];
+
 export const normalizePickupType = (value: unknown): string =>
   typeof value === "string" ? value.trim().toUpperCase() : "";
 
@@ -26,5 +37,17 @@ export const parsePickupType = (
     PICKUP_TYPE_OPTIONS.find(
       (pickupType) => pickupType === normalizedValue
     ) ?? null
+  );
+};
+
+export const isRoutablePickupType = (
+  value: unknown
+): value is RoutablePickupTypeValue => {
+  const parsedPickupType = parsePickupType(value);
+
+  return (
+    parsedPickupType !== undefined &&
+    parsedPickupType !== null &&
+    parsedPickupType !== "UNKNOWN"
   );
 };
