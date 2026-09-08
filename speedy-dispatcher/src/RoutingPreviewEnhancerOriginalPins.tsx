@@ -372,7 +372,7 @@ function RoutingPreviewMap() {
             pickupLine.style.lineHeight = "1.35";
             pickupLine.style.marginTop = "4px";
 
-            if ("unavailable" in recommendation && recommendation.unavailable) {
+            if ("unavailable" in recommendation) {
               pickupLine.textContent = `${formatPickupType(
                 recommendation.pickupType,
               )}: no eligible open store`;
