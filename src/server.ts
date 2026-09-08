@@ -3,6 +3,7 @@ import app from "./app";
 import { env } from "./config/env";
 import { prisma } from "./lib/prisma";
 import { startUndispatchedOrderAlertMonitor } from "./services/undispatchedOrderAlert.service";
+import { runPickupLocationDryRun } from "./services/pickupLocationDryRun.service";
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -60,6 +61,15 @@ async function startServer(): Promise<void> {
     });
 
     stopUndispatchedOrderAlertMonitor = startUndispatchedOrderAlertMonitor();
+
+    if (process.env.PICKUP_LOCATION_DRY_RUN_ON_START === "true") {
+      void runPickupLocationDryRun().catch((error) => {
+        console.error(
+          "Pickup Location dry run failed",
+          error instanceof Error ? error.message : typeof error
+        );
+      });
+    }
   } catch (error) {
     console.error("Failed to start server", error instanceof Error ? error.name : typeof error);
     process.exit(1);
