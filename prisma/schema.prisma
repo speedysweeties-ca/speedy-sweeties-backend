@@ -394,10 +394,29 @@ model PickupLocation {
   latitude     Float
   longitude    Float
   isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+
+  googlePlaceId        String? @unique
+  googleBusinessStatus String?
+
+  regularOpeningHours Json?
+  currentOpeningHours Json?
+
+  regularHoursUpdatedAt DateTime?
+  currentHoursUpdatedAt DateTime?
+  hoursLastCheckedAt    DateTime?
+  hoursLastError        String?
+
+  manualHoursOverride          Json?
+  manualHoursOverrideNote      String?
+  manualHoursOverrideUpdatedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([pickupType])
   @@index([isActive])
   @@index([city])
+  @@index([regularHoursUpdatedAt])
+  @@index([currentHoursUpdatedAt])
+  @@index([hoursLastCheckedAt])
 }
