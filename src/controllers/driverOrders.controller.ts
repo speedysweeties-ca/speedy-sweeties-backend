@@ -1,6 +1,11 @@
 import { OrderStatus, Prisma } from "@prisma/client";
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
+import {
+  normalizePickupType,
+  parsePickupType,
+  type RoutablePickupTypeValue
+} from "../constants/pickupTypes";
 
 type AuthenticatedUser = {
   userId: string;
@@ -44,20 +49,50 @@ export const withDriverRoutingPlan = <
   routingPlan
 });
 
-const ROUTABLE_PICKUP_TYPES = new Set([
-  "CONVENIENCE",
-  "GENERAL_RETAIL",
-  "GROCERY",
-  "PHARMACY",
-  "OTHER"
-]);
+export type PickupRequirement = {
+  pickupRequired: boolean;
+  routablePickupTypes: RoutablePickupTypeValue[];
+  unknownPickupItemCount: number;
+  unsupportedPickupTypeCount: number;
+};
 
-const normalizePickupType = (
-  value: string | null | undefined
-): string => {
-  const normalizedValue = String(value || "UNKNOWN").trim().toUpperCase();
+export const buildPickupRequirement = (
+  pickupTypes: Array<string | null | undefined>,
+  pickupRequired: boolean
+): PickupRequirement => {
+  const normalizedPickupTypes = pickupTypes.map(
+    (pickupType) => normalizePickupType(pickupType) || "UNKNOWN"
+  );
 
-  return normalizedValue || "UNKNOWN";
+  const unknownPickupItemCount = normalizedPickupTypes.filter(
+    (pickupType) => pickupType === "UNKNOWN"
+  ).length;
+
+  const uniqueRequiredPickupTypes = Array.from(
+    new Set(
+      normalizedPickupTypes.filter((pickupType) => pickupType !== "UNKNOWN")
+    )
+  );
+
+  const routablePickupTypes: RoutablePickupTypeValue[] = [];
+  let unsupportedPickupTypeCount = 0;
+
+  for (const pickupType of uniqueRequiredPickupTypes) {
+    const parsedPickupType = parsePickupType(pickupType);
+
+    if (parsedPickupType && parsedPickupType !== "UNKNOWN") {
+      routablePickupTypes.push(parsedPickupType);
+    } else {
+      unsupportedPickupTypeCount += 1;
+    }
+  }
+
+  return {
+    pickupRequired,
+    routablePickupTypes,
+    unknownPickupItemCount,
+    unsupportedPickupTypeCount
+  };
 };
 
 export const getDriverOrdersController = async (
@@ -87,35 +122,12 @@ export const getDriverOrdersController = async (
     include: driverOrderInclude
   });
 
-  const pickupRequirements = orders.map((order) => {
-    const requiredPickupTypes = Array.from(
-      new Set(
-        order.items
-          .map((item) => normalizePickupType(item.itemCatalog?.pickupType))
-          .filter((pickupType) => pickupType !== "UNKNOWN")
-      )
-    );
-
-    const unknownPickupItemCount = order.items.filter(
-      (item) => normalizePickupType(item.itemCatalog?.pickupType) === "UNKNOWN"
-    ).length;
-
-    const routablePickupTypes = requiredPickupTypes.filter((pickupType) =>
-      ROUTABLE_PICKUP_TYPES.has(pickupType)
-    );
-
-    const unsupportedPickupTypeCount =
-      requiredPickupTypes.length - routablePickupTypes.length;
-
-    const pickupRequired = order.orderStatus !== OrderStatus.OUT_FOR_DELIVERY;
-
-    return {
-      pickupRequired,
-      routablePickupTypes,
-      unknownPickupItemCount,
-      unsupportedPickupTypeCount
-    };
-  });
+  const pickupRequirements = orders.map((order) =>
+    buildPickupRequirement(
+      order.items.map((item) => item.itemCatalog?.pickupType),
+      order.orderStatus !== OrderStatus.OUT_FOR_DELIVERY
+    )
+  );
 
   const requestedPickupTypes = Array.from(
     new Set(
@@ -159,31 +171,31 @@ export const getDriverOrdersController = async (
   const ordersWithRouting = orders.map((order, index) => {
     const pickupRequirement = pickupRequirements[index];
 
-      const pickupLocationCandidates =
-        pickupRequirement.pickupRequired &&
-        pickupRequirement.routablePickupTypes.length > 0
-          ? pickupLocations.filter((location) =>
-              pickupRequirement.routablePickupTypes.includes(
-                location.pickupType
-              )
+    const pickupLocationCandidates =
+      pickupRequirement.pickupRequired &&
+      pickupRequirement.routablePickupTypes.length > 0
+        ? pickupLocations.filter((location) =>
+            pickupRequirement.routablePickupTypes.includes(
+              location.pickupType as RoutablePickupTypeValue
             )
-          : [];
+          )
+        : [];
 
-      return withDriverRoutingPlan(order, {
-        pickupRequired: pickupRequirement.pickupRequired,
-        requiredPickupTypes: pickupRequirement.routablePickupTypes,
-        unknownPickupItemCount: pickupRequirement.unknownPickupItemCount,
-        unsupportedPickupTypeCount:
-          pickupRequirement.unsupportedPickupTypeCount,
-        pickupLocationCandidates,
-        destination: {
-          addressLine1: order.addressLine1,
-          city: order.city,
-          province: order.province,
-          postalCode: order.postalCode
-        }
-      });
+    return withDriverRoutingPlan(order, {
+      pickupRequired: pickupRequirement.pickupRequired,
+      requiredPickupTypes: pickupRequirement.routablePickupTypes,
+      unknownPickupItemCount: pickupRequirement.unknownPickupItemCount,
+      unsupportedPickupTypeCount:
+        pickupRequirement.unsupportedPickupTypeCount,
+      pickupLocationCandidates,
+      destination: {
+        addressLine1: order.addressLine1,
+        city: order.city,
+        province: order.province,
+        postalCode: order.postalCode
+      }
     });
+  });
 
   res.status(200).json({
     success: true,
