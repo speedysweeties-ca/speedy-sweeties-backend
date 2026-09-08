@@ -82,6 +82,15 @@ export const GUELPH_CONVENIENCE_PICKUP_LOCATIONS: readonly SeedPickupLocation[] 
     verificationSource: "Current local directory and Ontario retail licence listing"
   },
   {
+    name: "Quickie Convenience - Willow Road",
+    pickupType: "CONVENIENCE",
+    addressLine1: "61 Willow Road",
+    city: "Guelph",
+    province: "ON",
+    postalCode: "N1H 1W3",
+    verificationSource: "City of Guelph current fare vendor directory and current business listing"
+  },
+  {
     name: "Hasty Market - Arkell Road",
     pickupType: "CONVENIENCE",
     addressLine1: "403 Arkell Road Unit 1",
