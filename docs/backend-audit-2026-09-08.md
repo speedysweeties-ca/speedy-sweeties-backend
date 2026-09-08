@@ -32,13 +32,13 @@ The current Dispatcher UI already presented the same six official values, so no 
 
 ### Guelph Pickup Location dataset prepared on this branch
 
-A researched Guelph seed dataset is now prepared with 56 pickup-location candidates:
+A researched Guelph seed dataset is now prepared with 57 pickup-location candidates:
 
 - 5 LCBO locations
 - 4 The Beer Store locations
 - 23 cannabis dispensaries
 - 7 vape shops
-- 17 strategic convenience locations
+- 18 strategic convenience locations
 
 The convenience category is deliberately curated rather than attempting to include every gas station or corner store in Guelph. The goal is useful geographic coverage and broadly useful pickup candidates without flooding future routing with low-value duplicates.
 
@@ -57,7 +57,18 @@ Before a row can be created or updated, the job runs the address through the exi
 
 Existing rows are matched conservatively. An exact normalized civic address is considered the same location. Otherwise, a row is matched only when the normalized store name is also the same and its verified coordinates are within 75 metres. Proximity by itself never merges two businesses, which prevents nearby competing stores from being collapsed into one record.
 
-No production Pickup Location rows have been written by this work.
+### Production read-only reconciliation performed on 2026-09-08
+
+The live Render PostgreSQL database was inspected using read-only queries only.
+
+- Production currently contains exactly one `PickupLocation` row.
+- That row is `Quickie - Willow Road`, `CONVENIENCE`, `61 Willow Rd`, Guelph, ON, N1H 1W3.
+- The row is active and stores latitude `43.54426` and longitude `-80.273257`.
+- Current public/local sources confirm the Willow Road Quickie remains active, including current 24-hour availability listings.
+- The seed dataset was updated to include that exact production identity so a future dry run will reconcile it rather than propose a second Willow Road Quickie.
+- The live `ItemCatalog` currently uses only the official Pickup Type values. A read-only query found zero catalog rows with legacy or unsupported Pickup Type strings.
+
+The connected Render controls available in this chat do not expose an arbitrary service shell or existing secret environment-variable values. Therefore the actual `npm run seed:pickup-locations` process has **not** been executed inside the live `speedy-api` service from this chat. No production rows have been created or updated.
 
 ### Important live-behavior boundary
 
@@ -131,8 +142,8 @@ Manual assignment availability rules were also not changed because that would al
 
 ## Remaining Phase 2 work
 
-1. Run the 56-location seed in dry-run mode against the real backend environment so Google geocoding can validate every civic address and calculate coordinates.
-2. Review any `SKIP`, `CREATE`, `UPDATE`, or duplicate-match result from the dry run.
+1. Run the 57-location seed in dry-run mode inside the real backend environment so the production Google geocoding configuration can validate every civic address and calculate coordinates.
+2. Review every `SKIP`, `CREATE`, `UPDATE`, `UNCHANGED`, and duplicate-match result from the dry run.
 3. Only after that review, explicitly run the seed with `PICKUP_LOCATION_SEED_APPLY=true` to populate the production Pickup Location table.
 4. Verify the resulting rows in the Dispatcher Pickup Locations screen, including active status and map coordinates.
 5. Only in a later phase, design pickup-distance-aware routing and automatic assignment.
@@ -150,12 +161,13 @@ Regression tests cover:
 - rejection of legacy routing aliases;
 - driver routing recognition of every official routable Pickup Type;
 - Item Catalog rejection of non-standard Pickup Types;
-- the 56-location Guelph dataset and category counts;
+- the 57-location Guelph dataset and category counts;
 - dataset name/address duplicate protection;
 - prevention of proximity-only merging for nearby competing stores;
-- safe matching of the same store across minor address formatting changes.
+- safe matching of the same store across minor address formatting changes;
+- explicit inclusion of the current production Willow Road Quickie.
 
-Backend CI runs the backend test suite in addition to Prisma validation and TypeScript compilation. The full validation for the 56-location dataset passed 80 tests with 0 failures.
+Backend CI runs the backend test suite in addition to Prisma validation and TypeScript compilation. The latest validation after the production reconciliation completed successfully.
 
 ## Explicit non-changes
 
