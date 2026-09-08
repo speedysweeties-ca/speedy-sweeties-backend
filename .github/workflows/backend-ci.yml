@@ -13,6 +13,7 @@ jobs:
     env:
       # Used only for Prisma schema parsing; no database command in this workflow connects to it.
       DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/speedy_sweeties_ci?schema=public
+      JWT_SECRET: ci-routing-preview-secret
     steps:
       - uses: actions/checkout@v4
 
@@ -21,8 +22,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            speedy-dispatcher/package-lock.json
 
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: npm ci
 
       - name: Check Prisma formatting
@@ -34,5 +38,17 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate
 
-      - name: Build backend
+      - name: Test backend
+        run: npm test
+
+      - name: Install Dispatcher dependencies
+        working-directory: speedy-dispatcher
+        run: npm ci
+
+      - name: Test Dispatcher
+        working-directory: speedy-dispatcher
+        run: npm test
+
+      - name: Build Dispatcher
+        working-directory: speedy-dispatcher
         run: npm run build
