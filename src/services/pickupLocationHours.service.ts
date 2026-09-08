@@ -456,7 +456,7 @@ export const refreshPickupLocationHours = async (
             hoursLastError: errorMessage
           }
         })
-        .catch(() => undefined);
+        .catch((_error: unknown): void => {});
 
       console.error(
         `[Pickup Hours][FAILED] ${location.name} | ${errorMessage}`
