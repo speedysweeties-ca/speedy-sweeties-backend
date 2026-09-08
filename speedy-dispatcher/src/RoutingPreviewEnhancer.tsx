@@ -71,17 +71,16 @@ const ACTIVE_ORDER_STATUSES = new Set([
   "ACCEPTED",
   "OUT_FOR_DELIVERY",
 ]);
-
 const CLIENT_CACHE_MS = 45_000;
 
 const getDriverDisplayName = (
   driver: Pick<DriverMapItem, "firstName" | "lastName" | "email">,
 ) => {
-  const fullName = [driver.firstName, driver.lastName]
+  const name = [driver.firstName, driver.lastName]
     .filter(Boolean)
     .join(" ")
     .trim();
-  return fullName || driver.email;
+  return name || driver.email;
 };
 
 const formatDistance = (distanceMeters: number | null) => {
@@ -93,8 +92,7 @@ const formatDistance = (distanceMeters: number | null) => {
 };
 
 const findDriverLocationMap = (): HTMLDivElement | null => {
-  const headings = Array.from(document.querySelectorAll("h2"));
-  const heading = headings.find(
+  const heading = Array.from(document.querySelectorAll("h2")).find(
     (candidate) => candidate.textContent?.trim() === "Driver Location",
   );
   if (!heading) return null;
@@ -102,9 +100,8 @@ const findDriverLocationMap = (): HTMLDivElement | null => {
   const panel = heading.closest(".bg-zinc-900") ?? heading.parentElement?.parentElement;
   if (!panel) return null;
 
-  const candidates = Array.from(panel.querySelectorAll("div"));
   return (
-    candidates.find(
+    Array.from(panel.querySelectorAll("div")).find(
       (candidate) =>
         candidate instanceof HTMLDivElement &&
         candidate.style.height === "500px" &&
@@ -113,10 +110,10 @@ const findDriverLocationMap = (): HTMLDivElement | null => {
   ) ?? null;
 };
 
-const createTextElement = (
-  tagName: "div" | "p" | "span" | "strong" | "button",
+const textElement = <K extends keyof HTMLElementTagNameMap>(
+  tagName: K,
   text: string,
-) => {
+): HTMLElementTagNameMap[K] => {
   const element = document.createElement(tagName);
   element.textContent = text;
   return element;
@@ -146,6 +143,13 @@ function RoutingPreviewMap() {
 
     const getOrderById = (orderId: string) =>
       ordersRef.current.find((order) => order.id === orderId) ?? null;
+
+    const clearSelection = () => {
+      pinnedOrderIdRef.current = null;
+      selectedOrderIdRef.current = null;
+      infoWindowRef.current?.close();
+      updateDriverMarkerTitles(null);
+    };
 
     const updateDriverMarkerTitles = (
       preview: RoutingPreviewResponse | null,
@@ -185,12 +189,12 @@ function RoutingPreviewMap() {
     ) => {
       const container = document.createElement("div");
       container.style.minWidth = "290px";
-      container.style.maxWidth = "380px";
+      container.style.maxWidth = "390px";
       container.style.color = "#18181b";
       container.style.fontFamily = "Arial, sans-serif";
       container.style.padding = "2px";
 
-      const heading = createTextElement(
+      const heading = textElement(
         "strong",
         `Order #${order.orderNumber} — ${order.addressLine1}`,
       );
@@ -201,7 +205,7 @@ function RoutingPreviewMap() {
 
       const location = [order.city, order.province].filter(Boolean).join(", ");
       if (location) {
-        const locationText = createTextElement("div", location);
+        const locationText = textElement("div", location);
         locationText.style.fontSize = "12px";
         locationText.style.color = "#52525b";
         locationText.style.marginBottom = "8px";
@@ -209,7 +213,7 @@ function RoutingPreviewMap() {
       }
 
       if (loading) {
-        const loadingText = createTextElement(
+        const loadingText = textElement(
           "div",
           "Calculating traffic-aware driver ETAs…",
         );
@@ -219,7 +223,7 @@ function RoutingPreviewMap() {
       }
 
       if (errorMessage) {
-        const error = createTextElement("div", errorMessage);
+        const error = textElement("div", errorMessage);
         error.style.padding = "8px 0";
         error.style.color = "#b91c1c";
         container.appendChild(error);
@@ -229,7 +233,7 @@ function RoutingPreviewMap() {
       if (!preview) return container;
 
       if (preview.drivers.length === 0) {
-        const noDrivers = createTextElement(
+        const noDrivers = textElement(
           "div",
           "No dispatch-visible drivers are currently signed in.",
         );
@@ -246,31 +250,31 @@ function RoutingPreviewMap() {
           if (index > 0) row.style.borderTop = "1px solid #e4e4e7";
 
           const left = document.createElement("div");
-          const displayName = getDriverDisplayName({
-            firstName: driver.firstName,
-            lastName: driver.lastName,
-            email: driver.email,
-          });
-          const name = createTextElement("strong", displayName);
+          const name = textElement(
+            "strong",
+            getDriverDisplayName({
+              firstName: driver.firstName,
+              lastName: driver.lastName,
+              email: driver.email,
+            }),
+          );
           name.style.fontSize = "13px";
           left.appendChild(name);
 
-          const load = createTextElement(
-            "div",
-            `${driver.activeOrderCount} active order${
-              driver.activeOrderCount === 1 ? "" : "s"
-            }${
-              driver.distanceMeters === null
-                ? ""
-                : ` • ${formatDistance(driver.distanceMeters)}`
-            }`,
-          );
+          const loadText = `${driver.activeOrderCount} active order${
+            driver.activeOrderCount === 1 ? "" : "s"
+          }${
+            driver.distanceMeters === null
+              ? ""
+              : ` • ${formatDistance(driver.distanceMeters)}`
+          }`;
+          const load = textElement("div", loadText);
           load.style.fontSize = "11px";
           load.style.color = "#71717a";
           left.appendChild(load);
           row.appendChild(left);
 
-          const eta = createTextElement(
+          const eta = textElement(
             "strong",
             driver.etaMinutes === null ? "Unavailable" : `~${driver.etaMinutes} min`,
           );
@@ -284,7 +288,7 @@ function RoutingPreviewMap() {
         });
       }
 
-      const note = createTextElement(
+      const note = textElement(
         "p",
         "ETA is from each driver's current GPS location to this customer. Existing deliveries are shown as active-order counts but are not added to the ETA.",
       );
@@ -294,7 +298,7 @@ function RoutingPreviewMap() {
       note.style.margin = "8px 0 6px";
       container.appendChild(note);
 
-      const refreshButton = createTextElement("button", "Refresh ETA");
+      const refreshButton = textElement("button", "Refresh ETA");
       refreshButton.type = "button";
       refreshButton.style.border = "0";
       refreshButton.style.borderRadius = "6px";
@@ -312,16 +316,18 @@ function RoutingPreviewMap() {
       return container;
     };
 
-    const openOrderPreview = (
-      orderId: string,
-      content: HTMLElement,
-    ) => {
+    const openOrderPreview = (orderId: string, content: HTMLElement) => {
       const marker = orderMarkersRef.current[orderId];
       const googleMaps = (window as any).google?.maps;
       if (!marker || !mapRef.current || !googleMaps) return;
 
       if (!infoWindowRef.current) {
         infoWindowRef.current = new googleMaps.InfoWindow();
+        infoWindowRef.current.addListener("closeclick", () => {
+          pinnedOrderIdRef.current = null;
+          selectedOrderIdRef.current = null;
+          updateDriverMarkerTitles(null);
+        });
       }
       infoWindowRef.current.setContent(content);
       infoWindowRef.current.open(mapRef.current, marker);
@@ -359,16 +365,19 @@ function RoutingPreviewMap() {
         const response = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const data = await response.json().catch(() => ({}));
+        const data: any = await response.json().catch(() => ({}));
 
         if (!response.ok) {
-          const message =
-            typeof data?.message === "string"
-              ? data.message
-              : "Could not calculate driver ETAs.";
           openOrderPreview(
             orderId,
-            buildPreviewContent(order, undefined, false, message),
+            buildPreviewContent(
+              order,
+              undefined,
+              false,
+              typeof data?.message === "string"
+                ? data.message
+                : "Could not calculate driver ETAs.",
+            ),
           );
           return;
         }
@@ -408,12 +417,15 @@ function RoutingPreviewMap() {
           streetViewControl: false,
           fullscreenControl: true,
         });
+        mapRef.current.addListener("click", () => {
+          if (pinnedOrderIdRef.current) clearSelection();
+        });
       }
 
       const map = mapRef.current;
-      const onlineDrivers = driversRef.current.filter(
+      const signedInDrivers = driversRef.current.filter((driver) => driver.isOnline);
+      const driversWithLocation = signedInDrivers.filter(
         (driver) =>
-          driver.isOnline &&
           typeof driver.latitude === "number" &&
           typeof driver.longitude === "number",
       );
@@ -425,7 +437,9 @@ function RoutingPreviewMap() {
           typeof order.deliveryLongitude === "number",
       );
 
-      const activeDriverIds = new Set(onlineDrivers.map((driver) => driver.id));
+      const activeDriverIds = new Set(
+        driversWithLocation.map((driver) => driver.id),
+      );
       Object.entries(driverMarkersRef.current).forEach(([driverId, marker]) => {
         if (!activeDriverIds.has(driverId)) {
           marker.setMap(null);
@@ -433,7 +447,7 @@ function RoutingPreviewMap() {
         }
       });
 
-      onlineDrivers.forEach((driver) => {
+      driversWithLocation.forEach((driver) => {
         const position = {
           lat: driver.latitude as number,
           lng: driver.longitude as number,
@@ -489,6 +503,7 @@ function RoutingPreviewMap() {
           marker.setMap(null);
           delete orderMarkersRef.current[orderId];
           delete previewCacheRef.current[orderId];
+          if (selectedOrderIdRef.current === orderId) clearSelection();
         }
       });
 
@@ -552,9 +567,12 @@ function RoutingPreviewMap() {
         orderMarkersRef.current[order.id] = marker;
       });
 
-      if (!hasFittedBoundsRef.current && (onlineDrivers.length || activeOrders.length)) {
+      if (
+        !hasFittedBoundsRef.current &&
+        (driversWithLocation.length > 0 || activeOrders.length > 0)
+      ) {
         const bounds = new googleMaps.LatLngBounds();
-        onlineDrivers.forEach((driver) =>
+        driversWithLocation.forEach((driver) =>
           bounds.extend({
             lat: driver.latitude as number,
             lng: driver.longitude as number,
@@ -573,10 +591,14 @@ function RoutingPreviewMap() {
         hasFittedBoundsRef.current = true;
       }
 
+      const gpsSuffix =
+        signedInDrivers.length === driversWithLocation.length
+          ? ""
+          : ` • ${driversWithLocation.length} with live GPS`;
       setStatusText(
-        `${onlineDrivers.length} online driver${
-          onlineDrivers.length === 1 ? "" : "s"
-        } • ${activeOrders.length} active mapped order${
+        `${signedInDrivers.length} signed-in driver${
+          signedInDrivers.length === 1 ? "" : "s"
+        }${gpsSuffix} • ${activeOrders.length} active mapped order${
           activeOrders.length === 1 ? "" : "s"
         }`,
       );
@@ -620,17 +642,14 @@ function RoutingPreviewMap() {
 
     const start = () => {
       if (cancelled) return;
-      const googleMaps = (window as any).google?.maps;
-      if (!googleMaps || !mapElementRef.current) return;
+      if (!(window as any).google?.maps || !mapElementRef.current) return;
 
       if (mapsWaitIntervalId !== null) {
         window.clearInterval(mapsWaitIntervalId);
         mapsWaitIntervalId = null;
       }
       void refreshData();
-      refreshIntervalId = window.setInterval(() => {
-        void refreshData();
-      }, 3_000);
+      refreshIntervalId = window.setInterval(() => void refreshData(), 3_000);
     };
 
     start();
@@ -638,22 +657,10 @@ function RoutingPreviewMap() {
       mapsWaitIntervalId = window.setInterval(start, 250);
     }
 
-    const mapElement = mapElementRef.current;
-    const mapClickHandler = () => {
-      if (pinnedOrderIdRef.current) {
-        pinnedOrderIdRef.current = null;
-        selectedOrderIdRef.current = null;
-        infoWindowRef.current?.close();
-        updateDriverMarkerTitles(null);
-      }
-    };
-    mapElement?.addEventListener("dblclick", mapClickHandler);
-
     return () => {
       cancelled = true;
       if (refreshIntervalId !== null) window.clearInterval(refreshIntervalId);
       if (mapsWaitIntervalId !== null) window.clearInterval(mapsWaitIntervalId);
-      mapElement?.removeEventListener("dblclick", mapClickHandler);
       Object.values(driverMarkersRef.current).forEach((marker) => marker.setMap(null));
       Object.values(orderMarkersRef.current).forEach((marker) => marker.setMap(null));
       driverMarkersRef.current = {};
@@ -670,8 +677,8 @@ function RoutingPreviewMap() {
         <div className="font-semibold text-green-300">Routing Previewer</div>
         <div>
           Hover an order pin to compare traffic-aware ETAs for every signed-in
-          driver. Click an order pin to keep the preview open; double-click the
-          map to clear it.
+          driver. Click an order pin to keep the preview open; click the map or
+          close the popup to clear it.
         </div>
         <div className="mt-1 text-xs text-zinc-500">{statusText}</div>
       </div>
@@ -687,42 +694,41 @@ export function RoutingPreviewEnhancer() {
   const [mountNode, setMountNode] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    let currentOriginal: HTMLDivElement | null = null;
-    let currentMount: HTMLDivElement | null = null;
+    let originalMap: HTMLDivElement | null = null;
+    let portalMount: HTMLDivElement | null = null;
 
-    const cleanupCurrent = () => {
-      if (currentOriginal?.isConnected) {
-        currentOriginal.style.display = "";
-        currentOriginal.removeAttribute("data-routing-preview-original");
+    const restore = () => {
+      if (originalMap?.isConnected) {
+        originalMap.style.display = "";
+        originalMap.removeAttribute("data-routing-preview-original");
       }
-      if (currentMount?.isConnected) currentMount.remove();
-      currentOriginal = null;
-      currentMount = null;
+      if (portalMount?.isConnected) portalMount.remove();
+      originalMap = null;
+      portalMount = null;
       setMountNode(null);
     };
 
     const scan = () => {
-      if (currentMount && !currentMount.isConnected) {
-        currentOriginal = null;
-        currentMount = null;
+      if (portalMount && !portalMount.isConnected) {
+        originalMap = null;
+        portalMount = null;
         setMountNode(null);
       }
+      if (portalMount?.isConnected) return;
 
-      if (currentMount?.isConnected) return;
+      const candidate = findDriverLocationMap();
+      if (!candidate || candidate.dataset.routingPreviewOriginal === "true") return;
 
-      const original = findDriverLocationMap();
-      if (!original || original.dataset.routingPreviewOriginal === "true") return;
+      const mount = document.createElement("div");
+      mount.dataset.routingPreviewMount = "true";
+      mount.style.width = "100%";
+      candidate.dataset.routingPreviewOriginal = "true";
+      candidate.style.display = "none";
+      candidate.parentElement?.insertBefore(mount, candidate);
 
-      const nextMount = document.createElement("div");
-      nextMount.dataset.routingPreviewMount = "true";
-      nextMount.style.width = "100%";
-      original.dataset.routingPreviewOriginal = "true";
-      original.style.display = "none";
-      original.parentElement?.insertBefore(nextMount, original);
-
-      currentOriginal = original;
-      currentMount = nextMount;
-      setMountNode(nextMount);
+      originalMap = candidate;
+      portalMount = mount;
+      setMountNode(mount);
     };
 
     const root = document.getElementById("root");
@@ -732,7 +738,7 @@ export function RoutingPreviewEnhancer() {
 
     return () => {
       observer.disconnect();
-      cleanupCurrent();
+      restore();
     };
   }, []);
 
