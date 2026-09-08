@@ -1,4 +1,4 @@
-import { registerRoutingPreviewOrder } from "./routingPreviewMap";
+import { registerRoutingPreviewOrder } from "./routingPreviewMap.ts";
 
 export type DeliveryGeocodeStatus =
   | "VERIFIED"
