@@ -29,13 +29,13 @@ test("Guelph pickup dataset has the expected verified category counts", () => {
     ])
   );
 
-  assert.equal(allLocations.length, 56);
+  assert.equal(allLocations.length, 57);
   assert.deepEqual(counts, {
     LCBO: 5,
     BEER_STORE: 4,
     VAPE: 7,
     DISPENSARY: 23,
-    CONVENIENCE: 17
+    CONVENIENCE: 18
   });
 });
 
@@ -66,4 +66,16 @@ test("Guelph pickup dataset contains no duplicate civic address inside the same 
   );
 
   assert.equal(new Set(typedAddresses).size, typedAddresses.length);
+});
+
+test("Guelph pickup dataset includes the existing production Willow Road Quickie", () => {
+  const willowQuickie = allLocations.find(
+    (location) =>
+      location.pickupType === "CONVENIENCE" &&
+      location.addressLine1 === "61 Willow Road"
+  );
+
+  assert.ok(willowQuickie);
+  assert.equal(willowQuickie.name, "Quickie Convenience - Willow Road");
+  assert.equal(willowQuickie.postalCode, "N1H 1W3");
 });
