@@ -1,38 +1,9 @@
 import { prisma } from "../lib/prisma";
 import { GUELPH_CORE_PICKUP_LOCATIONS } from "../data/guelphPickupLocations";
 import { geocodeDeliveryAddress } from "../services/deliveryGeocoding.service";
+import { isSamePickupLocation } from "../services/pickupLocationSeedMatching.service";
 
 const applyChanges = process.env.PICKUP_LOCATION_SEED_APPLY === "true";
-const MATCH_DISTANCE_METERS = 75;
-
-const normalizeAddress = (value: string): string =>
-  value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-
-const toRadians = (value: number): number => (value * Math.PI) / 180;
-
-const distanceMeters = (
-  latitudeA: number,
-  longitudeA: number,
-  latitudeB: number,
-  longitudeB: number
-): number => {
-  const earthRadiusMeters = 6_371_000;
-  const latitudeDelta = toRadians(latitudeB - latitudeA);
-  const longitudeDelta = toRadians(longitudeB - longitudeA);
-  const startLatitude = toRadians(latitudeA);
-  const endLatitude = toRadians(latitudeB);
-
-  const a =
-    Math.sin(latitudeDelta / 2) ** 2 +
-    Math.cos(startLatitude) *
-      Math.cos(endLatitude) *
-      Math.sin(longitudeDelta / 2) ** 2;
-
-  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(a));
-};
 
 const main = async (): Promise<void> => {
   let created = 0;
@@ -73,21 +44,14 @@ const main = async (): Promise<void> => {
       }
     });
 
-    const normalizedSeedAddress = normalizeAddress(seedLocation.addressLine1);
-    const existing = existingCandidates.find((candidate) => {
-      if (normalizeAddress(candidate.addressLine1) === normalizedSeedAddress) {
-        return true;
-      }
-
-      return (
-        distanceMeters(
-          candidate.latitude,
-          candidate.longitude,
-          geocoded.deliveryLatitude as number,
-          geocoded.deliveryLongitude as number
-        ) <= MATCH_DISTANCE_METERS
-      );
-    });
+    const existing = existingCandidates.find((candidate) =>
+      isSamePickupLocation(candidate, {
+        name: seedLocation.name,
+        addressLine1: seedLocation.addressLine1,
+        latitude: geocoded.deliveryLatitude as number,
+        longitude: geocoded.deliveryLongitude as number
+      })
+    );
 
     const desiredData = {
       name: seedLocation.name,
@@ -95,7 +59,7 @@ const main = async (): Promise<void> => {
       addressLine1: seedLocation.addressLine1,
       city: seedLocation.city,
       province: seedLocation.province,
-      postalCode: seedLocation.postalCode,
+      postalCode: seedLocation.postalCode ?? null,
       latitude: geocoded.deliveryLatitude,
       longitude: geocoded.deliveryLongitude,
       isActive: true
