@@ -6,6 +6,7 @@ import { startUndispatchedOrderAlertMonitor } from "./services/undispatchedOrder
 import { runPickupLocationDryRun } from "./services/pickupLocationDryRun.service";
 import { runPickupLocationApply } from "./services/pickupLocationApply.service";
 import { startPickupLocationHoursMonitor } from "./services/pickupLocationHours.service";
+import { repairUnresolvedPickupLocationPlaceIds } from "./services/pickupLocationPlaceIdRepair.service";
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -62,6 +63,13 @@ async function startServer(): Promise<void> {
 
     server = app.listen(env.PORT, () => {
       console.log(`Server running on http://localhost:${env.PORT}`);
+    });
+
+    void repairUnresolvedPickupLocationPlaceIds().catch((error) => {
+      console.error(
+        "Pickup Location Place ID repair failed",
+        error instanceof Error ? error.message : typeof error
+      );
     });
 
     stopUndispatchedOrderAlertMonitor = startUndispatchedOrderAlertMonitor();
