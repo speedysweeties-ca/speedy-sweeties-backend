@@ -7,6 +7,7 @@ import {
   createPickupLocationController,
   deactivatePickupLocationController,
   listPickupLocationsController,
+  refreshPickupLocationHoursController,
   updatePickupLocationController
 } from "../controllers/pickupLocation.controller";
 
@@ -26,6 +27,14 @@ router.post(
   requireAuth,
   requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
   asyncHandler(createPickupLocationController)
+);
+
+// 🔒 STAFF — refresh one pickup location from Google Places
+router.post(
+  "/:id/refresh-hours",
+  requireAuth,
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
+  asyncHandler(refreshPickupLocationHoursController)
 );
 
 // 🔒 STAFF — edit pickup location

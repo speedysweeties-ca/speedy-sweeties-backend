@@ -39,8 +39,8 @@ jobs:
       - name: Build backend
         run: npm run build
 
-      - name: Test routing preview service
-        run: node --test tests/routingPreview.test.js
+      - name: Test backend services
+        run: node --test tests/routingPreview.test.js tests/pickupLocationHours.test.js
 
       - name: Install dispatcher dependencies
         working-directory: speedy-dispatcher
