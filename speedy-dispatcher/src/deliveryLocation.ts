@@ -1,9 +1,13 @@
+import { registerRoutingPreviewOrder } from "./routingPreviewMap";
+
 export type DeliveryGeocodeStatus =
   | "VERIFIED"
   | "NEEDS_REVIEW"
   | "UNVERIFIED";
 
 export type OrderDeliveryLocation = {
+  id?: string | null;
+  orderNumber?: number | null;
   deliveryLatitude?: number | null;
   deliveryLongitude?: number | null;
   geocodeStatus?: DeliveryGeocodeStatus | null;
@@ -20,6 +24,8 @@ export const getVerifiedDeliveryPosition = (
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
   if ((latitude as number) < -90 || (latitude as number) > 90) return null;
   if ((longitude as number) < -180 || (longitude as number) > 180) return null;
+
+  registerRoutingPreviewOrder(order);
 
   return { lat: latitude as number, lng: longitude as number };
 };
