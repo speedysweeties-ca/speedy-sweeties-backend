@@ -67,15 +67,19 @@ const patchGoogleMapsMarker = (): boolean => {
   if (!maps || !OriginalMarker || !maps.SymbolPath?.CIRCLE) return false;
   if ((OriginalMarker as any)[DRIVER_MARKER_PATCH_FLAG]) return true;
 
+  const googleMaps: GoogleMapsLike = maps;
   const originalSetIcon = OriginalMarker.prototype.setIcon;
 
   OriginalMarker.prototype.setIcon = function patchedSetIcon(icon: any) {
-    if (isDriverCircleIcon(maps, this, icon)) {
+    if (isDriverCircleIcon(googleMaps, this, icon)) {
       this[DRIVER_MARKER_INSTANCE_FLAG] = true;
       applyDriverLabel(this);
       return originalSetIcon.call(
         this,
-        buildDriverPinIcon(maps, String(icon.fillColor || "#16a34a")),
+        buildDriverPinIcon(
+          googleMaps,
+          String(icon.fillColor || "#16a34a"),
+        ),
       );
     }
 
@@ -86,12 +90,15 @@ const patchGoogleMapsMarker = (): boolean => {
     const marker = new OriginalMarker(options);
     const icon = options?.icon;
 
-    if (isDriverCircleIcon(maps, marker, icon)) {
+    if (isDriverCircleIcon(googleMaps, marker, icon)) {
       marker[DRIVER_MARKER_INSTANCE_FLAG] = true;
       applyDriverLabel(marker);
       originalSetIcon.call(
         marker,
-        buildDriverPinIcon(maps, String(icon.fillColor || "#16a34a")),
+        buildDriverPinIcon(
+          googleMaps,
+          String(icon.fillColor || "#16a34a"),
+        ),
       );
     }
 
@@ -101,7 +108,7 @@ const patchGoogleMapsMarker = (): boolean => {
   SpeedyMarker.prototype = OriginalMarker.prototype;
   Object.setPrototypeOf(SpeedyMarker, OriginalMarker);
   (SpeedyMarker as any)[DRIVER_MARKER_PATCH_FLAG] = true;
-  maps.Marker = SpeedyMarker;
+  googleMaps.Marker = SpeedyMarker;
 
   return true;
 };
