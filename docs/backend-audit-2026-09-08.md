@@ -121,3 +121,5 @@ Backend CI was expanded to run the backend test suite in addition to Prisma vali
 - No Pickup Location seed data.
 - No Render configuration changes.
 - No merge to `main`.
+
+The current production system therefore remains exactly as it was until this draft pull request is explicitly reviewed and merged later.
