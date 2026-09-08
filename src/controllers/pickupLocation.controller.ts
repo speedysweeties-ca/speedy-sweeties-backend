@@ -301,7 +301,7 @@ export const updatePickupLocationController = async (
       ? undefined
       : parseManualHoursOverride(manualHoursOverride);
 
-  if (manualOverrideParsed && !manualOverrideParsed.ok) {
+  if (manualOverrideParsed?.ok === false) {
     return res.status(400).json({
       success: false,
       message: manualOverrideParsed.message
