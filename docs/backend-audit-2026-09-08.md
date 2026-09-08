@@ -30,6 +30,35 @@ This audit started from `main` on 2026-09-08. All remediation work remains isola
 
 The current Dispatcher UI already presented the same six official values, so no Dispatcher UI vocabulary change was required.
 
+### Guelph Pickup Location dataset prepared on this branch
+
+A researched Guelph seed dataset is now prepared with 56 pickup-location candidates:
+
+- 5 LCBO locations
+- 4 The Beer Store locations
+- 23 cannabis dispensaries
+- 7 vape shops
+- 17 strategic convenience locations
+
+The convenience category is deliberately curated rather than attempting to include every gas station or corner store in Guelph. The goal is useful geographic coverage and broadly useful pickup candidates without flooding future routing with low-value duplicates.
+
+The source records live in:
+
+- `src/data/guelphPickupLocations.ts`
+- `src/data/guelphConveniencePickupLocations.ts`
+
+A safe seed job is available through:
+
+- `npm run seed:pickup-locations`
+
+The seed job is **dry-run by default**. It does not persist anything unless `PICKUP_LOCATION_SEED_APPLY=true` is explicitly set.
+
+Before a row can be created or updated, the job runs the address through the existing backend Google geocoder. Any address that does not return `VERIFIED` with valid coordinates is skipped rather than guessed.
+
+Existing rows are matched conservatively. An exact normalized civic address is considered the same location. Otherwise, a row is matched only when the normalized store name is also the same and its verified coordinates are within 75 metres. Proximity by itself never merges two businesses, which prevents nearby competing stores from being collapsed into one record.
+
+No production Pickup Location rows have been written by this work.
+
 ### Important live-behavior boundary
 
 Current auto-dispatch still selects the least-busy fresh online driver. Pickup Locations do **not** influence automatic driver assignment in this branch.
@@ -86,11 +115,13 @@ The database key is derived with SHA-256 so the raw token is not embedded in a s
 - Login, public order creation, tracking, QR statistics and notification registration have rate limiting.
 - Public order creation checks confirmed business-closed status.
 - Secure tracking tokens expire after 48 hours.
-- Dependency advisory PR #1 recorded zero npm vulnerabilities.
+- Dependency advisory PR #1 recorded zero npm vulnerabilities at the time it was merged.
 - Dispatcher-name attribution was merged in PR #4.
 - Receipt totals are bounded and component-validated.
 - Drivers can only create receipts for their assigned orders.
 - Driver freshness is already considered in live-driver listing and auto-dispatch eligibility.
+
+A later CI install on 2026-09-08 reported one moderate npm dependency advisory. It is unrelated to this Phase 2 Pickup Location work and has not been changed in this branch.
 
 ## Intentionally not changed
 
@@ -100,14 +131,15 @@ Manual assignment availability rules were also not changed because that would al
 
 ## Remaining Phase 2 work
 
-1. Populate real Guelph Pickup Location records.
-2. Verify coordinates and active/inactive status.
-3. Add stronger location duplicate/uniqueness policy once the real dataset is known.
-4. Only in a later phase, design pickup-distance-aware automatic assignment.
+1. Run the 56-location seed in dry-run mode against the real backend environment so Google geocoding can validate every civic address and calculate coordinates.
+2. Review any `SKIP`, `CREATE`, `UPDATE`, or duplicate-match result from the dry run.
+3. Only after that review, explicitly run the seed with `PICKUP_LOCATION_SEED_APPLY=true` to populate the production Pickup Location table.
+4. Verify the resulting rows in the Dispatcher Pickup Locations screen, including active status and map coordinates.
+5. Only in a later phase, design pickup-distance-aware routing and automatic assignment.
 
 ## Verification
 
-Regression tests were added for:
+Regression tests cover:
 
 - removal of UUID tracking routes;
 - duplicate-order fingerprint/reservation behavior;
@@ -117,9 +149,13 @@ Regression tests were added for:
 - the official Pickup Type vocabulary;
 - rejection of legacy routing aliases;
 - driver routing recognition of every official routable Pickup Type;
-- Item Catalog rejection of non-standard Pickup Types.
+- Item Catalog rejection of non-standard Pickup Types;
+- the 56-location Guelph dataset and category counts;
+- dataset name/address duplicate protection;
+- prevention of proximity-only merging for nearby competing stores;
+- safe matching of the same store across minor address formatting changes.
 
-Backend CI runs the backend test suite in addition to Prisma validation and TypeScript compilation.
+Backend CI runs the backend test suite in addition to Prisma validation and TypeScript compilation. The full validation for the 56-location dataset passed 80 tests with 0 failures.
 
 ## Explicit non-changes
 
@@ -127,7 +163,7 @@ Backend CI runs the backend test suite in addition to Prisma validation and Type
 - No Auto Dispatch toggle behavior change.
 - No driver freshness-threshold change.
 - No production database writes.
-- No Pickup Location seed data.
+- No production Pickup Location rows created or updated.
 - No Render configuration changes.
 - No merge to `main`.
 
