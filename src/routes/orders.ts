@@ -5,6 +5,8 @@ import { validateRequest } from "../middleware/validateRequest";
 import { requireAuth } from "../middleware/auth.middleware";
 import { orderCreationRateLimiter } from "../middleware/orderCreationRateLimiter";
 import { orderTrackingRateLimiter } from "../middleware/orderTrackingRateLimiter";
+import { preventDuplicatePublicOrderSubmission } from "../middleware/orderDuplicateGuard";
+import { requireAllowedOrderStatusTransition } from "../middleware/orderStatusTransitionGuard";
 import { requireRole } from "../middleware/role.middleware";
 
 import {
@@ -22,7 +24,6 @@ import {
   createOrderController,
   getAutoDispatchSettingsController,
   getOrderByIdController,
-  getPublicOrderTrackingController,
   getPublicOrderTrackingByTokenController,
   updateAutoDispatchSettingsController,
   updateOrderStatusController,
@@ -50,6 +51,7 @@ router.post(
   "/",
   orderCreationRateLimiter,
   validateRequest(createOrderSchema),
+  asyncHandler(preventDuplicatePublicOrderSubmission),
   asyncHandler(createOrderController)
 );
 
@@ -63,18 +65,11 @@ router.post(
   asyncHandler(createManualOrderController)
 );
 
-// ✅ PUBLIC — customer tracking by order ID
+// ✅ PUBLIC — secure customer tracking by short-lived token only
 router.get(
   "/track-token/:token",
   orderTrackingRateLimiter,
   asyncHandler(getPublicOrderTrackingByTokenController)
-);
-
-// Keep the legacy UUID route for existing Customer Android versions.
-router.get(
-  "/track/:id",
-  orderTrackingRateLimiter,
-  asyncHandler(getPublicOrderTrackingController)
 );
 
 // 🔒 STAFF — auto-dispatch setting
@@ -207,12 +202,13 @@ router.post(
   asyncHandler(driverActionController)
 );
 
-// 🔒 STAFF — update status (legacy)
+// 🔒 STAFF — legacy status endpoint, restricted to the real lifecycle graph
 router.patch(
   "/:id/status",
   requireAuth,
   requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
   validateRequest(updateOrderStatusSchema),
+  asyncHandler(requireAllowedOrderStatusTransition),
   asyncHandler(updateOrderStatusController)
 );
 
