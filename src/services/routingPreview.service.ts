@@ -155,10 +155,11 @@ export const computeTrafficAwareRouteMatrix = async (
     const byOriginIndex = new Map<number, GoogleRouteMatrixElement>();
     for (const element of payload) {
       if (
+        typeof element.originIndex === "number" &&
         Number.isInteger(element.originIndex) &&
         (element.destinationIndex ?? 0) === 0
       ) {
-        byOriginIndex.set(element.originIndex as number, element);
+        byOriginIndex.set(element.originIndex, element);
       }
     }
 
@@ -171,14 +172,15 @@ export const computeTrafficAwareRouteMatrix = async (
         statusCode === 0 &&
         element?.condition !== "ROUTE_NOT_FOUND" &&
         durationSeconds !== null;
+      const distanceMeters =
+        routeAvailable && typeof element?.distanceMeters === "number"
+          ? element.distanceMeters
+          : null;
 
       return {
         driverId: origin.driverId,
         durationSeconds: routeAvailable ? durationSeconds : null,
-        distanceMeters:
-          routeAvailable && Number.isFinite(element?.distanceMeters)
-            ? (element?.distanceMeters as number)
-            : null,
+        distanceMeters,
         routeAvailable
       };
     });
