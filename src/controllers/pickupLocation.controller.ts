@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
+import { refreshPickupLocationHours } from "../services/pickupLocationHours.service";
 
 const normalizePickupType = (value: string): string =>
   value.trim().toUpperCase();
@@ -14,6 +15,118 @@ const parseCoordinate = (value: unknown): number | null => {
         : NaN;
 
   return Number.isFinite(parsed) ? parsed : null;
+};
+
+const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+type ManualOverrideParseResult =
+  | { ok: true; value: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput }
+  | { ok: false; message: string };
+
+const isValidDateOnly = (value: string): boolean => {
+  if (!DATE_PATTERN.test(value)) return false;
+  const parsed = new Date(`${value}T12:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+};
+
+const parseManualHoursOverride = (value: unknown): ManualOverrideParseResult => {
+  if (value === null) {
+    return { ok: true, value: Prisma.DbNull };
+  }
+
+  if (!Array.isArray(value)) {
+    return {
+      ok: false,
+      message: "manualHoursOverride must be an array or null"
+    };
+  }
+
+  if (value.length > 31) {
+    return {
+      ok: false,
+      message: "manualHoursOverride can contain at most 31 dated entries"
+    };
+  }
+
+  const normalized: Array<Record<string, Prisma.JsonValue>> = [];
+  const seenDates = new Set<string>();
+
+  for (const rawEntry of value) {
+    if (!rawEntry || typeof rawEntry !== "object" || Array.isArray(rawEntry)) {
+      return {
+        ok: false,
+        message: "Each manual hours override entry must be an object"
+      };
+    }
+
+    const entry = rawEntry as Record<string, unknown>;
+    const date = typeof entry.date === "string" ? entry.date.trim() : "";
+    const isClosed = entry.isClosed;
+    const openTime =
+      typeof entry.openTime === "string" ? entry.openTime.trim() : undefined;
+    const closeTime =
+      typeof entry.closeTime === "string" ? entry.closeTime.trim() : undefined;
+    const note = typeof entry.note === "string" ? entry.note.trim() : undefined;
+
+    if (!isValidDateOnly(date)) {
+      return {
+        ok: false,
+        message: "Each manual hours override requires a valid YYYY-MM-DD date"
+      };
+    }
+
+    if (seenDates.has(date)) {
+      return {
+        ok: false,
+        message: `Duplicate manual hours override date: ${date}`
+      };
+    }
+    seenDates.add(date);
+
+    if (typeof isClosed !== "boolean") {
+      return {
+        ok: false,
+        message: `Manual hours override for ${date} requires isClosed true or false`
+      };
+    }
+
+    if (!isClosed) {
+      if (!openTime || !TIME_PATTERN.test(openTime)) {
+        return {
+          ok: false,
+          message: `Manual hours override for ${date} requires openTime in HH:MM format`
+        };
+      }
+      if (!closeTime || !TIME_PATTERN.test(closeTime)) {
+        return {
+          ok: false,
+          message: `Manual hours override for ${date} requires closeTime in HH:MM format`
+        };
+      }
+    }
+
+    if (note && note.length > 200) {
+      return {
+        ok: false,
+        message: `Manual hours override note for ${date} must be 200 characters or fewer`
+      };
+    }
+
+    normalized.push({
+      date,
+      isClosed,
+      ...(isClosed ? {} : { openTime: openTime!, closeTime: closeTime! }),
+      ...(note ? { note } : {})
+    });
+  }
+
+  normalized.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+  return {
+    ok: true,
+    value: normalized as unknown as Prisma.InputJsonValue
+  };
 };
 
 export const listPickupLocationsController = async (
@@ -61,7 +174,8 @@ export const createPickupLocationController = async (
     province,
     latitude,
     longitude,
-    isActive
+    isActive,
+    googlePlaceId
   } = req.body;
 
   if (
@@ -109,7 +223,10 @@ export const createPickupLocationController = async (
       province: province.trim(),
       latitude: parsedLatitude,
       longitude: parsedLongitude,
-      ...(typeof isActive === "boolean" ? { isActive } : {})
+      ...(typeof isActive === "boolean" ? { isActive } : {}),
+      ...(typeof googlePlaceId === "string" && googlePlaceId.trim()
+        ? { googlePlaceId: googlePlaceId.trim() }
+        : {})
     }
   });
 
@@ -145,7 +262,10 @@ export const updatePickupLocationController = async (
     province,
     latitude,
     longitude,
-    isActive
+    isActive,
+    googlePlaceId,
+    manualHoursOverride,
+    manualHoursOverrideNote
   } = req.body;
 
   const parsedLatitude =
@@ -176,6 +296,66 @@ export const updatePickupLocationController = async (
     });
   }
 
+  const manualOverrideParsed =
+    manualHoursOverride === undefined
+      ? undefined
+      : parseManualHoursOverride(manualHoursOverride);
+
+  if (manualOverrideParsed && !manualOverrideParsed.ok) {
+    return res.status(400).json({
+      success: false,
+      message: manualOverrideParsed.message
+    });
+  }
+
+  if (
+    manualHoursOverrideNote !== undefined &&
+    manualHoursOverrideNote !== null &&
+    typeof manualHoursOverrideNote !== "string"
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "manualHoursOverrideNote must be a string or null"
+    });
+  }
+
+  if (
+    typeof manualHoursOverrideNote === "string" &&
+    manualHoursOverrideNote.trim().length > 500
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "manualHoursOverrideNote must be 500 characters or fewer"
+    });
+  }
+
+  const normalizedGooglePlaceId =
+    googlePlaceId === undefined
+      ? undefined
+      : googlePlaceId === null
+        ? null
+        : typeof googlePlaceId === "string"
+          ? googlePlaceId.trim() || null
+          : undefined;
+
+  if (
+    googlePlaceId !== undefined &&
+    googlePlaceId !== null &&
+    typeof googlePlaceId !== "string"
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "googlePlaceId must be a string or null"
+    });
+  }
+
+  const googlePlaceIdChanged =
+    normalizedGooglePlaceId !== undefined &&
+    normalizedGooglePlaceId !== existingLocation.googlePlaceId;
+
+  const manualOverrideChanged =
+    manualHoursOverride !== undefined || manualHoursOverrideNote !== undefined;
+
   const updatedLocation = await prisma.pickupLocation.update({
     where: { id },
     data: {
@@ -196,7 +376,32 @@ export const updatePickupLocationController = async (
         : {}),
       ...(parsedLatitude !== undefined ? { latitude: parsedLatitude } : {}),
       ...(parsedLongitude !== undefined ? { longitude: parsedLongitude } : {}),
-      ...(typeof isActive === "boolean" ? { isActive } : {})
+      ...(typeof isActive === "boolean" ? { isActive } : {}),
+      ...(normalizedGooglePlaceId !== undefined
+        ? { googlePlaceId: normalizedGooglePlaceId }
+        : {}),
+      ...(googlePlaceIdChanged
+        ? {
+            googleBusinessStatus: null,
+            regularOpeningHours: Prisma.DbNull,
+            currentOpeningHours: Prisma.DbNull,
+            regularHoursUpdatedAt: null,
+            currentHoursUpdatedAt: null,
+            hoursLastCheckedAt: null,
+            hoursLastError: null
+          }
+        : {}),
+      ...(manualOverrideParsed?.ok
+        ? { manualHoursOverride: manualOverrideParsed.value }
+        : {}),
+      ...(manualHoursOverrideNote === null
+        ? { manualHoursOverrideNote: null }
+        : typeof manualHoursOverrideNote === "string"
+          ? { manualHoursOverrideNote: manualHoursOverrideNote.trim() || null }
+          : {}),
+      ...(manualOverrideChanged
+        ? { manualHoursOverrideUpdatedAt: new Date() }
+        : {})
     }
   });
 
@@ -204,6 +409,48 @@ export const updatePickupLocationController = async (
     success: true,
     message: "Pickup location updated successfully",
     location: updatedLocation
+  });
+};
+
+export const refreshPickupLocationHoursController = async (
+  req: Request<{ id: string }>,
+  res: Response
+) => {
+  const { id } = req.params;
+  const existingLocation = await prisma.pickupLocation.findUnique({
+    where: { id },
+    select: { id: true }
+  });
+
+  if (!existingLocation) {
+    return res.status(404).json({
+      success: false,
+      message: "Pickup location not found"
+    });
+  }
+
+  const refreshRegular = req.body?.regular !== false;
+  const refreshCurrent = req.body?.current !== false;
+
+  if (!refreshRegular && !refreshCurrent) {
+    return res.status(400).json({
+      success: false,
+      message: "At least one of regular or current must be refreshed"
+    });
+  }
+
+  const summary = await refreshPickupLocationHours({
+    locationId: id,
+    forceRegular: refreshRegular,
+    forceCurrent: refreshCurrent
+  });
+
+  const location = await prisma.pickupLocation.findUnique({ where: { id } });
+
+  return res.status(summary.failed > 0 ? 502 : 200).json({
+    success: summary.failed === 0,
+    summary,
+    location
   });
 };
 
