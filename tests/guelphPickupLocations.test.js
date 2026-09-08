@@ -72,10 +72,10 @@ test("Guelph pickup dataset includes the existing production Willow Road Quickie
   const willowQuickie = allLocations.find(
     (location) =>
       location.pickupType === "CONVENIENCE" &&
-      location.addressLine1 === "61 Willow Road"
+      location.addressLine1 === "61 Willow Rd"
   );
 
   assert.ok(willowQuickie);
-  assert.equal(willowQuickie.name, "Quickie Convenience - Willow Road");
+  assert.equal(willowQuickie.name, "Quickie - Willow Road");
   assert.equal(willowQuickie.postalCode, "N1H 1W3");
 });
