@@ -74,10 +74,17 @@ export const getOrderRoutingPreviewController = async (
     return;
   }
 
-  const destinationLatitude = Number(order.deliveryLatitude);
-  const destinationLongitude = Number(order.deliveryLongitude);
+  const hasStoredDestination =
+    order.deliveryLatitude !== null && order.deliveryLongitude !== null;
+  const destinationLatitude = hasStoredDestination
+    ? Number(order.deliveryLatitude)
+    : Number.NaN;
+  const destinationLongitude = hasStoredDestination
+    ? Number(order.deliveryLongitude)
+    : Number.NaN;
   const hasVerifiedDestination =
     order.geocodeStatus === "VERIFIED" &&
+    hasStoredDestination &&
     Number.isFinite(destinationLatitude) &&
     Number.isFinite(destinationLongitude);
 
@@ -128,6 +135,8 @@ export const getOrderRoutingPreviewController = async (
   );
 
   const routeableDrivers = onlineDrivers.filter((driver) => {
+    if (driver.latitude === null || driver.longitude === null) return false;
+
     const latitude = Number(driver.latitude);
     const longitude = Number(driver.longitude);
 
@@ -137,6 +146,9 @@ export const getOrderRoutingPreviewController = async (
       Number.isFinite(longitude)
     );
   });
+  const routeableDriverIds = new Set(
+    routeableDrivers.map((driver) => driver.id)
+  );
 
   const cacheKey = buildCacheKey(
     order.id,
@@ -198,9 +210,7 @@ export const getOrderRoutingPreviewController = async (
   const formattedDrivers = onlineDrivers
     .map((driver) => {
       const matrixResult = matrixByDriverId.get(driver.id);
-      const locationAvailable = routeableDrivers.some(
-        (candidate) => candidate.id === driver.id
-      );
+      const locationAvailable = routeableDriverIds.has(driver.id);
 
       return {
         driverId: driver.id,
