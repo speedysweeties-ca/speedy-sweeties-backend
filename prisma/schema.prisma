@@ -129,6 +129,7 @@ model Customer {
   loyaltyProgressMonth   String?
   loyaltyRewardsEarned   Int     @default(0)
   loyaltyRewardsUsed     Int     @default(0)
+  loyaltyRewardBalance   Int     @default(0)
   loyaltyFreeDelivery    Boolean @default(false)
 
   createdAt DateTime @default(now())

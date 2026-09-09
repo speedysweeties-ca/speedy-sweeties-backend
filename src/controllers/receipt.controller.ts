@@ -2,6 +2,10 @@ import { Request, Response } from "express";
 import { OrderStatus, UserRole } from "@prisma/client";
 import { messaging } from "../config/firebase";
 import { prisma } from "../lib/prisma";
+import {
+  buildOrderTransitionTimestampData,
+  evaluateOrderStatusTransition
+} from "../services/orderStateTransition.service";
 
 const MAX_FINAL_RECEIPT_TOTAL = 50_000;
 
@@ -35,6 +39,7 @@ type LockedDriverOrder = {
   dispatchedAt: Date | null;
   acceptedAt: Date | null;
   outForDeliveryAt: Date | null;
+  deliveredAt: Date | null;
   fcmToken: string | null;
 };
 
@@ -148,6 +153,7 @@ export const createOrUpdateReceiptController = async (
           "dispatchedAt",
           "acceptedAt",
           "outForDeliveryAt",
+          "deliveredAt",
           "fcmToken"
         FROM "Order"
         WHERE "id" = ${orderId} AND "assignedDriverId" = ${user.userId}
@@ -189,14 +195,26 @@ export const createOrUpdateReceiptController = async (
         };
       }
 
+      const transition = evaluateOrderStatusTransition({
+        actor: "RECEIPT",
+        currentStatus: order.orderStatus,
+        targetStatus: OrderStatus.OUT_FOR_DELIVERY,
+        hasPersistedReceipt: true
+      });
+      if ("code" in transition) {
+        throw new Error(`Receipt transition rejected: ${transition.code}`);
+      }
+
       const now = new Date();
       const updatedOrder = await tx.order.update({
         where: { id: orderId },
         data: {
           orderStatus: OrderStatus.OUT_FOR_DELIVERY,
-          dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now,
-          acceptedAt: order.acceptedAt ?? now,
-          outForDeliveryAt: order.outForDeliveryAt ?? now
+          ...buildOrderTransitionTimestampData(
+            order,
+            OrderStatus.OUT_FOR_DELIVERY,
+            now
+          )
         },
         select: {
           id: true,

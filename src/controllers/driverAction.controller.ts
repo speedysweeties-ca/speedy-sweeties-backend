@@ -2,7 +2,15 @@ import { Request, Response } from "express";
 import { OrderStatus, Prisma, UserRole } from "@prisma/client";
 import { messaging } from "../config/firebase";
 import { prisma } from "../lib/prisma";
+import {
+  recordDeliveredOrderLoyalty,
+  sendCustomerLoyaltyNotification
+} from "../services/loyalty.service";
 import { getFirstDispatchAttribution } from "../utils/dispatchAttribution";
+import {
+  buildOrderTransitionTimestampData,
+  evaluateOrderStatusTransition
+} from "../services/orderStateTransition.service";
 
 type AuthenticatedUser = {
   userId: string;
@@ -36,25 +44,6 @@ const orderInclude = {
   }
 } satisfies Prisma.OrderInclude;
 
-const LOYALTY_TIME_ZONE = "America/Toronto";
-
-const getCurrentLoyaltyMonth = (date: Date = new Date()): string => {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: LOYALTY_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit"
-  }).formatToParts(date);
-
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-
-  if (!year || !month) {
-    throw new Error("Unable to determine the current loyalty calendar month.");
-  }
-
-  return `${year}-${month}`;
-};
-
 const sendPushNotification = async (
   fcmToken: string | null,
   title: string,
@@ -69,13 +58,8 @@ const sendPushNotification = async (
   try {
     await messaging.send({
       token: fcmToken,
-      notification: {
-        title,
-        body
-      },
-      data: {
-        type
-      },
+      notification: { title, body },
+      data: { type },
       android: {
         priority: "high",
         notification: {
@@ -84,110 +68,9 @@ const sendPushNotification = async (
         }
       }
     });
-
-    console.log(`${type} push sent`);
   } catch (error) {
     console.error(`${type} push failed:`, error instanceof Error ? error.name : typeof error);
   }
-};
-
-const applyCustomerLoyaltyForDeliveredOrder = async (
-  customerId: string | null,
-  fcmToken: string | null
-): Promise<void> => {
-  if (!customerId) {
-    console.log("No customerId found for delivered order. Loyalty not updated.");
-    return;
-  }
-
-  const currentLoyaltyMonth = getCurrentLoyaltyMonth();
-
-  const loyaltyResult = await prisma.$transaction(async (tx) => {
-    const customer = await tx.customer.findUnique({
-      where: { id: customerId },
-      select: {
-        id: true,
-        loyaltyCompletedOrders: true,
-        loyaltyProgressMonth: true,
-        loyaltyRewardsEarned: true,
-        loyaltyFreeDelivery: true
-      }
-    });
-
-    if (!customer) {
-      return null;
-    }
-
-    const completedOrdersThisMonth =
-      customer.loyaltyProgressMonth === currentLoyaltyMonth
-        ? customer.loyaltyCompletedOrders
-        : 0;
-
-    const nextCompletedOrders = completedOrdersThisMonth + 1;
-
-    if (nextCompletedOrders >= 10) {
-      await tx.customer.update({
-        where: { id: customerId },
-        data: {
-          loyaltyCompletedOrders: 0,
-          loyaltyProgressMonth: currentLoyaltyMonth,
-          loyaltyRewardsEarned: {
-            increment: 1
-          },
-          loyaltyFreeDelivery: true
-        }
-      });
-
-      return {
-        rewardEarned: true,
-        completedOrders: 0
-      };
-    }
-
-    await tx.customer.update({
-      where: { id: customerId },
-      data: {
-        loyaltyCompletedOrders: nextCompletedOrders,
-        loyaltyProgressMonth: currentLoyaltyMonth
-      }
-    });
-
-    return {
-      rewardEarned: false,
-      completedOrders: nextCompletedOrders
-    };
-  });
-
-  if (!loyaltyResult) {
-    console.log("Customer not found. Loyalty not updated.");
-    return;
-  }
-
-  if (loyaltyResult.rewardEarned) {
-    await sendPushNotification(
-      fcmToken,
-      "Speedy Sweeties 🎉",
-      "You earned a free delivery on your next order!",
-      "LOYALTY_REWARD_EARNED"
-    );
-
-    console.log("Customer earned a free delivery reward.");
-    return;
-  }
-
-  const deliveriesRemaining = 10 - loyaltyResult.completedOrders;
-  const deliveryWord = deliveriesRemaining === 1 ? "delivery" : "deliveries";
-
-  await sendPushNotification(
-    fcmToken,
-    "Speedy Sweeties Rewards",
-    `You only have ${deliveriesRemaining} ${deliveryWord} left for your next free delivery.`,
-    "LOYALTY_PROGRESS_UPDATE"
-  );
-
-  console.log(
-    `Customer loyalty updated: ${loyaltyResult.completedOrders}/10 completed deliveries for ${currentLoyaltyMonth}.`
-  );
 };
 
 export const driverActionController = async (
@@ -215,36 +98,46 @@ export const driverActionController = async (
     return;
   }
 
-  if (order.orderStatus === OrderStatus.CANCELLED) {
-    res.status(400).json({ success: false, message: "Cancelled orders cannot be updated" });
+  const targetStatus =
+    action === "ACCEPTED"
+      ? OrderStatus.ACCEPTED
+      : action === "OUT_FOR_DELIVERY"
+        ? OrderStatus.OUT_FOR_DELIVERY
+        : action === "DELIVERED"
+          ? OrderStatus.DELIVERED
+          : null;
+  if (!targetStatus) {
+    res.status(400).json({ success: false, message: "Invalid action" });
     return;
   }
 
-  if (order.orderStatus === OrderStatus.DELIVERED) {
-    res.status(409).json({ success: false, message: "Order is already delivered" });
+  const requiresReceipt =
+    targetStatus === OrderStatus.OUT_FOR_DELIVERY ||
+    targetStatus === OrderStatus.DELIVERED;
+  const receipt = requiresReceipt
+    ? await prisma.digitalReceipt.findUnique({
+        where: { orderId: id },
+        select: { id: true }
+      })
+    : null;
+  const transition = evaluateOrderStatusTransition({
+    actor: "DRIVER_ACTION",
+    currentStatus: order.orderStatus,
+    targetStatus,
+    hasPersistedReceipt: receipt !== null
+  });
+  if ("code" in transition) {
+    res.status(409).json({
+      success: false,
+      code: transition.code,
+      message: transition.message
+    });
     return;
   }
 
   const now = new Date();
 
   if (action === "ACCEPTED") {
-    if (order.orderStatus === OrderStatus.ACCEPTED) {
-      res.status(409).json({ success: false, message: "Order is already accepted" });
-      return;
-    }
-
-    const canAccept =
-      order.orderStatus === OrderStatus.PLACED ||
-      order.orderStatus === OrderStatus.DISPATCHED;
-
-    if (!canAccept) {
-      res.status(400).json({
-        success: false,
-        message: "Order cannot be accepted from its current status"
-      });
-      return;
-    }
-
     const acceptanceUpdate = await prisma.order.updateMany({
       where: {
         id,
@@ -253,34 +146,23 @@ export const driverActionController = async (
       },
       data: {
         orderStatus: OrderStatus.ACCEPTED,
-        dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now,
+        ...buildOrderTransitionTimestampData(
+          order,
+          OrderStatus.ACCEPTED,
+          now
+        ),
         ...getFirstDispatchAttribution(order.dispatchedAt, {
           userId: user.userId,
           role: UserRole.DRIVER
         }),
-        acceptedAt: order.acceptedAt ?? now
       }
     });
 
     if (acceptanceUpdate.count === 0) {
-      const currentOrder = await prisma.order.findUnique({
-        where: { id },
-        include: orderInclude
-      });
-
-      if (currentOrder?.orderStatus === OrderStatus.ACCEPTED) {
-        res.status(409).json({ success: false, message: "Order is already accepted" });
-        return;
-      }
-
-      if (currentOrder?.orderStatus === OrderStatus.CANCELLED) {
-        res.status(400).json({ success: false, message: "Cancelled orders cannot be updated" });
-        return;
-      }
-
-      res.status(400).json({
+      res.status(409).json({
         success: false,
-        message: "Order cannot be accepted from its current status"
+        code: "INVALID_ORDER_TRANSITION",
+        message: "Order changed before acceptance could be completed."
       });
       return;
     }
@@ -295,24 +177,6 @@ export const driverActionController = async (
   }
 
   if (action === "OUT_FOR_DELIVERY") {
-    if (order.orderStatus === OrderStatus.OUT_FOR_DELIVERY) {
-      res.status(409).json({
-        success: false,
-        message: "Order is already out for delivery"
-      });
-      return;
-    }
-
-    const canMarkOutForDelivery = order.orderStatus === OrderStatus.ACCEPTED;
-
-    if (!canMarkOutForDelivery) {
-      res.status(400).json({
-        success: false,
-        message: "Order cannot be marked out for delivery from its current status"
-      });
-      return;
-    }
-
     const outForDeliveryUpdate = await prisma.order.updateMany({
       where: {
         id,
@@ -321,49 +185,23 @@ export const driverActionController = async (
       },
       data: {
         orderStatus: OrderStatus.OUT_FOR_DELIVERY,
-        dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now,
+        ...buildOrderTransitionTimestampData(
+          order,
+          OrderStatus.OUT_FOR_DELIVERY,
+          now
+        ),
         ...getFirstDispatchAttribution(order.dispatchedAt, {
           userId: user.userId,
           role: UserRole.DRIVER
-        }),
-        acceptedAt: order.acceptedAt ?? now,
-        outForDeliveryAt: order.outForDeliveryAt ?? now
+        })
       }
     });
 
     if (outForDeliveryUpdate.count === 0) {
-      const currentOrder = await prisma.order.findUnique({
-        where: { id },
-        include: orderInclude
-      });
-
-      if (currentOrder?.orderStatus === OrderStatus.OUT_FOR_DELIVERY) {
-        res.status(409).json({
-          success: false,
-          message: "Order is already out for delivery"
-        });
-        return;
-      }
-
-      if (currentOrder?.orderStatus === OrderStatus.DELIVERED) {
-        res.status(409).json({
-          success: false,
-          message: "Order is already delivered"
-        });
-        return;
-      }
-
-      if (currentOrder?.orderStatus === OrderStatus.CANCELLED) {
-        res.status(400).json({
-          success: false,
-          message: "Cancelled orders cannot be updated"
-        });
-        return;
-      }
-
-      res.status(400).json({
+      res.status(409).json({
         success: false,
-        message: "Order cannot be marked out for delivery from its current status"
+        code: "INVALID_ORDER_TRANSITION",
+        message: "Order changed before pickup could be completed."
       });
       return;
     }
@@ -389,16 +227,6 @@ export const driverActionController = async (
   }
 
   if (action === "DELIVERED") {
-    const canMarkDelivered = order.orderStatus === OrderStatus.OUT_FOR_DELIVERY;
-
-    if (!canMarkDelivered) {
-      res.status(400).json({
-        success: false,
-        message: "Order cannot be marked delivered from its current status"
-      });
-      return;
-    }
-
     const deliveryUpdate = await prisma.order.updateMany({
       where: {
         id,
@@ -407,42 +235,23 @@ export const driverActionController = async (
       },
       data: {
         orderStatus: OrderStatus.DELIVERED,
-        dispatchedAt: order.dispatchedAt ?? order.assignedAt ?? now,
+        ...buildOrderTransitionTimestampData(
+          order,
+          OrderStatus.DELIVERED,
+          now
+        ),
         ...getFirstDispatchAttribution(order.dispatchedAt, {
           userId: user.userId,
           role: UserRole.DRIVER
-        }),
-        acceptedAt: order.acceptedAt ?? now,
-        outForDeliveryAt: order.outForDeliveryAt ?? now,
-        deliveredAt: order.deliveredAt ?? now
+        })
       }
     });
 
     if (deliveryUpdate.count === 0) {
-      const currentOrder = await prisma.order.findUnique({
-        where: { id },
-        include: orderInclude
-      });
-
-      if (currentOrder?.orderStatus === OrderStatus.DELIVERED) {
-        res.status(409).json({
-          success: false,
-          message: "Order is already delivered"
-        });
-        return;
-      }
-
-      if (currentOrder?.orderStatus === OrderStatus.CANCELLED) {
-        res.status(400).json({
-          success: false,
-          message: "Cancelled orders cannot be updated"
-        });
-        return;
-      }
-
-      res.status(400).json({
+      res.status(409).json({
         success: false,
-        message: "Order cannot be marked delivered from its current status"
+        code: "INVALID_ORDER_TRANSITION",
+        message: "Order changed before delivery could be completed."
       });
       return;
     }
@@ -452,10 +261,8 @@ export const driverActionController = async (
       include: orderInclude
     });
 
-    await applyCustomerLoyaltyForDeliveredOrder(
-      order.customerId,
-      order.fcmToken
-    );
+    const loyaltyResult = await recordDeliveredOrderLoyalty(order.customerId);
+    await sendCustomerLoyaltyNotification(order.fcmToken, loyaltyResult);
 
     res.status(200).json({
       success: true,
@@ -465,5 +272,4 @@ export const driverActionController = async (
     return;
   }
 
-  res.status(400).json({ success: false, message: "Invalid action" });
 };

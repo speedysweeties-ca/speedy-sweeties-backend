@@ -8,6 +8,10 @@ import { messaging } from "../config/firebase";
 import { prisma } from "../lib/prisma";
 import { getFirstDispatchAttribution } from "../utils/dispatchAttribution";
 import { isDriverFresh } from "../utils/driverFreshness";
+import {
+  buildOrderTransitionTimestampData,
+  evaluateOrderStatusTransition
+} from "../services/orderStateTransition.service";
 
 type AssignDriverParams = {
   id: string;
@@ -113,6 +117,26 @@ export const assignDriverToOrderController = async (
   }
 
   if (driverId === null) {
+    const targetStatus =
+      existingOrder.orderStatus === OrderStatus.DISPATCHED
+        ? OrderStatus.PLACED
+        : existingOrder.orderStatus;
+    if (targetStatus !== existingOrder.orderStatus) {
+      const transition = evaluateOrderStatusTransition({
+        actor: "MANUAL_UNASSIGNMENT",
+        currentStatus: existingOrder.orderStatus,
+        targetStatus
+      });
+      if ("code" in transition) {
+        res.status(409).json({
+          success: false,
+          code: transition.code,
+          message: transition.message
+        });
+        return;
+      }
+    }
+
     const unassignmentUpdate = await prisma.order.updateMany({
       where: { id, orderStatus: existingOrder.orderStatus },
       data: {
@@ -246,6 +270,25 @@ export const assignDriverToOrderController = async (
     existingOrder.orderStatus === OrderStatus.PLACED ||
     existingOrder.orderStatus === OrderStatus.DISPATCHED;
 
+  if (
+    shouldMarkDispatched &&
+    existingOrder.orderStatus !== OrderStatus.DISPATCHED
+  ) {
+    const transition = evaluateOrderStatusTransition({
+      actor: "MANUAL_ASSIGNMENT",
+      currentStatus: existingOrder.orderStatus,
+      targetStatus: OrderStatus.DISPATCHED
+    });
+    if ("code" in transition) {
+      res.status(409).json({
+        success: false,
+        code: transition.code,
+        message: transition.message
+      });
+      return;
+    }
+  }
+
   const assignmentUpdate = await prisma.order.updateMany({
     where: { id, orderStatus: existingOrder.orderStatus },
     data: {
@@ -254,7 +297,11 @@ export const assignDriverToOrderController = async (
       ...(shouldMarkDispatched
         ? {
             orderStatus: OrderStatus.DISPATCHED,
-            dispatchedAt: existingOrder.dispatchedAt ?? now,
+              ...buildOrderTransitionTimestampData(
+                existingOrder,
+                OrderStatus.DISPATCHED,
+                now
+              ),
             ...getFirstDispatchAttribution(existingOrder.dispatchedAt, authUser)
           }
         : {}),

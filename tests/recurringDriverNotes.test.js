@@ -84,9 +84,33 @@ test("authenticated manual validation accepts recurring notes while public valid
 });
 
 test("manual creation atomically snapshots and persists against the resolved customer while public creation ignores the field", async (t) => {
+  const originalAutoDispatchSetting = process.env.AUTO_DISPATCH_ENABLED;
+  process.env.AUTO_DISPATCH_ENABLED = "false";
+  t.after(() => {
+    if (originalAutoDispatchSetting === undefined) {
+      delete process.env.AUTO_DISPATCH_ENABLED;
+    } else {
+      process.env.AUTO_DISPATCH_ENABLED = originalAutoDispatchSetting;
+    }
+  });
+
+  const currentTorontoMonth = (() => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Toronto",
+      year: "numeric",
+      month: "2-digit"
+    }).formatToParts(new Date());
+    return `${parts.find((part) => part.type === "year").value}-${
+      parts.find((part) => part.type === "month").value}`;
+  })();
   const existingCustomer = {
     id: "resolved-customer",
     recurringDriverNotes: "Old recurring note",
+    loyaltyCompletedOrders: 0,
+    loyaltyProgressMonth: currentTorontoMonth,
+    loyaltyRewardsEarned: 0,
+    loyaltyRewardsUsed: 0,
+    loyaltyRewardBalance: 0,
     loyaltyFreeDelivery: false
   };
   const customerUpdates = [];
@@ -126,17 +150,32 @@ test("manual creation atomically snapshots and persists against the resolved cus
     async (callback) => {
       const pendingCustomerUpdates = [];
       let createdOrder;
+      let transactionCustomer = customerToResolve;
       const tx = {
+        $queryRaw: async (_queryStrings, ...queryValues) => {
+          const customerId = queryValues.find(
+            (value) =>
+              typeof value === "string" &&
+              (value === transactionCustomer?.id || value === customerToResolve?.id)
+          );
+          return customerId ? [{ id: customerId }] : [];
+        },
         customer: {
-          create: async ({ data }) => ({
-            ...existingCustomer,
-            ...data,
-            id: "newly-created-customer",
-            recurringDriverNotes: null
-          }),
+          create: async ({ data }) => {
+            transactionCustomer = {
+              ...existingCustomer,
+              ...data,
+              id: "newly-created-customer",
+              recurringDriverNotes: null
+            };
+            return transactionCustomer;
+          },
+          findUnique: async ({ where }) =>
+            where.id === transactionCustomer?.id ? transactionCustomer : null,
           update: async (args) => {
             pendingCustomerUpdates.push(args);
-            return existingCustomer;
+            transactionCustomer = { ...transactionCustomer, ...args.data };
+            return transactionCustomer;
           }
         },
         order: {

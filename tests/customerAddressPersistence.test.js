@@ -73,8 +73,23 @@ const needsReviewLocation = {
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
 const installOrderCreationDatabase = (t, initialCustomer = null) => {
+  const originalAutoDispatchSetting = process.env.AUTO_DISPATCH_ENABLED;
+  process.env.AUTO_DISPATCH_ENABLED = "false";
+  t.after(() => {
+    if (originalAutoDispatchSetting === undefined) {
+      delete process.env.AUTO_DISPATCH_ENABLED;
+    } else {
+      process.env.AUTO_DISPATCH_ENABLED = originalAutoDispatchSetting;
+    }
+  });
+
   let database = {
-    customer: initialCustomer ? clone(initialCustomer) : null,
+    customer: initialCustomer
+      ? {
+          loyaltyRewardBalance: initialCustomer.loyaltyFreeDelivery ? 1 : 0,
+          ...clone(initialCustomer)
+        }
+      : null,
     orders: [],
     customerUpdates: []
   };
@@ -91,6 +106,7 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
             loyaltyCompletedOrders: 0,
             loyaltyRewardsEarned: 0,
             loyaltyRewardsUsed: 0,
+            loyaltyRewardBalance: 0,
             loyaltyFreeDelivery: false,
             ...data
           };
@@ -98,7 +114,11 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
         },
         update: async ({ where, data }) => {
           assert.equal(where.id, database.customer.id);
-          const { loyaltyRewardsUsed, ...customerData } = data;
+          const {
+            loyaltyRewardsUsed,
+            loyaltyRewardBalance,
+            ...customerData
+          } = data;
           const updatedCustomer = {
             ...database.customer,
             ...customerData
@@ -108,6 +128,12 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
               loyaltyRewardsUsed && typeof loyaltyRewardsUsed === "object"
                 ? database.customer.loyaltyRewardsUsed + loyaltyRewardsUsed.increment
                 : loyaltyRewardsUsed;
+          }
+          if (loyaltyRewardBalance !== undefined) {
+            updatedCustomer.loyaltyRewardBalance =
+              loyaltyRewardBalance && typeof loyaltyRewardBalance === "object"
+                ? database.customer.loyaltyRewardBalance + loyaltyRewardBalance.increment
+                : loyaltyRewardBalance;
           }
           database.customer = updatedCustomer;
           database.customerUpdates.push({ where, data });
@@ -136,7 +162,11 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
       systemSetting: {
         findUnique: async () => ({ value: "false" })
       }
-    };
+      };
+      tx.$queryRaw = async (_queryStrings, ...queryValues) =>
+        queryValues.includes(database.customer?.id) ? [clone(database.customer)] : [];
+      tx.customer.findUnique = async ({ where }) =>
+        where.id === database.customer?.id ? database.customer : null;
 
     try {
       return await callback(tx);
@@ -333,10 +363,18 @@ test("a transaction failure rolls back a customer address update", async (t) => 
   replaceForTest(t, prisma, "$transaction", async (callback) => {
     const checkpoint = clone(database.database);
     const tx = {
+      $queryRaw: async (_queryStrings, ...queryValues) =>
+        queryValues.includes(database.database.customer?.id)
+          ? [clone(database.database.customer)]
+          : [],
       customer: {
         create: async () => {
           throw new Error("unexpected customer creation");
         },
+        findUnique: async ({ where }) =>
+          where.id === database.database.customer?.id
+            ? database.database.customer
+            : null,
         update: async ({ where, data }) => {
           assert.equal(where.id, database.database.customer.id);
           database.database.customer = { ...database.database.customer, ...data };

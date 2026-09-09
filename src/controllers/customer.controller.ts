@@ -1,29 +1,11 @@
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
+import { getCustomerLoyaltySnapshot } from "../services/loyalty.service";
 import { verifyCustomerLoyaltyToken } from "../utils/jwt";
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
 const normalizePhone = (value: string) => value.replace(/\D/g, "");
-
-const LOYALTY_TIME_ZONE = "America/Toronto";
-
-const getCurrentLoyaltyMonth = (date: Date = new Date()): string => {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: LOYALTY_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-  }).formatToParts(date);
-
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-
-  if (!year || !month) {
-    throw new Error("Unable to determine the current loyalty calendar month.");
-  }
-
-  return `${year}-${month}`;
-};
 
 type CustomerIdParams = {
   id: string;
@@ -142,15 +124,6 @@ const sortCustomersBySearchRelevance = (
     .map((entry) => entry.customer);
 };
 
-const loyaltyCustomerSelect = {
-  id: true,
-  loyaltyCompletedOrders: true,
-  loyaltyProgressMonth: true,
-  loyaltyRewardsEarned: true,
-  loyaltyRewardsUsed: true,
-  loyaltyFreeDelivery: true,
-};
-
 const emptyLoyaltyResponse = {
   success: true,
   found: false,
@@ -164,36 +137,9 @@ const emptyLoyaltyResponse = {
 };
 
 const getLoyaltyResponseForCustomerId = async (customerId: string) => {
-  const currentLoyaltyMonth = getCurrentLoyaltyMonth();
-  let customer = await prisma.customer.findUnique({
-    where: { id: customerId },
-    select: loyaltyCustomerSelect,
-  });
+  const customer = await getCustomerLoyaltySnapshot(customerId);
 
   if (!customer) return null;
-
-  if (customer.loyaltyProgressMonth !== currentLoyaltyMonth) {
-    await prisma.customer.updateMany({
-      where: {
-        id: customer.id,
-        OR: [
-          { loyaltyProgressMonth: null },
-          { loyaltyProgressMonth: { not: currentLoyaltyMonth } },
-        ],
-      },
-      data: {
-        loyaltyCompletedOrders: 0,
-        loyaltyProgressMonth: currentLoyaltyMonth,
-      },
-    });
-
-    customer = await prisma.customer.findUnique({
-      where: { id: customer.id },
-      select: loyaltyCustomerSelect,
-    });
-
-    if (!customer) return null;
-  }
 
   return {
     success: true,
@@ -239,7 +185,7 @@ export const getCustomerLoyaltyController = async (
         ...(email ? [{ normalizedEmail: email }] : []),
       ],
     },
-    select: loyaltyCustomerSelect,
+    select: { id: true },
   });
 
   if (!customer) {

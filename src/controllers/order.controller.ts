@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { createHash, randomBytes } from "crypto";
 import {
-  DispatchSource,
   Prisma,
   OrderSource,
   OrderStatus,
@@ -15,7 +14,6 @@ import { prisma } from "../lib/prisma";
 import { signCustomerLoyaltyToken } from "../utils/jwt";
 import { isBusinessConfirmedClosed } from "./business.controller";
 import {
-  getDriverFreshnessCutoff,
   isDriverLocationFresh
 } from "../utils/driverFreshness";
 import {
@@ -30,9 +28,21 @@ import {
   persistSubmittedRecurringDriverNotes,
   resolveRecurringDriverNotes
 } from "../services/recurringDriverNotes.service";
+import {
+  getCurrentLoyaltyMonth,
+  redeemFreeDeliveryRewardForOrder,
+  sendCustomerLoyaltyNotification
+} from "../services/loyalty.service";
 import { getFirstDispatchAttribution } from "../utils/dispatchAttribution";
 import { resolveOrderSourceAttribution } from "../utils/orderSourceAttribution";
-import { autoDispatchCreatedOrderWithPickupPlan } from "../services/autoDispatchPickupPlan.service";
+import {
+  autoDispatchCreatedOrderWithPickupPlan,
+  shouldNotifyAutoDispatchedDriver
+} from "../services/autoDispatchPickupPlan.service";
+import {
+  evaluateOrderStatusTransition,
+  INITIAL_ORDER_STATUS
+} from "../services/orderStateTransition.service";
 import {
   CompatiblePaymentMethod,
   normalizePaymentMethod
@@ -86,20 +96,6 @@ type UpdateOrderDetailsBody = {
   additionalNotes?: string | null;
   paymentMethod: CompatiblePaymentMethod;
   items: UpdateOrderItemInput[];
-};
-
-type DriverPushCandidate = {
-  isOnline: boolean;
-  driverFcmToken: string | null;
-  driverAppState: string | null;
-};
-
-type DriverAssignedOrderPushPayload = {
-  driverFcmToken: string;
-  orderNumber: number;
-  customerName: string;
-  addressLine1: string;
-  city?: string | null;
 };
 
 type PickupRoutingSummary = {
@@ -232,28 +228,6 @@ const logPickupRoutingAdvisory = (
   );
 };
 
-const LOYALTY_FREE_DELIVERY_NOTE =
-  "LOYALTY REWARD: Customer earned free delivery. Subtract $12 from this order and let the customer know delivery is free.";
-
-const LOYALTY_TIME_ZONE = "America/Toronto";
-
-const getCurrentLoyaltyMonth = (date: Date = new Date()): string => {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: LOYALTY_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit"
-  }).formatToParts(date);
-
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-
-  if (!year || !month) {
-    throw new Error("Unable to determine the current loyalty calendar month.");
-  }
-
-  return `${year}-${month}`;
-};
-
 const getItemPrice = (item: UpdateOrderItemInput): number => {
   return item.unitPrice ?? item.price ?? 0;
 };
@@ -312,13 +286,6 @@ const receiptTotalToCurrencyText = (value: unknown): string | null => {
   }
 
   return `$${numberValue.toFixed(2)}`;
-};
-
-const shouldSendDriverPush = (driver: DriverPushCandidate): boolean => {
-  if (!driver.isOnline) return false;
-  if (!driver.driverFcmToken) return false;
-
-  return driver.driverAppState !== "FOREGROUND";
 };
 
 const sendDriverAssignedOrderPush = async (
@@ -406,166 +373,9 @@ const sendCustomerOutForDeliveryNotification = async (
   }
 };
 
-const sendCustomerRewardEarnedNotification = async (
-  fcmToken: string | null
-): Promise<void> => {
-  if (!fcmToken) {
-    console.log("No customer FCM token found for loyalty reward notification");
-    return;
-  }
-
-  try {
-    await messaging.send({
-      token: fcmToken,
-      notification: {
-        title: "Speedy Sweeties 🎉",
-        body: "You earned a free delivery on your next order!"
-      },
-      data: {
-        type: "LOYALTY_REWARD_EARNED"
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "speedy_sweeties_orders",
-          sound: "default"
-        }
-      }
-    });
-
-    console.log("Customer loyalty reward notification sent");
-  } catch (error) {
-    console.error("Failed to send loyalty reward notification:", error instanceof Error ? error.name : typeof error);
-  }
-};
-
-const sendCustomerRewardAppliedNotification = async (
-  fcmToken: string | null
-): Promise<void> => {
-  if (!fcmToken) {
-    console.log("No customer FCM token found for loyalty reward applied notification");
-    return;
-  }
-
-  try {
-    await messaging.send({
-      token: fcmToken,
-      notification: {
-        title: "Speedy Sweeties 🎉",
-        body: "Your free delivery reward has been applied to this order."
-      },
-      data: {
-        type: "LOYALTY_REWARD_APPLIED"
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "speedy_sweeties_orders",
-          sound: "default"
-        }
-      }
-    });
-
-    console.log("Customer loyalty reward applied notification sent");
-  } catch (error) {
-    console.error("Failed to send loyalty reward applied notification:", error instanceof Error ? error.name : typeof error);
-  }
-};
-
-const applyCustomerLoyaltyForDeliveredOrder = async (
-  customerId: string | null,
-  fcmToken: string | null
-): Promise<void> => {
-  if (!customerId) {
-    console.log("No customerId found for delivered order. Loyalty not updated.");
-    return;
-  }
-
-  const currentLoyaltyMonth = getCurrentLoyaltyMonth();
-
-  const loyaltyResult = await prisma.$transaction(async (tx) => {
-    const customer = await tx.customer.findUnique({
-      where: { id: customerId },
-      select: {
-        id: true,
-        loyaltyCompletedOrders: true,
-        loyaltyProgressMonth: true,
-        loyaltyRewardsEarned: true,
-        loyaltyFreeDelivery: true
-      }
-    });
-
-    if (!customer) {
-      return null;
-    }
-
-    const completedOrdersThisMonth =
-      customer.loyaltyProgressMonth === currentLoyaltyMonth
-        ? customer.loyaltyCompletedOrders
-        : 0;
-
-    const nextCompletedOrders = completedOrdersThisMonth + 1;
-
-    if (nextCompletedOrders >= 10) {
-      await tx.customer.update({
-        where: { id: customerId },
-        data: {
-          loyaltyCompletedOrders: 0,
-          loyaltyProgressMonth: currentLoyaltyMonth,
-          loyaltyRewardsEarned: {
-            increment: 1
-          },
-          loyaltyFreeDelivery: true
-        }
-      });
-
-      return {
-        rewardEarned: true,
-        completedOrders: 0
-      };
-    }
-
-    await tx.customer.update({
-      where: { id: customerId },
-      data: {
-        loyaltyCompletedOrders: nextCompletedOrders,
-        loyaltyProgressMonth: currentLoyaltyMonth
-      }
-    });
-
-    return {
-      rewardEarned: false,
-      completedOrders: nextCompletedOrders
-    };
-  });
-
-  if (!loyaltyResult) {
-    console.log("Customer not found. Loyalty not updated.");
-    return;
-  }
-
-  if (loyaltyResult.rewardEarned) {
-    await sendCustomerRewardEarnedNotification(fcmToken);
-
-    console.log("Customer earned a free delivery reward.");
-    return;
-  }
-
-  console.log(
-    `Customer loyalty updated: ${loyaltyResult.completedOrders}/10 completed deliveries for ${currentLoyaltyMonth}.`
-  );
-};
-
 /* ================= AUTO DISPATCH ================= */
 
 const AUTO_DISPATCH_SETTING_KEY = "autoDispatchEnabled";
-
-const AUTO_DISPATCH_ACTIVE_STATUSES: OrderStatus[] = [
-  OrderStatus.PLACED,
-  OrderStatus.DISPATCHED,
-  OrderStatus.ACCEPTED,
-  OrderStatus.OUT_FOR_DELIVERY
-];
 
 const isAutoDispatchHardDisabledByEnv = (): boolean => {
   const value = process.env.AUTO_DISPATCH_ENABLED;
@@ -624,123 +434,6 @@ const saveAutoDispatchEnabled = async (enabled: boolean): Promise<boolean> => {
   });
 
   return getAutoDispatchEnabled();
-};
-
-const autoAssignCreatedOrderToLeastBusyOnlineDriver = async (
-  tx: Prisma.TransactionClient,
-  orderId: string
-): Promise<DriverAssignedOrderPushPayload | null> => {
-  const autoDispatchEnabled = await getAutoDispatchEnabledForTransaction(tx);
-
-  if (!autoDispatchEnabled) {
-    console.log("Auto-dispatch skipped: auto-dispatch is turned off.");
-    return null;
-  }
-
-  const freshnessCutoff = getDriverFreshnessCutoff();
-
-  const onlineDrivers = await tx.user.findMany({
-    where: {
-      role: UserRole.DRIVER,
-      isActive: true,
-      isVisibleInDispatch: true,
-      isOnline: true,
-      lastSeenAt: {
-        gte: freshnessCutoff
-      }
-    },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      isOnline: true,
-      driverFcmToken: true,
-      driverAppState: true
-    },
-    orderBy: [{ lastSeenAt: "desc" }, { createdAt: "asc" }]
-  });
-
-  if (onlineDrivers.length === 0) {
-    console.log("Auto-dispatch skipped: no online drivers.");
-    return null;
-  }
-
-  const driverWorkloads = await Promise.all(
-    onlineDrivers.map(async (driver) => {
-      const activeOrderCount = await tx.order.count({
-        where: {
-          assignedDriverId: driver.id,
-          orderStatus: {
-            in: AUTO_DISPATCH_ACTIVE_STATUSES
-          }
-        }
-      });
-
-      return {
-        driver,
-        activeOrderCount
-      };
-    })
-  );
-
-  driverWorkloads.sort((a, b) => {
-    if (a.activeOrderCount !== b.activeOrderCount) {
-      return a.activeOrderCount - b.activeOrderCount;
-    }
-
-    const aName = `${a.driver.firstName ?? ""} ${a.driver.lastName ?? ""}`.trim();
-    const bName = `${b.driver.firstName ?? ""} ${b.driver.lastName ?? ""}`.trim();
-
-    return aName.localeCompare(bName);
-  });
-
-  const selected = driverWorkloads[0];
-
-  if (!selected) {
-    console.log("Auto-dispatch skipped: no selected driver.");
-    return null;
-  }
-
-  const now = new Date();
-
-  const updatedOrder = await tx.order.update({
-    where: { id: orderId },
-    data: {
-      assignedDriverId: selected.driver.id,
-      assignedAt: now,
-      dispatchedAt: now,
-      dispatchedByUserId: null,
-      dispatchSource: DispatchSource.AUTO,
-      orderStatus: OrderStatus.DISPATCHED
-    },
-    select: {
-      orderNumber: true,
-      customerName: true,
-      addressLine1: true,
-      city: true
-    }
-  });
-
-  console.log(
-    `Auto-dispatch selected an online driver with ${selected.activeOrderCount} active order(s).`
-  );
-
-  if (shouldSendDriverPush(selected.driver) && selected.driver.driverFcmToken) {
-    return {
-      driverFcmToken: selected.driver.driverFcmToken,
-      orderNumber: updatedOrder.orderNumber,
-      customerName: updatedOrder.customerName,
-      addressLine1: updatedOrder.addressLine1,
-      city: updatedOrder.city
-    };
-  }
-
-  console.log(
-    "Auto-dispatch driver push skipped: driver has no token, is offline, or app is foregrounded."
-  );
-
-  return null;
 };
 
 /* ================= CONTROLLERS ================= */
@@ -897,31 +590,13 @@ const createOrder = async (
   const matchedCustomer = await prisma.customer.findFirst({
     where: {
       OR: [{ normalizedPhone }, ...(normalizedEmail ? [{ normalizedEmail }] : [])]
-    }
+    },
+    select: { id: true }
   });
-
-  const shouldApplyFreeDeliveryReward =
-    matchedCustomer?.loyaltyFreeDelivery === true;
-  const recurringDriverNotesPlan = resolveRecurringDriverNotes({
-    isManualOrder: options.acceptRecurringDriverNotes,
-    submitted: recurringDriverNotesSubmitted,
-    submittedValue: recurringDriverNotes,
-    storedValue: matchedCustomer?.recurringDriverNotes
-  });
-  const finalNotes = combineOrderNotes(
-    [
-      recurringDriverNotesPlan.snapshot,
-      additionalNotes,
-      deliveryInstructions,
-      notes,
-      shouldApplyFreeDeliveryReward ? LOYALTY_FREE_DELIVERY_NOTE : null
-    ],
-    options.acceptRecurringDriverNotes
-  );
 
   const transactionResult = await prisma.$transaction(async (tx) => {
-    const customer =
-      matchedCustomer ??
+    const customerId =
+      matchedCustomer?.id ??
       (await tx.customer.create({
         data: {
           fullName: customerName.trim(),
@@ -935,19 +610,33 @@ const createOrder = async (
           dispatcherNotes:
             typeof dispatcherNotes === "string" ? dispatcherNotes.trim() : null
         }
-      }));
+      })).id;
 
-    if (shouldApplyFreeDeliveryReward) {
-      await tx.customer.update({
-        where: { id: customer.id },
-        data: {
-          loyaltyFreeDelivery: false,
-          loyaltyRewardsUsed: {
-            increment: 1
-          }
-        }
-      });
+    const loyaltyRedemption = await redeemFreeDeliveryRewardForOrder(tx, customerId);
+    const customer = loyaltyRedemption.customer;
+
+    if (!customer) {
+      throw new Error("Customer disappeared before loyalty redemption could be completed.");
     }
+
+    const recurringDriverNotesPlan = resolveRecurringDriverNotes({
+      isManualOrder: options.acceptRecurringDriverNotes,
+      submitted: recurringDriverNotesSubmitted,
+      submittedValue: recurringDriverNotes,
+      storedValue: customer.recurringDriverNotes
+    });
+    const finalNotes = combineOrderNotes(
+      [
+        recurringDriverNotesPlan.snapshot,
+        additionalNotes,
+        deliveryInstructions,
+        notes,
+        loyaltyRedemption.result.rewardRedeemed
+          ? "LOYALTY REWARD: Customer earned free delivery. Subtract $12 from this order and let the customer know delivery is free."
+          : null
+      ],
+      options.acceptRecurringDriverNotes
+    );
 
     const trackingCredential = createTrackingCredential();
 
@@ -972,7 +661,7 @@ const createOrder = async (
         utmContent: normalizeAttributionValue(utmContent),
         utmTerm: normalizeAttributionValue(utmTerm),
         referralCode: normalizeAttributionValue(referralCode, true),
-        orderStatus: OrderStatus.PLACED,
+        orderStatus: INITIAL_ORDER_STATUS,
         priority: OrderPriority.NORMAL,
         fcmToken: appFcmToken,
         trackingTokenHash: trackingCredential.hash,
@@ -1037,11 +726,12 @@ const createOrder = async (
     return {
       order,
       trackingToken: trackingCredential.token,
-      customerId: customer.id
+      customerId: customer.id,
+      loyaltyResult: loyaltyRedemption.result
     };
   });
 
-  const { order: createdOrder, trackingToken, customerId } = transactionResult;
+  const { order: createdOrder, trackingToken, customerId, loyaltyResult } = transactionResult;
   const autoDispatchResult = await autoDispatchCreatedOrderWithPickupPlan(
     createdOrder.id
   );
@@ -1064,15 +754,7 @@ const createOrder = async (
     ...orderResponse
   } = order;
 
-  if (
-    autoDispatchResult.dispatched &&
-    autoDispatchResult.driverIsOnline &&
-    autoDispatchResult.driverFcmToken &&
-    autoDispatchResult.driverAppState !== "FOREGROUND" &&
-    typeof autoDispatchResult.orderNumber === "number" &&
-    autoDispatchResult.customerName &&
-    autoDispatchResult.addressLine1
-  ) {
+  if (shouldNotifyAutoDispatchedDriver(autoDispatchResult)) {
     await sendDriverAssignedOrderPush(
       autoDispatchResult.driverFcmToken,
       autoDispatchResult.orderNumber,
@@ -1083,9 +765,7 @@ const createOrder = async (
     );
   }
 
-  if (shouldApplyFreeDeliveryReward) {
-    await sendCustomerRewardAppliedNotification(appFcmToken);
-  }
+  await sendCustomerLoyaltyNotification(appFcmToken, loyaltyResult);
 
   res.status(201).json({
     success: true,
@@ -1335,27 +1015,30 @@ export const updateOrderStatusController = async (
   const { orderStatus, cancellationReason } = req.body;
   const authUser = (req as any).user;
 
+  if (
+    authUser?.role !== UserRole.ADMIN &&
+    authUser?.role !== UserRole.DISPATCHER
+  ) {
+    res.status(403).json({ success: false, message: "Forbidden" });
+    return;
+  }
+
+  if (orderStatus !== OrderStatus.CANCELLED) {
+    res.status(409).json({
+      success: false,
+      code: "INVALID_ORDER_TRANSITION",
+      message:
+        "Operational status changes must be completed through the assigned driver workflow."
+    });
+    return;
+  }
+
   const existingOrder = await prisma.order.findUnique({
     where: { id },
     select: {
       id: true,
       orderStatus: true,
-      fcmToken: true,
-      orderNumber: true,
-      customerId: true,
       assignedDriverId: true,
-      assignedAt: true,
-      dispatchedAt: true,
-      dispatchedByUserId: true,
-      dispatchSource: true,
-      acceptedAt: true,
-      outForDeliveryAt: true,
-      deliveredAt: true,
-      digitalReceipt: {
-        select: {
-          grandTotal: true
-        }
-      }
     }
   });
 
@@ -1378,143 +1061,42 @@ export const updateOrderStatusController = async (
     return;
   }
 
-  if (
-    orderStatus === OrderStatus.CANCELLED &&
-    existingOrder.orderStatus === OrderStatus.DELIVERED
-  ) {
-    res.status(400).json({
-      success: false,
-      message: "Delivered orders cannot be cancelled"
-    });
-    return;
-  }
-
-  if (
-    orderStatus === OrderStatus.CANCELLED &&
-    existingOrder.orderStatus === OrderStatus.CANCELLED
-  ) {
-    res.status(400).json({
-      success: false,
-      message: "Order is already cancelled"
-    });
-    return;
-  }
-
-  const now = new Date();
-
   const cleanedCancellationReason =
     typeof cancellationReason === "string" && cancellationReason.trim()
       ? cancellationReason.trim()
       : null;
-
-  const statusTimestampData: Prisma.OrderUncheckedUpdateManyInput = {};
-
-  const firstDispatchAttribution = getFirstDispatchAttribution(
-    existingOrder.dispatchedAt,
-    authUser
-  );
-
-  if (orderStatus === OrderStatus.DISPATCHED) {
-    statusTimestampData.dispatchedAt = existingOrder.dispatchedAt ?? now;
-    Object.assign(statusTimestampData, firstDispatchAttribution);
+  const transition = evaluateOrderStatusTransition({
+    actor: "STAFF_CANCELLATION",
+    currentStatus: existingOrder.orderStatus,
+    targetStatus: orderStatus
+  });
+  if ("code" in transition) {
+    res.status(409).json({
+      success: false,
+      code: transition.code,
+      message: transition.message
+    });
+    return;
   }
-
-  if (orderStatus === OrderStatus.ACCEPTED) {
-    statusTimestampData.dispatchedAt =
-      existingOrder.dispatchedAt ?? existingOrder.assignedAt ?? now;
-    Object.assign(statusTimestampData, firstDispatchAttribution);
-    statusTimestampData.acceptedAt = existingOrder.acceptedAt ?? now;
-  }
-
-  if (orderStatus === OrderStatus.OUT_FOR_DELIVERY) {
-    statusTimestampData.dispatchedAt =
-      existingOrder.dispatchedAt ?? existingOrder.assignedAt ?? now;
-    Object.assign(statusTimestampData, firstDispatchAttribution);
-    statusTimestampData.acceptedAt = existingOrder.acceptedAt ?? now;
-    statusTimestampData.outForDeliveryAt = existingOrder.outForDeliveryAt ?? now;
-  }
-
-  if (orderStatus === OrderStatus.DELIVERED) {
-    statusTimestampData.dispatchedAt =
-      existingOrder.dispatchedAt ?? existingOrder.assignedAt ?? now;
-    Object.assign(statusTimestampData, firstDispatchAttribution);
-    statusTimestampData.acceptedAt = existingOrder.acceptedAt ?? now;
-    statusTimestampData.outForDeliveryAt = existingOrder.outForDeliveryAt ?? now;
-    statusTimestampData.deliveredAt = existingOrder.deliveredAt ?? now;
-  }
-
-  const updateData: Prisma.OrderUncheckedUpdateManyInput =
-    orderStatus === OrderStatus.CANCELLED
-      ? {
-          orderStatus: OrderStatus.CANCELLED,
-          cancelledAt: now,
-          cancelledFromStatus: existingOrder.orderStatus,
-          cancellationReason: cleanedCancellationReason
-        }
-      : {
-          orderStatus,
-          ...statusTimestampData
-        };
-
-  const isNewOutForDeliveryTransition =
-    orderStatus === OrderStatus.OUT_FOR_DELIVERY &&
-    existingOrder.orderStatus !== OrderStatus.OUT_FOR_DELIVERY;
-
-  const isNewDeliveryTransition =
-    orderStatus === OrderStatus.DELIVERED &&
-    existingOrder.orderStatus !== OrderStatus.DELIVERED;
 
   const transitionUpdate = await prisma.order.updateMany({
     where: {
       id,
       orderStatus: existingOrder.orderStatus
     },
-    data: updateData
+    data: {
+      orderStatus: OrderStatus.CANCELLED,
+      cancelledAt: new Date(),
+      cancelledFromStatus: existingOrder.orderStatus,
+      cancellationReason: cleanedCancellationReason
+    }
   });
 
   if (transitionUpdate.count === 0) {
-    const currentOrder = await prisma.order.findUniqueOrThrow({
-      where: { id },
-      include: orderInclude
-    });
-
-    if (
-      orderStatus !== OrderStatus.CANCELLED &&
-      currentOrder.orderStatus === orderStatus
-    ) {
-      res.status(200).json({
-        success: true,
-        message: "Order status updated successfully",
-        order: currentOrder
-      });
-      return;
-    }
-
-    if (
-      orderStatus === OrderStatus.CANCELLED &&
-      currentOrder.orderStatus === OrderStatus.DELIVERED
-    ) {
-      res.status(400).json({
-        success: false,
-        message: "Delivered orders cannot be cancelled"
-      });
-      return;
-    }
-
-    if (
-      orderStatus === OrderStatus.CANCELLED &&
-      currentOrder.orderStatus === OrderStatus.CANCELLED
-    ) {
-      res.status(400).json({
-        success: false,
-        message: "Order is already cancelled"
-      });
-      return;
-    }
-
-    res.status(400).json({
+    res.status(409).json({
       success: false,
-      message: "Order status cannot be updated from its current status"
+      code: "INVALID_ORDER_TRANSITION",
+      message: "Order changed before cancellation could be completed."
     });
     return;
   }
@@ -1524,33 +1106,9 @@ export const updateOrderStatusController = async (
     include: orderInclude
   });
 
-  const shouldNotifyCustomer =
-    isNewOutForDeliveryTransition && transitionUpdate?.count === 1;
-
-  if (shouldNotifyCustomer) {
-    await sendCustomerOutForDeliveryNotification(
-      existingOrder.fcmToken,
-      existingOrder.orderNumber,
-      existingOrder.digitalReceipt?.grandTotal ?? null
-    );
-  }
-
-  const shouldApplyLoyalty =
-    isNewDeliveryTransition && transitionUpdate?.count === 1;
-
-  if (shouldApplyLoyalty) {
-    await applyCustomerLoyaltyForDeliveredOrder(
-      existingOrder.customerId,
-      existingOrder.fcmToken
-    );
-  }
-
   res.status(200).json({
     success: true,
-    message:
-      orderStatus === OrderStatus.CANCELLED
-        ? "Order cancelled successfully"
-        : "Order status updated successfully",
+    message: "Order cancelled successfully",
     order: updatedOrder
   });
 };

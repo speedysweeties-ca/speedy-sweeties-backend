@@ -2,6 +2,8 @@ import type { Prisma } from "@prisma/client";
 import type { MultiDestinationRouteMatrixResult } from "./multiDestinationRouteMatrix.service";
 
 export const PICKUP_STORE_CLOSING_BUFFER_MINUTES = 3;
+export const MAX_PICKUP_ROUTE_STOPS = 4;
+export const MAX_PICKUP_STORE_CANDIDATES_PER_TYPE = 4;
 const PICKUP_STORE_CLOSING_BUFFER_MS =
   PICKUP_STORE_CLOSING_BUFFER_MINUTES * 60 * 1000;
 const ROUTING_TIME_ZONE = "America/Toronto";
@@ -84,6 +86,14 @@ export type PickupStoreRecommendation = {
   closingDate: string | null;
   closingTime: string | null;
   closingBufferMinutes: number;
+};
+
+export type SequentialPickupRoutePlan = {
+  pickupStops: PickupStoreRecommendation[];
+  totalDurationSeconds: number;
+  totalDistanceMeters: number | null;
+  customerLegDurationSeconds: number;
+  customerLegDistanceMeters: number | null;
 };
 
 type LocalDateParts = {
@@ -505,6 +515,245 @@ export const evaluatePickupStoreEligibility = (
     closingDate: null,
     closingTime: null
   };
+};
+
+export const pickupStoreRouteNodeId = (storeId: string): string =>
+  `pickup-store:${storeId}`;
+
+type RouteSearchStop = {
+  pickupType: string;
+  store: PickupStoreCandidate;
+  elapsedDurationSeconds: number;
+  elapsedDistanceMeters: number | null;
+  projectedArrivalAt: Date;
+  eligibility: PickupStoreEligibility;
+};
+
+const routeKey = (originId: string, destinationId: string): string =>
+  `${originId}\u0000${destinationId}`;
+
+const compareStoreCandidates = (
+  a: { store: PickupStoreCandidate; route: MultiDestinationRouteMatrixResult },
+  b: { store: PickupStoreCandidate; route: MultiDestinationRouteMatrixResult }
+): number => {
+  const durationDifference =
+    (a.route.durationSeconds ?? Number.POSITIVE_INFINITY) -
+    (b.route.durationSeconds ?? Number.POSITIVE_INFINITY);
+  if (durationDifference !== 0) return durationDifference;
+
+  const nameComparison = a.store.name.localeCompare(b.store.name);
+  if (nameComparison !== 0) return nameComparison;
+  return a.store.id.localeCompare(b.store.id);
+};
+
+const addRouteDistance = (
+  elapsedDistanceMeters: number | null,
+  routeDistanceMeters: number | null
+): number | null =>
+  elapsedDistanceMeters === null || routeDistanceMeters === null
+    ? null
+    : elapsedDistanceMeters + routeDistanceMeters;
+
+export const selectSequentialPickupRoutePlan = (input: {
+  driverRouteNodeId: string;
+  customerRouteNodeId: string;
+  requiredPickupTypes: string[];
+  stores: PickupStoreCandidate[];
+  matrix: MultiDestinationRouteMatrixResult[];
+  generatedAt: Date;
+}): SequentialPickupRoutePlan | null => {
+  const routesByEndpoints = new Map(
+    input.matrix.map((route) => [
+      routeKey(route.originId, route.destinationId),
+      route
+    ])
+  );
+  const routeFor = (
+    originId: string,
+    destinationId: string
+  ): MultiDestinationRouteMatrixResult | null => {
+    const route = routesByEndpoints.get(routeKey(originId, destinationId));
+    return route?.routeAvailable && route.durationSeconds !== null ? route : null;
+  };
+  const requiredPickupTypes = Array.from(new Set(input.requiredPickupTypes)).sort(
+    (a, b) => a.localeCompare(b)
+  );
+
+  if (requiredPickupTypes.length === 0) {
+    const directRoute = routeFor(
+      input.driverRouteNodeId,
+      input.customerRouteNodeId
+    );
+    if (!directRoute || directRoute.durationSeconds === null) return null;
+
+    return {
+      pickupStops: [],
+      totalDurationSeconds: directRoute.durationSeconds,
+      totalDistanceMeters: directRoute.distanceMeters,
+      customerLegDurationSeconds: directRoute.durationSeconds,
+      customerLegDistanceMeters: directRoute.distanceMeters
+    };
+  }
+
+  if (requiredPickupTypes.length > MAX_PICKUP_ROUTE_STOPS) return null;
+
+  const candidatesByPickupType = new Map<string, PickupStoreCandidate[]>();
+
+  for (const pickupType of requiredPickupTypes) {
+    const candidates = input.stores
+      .filter((store) => store.pickupType === pickupType)
+      .map((store) => {
+        const route = routeFor(
+          input.driverRouteNodeId,
+          pickupStoreRouteNodeId(store.id)
+        );
+        return route ? { store, route } : null;
+      })
+      .filter(
+        (
+          candidate
+        ): candidate is {
+          store: PickupStoreCandidate;
+          route: MultiDestinationRouteMatrixResult;
+        } => candidate !== null
+      )
+      .sort(compareStoreCandidates)
+      .slice(0, MAX_PICKUP_STORE_CANDIDATES_PER_TYPE)
+      .map((candidate) => candidate.store);
+
+    if (candidates.length === 0) return null;
+    candidatesByPickupType.set(pickupType, candidates);
+  }
+
+  let selectedPlan:
+    | (SequentialPickupRoutePlan & { routeSignature: string })
+    | null = null;
+
+  const considerPlan = (
+    stops: RouteSearchStop[],
+    totalDurationSeconds: number,
+    totalDistanceMeters: number | null,
+    customerLegDurationSeconds: number,
+    customerLegDistanceMeters: number | null
+  ): void => {
+    const routeSignature = stops
+      .map((stop) => `${stop.pickupType}:${stop.store.id}`)
+      .join("|");
+    const pickupStops = stops.map((stop) => ({
+      pickupType: stop.pickupType,
+      storeId: stop.store.id,
+      storeName: stop.store.name,
+      addressLine1: stop.store.addressLine1,
+      city: stop.store.city,
+      province: stop.store.province,
+      etaMinutes: Math.max(1, Math.round(stop.elapsedDurationSeconds / 60)),
+      durationSeconds: stop.elapsedDurationSeconds,
+      distanceMeters: stop.elapsedDistanceMeters,
+      projectedArrivalAt: stop.projectedArrivalAt.toISOString(),
+      hoursSource: stop.eligibility.hoursSource,
+      closingDate: stop.eligibility.closingDate,
+      closingTime: stop.eligibility.closingTime,
+      closingBufferMinutes: stop.eligibility.closingBufferMinutes
+    }));
+    const isFaster =
+      !selectedPlan || totalDurationSeconds < selectedPlan.totalDurationSeconds;
+    const isDeterministicallyFirst =
+      selectedPlan !== null &&
+      totalDurationSeconds === selectedPlan.totalDurationSeconds &&
+      routeSignature.localeCompare(selectedPlan.routeSignature) < 0;
+
+    if (!isFaster && !isDeterministicallyFirst) return;
+
+    selectedPlan = {
+      pickupStops,
+      totalDurationSeconds,
+      totalDistanceMeters,
+      customerLegDurationSeconds,
+      customerLegDistanceMeters,
+      routeSignature
+    };
+  };
+
+  const visitStops = (
+    currentRouteNodeId: string,
+    elapsedDurationSeconds: number,
+    elapsedDistanceMeters: number | null,
+    remainingPickupTypes: string[],
+    stops: RouteSearchStop[]
+  ): void => {
+    if (remainingPickupTypes.length === 0) {
+      const customerRoute = routeFor(
+        currentRouteNodeId,
+        input.customerRouteNodeId
+      );
+      if (!customerRoute || customerRoute.durationSeconds === null) return;
+
+      considerPlan(
+        stops,
+        elapsedDurationSeconds + customerRoute.durationSeconds,
+        addRouteDistance(elapsedDistanceMeters, customerRoute.distanceMeters),
+        customerRoute.durationSeconds,
+        customerRoute.distanceMeters
+      );
+      return;
+    }
+
+    for (const pickupType of remainingPickupTypes) {
+      const candidates = candidatesByPickupType.get(pickupType) ?? [];
+
+      for (const store of candidates) {
+        const route = routeFor(
+          currentRouteNodeId,
+          pickupStoreRouteNodeId(store.id)
+        );
+        if (!route || route.durationSeconds === null) continue;
+
+        const nextElapsedDurationSeconds =
+          elapsedDurationSeconds + route.durationSeconds;
+        const projectedArrivalAt = new Date(
+          input.generatedAt.getTime() + nextElapsedDurationSeconds * 1000
+        );
+        const eligibility = evaluatePickupStoreEligibility(
+          store,
+          projectedArrivalAt
+        );
+        if (!eligibility.eligible) continue;
+
+        visitStops(
+          pickupStoreRouteNodeId(store.id),
+          nextElapsedDurationSeconds,
+          addRouteDistance(elapsedDistanceMeters, route.distanceMeters),
+          remainingPickupTypes.filter((type) => type !== pickupType),
+          [
+            ...stops,
+            {
+              pickupType,
+              store,
+              elapsedDurationSeconds: nextElapsedDurationSeconds,
+              elapsedDistanceMeters: addRouteDistance(
+                elapsedDistanceMeters,
+                route.distanceMeters
+              ),
+              projectedArrivalAt,
+              eligibility
+            }
+          ]
+        );
+      }
+    }
+  };
+
+  visitStops(
+    input.driverRouteNodeId,
+    0,
+    0,
+    requiredPickupTypes,
+    []
+  );
+
+  if (!selectedPlan) return null;
+  const { routeSignature: _routeSignature, ...plan } = selectedPlan;
+  return plan;
 };
 
 export const selectPickupStoreRecommendations = (input: {

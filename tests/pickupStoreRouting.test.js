@@ -4,6 +4,8 @@ const test = require("node:test");
 const {
   PICKUP_STORE_CLOSING_BUFFER_MINUTES,
   evaluatePickupStoreEligibility,
+  pickupStoreRouteNodeId,
+  selectSequentialPickupRoutePlan,
   selectPickupStoreRecommendations
 } = require("../dist/services/pickupStoreRouting.service.js");
 
@@ -33,6 +35,24 @@ const baseStore = (overrides = {}) => ({
 // September 8, 2026 is a Tuesday. Guelph is UTC-4 on this date.
 const torontoTime = (hour, minute) =>
   new Date(Date.UTC(2026, 8, 8, hour + 4, minute));
+
+const route = (originId, destinationId, durationSeconds, distanceMeters = 1000) => ({
+  originId,
+  destinationId,
+  durationSeconds,
+  distanceMeters,
+  routeAvailable: true
+});
+
+const sequentialPlan = (stores, matrix, requiredPickupTypes, generatedAt = torontoTime(12, 0)) =>
+  selectSequentialPickupRoutePlan({
+    driverRouteNodeId: "driver:driver-a",
+    customerRouteNodeId: "customer:order-a",
+    requiredPickupTypes,
+    stores,
+    matrix,
+    generatedAt
+  });
 
 test("pickup-store closing safety buffer is exactly three minutes", () => {
   assert.equal(PICKUP_STORE_CLOSING_BUFFER_MINUTES, 3);
@@ -167,4 +187,165 @@ test("selector skips a nearer store that would close inside the buffer", () => {
   assert.equal(recommendations.length, 1);
   assert.equal(recommendations[0].storeId, "far");
   assert.equal(recommendations[0].closingBufferMinutes, 3);
+});
+
+test("sequential routing rejects the closest store when its complete journey is slower", () => {
+  const nearStore = baseStore({ id: "near", name: "Near Beer Store" });
+  const farStore = baseStore({ id: "far", name: "Far Beer Store" });
+  const plan = sequentialPlan(
+    [nearStore, farStore],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("near"), 60),
+      route("driver:driver-a", pickupStoreRouteNodeId("far"), 300),
+      route(pickupStoreRouteNodeId("near"), "customer:order-a", 1200),
+      route(pickupStoreRouteNodeId("far"), "customer:order-a", 300)
+    ],
+    ["BEER_STORE"]
+  );
+
+  assert.ok(plan);
+  assert.equal(plan.pickupStops[0].storeId, "far");
+  assert.equal(plan.totalDurationSeconds, 600);
+  assert.equal(plan.customerLegDurationSeconds, 300);
+});
+
+test("sequential routing compares pickup stop orders and accumulates arrival at stop two", () => {
+  const beerStore = baseStore({ id: "beer", pickupType: "BEER_STORE" });
+  const lcboStore = baseStore({ id: "lcbo", pickupType: "LCBO" });
+  const plan = sequentialPlan(
+    [beerStore, lcboStore],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("beer"), 60),
+      route("driver:driver-a", pickupStoreRouteNodeId("lcbo"), 70),
+      route(pickupStoreRouteNodeId("beer"), pickupStoreRouteNodeId("lcbo"), 120),
+      route(pickupStoreRouteNodeId("lcbo"), pickupStoreRouteNodeId("beer"), 600),
+      route(pickupStoreRouteNodeId("beer"), "customer:order-a", 1000),
+      route(pickupStoreRouteNodeId("lcbo"), "customer:order-a", 200)
+    ],
+    ["LCBO", "BEER_STORE"]
+  );
+
+  assert.ok(plan);
+  assert.deepEqual(
+    plan.pickupStops.map((stop) => stop.storeId),
+    ["beer", "lcbo"]
+  );
+  assert.equal(plan.pickupStops[1].durationSeconds, 180);
+  assert.equal(
+    plan.pickupStops[1].projectedArrivalAt,
+    "2026-09-08T16:03:00.000Z"
+  );
+  assert.equal(plan.totalDurationSeconds, 380);
+});
+
+test("sequential routing compares alternative store combinations", () => {
+  const beerStoreA = baseStore({ id: "beer-a", pickupType: "BEER_STORE" });
+  const beerStoreB = baseStore({ id: "beer-b", pickupType: "BEER_STORE" });
+  const lcboStore = baseStore({ id: "lcbo", pickupType: "LCBO" });
+  const plan = sequentialPlan(
+    [beerStoreA, beerStoreB, lcboStore],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("beer-a"), 50),
+      route("driver:driver-a", pickupStoreRouteNodeId("beer-b"), 100),
+      route("driver:driver-a", pickupStoreRouteNodeId("lcbo"), 60),
+      route(pickupStoreRouteNodeId("beer-a"), pickupStoreRouteNodeId("lcbo"), 1000),
+      route(pickupStoreRouteNodeId("beer-b"), pickupStoreRouteNodeId("lcbo"), 100),
+      route(pickupStoreRouteNodeId("lcbo"), "customer:order-a", 100)
+    ],
+    ["BEER_STORE", "LCBO"]
+  );
+
+  assert.ok(plan);
+  assert.deepEqual(
+    plan.pickupStops.map((stop) => stop.storeId),
+    ["beer-b", "lcbo"]
+  );
+  assert.equal(plan.totalDurationSeconds, 300);
+});
+
+test("sequential routing rejects a second stop that closes within its arrival buffer", () => {
+  const beerStore = baseStore({ id: "beer", pickupType: "BEER_STORE" });
+  const closingLcboStore = baseStore({
+    id: "lcbo",
+    pickupType: "LCBO",
+    regularOpeningHours: {
+      periods: [
+        {
+          open: { day: 2, hour: 10, minute: 0 },
+          close: { day: 2, hour: 19, minute: 5 }
+        }
+      ]
+    }
+  });
+  const plan = sequentialPlan(
+    [beerStore, closingLcboStore],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("beer"), 60),
+      route("driver:driver-a", pickupStoreRouteNodeId("lcbo"), 60),
+      route(pickupStoreRouteNodeId("beer"), pickupStoreRouteNodeId("lcbo"), 120),
+      route(pickupStoreRouteNodeId("lcbo"), "customer:order-a", 100)
+    ],
+    ["BEER_STORE", "LCBO"],
+    torontoTime(19, 0)
+  );
+
+  assert.equal(plan, null);
+});
+
+test("one-pickup and no-pickup routes include the required final customer leg", () => {
+  const store = baseStore({ id: "beer" });
+  const onePickupPlan = sequentialPlan(
+    [store],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("beer"), 300),
+      route(pickupStoreRouteNodeId("beer"), "customer:order-a", 480)
+    ],
+    ["BEER_STORE"]
+  );
+  const noPickupPlan = sequentialPlan(
+    [],
+    [route("driver:driver-a", "customer:order-a", 480)],
+    []
+  );
+
+  assert.ok(onePickupPlan);
+  assert.equal(onePickupPlan.pickupStops[0].durationSeconds, 300);
+  assert.equal(onePickupPlan.totalDurationSeconds, 780);
+  assert.ok(noPickupPlan);
+  assert.deepEqual(noPickupPlan.pickupStops, []);
+  assert.equal(noPickupPlan.totalDurationSeconds, 480);
+});
+
+test("sequential routing does not create an ETA when a required route leg is unavailable", () => {
+  const store = baseStore({ id: "beer" });
+  const plan = sequentialPlan(
+    [store],
+    [route("driver:driver-a", pickupStoreRouteNodeId("beer"), 300)],
+    ["BEER_STORE"]
+  );
+
+  assert.equal(plan, null);
+});
+
+test("equal-duration sequential routes use a deterministic pickup sequence", () => {
+  const beerStore = baseStore({ id: "beer", pickupType: "BEER_STORE" });
+  const lcboStore = baseStore({ id: "lcbo", pickupType: "LCBO" });
+  const plan = sequentialPlan(
+    [lcboStore, beerStore],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("beer"), 100),
+      route("driver:driver-a", pickupStoreRouteNodeId("lcbo"), 100),
+      route(pickupStoreRouteNodeId("beer"), pickupStoreRouteNodeId("lcbo"), 100),
+      route(pickupStoreRouteNodeId("lcbo"), pickupStoreRouteNodeId("beer"), 100),
+      route(pickupStoreRouteNodeId("beer"), "customer:order-a", 100),
+      route(pickupStoreRouteNodeId("lcbo"), "customer:order-a", 100)
+    ],
+    ["LCBO", "BEER_STORE"]
+  );
+
+  assert.ok(plan);
+  assert.deepEqual(
+    plan.pickupStops.map((stop) => stop.pickupType),
+    ["BEER_STORE", "LCBO"]
+  );
 });
