@@ -25,6 +25,28 @@ type MapOrder = {
   geocodeStatus?: string | null;
 };
 
+type PickupRecommendation =
+  | {
+      pickupType: string;
+      storeId: string;
+      storeName: string;
+      addressLine1: string;
+      city: string;
+      province: string;
+      etaMinutes: number;
+      durationSeconds: number;
+      distanceMeters: number | null;
+      projectedArrivalAt: string;
+      hoursSource: "MANUAL" | "CURRENT" | "REGULAR" | "NONE";
+      closingDate: string | null;
+      closingTime: string | null;
+      closingBufferMinutes: number;
+    }
+  | {
+      pickupType: string;
+      unavailable: true;
+    };
+
 type RoutingPreviewDriver = {
   driverId: string;
   firstName?: string | null;
@@ -39,6 +61,7 @@ type RoutingPreviewDriver = {
   etaMinutes: number | null;
   durationSeconds: number | null;
   distanceMeters: number | null;
+  pickupRecommendations?: PickupRecommendation[];
 };
 
 type RoutingPreviewResponse = {
@@ -55,6 +78,12 @@ type RoutingPreviewResponse = {
     orderStatus: string;
     latitude: number;
     longitude: number;
+  };
+  pickupRouting?: {
+    requiredPickupTypes: string[];
+    unknownItemCount: number;
+    closingBufferMinutes: number;
+    error: string | null;
   };
   fastestDriverId: string | null;
   drivers: RoutingPreviewDriver[];
@@ -94,6 +123,25 @@ const formatDistance = (distanceMeters: number | null) => {
   return kilometres < 10
     ? `${kilometres.toFixed(1)} km`
     : `${Math.round(kilometres)} km`;
+};
+
+const formatPickupType = (pickupType: string) =>
+  pickupType
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
+    .join(" ");
+
+const formatClosingTime = (value: string | null) => {
+  if (!value) return null;
+  const match = value.match(/^(\d{2}):(\d{2})$/);
+  if (!match) return value;
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix}`;
 };
 
 const findDriverLocationMap = (): HTMLDivElement | null => {
@@ -195,8 +243,8 @@ function RoutingPreviewMap() {
       errorMessage?: string,
     ) => {
       const container = document.createElement("div");
-      container.style.minWidth = "290px";
-      container.style.maxWidth = "390px";
+      container.style.minWidth = "310px";
+      container.style.maxWidth = "460px";
       container.style.color = "#18181b";
       container.style.fontFamily = "Arial, sans-serif";
       container.style.padding = "2px";
@@ -222,7 +270,7 @@ function RoutingPreviewMap() {
       if (loading) {
         const loadingText = makeTextElement(
           "div",
-          "Calculating traffic-aware driver ETAs…",
+          "Calculating traffic-aware driver and pickup-store ETAs…",
         );
         loadingText.style.padding = "8px 0";
         container.appendChild(loadingText);
@@ -239,6 +287,37 @@ function RoutingPreviewMap() {
 
       if (!preview) return container;
 
+      const pickupRouting = preview.pickupRouting;
+      if (pickupRouting?.unknownItemCount) {
+        const warning = makeTextElement(
+          "div",
+          `${pickupRouting.unknownItemCount} item${
+            pickupRouting.unknownItemCount === 1 ? "" : "s"
+          } still need${pickupRouting.unknownItemCount === 1 ? "s" : ""} a pickup type before store routing can be complete.`,
+        );
+        warning.style.fontSize = "11px";
+        warning.style.padding = "6px 8px";
+        warning.style.marginBottom = "6px";
+        warning.style.borderRadius = "6px";
+        warning.style.background = "#fef3c7";
+        warning.style.color = "#92400e";
+        container.appendChild(warning);
+      }
+
+      if (pickupRouting?.error) {
+        const warning = makeTextElement(
+          "div",
+          `Pickup-store routing unavailable: ${pickupRouting.error}`,
+        );
+        warning.style.fontSize = "11px";
+        warning.style.padding = "6px 8px";
+        warning.style.marginBottom = "6px";
+        warning.style.borderRadius = "6px";
+        warning.style.background = "#fee2e2";
+        warning.style.color = "#991b1b";
+        container.appendChild(warning);
+      }
+
       if (preview.drivers.length === 0) {
         const noDrivers = makeTextElement(
           "div",
@@ -252,8 +331,8 @@ function RoutingPreviewMap() {
           row.style.display = "grid";
           row.style.gridTemplateColumns = "1fr auto";
           row.style.gap = "12px";
-          row.style.alignItems = "center";
-          row.style.padding = "7px 0";
+          row.style.alignItems = "start";
+          row.style.padding = "8px 0";
 
           if (index > 0) {
             row.style.borderTop = "1px solid #e4e4e7";
@@ -285,6 +364,32 @@ function RoutingPreviewMap() {
           load.style.fontSize = "11px";
           load.style.color = "#71717a";
           left.appendChild(load);
+
+          const recommendations = driver.pickupRecommendations ?? [];
+          recommendations.forEach((recommendation) => {
+            const pickupLine = document.createElement("div");
+            pickupLine.style.fontSize = "11px";
+            pickupLine.style.lineHeight = "1.35";
+            pickupLine.style.marginTop = "4px";
+
+            if ("unavailable" in recommendation) {
+              pickupLine.textContent = `${formatPickupType(
+                recommendation.pickupType,
+              )}: no eligible open store`;
+              pickupLine.style.color = "#b91c1c";
+            } else {
+              const closingText = formatClosingTime(recommendation.closingTime);
+              pickupLine.textContent = `${formatPickupType(
+                recommendation.pickupType,
+              )}: ${recommendation.storeName} • ~${recommendation.etaMinutes} min${
+                closingText ? ` • closes ${closingText}` : " • open at arrival"
+              }`;
+              pickupLine.style.color = "#166534";
+            }
+
+            left.appendChild(pickupLine);
+          });
+
           row.appendChild(left);
 
           const eta = makeTextElement(
@@ -305,7 +410,9 @@ function RoutingPreviewMap() {
 
       const note = makeTextElement(
         "p",
-        "ETA is from each driver's current GPS location to this customer. Existing deliveries are shown as active-order counts but are not added to the ETA.",
+        `Customer ETA remains each driver's current GPS location → customer. Pickup suggestions are driver → store and require arrival at least ${
+          pickupRouting?.closingBufferMinutes ?? 3
+        } minutes before closing. Existing deliveries and multi-store sequencing are not yet added to the ETA.`,
       );
       note.style.fontSize = "10px";
       note.style.lineHeight = "1.35";
@@ -724,9 +831,9 @@ function RoutingPreviewMap() {
       <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-zinc-300">
         <div className="font-semibold text-green-300">Routing Previewer</div>
         <div>
-          Hover an order pin to compare traffic-aware ETAs for every signed-in
-          driver. Click an order pin to keep the preview open; click the map or
-          close the popup to clear it.
+          Hover an order pin to compare traffic-aware ETAs and hours-aware pickup
+          recommendations for every signed-in driver. Click an order pin to keep
+          the preview open; click the map or close the popup to clear it.
         </div>
         <div className="mt-1 text-xs text-zinc-500">{statusText}</div>
       </div>
