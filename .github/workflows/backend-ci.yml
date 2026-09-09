@@ -40,7 +40,7 @@ jobs:
         run: npm run build
 
       - name: Test backend services
-        run: node --test tests/routingPreview.test.js tests/pickupLocationHours.test.js tests/pickupLocationPlaceIdRepair.test.js tests/pickupStoreRouting.test.js
+        run: node --test tests/routingPreview.test.js tests/pickupLocationHours.test.js tests/pickupLocationPlaceIdRepair.test.js tests/pickupStoreRouting.test.js tests/autoDispatchPickupPlan.test.js
 
       - name: Install dispatcher dependencies
         working-directory: speedy-dispatcher
