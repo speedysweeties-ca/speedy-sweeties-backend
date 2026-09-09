@@ -20,4 +20,31 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // These files integrate with the browser-loaded Google Maps SDK and its
+    // dynamically patched marker constructors. Keep the exception narrow.
+    files: [
+      'src/App.tsx',
+      'src/RoutingPreviewEnhancerOriginalPins.tsx',
+      'src/driverMarkerPinFix.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+  {
+    // These components predate the React Compiler and intentionally use stable
+    // closures declared later in the component body.
+    files: ['src/App.tsx', 'src/RoutingPreviewEnhancerOriginalPins.tsx'],
+    rules: {
+      'react-hooks/immutability': 'off',
+    },
+  },
+  {
+    // Login state is restored once from session storage during hydration.
+    files: ['src/App.tsx'],
+    rules: {
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
 ])

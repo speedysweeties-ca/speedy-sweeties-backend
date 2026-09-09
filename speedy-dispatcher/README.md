@@ -1,73 +1,40 @@
-# React + TypeScript + Vite
+# Speedy Sweeties Dispatcher
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Internal web application for live order dispatch, driver management, routing,
+pickup locations, catalog operations, customer retention, and operational
+checklists.
 
-Currently, two official plugins are available:
+## Local development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+1. Install dependencies with `npm ci`.
+2. Copy `.env.example` to `.env.local`.
+3. Set `VITE_API_BASE_URL` to the backend you intend to use.
+4. Set `VITE_GOOGLE_MAPS_API_KEY` to a browser-restricted development key.
+5. Start the app with `npm run dev`.
 
-## React Compiler
+Both `VITE_` values are included in the browser bundle. Never put server
+credentials or unrestricted API keys in them.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Required checks
 
-## Expanding the ESLint configuration
+Run the complete dispatcher gate before opening or merging a pull request:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run check
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+This runs ESLint, the dispatcher unit tests, the TypeScript compiler, and the
+production Vite build. The repository GitHub Actions workflow runs the same
+gate for pushes and pull requests.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Release behavior
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+The dispatcher is deployed from the repository's `main` branch by the
+configured hosting service. A successful local build is not a deployment.
+Follow the repository release checklist for approval, production verification,
+and rollback requirements.
+
+The Google Maps integration loads the Maps JavaScript API in the browser and
+contains a narrow ESLint exception for that dynamic SDK boundary. The current
+large components are not compiled with React Compiler; compiler-only hook rules
+are disabled only where the legacy component structure requires it.

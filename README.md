@@ -94,6 +94,10 @@ npm run prisma:studio
 npm run retention:90
 ```
 
+Before opening or merging a release pull request, run the repository checks
+described in [`docs/release-checklist.md`](docs/release-checklist.md). Backend CI
+also executes the dispatcher lint, unit-test, and production-build gate.
+
 `npm run prisma:migrate` runs `prisma migrate dev` and is for local development only. Production releases use reviewed, committed migrations. Never run `prisma migrate reset` against a production database.
 
 The default local health check is:
