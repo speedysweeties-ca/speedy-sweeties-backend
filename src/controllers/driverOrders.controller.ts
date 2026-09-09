@@ -30,6 +30,23 @@ export const driverOrderInclude = {
       lastName: true,
       email: true
     }
+  },
+  pickupStops: {
+    orderBy: { sequence: "asc" },
+    select: {
+      id: true,
+      pickupType: true,
+      sequence: true,
+      storeName: true,
+      addressLine1: true,
+      city: true,
+      province: true,
+      latitude: true,
+      longitude: true,
+      projectedArrivalAt: true,
+      closingTime: true,
+      closingBufferMinutes: true
+    }
   }
 } satisfies Prisma.OrderInclude;
 
@@ -45,11 +62,11 @@ export const withDriverRoutingPlan = <
 });
 
 const ROUTABLE_PICKUP_TYPES = new Set([
+  "BEER_STORE",
   "CONVENIENCE",
-  "GENERAL_RETAIL",
-  "GROCERY",
-  "PHARMACY",
-  "OTHER"
+  "DISPENSARY",
+  "LCBO",
+  "VAPE"
 ]);
 
 const normalizePickupType = (
@@ -175,6 +192,7 @@ export const getDriverOrdersController = async (
         unknownPickupItemCount: pickupRequirement.unknownPickupItemCount,
         unsupportedPickupTypeCount:
           pickupRequirement.unsupportedPickupTypeCount,
+        assignedPickupStops: order.pickupStops,
         pickupLocationCandidates,
         destination: {
           addressLine1: order.addressLine1,

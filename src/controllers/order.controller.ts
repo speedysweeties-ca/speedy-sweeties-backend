@@ -31,6 +31,7 @@ import {
 } from "../services/recurringDriverNotes.service";
 import { getFirstDispatchAttribution } from "../utils/dispatchAttribution";
 import { resolveOrderSourceAttribution } from "../utils/orderSourceAttribution";
+import { autoDispatchCreatedOrderWithPickupPlan } from "../services/autoDispatchPickupPlan.service";
 
 /* ================= TYPES ================= */
 
@@ -117,6 +118,29 @@ const orderInclude = {
     select: {
       firstName: true,
       lastName: true
+    }
+  },
+  pickupStops: {
+    orderBy: { sequence: "asc" },
+    select: {
+      id: true,
+      pickupType: true,
+      sequence: true,
+      plannedForDriverId: true,
+      selectionSource: true,
+      storeName: true,
+      addressLine1: true,
+      city: true,
+      province: true,
+      latitude: true,
+      longitude: true,
+      etaSeconds: true,
+      distanceMeters: true,
+      projectedArrivalAt: true,
+      hoursSource: true,
+      closingDate: true,
+      closingTime: true,
+      closingBufferMinutes: true
     }
   }
 } satisfies Prisma.OrderInclude;
@@ -305,7 +329,8 @@ const sendDriverAssignedOrderPush = async (
   orderNumber: number,
   customerName: string,
   addressLine1: string,
-  city?: string | null
+  city?: string | null,
+  pickupSummary?: string | null
 ): Promise<void> => {
   const address = [addressLine1, city].filter(Boolean).join(", ");
 
@@ -314,7 +339,9 @@ const sendDriverAssignedOrderPush = async (
       token: driverFcmToken,
       notification: {
         title: "New Speedy Sweeties Order",
-        body: `Order #${orderNumber} assigned to you. ${customerName} - ${address}`
+        body: pickupSummary
+          ? `Order #${orderNumber} assigned. Pickup: ${pickupSummary}. ${customerName} - ${address}`
+          : `Order #${orderNumber} assigned to you. ${customerName} - ${address}`
       },
       data: {
         type: "DRIVER_ORDER_ASSIGNED",
@@ -1005,9 +1032,6 @@ const createOrder = async (
     const pickupRouting = summarizePickupRouting(orderItemPickupTypes);
     logPickupRoutingAdvisory(createdOrder.id, pickupRouting);
 
-    const autoDispatchNotification =
-      await autoAssignCreatedOrderToLeastBusyOnlineDriver(tx, createdOrder.id);
-
     const order = await tx.order.findUniqueOrThrow({
       where: { id: createdOrder.id },
       include: orderInclude
@@ -1015,13 +1039,21 @@ const createOrder = async (
 
     return {
       order,
-      autoDispatchNotification,
       trackingToken: trackingCredential.token,
       customerId: customer.id
     };
   });
 
-  const { order, autoDispatchNotification, trackingToken, customerId } = transactionResult;
+  const { order: createdOrder, trackingToken, customerId } = transactionResult;
+  const autoDispatchResult = await autoDispatchCreatedOrderWithPickupPlan(
+    createdOrder.id
+  );
+  const order = autoDispatchResult.dispatched
+    ? await prisma.order.findUniqueOrThrow({
+        where: { id: createdOrder.id },
+        include: orderInclude
+      })
+    : createdOrder;
   const loyaltyAccessToken = signCustomerLoyaltyToken(customerId);
   const {
     trackingTokenHash: _trackingTokenHash,
@@ -1035,13 +1067,22 @@ const createOrder = async (
     ...orderResponse
   } = order;
 
-  if (autoDispatchNotification) {
+  if (
+    autoDispatchResult.dispatched &&
+    autoDispatchResult.driverIsOnline &&
+    autoDispatchResult.driverFcmToken &&
+    autoDispatchResult.driverAppState !== "FOREGROUND" &&
+    typeof autoDispatchResult.orderNumber === "number" &&
+    autoDispatchResult.customerName &&
+    autoDispatchResult.addressLine1
+  ) {
     await sendDriverAssignedOrderPush(
-      autoDispatchNotification.driverFcmToken,
-      autoDispatchNotification.orderNumber,
-      autoDispatchNotification.customerName,
-      autoDispatchNotification.addressLine1,
-      autoDispatchNotification.city
+      autoDispatchResult.driverFcmToken,
+      autoDispatchResult.orderNumber,
+      autoDispatchResult.customerName,
+      autoDispatchResult.addressLine1,
+      autoDispatchResult.city,
+      autoDispatchResult.pickupSummary
     );
   }
 

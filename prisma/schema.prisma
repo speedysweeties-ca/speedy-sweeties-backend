@@ -258,6 +258,7 @@ model Order {
 
   items          OrderItem[]
   digitalReceipt DigitalReceipt?
+  pickupStops    OrderPickupStop[]
 
   @@index([customerId])
   @@index([orderSource])
@@ -408,10 +409,47 @@ model PickupLocation {
   createdAt                    DateTime  @default(now())
   updatedAt                    DateTime  @updatedAt
 
+  orderPickupStops OrderPickupStop[]
+
   @@index([pickupType])
   @@index([isActive])
   @@index([city])
   @@index([regularHoursUpdatedAt])
   @@index([currentHoursUpdatedAt])
   @@index([hoursLastCheckedAt])
+}
+
+model OrderPickupStop {
+  id                   String    @id @default(uuid())
+  orderId              String
+  pickupLocationId     String
+  pickupType           String
+  sequence             Int
+  plannedForDriverId   String?
+  selectionSource      String    @default("AUTO")
+  selectedAt           DateTime  @default(now())
+  etaSeconds           Int?
+  distanceMeters       Int?
+  projectedArrivalAt   DateTime?
+  hoursSource          String?
+  closingDate          String?
+  closingTime          String?
+  closingBufferMinutes Int       @default(3)
+  storeName            String
+  addressLine1         String
+  city                 String
+  province             String
+  latitude             Float
+  longitude            Float
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  pickupLocation PickupLocation @relation(fields: [pickupLocationId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, pickupType])
+  @@index([orderId])
+  @@index([pickupLocationId])
+  @@index([plannedForDriverId])
+  @@index([sequence])
 }
