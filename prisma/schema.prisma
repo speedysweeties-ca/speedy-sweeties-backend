@@ -420,29 +420,29 @@ model PickupLocation {
 }
 
 model OrderPickupStop {
-  id                   String   @id @default(uuid())
+  id                   String    @id @default(uuid())
   orderId              String
   pickupLocationId     String
   pickupType           String
   sequence             Int
   plannedForDriverId   String?
-  selectionSource      String   @default("AUTO")
-  selectedAt           DateTime @default(now())
+  selectionSource      String    @default("AUTO")
+  selectedAt           DateTime  @default(now())
   etaSeconds           Int?
   distanceMeters       Int?
   projectedArrivalAt   DateTime?
   hoursSource          String?
   closingDate          String?
   closingTime          String?
-  closingBufferMinutes Int      @default(3)
+  closingBufferMinutes Int       @default(3)
   storeName            String
   addressLine1         String
   city                 String
   province             String
   latitude             Float
   longitude            Float
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
   pickupLocation PickupLocation @relation(fields: [pickupLocationId], references: [id], onDelete: Restrict)
