@@ -143,6 +143,8 @@ export const assignDriverToOrderController = async (
       return;
     }
 
+    await prisma.orderPickupStop.deleteMany({ where: { orderId: id } });
+
     const updatedOrder = await prisma.order.findUniqueOrThrow({
       where: { id },
       include: {
@@ -260,6 +262,10 @@ export const assignDriverToOrderController = async (
         : "Order changed before driver assignment could be completed"
     });
     return;
+  }
+
+  if (wasAssignedToDifferentDriver) {
+    await prisma.orderPickupStop.deleteMany({ where: { orderId: id } });
   }
 
   const updatedOrder = await prisma.order.findUniqueOrThrow({
