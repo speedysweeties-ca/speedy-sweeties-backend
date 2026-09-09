@@ -2,6 +2,7 @@ import { z } from "zod";
 import { OrderStatus, PaymentMethod } from "@prisma/client";
 
 import { RECURRING_DRIVER_NOTES_MAX_LENGTH } from "../services/recurringDriverNotes.service";
+import { LEGACY_ETRANSFER_PAYMENT_METHOD } from "../utils/paymentMethod";
 
 const phoneRegex = /^[0-9()+\-.\s]{7,20}$/;
 
@@ -43,6 +44,11 @@ const publicOrderSourceSchema = z.enum([
 
 const attributionField = z.string().trim().max(150).optional();
 
+const compatiblePaymentMethodSchema = z.union([
+  z.nativeEnum(PaymentMethod),
+  z.literal(LEGACY_ETRANSFER_PAYMENT_METHOD)
+]);
+
 export const createOrderSchema = z.object({
   body: z.object({
     customerName: z.string().trim().min(2).max(120),
@@ -62,7 +68,7 @@ export const createOrderSchema = z.object({
     tip: moneyField,
     discount: moneyField,
     total: moneyField,
-    paymentMethod: z.nativeEnum(PaymentMethod),
+    paymentMethod: compatiblePaymentMethodSchema,
     orderSource: publicOrderSourceSchema.optional(),
     utmSource: attributionField,
     utmMedium: attributionField,
@@ -118,7 +124,7 @@ export const updateOrderDetailsSchema = z.object({
     city: z.string().trim().min(2).max(100),
     province: z.string().trim().min(2).max(100),
     additionalNotes: z.string().trim().max(1000).optional().nullable(),
-    paymentMethod: z.nativeEnum(PaymentMethod),
+    paymentMethod: compatiblePaymentMethodSchema,
     items: z.array(editableOrderItemSchema).min(1)
   })
 });
