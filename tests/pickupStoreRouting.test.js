@@ -116,6 +116,16 @@ test("stores without trustworthy hours fail closed", () => {
   assert.equal(result.reason, "HOURS_UNAVAILABLE");
 });
 
+test("permanently closed stores are never eligible", () => {
+  const result = evaluatePickupStoreEligibility(
+    baseStore({ googleBusinessStatus: "CLOSED_PERMANENTLY" }),
+    torontoTime(14, 0)
+  );
+
+  assert.equal(result.eligible, false);
+  assert.equal(result.reason, "BUSINESS_NOT_OPERATIONAL");
+});
+
 test("selector skips a nearer store that would close inside the buffer", () => {
   const nearStore = baseStore({ id: "near", name: "Near Beer Store" });
   const fartherStore = baseStore({

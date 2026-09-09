@@ -1,6 +1,7 @@
 import { OrderStatus, UserRole } from "@prisma/client";
 import { Request, Response } from "express";
 import { env } from "../config/env";
+import { normalizePickupTypeOrUnknown } from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
 import {
   computeTrafficAwareRouteMatrix,
@@ -20,6 +21,7 @@ import {
   isDriverFresh,
   isDriverLocationFresh
 } from "../utils/driverFreshness";
+import { buildRoutablePickupLocationWhere } from "../utils/pickupLocationAvailability";
 
 type CachedRoutingPreview = {
   key: string;
@@ -35,9 +37,6 @@ type CachedPickupRoutingMatrix = {
 
 const routingPreviewCache = new Map<string, CachedRoutingPreview>();
 const pickupRoutingMatrixCache = new Map<string, CachedPickupRoutingMatrix>();
-
-const normalizePickupType = (value: string | null | undefined): string =>
-  String(value || "UNKNOWN").trim().toUpperCase() || "UNKNOWN";
 
 const buildCacheKey = (
   orderId: string,
@@ -132,7 +131,7 @@ export const getOrderRoutingPreviewController = async (
   }
 
   const itemPickupTypes = order.items.map((item) =>
-    normalizePickupType(item.itemCatalog?.pickupType)
+    normalizePickupTypeOrUnknown(item.itemCatalog?.pickupType)
   );
   const unknownItemCount = itemPickupTypes.filter(
     (pickupType) => pickupType === "UNKNOWN"
@@ -221,12 +220,7 @@ export const getOrderRoutingPreviewController = async (
     requiredPickupTypes.length === 0
       ? []
       : ((await prisma.pickupLocation.findMany({
-          where: {
-            isActive: true,
-            pickupType: {
-              in: requiredPickupTypes
-            }
-          },
+          where: buildRoutablePickupLocationWhere(requiredPickupTypes),
           select: {
             id: true,
             name: true,

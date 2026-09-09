@@ -20,6 +20,11 @@ import {
   GrowthCommandCentre,
   type GrowthDashboardData,
 } from "./GrowthCommandCentre";
+import {
+  CATALOG_PICKUP_TYPE_OPTIONS,
+  PICKUP_LOCATION_TYPE_OPTIONS,
+  isPickupLocationType,
+} from "./pickupTypes";
 
 const getTorontoDateInputValue = (date = new Date()) => {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -263,15 +268,6 @@ type CatalogEditForm = {
   isActive: boolean;
 };
 
-const CATALOG_PICKUP_TYPE_OPTIONS = [
-  "UNKNOWN",
-  "CONVENIENCE",
-  "BEER_STORE",
-  "LCBO",
-  "VAPE",
-  "DISPENSARY",
-] as const;
-
 type PickupLocation = {
   id: string;
   name: string;
@@ -279,6 +275,7 @@ type PickupLocation = {
   addressLine1: string;
   city: string;
   province: string;
+  postalCode?: string | null;
   latitude: number;
   longitude: number;
   isActive: boolean;
@@ -292,6 +289,7 @@ type PickupLocationForm = {
   addressLine1: string;
   city: string;
   province: string;
+  postalCode: string;
   latitude: string;
   longitude: string;
   isActive: boolean;
@@ -642,6 +640,7 @@ const initialPickupLocationForm: PickupLocationForm = {
   addressLine1: "",
   city: "Guelph",
   province: "ON",
+  postalCode: "",
   latitude: "",
   longitude: "",
   isActive: true,
@@ -2411,7 +2410,9 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
   const validatePickupLocationForm = (form: PickupLocationForm) => {
     if (!form.name.trim()) return "Location name is required";
-    if (!form.pickupType.trim()) return "Pickup type is required";
+    if (!isPickupLocationType(form.pickupType)) {
+      return "Select a supported pickup type";
+    }
     if (!form.addressLine1.trim()) return "Street address is required";
     if (!form.city.trim()) return "City is required";
     if (!form.province.trim()) return "Province is required";
@@ -2455,6 +2456,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
             name: pickupLocationForm.name.trim(),
             pickupType: pickupLocationForm.pickupType.trim(),
             ...buildAddressRequestFields(pickupLocationForm),
+            postalCode: pickupLocationForm.postalCode.trim() || null,
             latitude: Number(pickupLocationForm.latitude),
             longitude: Number(pickupLocationForm.longitude),
             isActive: pickupLocationForm.isActive,
@@ -2486,6 +2488,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       addressLine1: location.addressLine1 || "",
       city: location.city || "",
       province: location.province || "",
+      postalCode: location.postalCode || "",
       latitude: String(location.latitude ?? ""),
       longitude: String(location.longitude ?? ""),
       isActive: location.isActive,
@@ -2536,6 +2539,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
             name: pickupLocationEditForm.name.trim(),
             pickupType: pickupLocationEditForm.pickupType.trim(),
             ...buildAddressRequestFields(pickupLocationEditForm),
+            postalCode: pickupLocationEditForm.postalCode.trim() || null,
             latitude: Number(pickupLocationEditForm.latitude),
             longitude: Number(pickupLocationEditForm.longitude),
             isActive: pickupLocationEditForm.isActive,
@@ -4966,21 +4970,20 @@ const handleSaveEditedOrder = async (orderId: string) => {
               className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
             />
 
-           <select
-  value={pickupLocationForm.pickupType}
-  onChange={(e) =>
-    handlePickupLocationFormChange("pickupType", e.target.value)
-  }
-  className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
->
-  <option value="">Select Pickup Type</option>
-  <option value="UNKNOWN">UNKNOWN</option>
-  <option value="CONVENIENCE">CONVENIENCE</option>
-  <option value="BEER_STORE">Beer Store</option>
-  <option value="LCBO">LCBO</option>
-  <option value="VAPE">Vape</option>
-  <option value="DISPENSARY">Dispensary</option>
-</select>
+            <select
+              value={pickupLocationForm.pickupType}
+              onChange={(e) =>
+                handlePickupLocationFormChange("pickupType", e.target.value)
+              }
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+            >
+              <option value="">Select Pickup Type</option>
+              {PICKUP_LOCATION_TYPE_OPTIONS.map((pickupType) => (
+                <option key={pickupType} value={pickupType}>
+                  {pickupType.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
 
             <input
               type="text"
@@ -5008,6 +5011,16 @@ const handleSaveEditedOrder = async (orderId: string) => {
               value={pickupLocationForm.province}
               onChange={(e) =>
                 handlePickupLocationFormChange("province", e.target.value)
+              }
+              className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+            />
+
+            <input
+              type="text"
+              placeholder="Postal Code (optional)"
+              value={pickupLocationForm.postalCode}
+              onChange={(e) =>
+                handlePickupLocationFormChange("postalCode", e.target.value)
               }
               className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
             />
@@ -5096,31 +5109,21 @@ const handleSaveEditedOrder = async (orderId: string) => {
                         {isEditing ? (
                           <>
                             <td className="p-2 align-top">
-				<select
-  				value={pickupLocationEditForm.pickupType}
- 				onChange={(e) =>
-   			 	handlePickupLocationEditFieldChange(
-      				"pickupType",
-      				e.target.value
-    				)
-  				}
-  				className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
-				>
-  				<option value="">Select Pickup Type</option>
-  				<option value="UNKNOWN">UNKNOWN</option>
-  				<option value="CONVENIENCE">CONVENIENCE</option>
-  				<option value="BEER_STORE">Beer Store</option>
-  				<option value="LCBO">LCBO</option>
-  				<option value="VAPE">Vape</option>
-  				<option value="DISPENSARY">Dispensary</option>
-				</select>
-                              
-
+                              <input
+                                type="text"
+                                value={pickupLocationEditForm.name}
+                                onChange={(e) =>
+                                  handlePickupLocationEditFieldChange(
+                                    "name",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              />
                             </td>
 
                             <td className="p-2 align-top">
-                              <input
-                                type="text"
+                              <select
                                 value={pickupLocationEditForm.pickupType}
                                 onChange={(e) =>
                                   handlePickupLocationEditFieldChange(
@@ -5129,7 +5132,14 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                   )
                                 }
                                 className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
-                              />
+                              >
+                                <option value="">Select Pickup Type</option>
+                                {PICKUP_LOCATION_TYPE_OPTIONS.map((pickupType) => (
+                                  <option key={pickupType} value={pickupType}>
+                                    {pickupType.replace(/_/g, " ")}
+                                  </option>
+                                ))}
+                              </select>
                             </td>
 
                             <td className="p-2 align-top">
@@ -5145,7 +5155,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                   }
                                   className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
                                 />
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-3 gap-2">
                                   <input
                                     type="text"
                                     value={pickupLocationEditForm.city}
@@ -5163,6 +5173,18 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                     onChange={(e) =>
                                       handlePickupLocationEditFieldChange(
                                         "province",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                                  />
+                                  <input
+                                    type="text"
+                                    placeholder="Postal code"
+                                    value={pickupLocationEditForm.postalCode}
+                                    onChange={(e) =>
+                                      handlePickupLocationEditFieldChange(
+                                        "postalCode",
                                         e.target.value
                                       )
                                     }
@@ -5261,6 +5283,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
                               <div>{location.addressLine1}</div>
                               <div className="text-zinc-500 text-xs">
                                 {location.city}, {location.province}
+                                {location.postalCode
+                                  ? ` ${location.postalCode}`
+                                  : ""}
                               </div>
                             </td>
 

@@ -1,10 +1,12 @@
 import { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
+import {
+  ROUTABLE_PICKUP_TYPE_OPTIONS,
+  isRoutablePickupType,
+  parsePickupType
+} from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
 import { refreshPickupLocationHours } from "../services/pickupLocationHours.service";
-
-const normalizePickupType = (value: string): string =>
-  value.trim().toUpperCase();
 
 const parseCoordinate = (value: unknown): number | null => {
   const parsed =
@@ -134,11 +136,17 @@ export const listPickupLocationsController = async (
   res: Response
 ) => {
   const { pickupType, isActive } = req.query;
+  const pickupTypeFilter = parsePickupType(pickupType);
+
+  if (pickupTypeFilter === null) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid pickup type"
+    });
+  }
 
   const where: Prisma.PickupLocationWhereInput = {
-    ...(typeof pickupType === "string" && pickupType.trim()
-      ? { pickupType: normalizePickupType(pickupType) }
-      : {}),
+    ...(pickupTypeFilter ? { pickupType: pickupTypeFilter } : {}),
     ...(isActive === "true"
       ? { isActive: true }
       : isActive === "false"
@@ -175,7 +183,8 @@ export const createPickupLocationController = async (
     latitude,
     longitude,
     isActive,
-    googlePlaceId
+    googlePlaceId,
+    postalCode
   } = req.body;
 
   if (
@@ -197,6 +206,33 @@ export const createPickupLocationController = async (
     });
   }
 
+  const parsedPickupType = parsePickupType(pickupType);
+
+  if (!parsedPickupType || !isRoutablePickupType(parsedPickupType)) {
+    return res.status(400).json({
+      success: false,
+      message: `pickupType must be one of: ${ROUTABLE_PICKUP_TYPE_OPTIONS.join(", ")}`
+    });
+  }
+
+  if (
+    postalCode !== undefined &&
+    postalCode !== null &&
+    typeof postalCode !== "string"
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "postalCode must be a string or null"
+    });
+  }
+
+  const normalizedPostalCode =
+    postalCode === undefined
+      ? undefined
+      : typeof postalCode === "string"
+        ? postalCode.trim() || null
+        : null;
+
   const parsedLatitude = parseCoordinate(latitude);
   const parsedLongitude = parseCoordinate(longitude);
 
@@ -217,10 +253,13 @@ export const createPickupLocationController = async (
   const location = await prisma.pickupLocation.create({
     data: {
       name: name.trim(),
-      pickupType: normalizePickupType(pickupType),
+      pickupType: parsedPickupType,
       addressLine1: addressLine1.trim(),
       city: city.trim(),
       province: province.trim(),
+      ...(normalizedPostalCode !== undefined
+        ? { postalCode: normalizedPostalCode }
+        : {}),
       latitude: parsedLatitude,
       longitude: parsedLongitude,
       ...(typeof isActive === "boolean" ? { isActive } : {}),
@@ -265,8 +304,41 @@ export const updatePickupLocationController = async (
     isActive,
     googlePlaceId,
     manualHoursOverride,
-    manualHoursOverrideNote
+    manualHoursOverrideNote,
+    postalCode
   } = req.body;
+
+  const parsedPickupType = parsePickupType(pickupType);
+
+  if (
+    pickupType !== undefined &&
+    (parsedPickupType === null ||
+      parsedPickupType === undefined ||
+      !isRoutablePickupType(parsedPickupType))
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: `pickupType must be one of: ${ROUTABLE_PICKUP_TYPE_OPTIONS.join(", ")}`
+    });
+  }
+
+  if (
+    postalCode !== undefined &&
+    postalCode !== null &&
+    typeof postalCode !== "string"
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "postalCode must be a string or null"
+    });
+  }
+
+  const normalizedPostalCode =
+    postalCode === undefined
+      ? undefined
+      : typeof postalCode === "string"
+        ? postalCode.trim() || null
+        : null;
 
   const parsedLatitude =
     latitude === undefined ? undefined : parseCoordinate(latitude);
@@ -362,9 +434,7 @@ export const updatePickupLocationController = async (
       ...(typeof name === "string" && name.trim()
         ? { name: name.trim() }
         : {}),
-      ...(typeof pickupType === "string" && pickupType.trim()
-        ? { pickupType: normalizePickupType(pickupType) }
-        : {}),
+      ...(parsedPickupType ? { pickupType: parsedPickupType } : {}),
       ...(typeof addressLine1 === "string" && addressLine1.trim()
         ? { addressLine1: addressLine1.trim() }
         : {}),
@@ -373,6 +443,9 @@ export const updatePickupLocationController = async (
         : {}),
       ...(typeof province === "string" && province.trim()
         ? { province: province.trim() }
+        : {}),
+      ...(normalizedPostalCode !== undefined
+        ? { postalCode: normalizedPostalCode }
         : {}),
       ...(parsedLatitude !== undefined ? { latitude: parsedLatitude } : {}),
       ...(parsedLongitude !== undefined ? { longitude: parsedLongitude } : {}),

@@ -10,6 +10,7 @@ import {
   UserRole
 } from "@prisma/client";
 import { messaging } from "../config/firebase";
+import { normalizePickupTypeOrUnknown } from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
 import { signCustomerLoyaltyToken } from "../utils/jwt";
 import { isBusinessConfirmedClosed } from "./business.controller";
@@ -192,14 +193,6 @@ const normalize = (value: string) => value.trim().toLowerCase();
 
 const normalizePhone = (value: string) => value.replace(/\D/g, "");
 
-const normalizePickupType = (
-  value: string | null | undefined
-): string => {
-  const normalizedValue = String(value || "UNKNOWN").trim().toUpperCase();
-
-  return normalizedValue || "UNKNOWN";
-};
-
 const summarizePickupRouting = (
   pickupTypes: Array<string | null | undefined>
 ): PickupRoutingSummary => {
@@ -207,7 +200,7 @@ const summarizePickupRouting = (
   let unknownItemCount = 0;
 
   for (const pickupTypeValue of pickupTypes) {
-    const pickupType = normalizePickupType(pickupTypeValue);
+    const pickupType = normalizePickupTypeOrUnknown(pickupTypeValue);
 
     if (pickupType === "UNKNOWN") {
       unknownItemCount += 1;
