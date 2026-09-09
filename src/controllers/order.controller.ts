@@ -32,6 +32,10 @@ import {
 import { getFirstDispatchAttribution } from "../utils/dispatchAttribution";
 import { resolveOrderSourceAttribution } from "../utils/orderSourceAttribution";
 import { autoDispatchCreatedOrderWithPickupPlan } from "../services/autoDispatchPickupPlan.service";
+import {
+  CompatiblePaymentMethod,
+  normalizePaymentMethod
+} from "../utils/paymentMethod";
 
 /* ================= TYPES ================= */
 
@@ -79,7 +83,7 @@ type UpdateOrderDetailsBody = {
   city: string;
   province: string;
   additionalNotes?: string | null;
-  paymentMethod: PaymentMethod;
+  paymentMethod: CompatiblePaymentMethod;
   items: UpdateOrderItemInput[];
 };
 
@@ -963,7 +967,7 @@ const createOrder = async (
         ...orderAddressSnapshot,
         itemsText: rawItems.map((i) => `${i.quantity}x ${i.name}`).join(", "),
         additionalNotes: finalNotes,
-        paymentMethod,
+        paymentMethod: normalizePaymentMethod(paymentMethod),
         orderSource: resolveOrderSourceAttribution({
           requestedSource: orderSource,
           requestOrigin: req.headers?.origin,
@@ -1312,7 +1316,7 @@ export const updateOrderDetailsController = async (
           typeof additionalNotes === "string" && additionalNotes.trim()
             ? additionalNotes.trim()
             : null,
-        paymentMethod,
+        paymentMethod: normalizePaymentMethod(paymentMethod),
         ...(replacementDeliveryLocation ?? {})
       }
     });

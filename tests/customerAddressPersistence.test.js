@@ -235,6 +235,27 @@ test("NEEDS_REVIEW orders create or retain a customer and save the latest order 
   assert.equal(database.database.customer.createdAt, "2026-01-01T00:00:00.000Z");
 });
 
+test("iOS E_TRANSFER orders are stored with the Prisma ETRANSFER value", async (t) => {
+  const database = installOrderCreationDatabase(t);
+
+  replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
+  replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
+
+  const response = responseRecorder();
+  await createOrderController(
+    {
+      body: {
+        ...firstOrderBody,
+        paymentMethod: "E_TRANSFER"
+      }
+    },
+    response
+  );
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(database.database.orders[0].paymentMethod, "ETRANSFER");
+});
+
 test("invalid and rejected orders do not overwrite a saved customer address", async (t) => {
   const database = installOrderCreationDatabase(t, {
     id: "customer-1",

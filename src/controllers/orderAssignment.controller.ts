@@ -7,6 +7,7 @@ import { Request, Response } from "express";
 import { messaging } from "../config/firebase";
 import { prisma } from "../lib/prisma";
 import { getFirstDispatchAttribution } from "../utils/dispatchAttribution";
+import { isDriverFresh } from "../utils/driverFreshness";
 
 type AssignDriverParams = {
   id: string;
@@ -181,6 +182,7 @@ export const assignDriverToOrderController = async (
       role: true,
       isActive: true,
       isOnline: true,
+      lastSeenAt: true,
       driverFcmToken: true,
       driverAppState: true
     }
@@ -190,6 +192,17 @@ export const assignDriverToOrderController = async (
     res.status(404).json({
       success: false,
       message: "Active, visible driver not found"
+    });
+    return;
+  }
+
+  const now = new Date();
+
+  if (!driver.isOnline || !isDriverFresh(driver.lastSeenAt, now)) {
+    res.status(409).json({
+      success: false,
+      code: "DRIVER_NOT_ONLINE",
+      message: "Driver is offline or has not checked in recently"
     });
     return;
   }
@@ -227,7 +240,6 @@ export const assignDriverToOrderController = async (
     return;
   }
 
-  const now = new Date();
   const wasAssignedToDifferentDriver = existingOrder.assignedDriverId !== driver.id;
 
   const shouldMarkDispatched =
