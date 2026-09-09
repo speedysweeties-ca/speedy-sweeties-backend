@@ -11,10 +11,14 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     env:
+      NODE_ENV: test
       # CI-only values. No database command in this workflow connects to this URL.
       DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/speedy_sweeties_ci?schema=public
       JWT_SECRET: ci-only-secret
+      # Firebase is replaced with a non-network stub when NODE_ENV=test.
       FIREBASE_SERVICE_ACCOUNT_JSON: '{}'
+      # Unit tests use mocked data and must never auto-dispatch against the CI database URL.
+      AUTO_DISPATCH_ENABLED: 'false'
     steps:
       - uses: actions/checkout@v4
 
@@ -39,8 +43,8 @@ jobs:
       - name: Build backend
         run: npm run build
 
-      - name: Test backend services
-        run: node --test tests/routingPreview.test.js tests/pickupLocationHours.test.js tests/pickupLocationPlaceIdRepair.test.js tests/pickupStoreRouting.test.js tests/autoDispatchPickupPlan.test.js
+      - name: Test all backend services
+        run: npm test
 
       - name: Install dispatcher dependencies
         working-directory: speedy-dispatcher
