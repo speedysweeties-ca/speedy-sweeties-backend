@@ -1,6 +1,11 @@
 import { OrderStatus, Prisma } from "@prisma/client";
 import { Request, Response } from "express";
+import {
+  isRoutablePickupType,
+  normalizePickupTypeOrUnknown
+} from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
+import { buildRoutablePickupLocationWhere } from "../utils/pickupLocationAvailability";
 
 type AuthenticatedUser = {
   userId: string;
@@ -61,22 +66,6 @@ export const withDriverRoutingPlan = <
   routingPlan
 });
 
-const ROUTABLE_PICKUP_TYPES = new Set([
-  "BEER_STORE",
-  "CONVENIENCE",
-  "DISPENSARY",
-  "LCBO",
-  "VAPE"
-]);
-
-const normalizePickupType = (
-  value: string | null | undefined
-): string => {
-  const normalizedValue = String(value || "UNKNOWN").trim().toUpperCase();
-
-  return normalizedValue || "UNKNOWN";
-};
-
 export const getDriverOrdersController = async (
   req: Request,
   res: Response
@@ -108,17 +97,20 @@ export const getDriverOrdersController = async (
     const requiredPickupTypes = Array.from(
       new Set(
         order.items
-          .map((item) => normalizePickupType(item.itemCatalog?.pickupType))
+          .map((item) =>
+            normalizePickupTypeOrUnknown(item.itemCatalog?.pickupType)
+          )
           .filter((pickupType) => pickupType !== "UNKNOWN")
       )
     );
 
     const unknownPickupItemCount = order.items.filter(
-      (item) => normalizePickupType(item.itemCatalog?.pickupType) === "UNKNOWN"
+      (item) =>
+        normalizePickupTypeOrUnknown(item.itemCatalog?.pickupType) === "UNKNOWN"
     ).length;
 
-    const routablePickupTypes = requiredPickupTypes.filter((pickupType) =>
-      ROUTABLE_PICKUP_TYPES.has(pickupType)
+    const routablePickupTypes: string[] = requiredPickupTypes.filter(
+      (pickupType): boolean => isRoutablePickupType(pickupType)
     );
 
     const unsupportedPickupTypeCount =
@@ -145,12 +137,7 @@ export const getDriverOrdersController = async (
   const pickupLocations =
     requestedPickupTypes.length > 0
       ? await prisma.pickupLocation.findMany({
-          where: {
-            isActive: true,
-            pickupType: {
-              in: requestedPickupTypes
-            }
-          },
+          where: buildRoutablePickupLocationWhere(requestedPickupTypes),
           select: {
             id: true,
             name: true,

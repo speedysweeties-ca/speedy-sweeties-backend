@@ -1,55 +1,52 @@
-# Pickup Location Dry-Run Reconciliation — 2026-09-08
+# Pickup Location Production Reconciliation — 2026-09-09
 
-## Purpose
+## Outcome
 
-Perform a no-write production reconciliation before importing the prepared Guelph Pickup Location dataset.
+The prepared Guelph pickup-location dataset has been imported and reconciled in production. The former dry-run/import step documented here is complete.
 
-## Production state
+Read-only production checks found 57 pickup locations: 56 active and one inactive. All 57 have coordinates and Google Place IDs. No duplicate normalized name/type, address/type, or coordinate/type combinations were found.
 
-Read-only inspection of the live Render PostgreSQL database found exactly one current PickupLocation row:
+| Pickup type | Active | Total |
+| --- | ---: | ---: |
+| Beer Store | 4 | 4 |
+| Convenience | 17 | 18 |
+| Dispensary | 23 | 23 |
+| LCBO | 5 | 5 |
+| Vape | 7 | 7 |
+| **Total** | **56** | **57** |
 
-- Name: Quickie - Willow Road
-- Pickup Type: CONVENIENCE
-- Address: 61 Willow Rd, Guelph, ON N1H 1W3
-- Active: true
-- Latitude: 43.54426
-- Longitude: -80.273257
+The live ItemCatalog contains only the six supported catalog values: the five routable store categories above plus `UNKNOWN` for items that still require classification.
 
-The live ItemCatalog contains zero unsupported or legacy Pickup Type values.
+## Data-quality findings
 
-## Prepared seed dataset
+Two status differences require explicit operational treatment rather than automatic database changes:
 
-The reviewed seed package now contains 57 Guelph pickup locations:
+- Canja — Surrey Street East is active locally but Google reports `CLOSED_PERMANENTLY`. It must not appear in route matrices, routing recommendations, or driver fallback candidates.
+- Gordon Convenience — Gordon Street is inactive locally while Google reports `OPERATIONAL`. The inactive state is treated as an intentional business decision unless an operator confirms that it should be reactivated.
 
-- 5 LCBO
-- 4 The Beer Store
-- 23 cannabis dispensaries
-- 7 vape shops
-- 18 strategic convenience locations
+Five locations do not have an optional postal code:
 
-The existing production Willow Road Quickie is included in the prepared dataset so the future importer can reconcile that row rather than create a duplicate.
+- Farah Market Express — Starwood Drive
+- Hasty Market — Kortright Road West
+- J. Supply Co. — Gordon Street
+- The Green Room Cannabis — Wyndham Street North
+- True North Cannabis Co. — Wellington Street West
 
-## Expected database actions before Google geocoder verification
+This is low severity because routing uses verified coordinates. Pickup-location create/update flows now preserve postal codes so operators can complete these records later.
 
-- Existing matches: 1
-- New candidates: 56
-- Unsupported Pickup Types: 0
-- Production writes performed during this reconciliation: 0
+## Routing safeguards
 
-The existing Willow Road Quickie may be reported as UPDATE rather than UNCHANGED by the final importer if Google's canonical formatting/coordinates differ from the currently stored row. It must not be treated as a second store.
+Pickup-location management accepts only the five routable store categories. Active locations with a Google status other than `OPERATIONAL` are excluded before route-matrix calculation and from driver fallback candidates. Locations that have not yet received a Google business status remain eligible for the existing hours checks, which fail closed if trustworthy hours are unavailable.
 
-## Cross-category collision review
+The existing pickup-stop rules remain in place:
 
-Several same-building addresses were reviewed because proximity alone must never be treated as duplication.
+- one selected stop per required pickup type;
+- stores must be open at the projected arrival time;
+- a three-minute closing buffer is mandatory;
+- manual dated hours override current/holiday hours, which override regular hours;
+- unknown item pickup types hold the order for dispatcher review;
+- auto-dispatch writes ordered pickup stops in the same transaction as assignment.
 
-- J. Supply Co. and Royal Vapes are both currently listed at 1515 Gordon Street Unit 106. Current business information describes Royal Vapes as an adjoined vape shop alongside J. Supply Co. This is a legitimate cross-category co-location.
-- Farah Market Express and 6ix Vape are both currently listed at 484 Woodlawn Road East. Current official store pages confirm both businesses at that address. This is a legitimate cross-category co-location.
-- Nearby businesses sharing a plaza/building remain separate PickupLocation records when their business identity or pickup type differs.
+## Production verification boundary
 
-## Safety boundary
-
-This reconciliation used read-only production database access and current public business verification. No PickupLocation rows were created, updated, deactivated, or deleted. Auto-dispatch and driver assignment behavior were not changed.
-
-## Remaining operational step
-
-The actual backend Google-geocoder dry-run still needs to execute in the real speedy-api runtime before apply mode. The connected Render controls available to ChatGPT do not expose an arbitrary service shell or existing secret environment variable values, so the seed command cannot currently be invoked inside the running service without first deploying a controlled runner.
+No production pickup-location rows were created, updated, activated, deactivated, or deleted during this reconciliation. Production currently has no `OrderPickupStop` records, so the remaining operational proof is one controlled end-to-end field order after this hardening change is released. That field test should confirm that the dispatcher preview, automatic assignment, and driver pickup-stop sequence agree.

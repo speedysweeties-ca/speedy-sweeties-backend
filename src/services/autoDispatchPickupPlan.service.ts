@@ -1,4 +1,5 @@
 import { DispatchSource, OrderStatus, UserRole } from "@prisma/client";
+import { normalizePickupTypeOrUnknown } from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
 import {
   getDriverFreshnessCutoff,
@@ -13,6 +14,7 @@ import {
   type PickupStoreRecommendation
 } from "./pickupStoreRouting.service";
 import { RoutingPreviewUnavailableError } from "./routingPreview.service";
+import { buildRoutablePickupLocationWhere } from "../utils/pickupLocationAvailability";
 
 const AUTO_DISPATCH_SETTING_KEY = "autoDispatchEnabled";
 const AUTO_DISPATCH_ACTIVE_STATUSES: OrderStatus[] = [
@@ -21,9 +23,6 @@ const AUTO_DISPATCH_ACTIVE_STATUSES: OrderStatus[] = [
   OrderStatus.ACCEPTED,
   OrderStatus.OUT_FOR_DELIVERY
 ];
-
-const normalizePickupType = (value: string | null | undefined): string =>
-  String(value || "UNKNOWN").trim().toUpperCase() || "UNKNOWN";
 
 const isAutoDispatchHardDisabledByEnv = (): boolean => {
   const value = process.env.AUTO_DISPATCH_ENABLED;
@@ -156,7 +155,7 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
   }
 
   const itemPickupTypes = order.items.map((item) =>
-    normalizePickupType(item.itemCatalog?.pickupType)
+    normalizePickupTypeOrUnknown(item.itemCatalog?.pickupType)
   );
   const unknownItemCount = itemPickupTypes.filter(
     (pickupType) => pickupType === "UNKNOWN"
@@ -173,10 +172,7 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
   }
 
   const stores = (await prisma.pickupLocation.findMany({
-    where: {
-      isActive: true,
-      pickupType: { in: requiredPickupTypes }
-    },
+    where: buildRoutablePickupLocationWhere(requiredPickupTypes),
     select: {
       id: true,
       name: true,

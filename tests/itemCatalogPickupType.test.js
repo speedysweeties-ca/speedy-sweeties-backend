@@ -3,7 +3,8 @@ const test = require("node:test");
 
 const { prisma } = require("../dist/lib/prisma.js");
 const {
-  listCatalogItemsController
+  listCatalogItemsController,
+  updateCatalogItemController
 } = require("../dist/controllers/item.controller.js");
 
 const responseRecorder = () => {
@@ -127,4 +128,29 @@ test("catalog list rejects invalid Pickup Type filters without querying the cata
   });
   assert.equal(countCalls.length, 0);
   assert.equal(findManyCalls.length, 0);
+});
+
+test("catalog update rejects unsupported Pickup Types without writing", async (t) => {
+  replaceForTest(t, prisma.itemCatalog, "findUnique", async () => ({
+    id: "item-1",
+    name: "Example"
+  }));
+
+  let updateCalled = false;
+  replaceForTest(t, prisma.itemCatalog, "update", async () => {
+    updateCalled = true;
+    return {};
+  });
+
+  const response = responseRecorder();
+  await updateCatalogItemController(
+    {
+      params: { id: "item-1" },
+      body: { pickupType: "NOT_A_PICKUP_TYPE" }
+    },
+    response
+  );
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(updateCalled, false);
 });

@@ -1,17 +1,7 @@
 import { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
+import { parsePickupType } from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
-
-const CATALOG_PICKUP_TYPE_OPTIONS = [
-  "UNKNOWN",
-  "CONVENIENCE",
-  "BEER_STORE",
-  "LCBO",
-  "VAPE",
-  "DISPENSARY"
-] as const;
-
-type CatalogPickupType = (typeof CATALOG_PICKUP_TYPE_OPTIONS)[number];
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
@@ -20,23 +10,6 @@ const normalizeOptional = (value: unknown): string | null => {
 
   const trimmed = value.trim();
   return trimmed ? trimmed.toLowerCase() : null;
-};
-
-const parseCatalogPickupTypeFilter = (
-  value: unknown
-): CatalogPickupType | null | undefined => {
-  if (value === undefined) return undefined;
-  if (typeof value !== "string") return null;
-
-  const normalizedValue = value.trim().toUpperCase();
-
-  if (!normalizedValue) return undefined;
-
-  return (
-    CATALOG_PICKUP_TYPE_OPTIONS.find(
-      (pickupType) => pickupType === normalizedValue
-    ) ?? null
-  );
 };
 
 export const searchItemsController = async (
@@ -126,7 +99,7 @@ export const listCatalogItemsController = async (
 
   const searchText = typeof query === "string" ? query.trim() : "";
   const normalizedQuery = searchText ? normalize(searchText) : "";
-  const pickupTypeFilter = parseCatalogPickupTypeFilter(pickupType);
+  const pickupTypeFilter = parsePickupType(pickupType);
 
   if (pickupTypeFilter === null) {
     return res.status(400).json({
@@ -251,6 +224,18 @@ export const updateCatalogItemController = async (
     });
   }
 
+  const parsedPickupType = parsePickupType(pickupType);
+
+  if (
+    pickupType !== undefined &&
+    (parsedPickupType === null || parsedPickupType === undefined)
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid pickup type"
+    });
+  }
+
   const cleanedName =
     typeof name === "string" && name.trim()
       ? name.trim()
@@ -280,9 +265,7 @@ export const updateCatalogItemController = async (
         typeof source === "string" && source.trim()
           ? source.trim()
           : null,
-      ...(typeof pickupType === "string" && pickupType.trim()
-        ? { pickupType: pickupType.trim().toUpperCase() }
-        : {}),
+      ...(parsedPickupType ? { pickupType: parsedPickupType } : {}),
       ...(typeof isActive === "boolean" ? { isActive } : {})
     }
   });
