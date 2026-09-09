@@ -50,6 +50,6 @@ jobs:
         working-directory: speedy-dispatcher
         run: npm ci
 
-      - name: Build dispatcher
+      - name: Check dispatcher
         working-directory: speedy-dispatcher
-        run: npm run build
+        run: npm run check

@@ -676,7 +676,7 @@ function App() {
   const [driverManagementLoading, setDriverManagementLoading] = useState(false);
   const [updatingDriverVisibilityId, setUpdatingDriverVisibilityId] =
     useState<string | null>(null);
-  const [nowMs, setNowMs] = useState(Date.now());
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [catalogSearch, setCatalogSearch] = useState("");
@@ -7283,7 +7283,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 const isNewOrder = newOrderIds.includes(order.id);
                 const isHighPriority = order.priority === "HIGH";
 
-                const now = Date.now();
+                const now = nowMs;
 
                 const createdTime = order.createdAt
                   ? new Date(order.createdAt).getTime()
