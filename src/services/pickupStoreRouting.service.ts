@@ -8,6 +8,23 @@ import type { MultiDestinationRouteMatrixResult } from "./multiDestinationRouteM
 export const PICKUP_STORE_CLOSING_BUFFER_MINUTES = 3;
 export const MAX_PICKUP_ROUTE_STOPS = 4;
 export const PREFERRED_PICKUP_ROUTE_MAX_EXTRA_SECONDS = 180;
+/**
+ * Each priority receives this protected shortlist capacity for a pickup type.
+ * Preferred stores are therefore never displaced by Standard stores merely
+ * because the Standard stores are closer to the driver.
+ */
+export const MAX_PICKUP_STORE_CANDIDATES_PER_PRIORITY_AND_TYPE = 2;
+export const MAX_PRIMARY_PICKUP_STORE_CANDIDATES_PER_TYPE =
+  MAX_PICKUP_STORE_CANDIDATES_PER_PRIORITY_AND_TYPE * 2;
+export const MAX_FALLBACK_PICKUP_STORE_CANDIDATES_PER_TYPE =
+  MAX_PICKUP_STORE_CANDIDATES_PER_PRIORITY_AND_TYPE * 3;
+/**
+ * With four pickup types, the primary phase evaluates at most
+ * 2 * 4! * 4^4 = 12,288 completed routes. If no Preferred/Standard route
+ * exists, the fallback phase adds at most 2 * 4! * 6^4 = 62,208 more.
+ * The planner retains at most a baseline and a Preferred winner at once.
+ */
+export const MAX_SEQUENTIAL_PICKUP_ROUTE_COMPLETION_EVALUATIONS = 74_496;
 const PICKUP_STORE_CLOSING_BUFFER_MS =
   PICKUP_STORE_CLOSING_BUFFER_MINUTES * 60 * 1000;
 const ROUTING_TIME_ZONE = "America/Toronto";
@@ -551,7 +568,13 @@ type RouteSearchStop = {
 type PriorityRoutePlan = SequentialPickupRoutePlan & {
   routeSignature: string;
   preferredLocationCount: number;
-  fallbackLocationCount: number;
+};
+
+export type SequentialPickupRouteSearchDiagnostics = {
+  primaryCandidateCountsByPickupType: Record<string, number>;
+  fallbackCandidateCountsByPickupType: Record<string, number> | null;
+  completeRouteEvaluations: number;
+  maximumRetainedCompletedPlans: 2;
 };
 
 const routeKey = (originId: string, destinationId: string): string =>
@@ -586,6 +609,7 @@ export const selectSequentialPickupRoutePlan = (input: {
   stores: PickupStoreCandidate[];
   matrix: MultiDestinationRouteMatrixResult[];
   generatedAt: Date;
+  onSearchDiagnostics?: (diagnostics: SequentialPickupRouteSearchDiagnostics) => void;
 }): SequentialPickupRoutePlan | null => {
   const routesByEndpoints = new Map(
     input.matrix.map((route) => [
@@ -622,55 +646,28 @@ export const selectSequentialPickupRoutePlan = (input: {
 
   if (requiredPickupTypes.length > MAX_PICKUP_ROUTE_STOPS) return null;
 
-  const candidatesByPickupType = new Map<string, PickupStoreCandidate[]>();
+  type ShortlistedStore = {
+    store: PickupStoreCandidate & { latitude: number; longitude: number };
+    route: MultiDestinationRouteMatrixResult;
+    completeJourneyHintSeconds: number;
+  };
+  type CompletedRoute = {
+    stops: RouteSearchStop[];
+    totalDurationSeconds: number;
+    totalDistanceMeters: number | null;
+    customerLegDurationSeconds: number;
+    customerLegDistanceMeters: number | null;
+  };
 
-  for (const pickupType of requiredPickupTypes) {
-    const candidates = input.stores
-      .filter(
-        (store) =>
-          store.pickupType === pickupType &&
-          hasValidPickupStoreCoordinates(store)
-      )
-      .map((store) => {
-        const route = routeFor(
-          input.driverRouteNodeId,
-          pickupStoreRouteNodeId(store.id)
-        );
-        return route ? { store, route } : null;
-      })
-      .filter(
-        (
-          candidate
-        ): candidate is {
-          store: PickupStoreCandidate;
-          route: MultiDestinationRouteMatrixResult;
-        } => candidate !== null
-      )
-      .sort((a, b) => {
-        const priorityComparison = normalizePickupLocationRoutingPriority(
-          a.store.routingPriority
-        ).localeCompare(
-          normalizePickupLocationRoutingPriority(b.store.routingPriority)
-        );
-        return priorityComparison !== 0
-          ? priorityComparison
-          : compareStoreCandidates(a, b);
-      })
-      .map((candidate) => candidate.store);
-
-    if (candidates.length === 0) return null;
-    candidatesByPickupType.set(pickupType, candidates);
-  }
-
-  const completePlans: PriorityRoutePlan[] = [];
-
-  const considerPlan = (
-    stops: RouteSearchStop[],
-    totalDurationSeconds: number,
-    totalDistanceMeters: number | null,
-    customerLegDurationSeconds: number,
-    customerLegDistanceMeters: number | null
-  ): void => {
+  const prioritySearchOrder: PickupLocationRoutingPriority[] = [
+    "PREFERRED",
+    "STANDARD",
+    "FALLBACK"
+  ];
+  const routeSignatureForStops = (stops: RouteSearchStop[]): string =>
+    stops.map((stop) => `${stop.pickupType}:${stop.store.id}`).join("|");
+  const toPriorityRoutePlan = (completedRoute: CompletedRoute): PriorityRoutePlan => {
+    const { stops } = completedRoute;
     const routeSignature = stops
       .map((stop) => `${stop.pickupType}:${stop.store.id}`)
       .join("|");
@@ -690,141 +687,274 @@ export const selectSequentialPickupRoutePlan = (input: {
       closingTime: stop.eligibility.closingTime,
       closingBufferMinutes: stop.eligibility.closingBufferMinutes
     }));
-    completePlans.push({
+    return {
       pickupStops,
-      totalDurationSeconds,
-      totalDistanceMeters,
-      customerLegDurationSeconds,
-      customerLegDistanceMeters,
+      totalDurationSeconds: completedRoute.totalDurationSeconds,
+      totalDistanceMeters: completedRoute.totalDistanceMeters,
+      customerLegDurationSeconds: completedRoute.customerLegDurationSeconds,
+      customerLegDistanceMeters: completedRoute.customerLegDistanceMeters,
       routeSignature,
       preferredLocationCount: stops.filter(
         (stop) =>
           normalizePickupLocationRoutingPriority(stop.store.routingPriority) ===
           "PREFERRED"
-      ).length,
-      fallbackLocationCount: stops.filter(
-        (stop) =>
-          normalizePickupLocationRoutingPriority(stop.store.routingPriority) ===
-          "FALLBACK"
       ).length
-    });
+    };
   };
 
-  const visitStops = (
-    currentRouteNodeId: string,
-    elapsedDurationSeconds: number,
-    elapsedDistanceMeters: number | null,
-    remainingPickupTypes: string[],
-    stops: RouteSearchStop[]
-  ): void => {
-    if (remainingPickupTypes.length === 0) {
-      const customerRoute = routeFor(
-        currentRouteNodeId,
-        input.customerRouteNodeId
-      );
-      if (!customerRoute || customerRoute.durationSeconds === null) return;
-
-      considerPlan(
-        stops,
-        elapsedDurationSeconds + customerRoute.durationSeconds,
-        addRouteDistance(elapsedDistanceMeters, customerRoute.distanceMeters),
-        customerRoute.durationSeconds,
-        customerRoute.distanceMeters
-      );
-      return;
-    }
-
-    for (const pickupType of remainingPickupTypes) {
-      const candidates = candidatesByPickupType.get(pickupType) ?? [];
-
-      for (const store of candidates) {
-        const route = routeFor(
-          currentRouteNodeId,
-          pickupStoreRouteNodeId(store.id)
-        );
-        if (!route || route.durationSeconds === null) continue;
-
-        const nextElapsedDurationSeconds =
-          elapsedDurationSeconds + route.durationSeconds;
-        const projectedArrivalAt = new Date(
-          input.generatedAt.getTime() + nextElapsedDurationSeconds * 1000
-        );
-        const eligibility = evaluatePickupStoreEligibility(
-          store,
-          projectedArrivalAt
-        );
-        if (!eligibility.eligible) continue;
-
-        visitStops(
-          pickupStoreRouteNodeId(store.id),
-          nextElapsedDurationSeconds,
-          addRouteDistance(elapsedDistanceMeters, route.distanceMeters),
-          remainingPickupTypes.filter((type) => type !== pickupType),
-          [
-            ...stops,
-            {
-              pickupType,
-              store,
-              elapsedDurationSeconds: nextElapsedDurationSeconds,
-              elapsedDistanceMeters: addRouteDistance(
-                elapsedDistanceMeters,
-                route.distanceMeters
-              ),
-              projectedArrivalAt,
-              eligibility
-            }
-          ]
-        );
-      }
-    }
-  };
-
-  visitStops(
-    input.driverRouteNodeId,
-    0,
-    0,
-    requiredPickupTypes,
-    []
-  );
-
-  const nonFallbackPlans = completePlans.filter(
-    (plan) => plan.fallbackLocationCount === 0
-  );
-  const eligiblePlans =
-    nonFallbackPlans.length > 0 ? nonFallbackPlans : completePlans;
   const compareFastestPlan = (a: PriorityRoutePlan, b: PriorityRoutePlan): number => {
     if (a.totalDurationSeconds !== b.totalDurationSeconds) {
       return a.totalDurationSeconds - b.totalDurationSeconds;
     }
     return a.routeSignature.localeCompare(b.routeSignature);
   };
-  const baselinePlan = eligiblePlans.slice().sort(compareFastestPlan)[0];
-  if (!baselinePlan) return null;
 
-  const qualifyingPreferredPlans = eligiblePlans.filter(
-    (plan) =>
-      plan.preferredLocationCount > 0 &&
-      plan.totalDurationSeconds <=
-        baselinePlan.totalDurationSeconds +
-          PREFERRED_PICKUP_ROUTE_MAX_EXTRA_SECONDS
-  );
-  const selectedPlan =
-    qualifyingPreferredPlans.length === 0
-      ? baselinePlan
-      : qualifyingPreferredPlans.slice().sort((a, b) => {
-          if (a.preferredLocationCount !== b.preferredLocationCount) {
-            return b.preferredLocationCount - a.preferredLocationCount;
+  const buildCandidatesByPickupType = (
+    allowedPriorities: readonly PickupLocationRoutingPriority[]
+  ): Map<string, Array<PickupStoreCandidate & { latitude: number; longitude: number }>> => {
+    const candidatesByPickupType = new Map<
+      string,
+      Array<PickupStoreCandidate & { latitude: number; longitude: number }>
+    >();
+    for (const pickupType of requiredPickupTypes) {
+      const candidates = prioritySearchOrder
+        .filter((priority) => allowedPriorities.includes(priority))
+        .flatMap((priority) =>
+          input.stores
+            .filter(
+              (store): store is PickupStoreCandidate & {
+                latitude: number;
+                longitude: number;
+              } =>
+                store.pickupType === pickupType &&
+                normalizePickupLocationRoutingPriority(store.routingPriority) ===
+                  priority &&
+                hasValidPickupStoreCoordinates(store)
+            )
+            .map((store) => {
+              const route = routeFor(
+                input.driverRouteNodeId,
+                pickupStoreRouteNodeId(store.id)
+              );
+              if (!route) return null;
+              const customerRoute = routeFor(
+                pickupStoreRouteNodeId(store.id),
+                input.customerRouteNodeId
+              );
+              return {
+                store,
+                route,
+                completeJourneyHintSeconds:
+                  route.durationSeconds +
+                  (customerRoute?.durationSeconds ?? Number.POSITIVE_INFINITY)
+              };
+            })
+            .filter((candidate): candidate is ShortlistedStore => candidate !== null)
+            .sort((a, b) => {
+              if (a.completeJourneyHintSeconds !== b.completeJourneyHintSeconds) {
+                return a.completeJourneyHintSeconds - b.completeJourneyHintSeconds;
+              }
+              return compareStoreCandidates(a, b);
+            })
+            .slice(0, MAX_PICKUP_STORE_CANDIDATES_PER_PRIORITY_AND_TYPE)
+            .map((candidate) => candidate.store)
+        );
+
+      if (candidates.length === 0) return new Map();
+      candidatesByPickupType.set(pickupType, candidates);
+    }
+    return candidatesByPickupType;
+  };
+
+  const candidateCounts = (
+    candidatesByPickupType: Map<
+      string,
+      Array<PickupStoreCandidate & { latitude: number; longitude: number }>
+    >
+  ): Record<string, number> =>
+    Object.fromEntries(
+      requiredPickupTypes.map((pickupType) => [
+        pickupType,
+        candidatesByPickupType.get(pickupType)?.length ?? 0
+      ])
+    );
+
+  const runBoundedPhase = (
+    allowedPriorities: readonly PickupLocationRoutingPriority[]
+  ): {
+    plan: SequentialPickupRoutePlan | null;
+    candidateCountsByPickupType: Record<string, number>;
+    completeRouteEvaluations: number;
+  } => {
+    const candidatesByPickupType = buildCandidatesByPickupType(allowedPriorities);
+    const counts = candidateCounts(candidatesByPickupType);
+    if (candidatesByPickupType.size !== requiredPickupTypes.length) {
+      return {
+        plan: null,
+        candidateCountsByPickupType: counts,
+        completeRouteEvaluations: 0
+      };
+    }
+
+    let completeRouteEvaluations = 0;
+    const visitCompletedRoutes = (onCompletedRoute: (route: CompletedRoute) => void) => {
+      const visitStops = (
+        currentRouteNodeId: string,
+        elapsedDurationSeconds: number,
+        elapsedDistanceMeters: number | null,
+        remainingPickupTypes: string[],
+        stops: RouteSearchStop[]
+      ): void => {
+        if (remainingPickupTypes.length === 0) {
+          const customerRoute = routeFor(
+            currentRouteNodeId,
+            input.customerRouteNodeId
+          );
+          if (!customerRoute || customerRoute.durationSeconds === null) return;
+
+          completeRouteEvaluations += 1;
+          onCompletedRoute({
+            stops,
+            totalDurationSeconds: elapsedDurationSeconds + customerRoute.durationSeconds,
+            totalDistanceMeters: addRouteDistance(
+              elapsedDistanceMeters,
+              customerRoute.distanceMeters
+            ),
+            customerLegDurationSeconds: customerRoute.durationSeconds,
+            customerLegDistanceMeters: customerRoute.distanceMeters
+          });
+          return;
+        }
+
+        for (const pickupType of remainingPickupTypes) {
+          const candidates = candidatesByPickupType.get(pickupType) ?? [];
+          for (const store of candidates) {
+            const route = routeFor(
+              currentRouteNodeId,
+              pickupStoreRouteNodeId(store.id)
+            );
+            if (!route || route.durationSeconds === null) continue;
+
+            const nextElapsedDurationSeconds =
+              elapsedDurationSeconds + route.durationSeconds;
+            const projectedArrivalAt = new Date(
+              input.generatedAt.getTime() + nextElapsedDurationSeconds * 1000
+            );
+            const eligibility = evaluatePickupStoreEligibility(store, projectedArrivalAt);
+            if (!eligibility.eligible) continue;
+
+            visitStops(
+              pickupStoreRouteNodeId(store.id),
+              nextElapsedDurationSeconds,
+              addRouteDistance(elapsedDistanceMeters, route.distanceMeters),
+              remainingPickupTypes.filter((type) => type !== pickupType),
+              [
+                ...stops,
+                {
+                  pickupType,
+                  store,
+                  elapsedDurationSeconds: nextElapsedDurationSeconds,
+                  elapsedDistanceMeters: addRouteDistance(
+                    elapsedDistanceMeters,
+                    route.distanceMeters
+                  ),
+                  projectedArrivalAt,
+                  eligibility
+                }
+              ]
+            );
           }
-          return compareFastestPlan(a, b);
-        })[0];
+        }
+      };
 
-  const {
-    routeSignature: _routeSignature,
-    preferredLocationCount: _preferredLocationCount,
-    fallbackLocationCount: _fallbackLocationCount,
-    ...plan
-  } = selectedPlan;
-  return plan;
+      visitStops(input.driverRouteNodeId, 0, 0, requiredPickupTypes, []);
+    };
+
+    let baselinePlan: PriorityRoutePlan | null = null;
+    visitCompletedRoutes((completedRoute) => {
+      const routeSignature = routeSignatureForStops(completedRoute.stops);
+      if (
+        !baselinePlan ||
+        completedRoute.totalDurationSeconds < baselinePlan.totalDurationSeconds ||
+        (completedRoute.totalDurationSeconds === baselinePlan.totalDurationSeconds &&
+          routeSignature.localeCompare(baselinePlan.routeSignature) < 0)
+      ) {
+        baselinePlan = toPriorityRoutePlan(completedRoute);
+      }
+    });
+    if (!baselinePlan) {
+      return {
+        plan: null,
+        candidateCountsByPickupType: counts,
+        completeRouteEvaluations
+      };
+    }
+
+    let preferredPlan: PriorityRoutePlan | null = null;
+    visitCompletedRoutes((completedRoute) => {
+      const preferredLocationCount = completedRoute.stops.filter(
+        (stop) =>
+          normalizePickupLocationRoutingPriority(stop.store.routingPriority) ===
+          "PREFERRED"
+      ).length;
+      if (
+        preferredLocationCount === 0 ||
+        completedRoute.totalDurationSeconds >
+          baselinePlan.totalDurationSeconds +
+            PREFERRED_PICKUP_ROUTE_MAX_EXTRA_SECONDS
+      ) {
+        return;
+      }
+
+      const candidatePlan = toPriorityRoutePlan(completedRoute);
+      if (
+        !preferredPlan ||
+        candidatePlan.preferredLocationCount > preferredPlan.preferredLocationCount ||
+        (candidatePlan.preferredLocationCount === preferredPlan.preferredLocationCount &&
+          compareFastestPlan(candidatePlan, preferredPlan) < 0)
+      ) {
+        preferredPlan = candidatePlan;
+      }
+    });
+
+    const selectedPlan = preferredPlan ?? baselinePlan;
+    const {
+      routeSignature: _routeSignature,
+      preferredLocationCount: _preferredLocationCount,
+      ...plan
+    } = selectedPlan;
+    return {
+      plan,
+      candidateCountsByPickupType: counts,
+      completeRouteEvaluations
+    };
+  };
+
+  const primaryPhase = runBoundedPhase(["PREFERRED", "STANDARD"]);
+  if (primaryPhase.plan) {
+    input.onSearchDiagnostics?.({
+      primaryCandidateCountsByPickupType: primaryPhase.candidateCountsByPickupType,
+      fallbackCandidateCountsByPickupType: null,
+      completeRouteEvaluations: primaryPhase.completeRouteEvaluations,
+      maximumRetainedCompletedPlans: 2
+    });
+    return primaryPhase.plan;
+  }
+
+  const fallbackPhase = runBoundedPhase([
+    "PREFERRED",
+    "STANDARD",
+    "FALLBACK"
+  ]);
+  input.onSearchDiagnostics?.({
+    primaryCandidateCountsByPickupType: primaryPhase.candidateCountsByPickupType,
+    fallbackCandidateCountsByPickupType: fallbackPhase.candidateCountsByPickupType,
+    completeRouteEvaluations:
+      primaryPhase.completeRouteEvaluations +
+      fallbackPhase.completeRouteEvaluations,
+    maximumRetainedCompletedPlans: 2
+  });
+  return fallbackPhase.plan;
 };
 
 export const selectPickupStoreRecommendations = (input: {

@@ -56,11 +56,22 @@ store, and every candidate store to the customer destination. Destination
 coordinates must be verified for auto-dispatch to create a complete plan.
 
 For each driver, the route scorer groups stores by required pickup type and
-keeps at most four reachable candidates per type. The retained candidates are
-ranked by traffic-aware driver-to-store duration, then store name and ID. It
-supports at most four distinct pickup types. This bounds normal exhaustive
-search to $4^4 * 4! = 6,144$ complete store-combination and stop-order routes
-per driver.
+keeps at most two candidates for each routing priority within that type. The
+Preferred and Standard phase therefore considers at most four candidates per
+type; Preferred capacity cannot be consumed by Standard stores. Candidates are
+shortlisted by traffic-aware `driver -> store -> customer` usefulness (then
+store name and ID), rather than by driver distance alone. This means a
+Preferred location outside the four closest driver-to-store legs remains
+eligible when its complete journey is competitive.
+
+The scorer streams complete routes instead of retaining them. It makes one
+pass for the fastest baseline and one pass for the Preferred winner. With at
+most four pickup types, the primary phase evaluates at most
+`2 * 4! * 4^4 = 12,288` completed routes. Fallback candidates receive their
+own two-slot capacity and are evaluated only when no complete Preferred/Standard
+route exists; that fallback phase adds at most `2 * 4! * 6^4 = 62,208` routes.
+The combined maximum is 74,496 completed-route evaluations per driver and the
+planner retains at most a baseline and a Preferred winner at once.
 
 The scorer explores every retained combination and visit order. Each next leg
 starts at the previously selected store. At each projected arrival it applies
@@ -69,9 +80,12 @@ and three-minute closing-buffer rules. It rejects a route immediately if its
 next stop cannot be reached safely. A completed candidate must also have a
 route from its final pickup store to the customer.
 
-Among valid complete journeys, the scorer chooses the shortest total driving
-duration. Equal totals use the pickup-type/store-ID sequence as a deterministic
-tie-breaker. Auto-dispatch compares the selected complete journey for every
+Among valid complete journeys, the scorer first uses the fastest total driving
+duration as its baseline. A Preferred route may win only when it is within 180
+seconds of that baseline; among qualifying routes, it chooses more Preferred
+locations, then shorter complete duration, then the pickup-type/store-ID
+sequence as a deterministic tie-breaker. If no Preferred route qualifies, it
+uses the fastest complete route. Auto-dispatch compares the selected complete journey for every
 eligible driver and chooses the lowest total duration; existing workload/name
 ordering provides its deterministic equal-duration tie-breaker.
 

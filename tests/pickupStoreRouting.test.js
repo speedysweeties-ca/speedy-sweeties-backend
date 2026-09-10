@@ -3,6 +3,8 @@ const test = require("node:test");
 
 const {
   PICKUP_STORE_CLOSING_BUFFER_MINUTES,
+  MAX_PRIMARY_PICKUP_STORE_CANDIDATES_PER_TYPE,
+  MAX_SEQUENTIAL_PICKUP_ROUTE_COMPLETION_EVALUATIONS,
   PREFERRED_PICKUP_ROUTE_MAX_EXTRA_SECONDS,
   evaluatePickupStoreEligibility,
   pickupStoreRouteNodeId,
@@ -45,14 +47,15 @@ const route = (originId, destinationId, durationSeconds, distanceMeters = 1000) 
   routeAvailable: true
 });
 
-const sequentialPlan = (stores, matrix, requiredPickupTypes, generatedAt = torontoTime(12, 0)) =>
+const sequentialPlan = (stores, matrix, requiredPickupTypes, generatedAt = torontoTime(12, 0), onSearchDiagnostics) =>
   selectSequentialPickupRoutePlan({
     driverRouteNodeId: "driver:driver-a",
     customerRouteNodeId: "customer:order-a",
     requiredPickupTypes,
     stores,
     matrix,
-    generatedAt
+    generatedAt,
+    onSearchDiagnostics
   });
 
 test("pickup-store closing safety buffer is exactly three minutes", () => {
@@ -90,6 +93,66 @@ test("preferred pickup routes are selected only within the centralized allowance
   assert.equal(PREFERRED_PICKUP_ROUTE_MAX_EXTRA_SECONDS, 180);
   assert.equal(withinAllowance.pickupStops[0].storeId, "preferred");
   assert.equal(overAllowance.pickupStops[0].storeId, "standard");
+});
+
+test("a preferred store outside the four closest driver legs remains protected by its priority shortlist", () => {
+  const standards = [10, 20, 30, 40, 50].map((duration, index) =>
+    baseStore({ id: `standard-${index}`, name: `Standard ${index}` })
+  );
+  const preferred = baseStore({
+    id: "preferred-outside-four",
+    routingPriority: "PREFERRED"
+  });
+  let diagnostics;
+  const plan = sequentialPlan(
+    [...standards, preferred],
+    [
+      ...standards.flatMap((store, index) => [
+        route("driver:driver-a", pickupStoreRouteNodeId(store.id), (index + 1) * 10),
+        route(pickupStoreRouteNodeId(store.id), "customer:order-a", index === 0 ? 90 : 1_000)
+      ]),
+      route("driver:driver-a", pickupStoreRouteNodeId(preferred.id), 100),
+      route(pickupStoreRouteNodeId(preferred.id), "customer:order-a", 179)
+    ],
+    ["BEER_STORE"],
+    torontoTime(12, 0),
+    (result) => {
+      diagnostics = result;
+    }
+  );
+
+  assert.equal(plan.pickupStops[0].storeId, preferred.id);
+  assert.equal(diagnostics.primaryCandidateCountsByPickupType.BEER_STORE, 3);
+});
+
+test("standard candidates cannot crowd protected preferred shortlist capacity", () => {
+  const standards = Array.from({ length: 20 }, (_, index) =>
+    baseStore({ id: `standard-${index}` })
+  );
+  const preferred = Array.from({ length: 4 }, (_, index) =>
+    baseStore({ id: `preferred-${index}`, routingPriority: "PREFERRED" })
+  );
+  let diagnostics;
+  const stores = [...standards, ...preferred];
+  const matrix = stores.flatMap((store, index) => [
+    route("driver:driver-a", pickupStoreRouteNodeId(store.id), index + 1),
+    route(pickupStoreRouteNodeId(store.id), "customer:order-a", 100)
+  ]);
+  const plan = sequentialPlan(
+    stores,
+    matrix,
+    ["BEER_STORE"],
+    torontoTime(12, 0),
+    (result) => {
+      diagnostics = result;
+    }
+  );
+
+  assert.equal(
+    diagnostics.primaryCandidateCountsByPickupType.BEER_STORE,
+    MAX_PRIMARY_PICKUP_STORE_CANDIDATES_PER_TYPE
+  );
+  assert.equal(plan.pickupStops[0].storeId, "preferred-0");
 });
 
 test("the fastest route wins between qualifying preferred routes", () => {
@@ -194,6 +257,111 @@ test("fallback stores are used only when no complete preferred-or-standard route
 
   assert.equal(standardPlan.pickupStops[0].storeId, "standard");
   assert.equal(fallbackOnlyPlan.pickupStops[0].storeId, "fallback");
+});
+
+test("fallback candidates are not searched when a complete non-fallback route exists", () => {
+  const standard = baseStore({ id: "standard" });
+  const fallback = baseStore({ id: "fallback", routingPriority: "FALLBACK" });
+  let diagnostics;
+  const plan = sequentialPlan(
+    [standard, fallback],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("standard"), 100),
+      route(pickupStoreRouteNodeId("standard"), "customer:order-a", 100),
+      route("driver:driver-a", pickupStoreRouteNodeId("fallback"), 1),
+      route(pickupStoreRouteNodeId("fallback"), "customer:order-a", 1)
+    ],
+    ["BEER_STORE"],
+    torontoTime(12, 0),
+    (result) => {
+      diagnostics = result;
+    }
+  );
+
+  assert.equal(plan.pickupStops[0].storeId, "standard");
+  assert.equal(diagnostics.fallbackCandidateCountsByPickupType, null);
+});
+
+const largeBoundedRoutingFixture = () => {
+  const pickupTypes = ["BEER_STORE", "LCBO", "CANNABIS", "CONVENIENCE"];
+  const priorities = ["PREFERRED", "STANDARD", "FALLBACK"];
+  const stores = [];
+  const matrix = [];
+  const primaryStores = [];
+
+  pickupTypes.forEach((pickupType, pickupTypeIndex) => {
+    priorities.forEach((routingPriority) => {
+      Array.from({ length: 12 }, (_, index) => {
+        const store = baseStore({
+          id: `${pickupType}-${routingPriority}-${index}`,
+          name: `${pickupType}-${routingPriority}-${index}`,
+          pickupType,
+          routingPriority
+        });
+        stores.push(store);
+        matrix.push(
+          route("driver:driver-a", pickupStoreRouteNodeId(store.id), index + 1),
+          route(pickupStoreRouteNodeId(store.id), "customer:order-a", 100)
+        );
+        if (routingPriority !== "FALLBACK" && index < 2) {
+          primaryStores.push(store);
+        }
+      });
+    });
+  });
+
+  primaryStores.forEach((origin) => {
+    primaryStores.forEach((destination) => {
+      if (origin.pickupType !== destination.pickupType) {
+        matrix.push(
+          route(pickupStoreRouteNodeId(origin.id), pickupStoreRouteNodeId(destination.id), 10)
+        );
+      }
+    });
+  });
+
+  return { pickupTypes, stores, matrix };
+};
+
+test("large four-type routing stays within declared candidate and streaming workload bounds", () => {
+  const { pickupTypes, stores, matrix } = largeBoundedRoutingFixture();
+  let diagnostics;
+  const plan = sequentialPlan(
+    stores,
+    matrix,
+    pickupTypes,
+    torontoTime(12, 0),
+    (result) => {
+      diagnostics = result;
+    }
+  );
+
+  assert.ok(plan);
+  assert.deepEqual(
+    Object.values(diagnostics.primaryCandidateCountsByPickupType),
+    [
+      MAX_PRIMARY_PICKUP_STORE_CANDIDATES_PER_TYPE,
+      MAX_PRIMARY_PICKUP_STORE_CANDIDATES_PER_TYPE,
+      MAX_PRIMARY_PICKUP_STORE_CANDIDATES_PER_TYPE,
+      MAX_PRIMARY_PICKUP_STORE_CANDIDATES_PER_TYPE
+    ]
+  );
+  assert.equal(diagnostics.maximumRetainedCompletedPlans, 2);
+  assert.ok(
+    diagnostics.completeRouteEvaluations <=
+      MAX_SEQUENTIAL_PICKUP_ROUTE_COMPLETION_EVALUATIONS
+  );
+});
+
+test("four-pickup-type bounded routing is deterministic regardless of input ordering", () => {
+  const { pickupTypes, stores, matrix } = largeBoundedRoutingFixture();
+  const firstPlan = sequentialPlan(stores, matrix, pickupTypes);
+  const secondPlan = sequentialPlan([...stores].reverse(), matrix, pickupTypes);
+
+  assert.deepEqual(
+    firstPlan.pickupStops.map((stop) => stop.storeId),
+    secondPlan.pickupStops.map((stop) => stop.storeId)
+  );
 });
 
 test("priority comparison uses the complete multi-stop journey", () => {
