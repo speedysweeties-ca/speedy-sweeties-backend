@@ -47,6 +47,7 @@ import {
   CompatiblePaymentMethod,
   normalizePaymentMethod
 } from "../utils/paymentMethod";
+import { buildCustomerLookupWhere } from "../utils/customerIdentity";
 
 /* ================= TYPES ================= */
 
@@ -588,9 +589,7 @@ const createOrder = async (
   const rawItems: CreateOrderItemInput[] = expandCreateOrderItems(incomingItems);
 
   const matchedCustomer = await prisma.customer.findFirst({
-    where: {
-      OR: [{ normalizedPhone }, ...(normalizedEmail ? [{ normalizedEmail }] : [])]
-    },
+    where: buildCustomerLookupWhere({ normalizedPhone, normalizedEmail }),
     select: { id: true }
   });
 
@@ -897,9 +896,7 @@ export const updateOrderDetailsController = async (
 
   const updatedOrder = await prisma.$transaction(async (tx) => {
     let customer = await tx.customer.findFirst({
-      where: {
-        OR: [{ normalizedPhone }, ...(normalizedEmail ? [{ normalizedEmail }] : [])]
-      }
+      where: buildCustomerLookupWhere({ normalizedPhone, normalizedEmail })
     });
 
     if (!customer) {

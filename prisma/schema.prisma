@@ -392,7 +392,7 @@ model SystemSetting {
 }
 
 model PickupLocation {
-  id                           String    @id @default(uuid())
+  id                           String                        @id @default(uuid())
   name                         String
   pickupType                   String
   addressLine1                 String
@@ -401,9 +401,9 @@ model PickupLocation {
   postalCode                   String?
   latitude                     Float
   longitude                    Float
-  isActive                     Boolean   @default(true)
+  isActive                     Boolean                       @default(true)
   routingPriority              PickupLocationRoutingPriority @default(STANDARD)
-  googlePlaceId                String?   @unique
+  googlePlaceId                String?                       @unique
   googleBusinessStatus         String?
   regularOpeningHours          Json?
   currentOpeningHours          Json?
@@ -414,8 +414,8 @@ model PickupLocation {
   manualHoursOverride          Json?
   manualHoursOverrideNote      String?
   manualHoursOverrideUpdatedAt DateTime?
-  createdAt                    DateTime  @default(now())
-  updatedAt                    DateTime  @updatedAt
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
 
   orderPickupStops OrderPickupStop[]
 
