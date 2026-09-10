@@ -49,6 +49,8 @@ export const GUELPH_PICKUP_DRY_RUN_LOCATIONS: readonly PickupDryRunLocation[] = 
   l("Rock Affair Inc. - Macdonell Street", "VAPE", "30 Macdonell Street", "N1H 2Z3"),
   l("Wild Vape Stop - Cork Street East", "VAPE", "49 Cork Street East", "N1H 2W7"),
   l("Guelph Vapour Company - Scottsdale Drive", "VAPE", "650 Scottsdale Drive Unit 3B", "N1G 3M2"),
+  l("7-Eleven - Speedvale & Stevenson", "CONVENIENCE", "328 Speedvale Avenue East", "N1E 1N5"),
+  l("7-Eleven - Victoria & Eramosa", "CONVENIENCE", "585 Eramosa Road", "N1E 2N4"),
   l("Farah Market Express - Woodlawn Road East", "CONVENIENCE", "484 Woodlawn Road East", "N1E 1B9"),
   l("Farah Market Express - Starwood Drive", "CONVENIENCE", "235 Starwood Drive Unit 1"),
   l("Quickie Convenience - Gordon Street", "CONVENIENCE", "90 Gordon Street", "N1H 4H6"),
