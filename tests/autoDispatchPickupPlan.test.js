@@ -4,6 +4,7 @@ const { OrderStatus } = require("@prisma/client");
 const { prisma } = require("../dist/lib/prisma.js");
 
 process.env.GOOGLE_ROUTES_API_KEY = "auto-dispatch-test-key";
+process.env.AUTO_DISPATCH_ENABLED = "true";
 
 const {
   AUTO_DISPATCH_ALLOCATION_LOCK_KEY,
