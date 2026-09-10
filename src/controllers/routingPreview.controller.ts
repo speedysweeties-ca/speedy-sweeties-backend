@@ -14,6 +14,7 @@ import {
 } from "../services/multiDestinationRouteMatrix.service";
 import {
   PICKUP_STORE_CLOSING_BUFFER_MINUTES,
+  hasValidPickupStoreCoordinates,
   pickupStoreRouteNodeId,
   selectSequentialPickupRoutePlan,
   type PickupStoreCandidate
@@ -76,6 +77,7 @@ const buildPickupRoutingCacheKey = (
           store.id,
           store.latitude.toFixed(6),
           store.longitude.toFixed(6),
+          store.routingPriority ?? "STANDARD",
           store.currentHoursUpdatedAt?.toISOString() ?? "",
           store.regularHoursUpdatedAt?.toISOString() ?? "",
           store.manualHoursOverrideUpdatedAt?.toISOString() ?? ""
@@ -235,6 +237,8 @@ export const getOrderRoutingPreviewController = async (
             province: true,
             latitude: true,
             longitude: true,
+            isActive: true,
+            routingPriority: true,
             googleBusinessStatus: true,
             regularOpeningHours: true,
             currentOpeningHours: true,
@@ -250,7 +254,7 @@ export const getOrderRoutingPreviewController = async (
             regularHoursUpdatedAt: Date | null;
             manualHoursOverrideUpdatedAt: Date | null;
           }
-        >);
+        >).filter(hasValidPickupStoreCoordinates);
 
   const cacheKey = buildCacheKey(
     order.id,

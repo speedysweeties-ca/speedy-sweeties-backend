@@ -1,9 +1,13 @@
 import type { Prisma } from "@prisma/client";
+import {
+  normalizePickupLocationRoutingPriority,
+  type PickupLocationRoutingPriority
+} from "../constants/pickupLocationRoutingPriority";
 import type { MultiDestinationRouteMatrixResult } from "./multiDestinationRouteMatrix.service";
 
 export const PICKUP_STORE_CLOSING_BUFFER_MINUTES = 3;
 export const MAX_PICKUP_ROUTE_STOPS = 4;
-export const MAX_PICKUP_STORE_CANDIDATES_PER_TYPE = 4;
+export const PREFERRED_PICKUP_ROUTE_MAX_EXTRA_SECONDS = 180;
 const PICKUP_STORE_CLOSING_BUFFER_MS =
   PICKUP_STORE_CLOSING_BUFFER_MINUTES * 60 * 1000;
 const ROUTING_TIME_ZONE = "America/Toronto";
@@ -63,13 +67,28 @@ export type PickupStoreCandidate = {
   addressLine1: string;
   city: string;
   province: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
+  isActive?: boolean;
+  routingPriority?: PickupLocationRoutingPriority | string | null;
   googleBusinessStatus: string | null;
   regularOpeningHours: Prisma.JsonValue | null;
   currentOpeningHours: Prisma.JsonValue | null;
   manualHoursOverride: Prisma.JsonValue | null;
 };
+
+export const hasValidPickupStoreCoordinates = <T extends PickupStoreCandidate>(
+  store: T
+): store is T & { latitude: number; longitude: number } =>
+  store.isActive !== false &&
+  store.latitude !== null &&
+  store.longitude !== null &&
+  Number.isFinite(store.latitude) &&
+  Number.isFinite(store.longitude) &&
+  store.latitude >= -90 &&
+  store.latitude <= 90 &&
+  store.longitude >= -180 &&
+  store.longitude <= 180;
 
 export type PickupStoreRecommendation = {
   pickupType: string;
@@ -529,6 +548,12 @@ type RouteSearchStop = {
   eligibility: PickupStoreEligibility;
 };
 
+type PriorityRoutePlan = SequentialPickupRoutePlan & {
+  routeSignature: string;
+  preferredLocationCount: number;
+  fallbackLocationCount: number;
+};
+
 const routeKey = (originId: string, destinationId: string): string =>
   `${originId}\u0000${destinationId}`;
 
@@ -601,7 +626,11 @@ export const selectSequentialPickupRoutePlan = (input: {
 
   for (const pickupType of requiredPickupTypes) {
     const candidates = input.stores
-      .filter((store) => store.pickupType === pickupType)
+      .filter(
+        (store) =>
+          store.pickupType === pickupType &&
+          hasValidPickupStoreCoordinates(store)
+      )
       .map((store) => {
         const route = routeFor(
           input.driverRouteNodeId,
@@ -617,17 +646,23 @@ export const selectSequentialPickupRoutePlan = (input: {
           route: MultiDestinationRouteMatrixResult;
         } => candidate !== null
       )
-      .sort(compareStoreCandidates)
-      .slice(0, MAX_PICKUP_STORE_CANDIDATES_PER_TYPE)
+      .sort((a, b) => {
+        const priorityComparison = normalizePickupLocationRoutingPriority(
+          a.store.routingPriority
+        ).localeCompare(
+          normalizePickupLocationRoutingPriority(b.store.routingPriority)
+        );
+        return priorityComparison !== 0
+          ? priorityComparison
+          : compareStoreCandidates(a, b);
+      })
       .map((candidate) => candidate.store);
 
     if (candidates.length === 0) return null;
     candidatesByPickupType.set(pickupType, candidates);
   }
 
-  let selectedPlan:
-    | (SequentialPickupRoutePlan & { routeSignature: string })
-    | null = null;
+  const completePlans: PriorityRoutePlan[] = [];
 
   const considerPlan = (
     stops: RouteSearchStop[],
@@ -655,23 +690,24 @@ export const selectSequentialPickupRoutePlan = (input: {
       closingTime: stop.eligibility.closingTime,
       closingBufferMinutes: stop.eligibility.closingBufferMinutes
     }));
-    const isFaster =
-      !selectedPlan || totalDurationSeconds < selectedPlan.totalDurationSeconds;
-    const isDeterministicallyFirst =
-      selectedPlan !== null &&
-      totalDurationSeconds === selectedPlan.totalDurationSeconds &&
-      routeSignature.localeCompare(selectedPlan.routeSignature) < 0;
-
-    if (!isFaster && !isDeterministicallyFirst) return;
-
-    selectedPlan = {
+    completePlans.push({
       pickupStops,
       totalDurationSeconds,
       totalDistanceMeters,
       customerLegDurationSeconds,
       customerLegDistanceMeters,
-      routeSignature
-    };
+      routeSignature,
+      preferredLocationCount: stops.filter(
+        (stop) =>
+          normalizePickupLocationRoutingPriority(stop.store.routingPriority) ===
+          "PREFERRED"
+      ).length,
+      fallbackLocationCount: stops.filter(
+        (stop) =>
+          normalizePickupLocationRoutingPriority(stop.store.routingPriority) ===
+          "FALLBACK"
+      ).length
+    });
   };
 
   const visitStops = (
@@ -751,8 +787,43 @@ export const selectSequentialPickupRoutePlan = (input: {
     []
   );
 
-  if (!selectedPlan) return null;
-  const { routeSignature: _routeSignature, ...plan } = selectedPlan;
+  const nonFallbackPlans = completePlans.filter(
+    (plan) => plan.fallbackLocationCount === 0
+  );
+  const eligiblePlans =
+    nonFallbackPlans.length > 0 ? nonFallbackPlans : completePlans;
+  const compareFastestPlan = (a: PriorityRoutePlan, b: PriorityRoutePlan): number => {
+    if (a.totalDurationSeconds !== b.totalDurationSeconds) {
+      return a.totalDurationSeconds - b.totalDurationSeconds;
+    }
+    return a.routeSignature.localeCompare(b.routeSignature);
+  };
+  const baselinePlan = eligiblePlans.slice().sort(compareFastestPlan)[0];
+  if (!baselinePlan) return null;
+
+  const qualifyingPreferredPlans = eligiblePlans.filter(
+    (plan) =>
+      plan.preferredLocationCount > 0 &&
+      plan.totalDurationSeconds <=
+        baselinePlan.totalDurationSeconds +
+          PREFERRED_PICKUP_ROUTE_MAX_EXTRA_SECONDS
+  );
+  const selectedPlan =
+    qualifyingPreferredPlans.length === 0
+      ? baselinePlan
+      : qualifyingPreferredPlans.slice().sort((a, b) => {
+          if (a.preferredLocationCount !== b.preferredLocationCount) {
+            return b.preferredLocationCount - a.preferredLocationCount;
+          }
+          return compareFastestPlan(a, b);
+        })[0];
+
+  const {
+    routeSignature: _routeSignature,
+    preferredLocationCount: _preferredLocationCount,
+    fallbackLocationCount: _fallbackLocationCount,
+    ...plan
+  } = selectedPlan;
   return plan;
 };
 

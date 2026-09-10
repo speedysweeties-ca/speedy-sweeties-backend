@@ -93,6 +93,106 @@ test("pickup location create persists postal code and normalized pickup type", a
   assert.equal(createArgs.data.postalCode, "N1G 1A1");
   assert.equal(createArgs.data.latitude, 43.54);
   assert.equal(createArgs.data.longitude, -80.25);
+  assert.equal(createArgs.data.routingPriority, "STANDARD");
+});
+
+test("pickup location priority survives create, edit, list, and API response", async (t) => {
+  let storedLocation;
+  replaceForTest(t, prisma.pickupLocation, "create", async ({ data }) => {
+    storedLocation = { id: "location-1", ...data };
+    return storedLocation;
+  });
+  replaceForTest(t, prisma.pickupLocation, "findUnique", async () => storedLocation);
+  replaceForTest(t, prisma.pickupLocation, "update", async ({ data }) => {
+    storedLocation = { ...storedLocation, ...data };
+    return storedLocation;
+  });
+  replaceForTest(t, prisma.pickupLocation, "findMany", async () => [storedLocation]);
+
+  const createResponse = responseRecorder();
+  await createPickupLocationController(
+    {
+      body: {
+        name: "Preferred Store",
+        pickupType: "LCBO",
+        addressLine1: "1 Example Street",
+        city: "Guelph",
+        province: "ON",
+        latitude: 43.54,
+        longitude: -80.25,
+        routingPriority: "PREFERRED"
+      }
+    },
+    createResponse
+  );
+
+  assert.equal(createResponse.statusCode, 201);
+  assert.equal(createResponse.body.location.routingPriority, "PREFERRED");
+
+  const updateResponse = responseRecorder();
+  await updatePickupLocationController(
+    {
+      params: { id: "location-1" },
+      body: { routingPriority: "FALLBACK" }
+    },
+    updateResponse
+  );
+
+  assert.equal(updateResponse.statusCode, 200);
+  assert.equal(updateResponse.body.location.routingPriority, "FALLBACK");
+
+  const listResponse = responseRecorder();
+  await listPickupLocationsController({ query: {} }, listResponse);
+
+  assert.equal(listResponse.statusCode, 200);
+  assert.equal(listResponse.body.locations[0].routingPriority, "FALLBACK");
+});
+
+test("pickup location create and update reject invalid routing priority", async (t) => {
+  let createCalled = false;
+  let updateCalled = false;
+  replaceForTest(t, prisma.pickupLocation, "create", async () => {
+    createCalled = true;
+    return {};
+  });
+  replaceForTest(t, prisma.pickupLocation, "findUnique", async () => ({
+    id: "location-1",
+    googlePlaceId: null
+  }));
+  replaceForTest(t, prisma.pickupLocation, "update", async () => {
+    updateCalled = true;
+    return {};
+  });
+
+  const createResponse = responseRecorder();
+  await createPickupLocationController(
+    {
+      body: {
+        name: "Example Store",
+        pickupType: "LCBO",
+        addressLine1: "1 Example Street",
+        city: "Guelph",
+        province: "ON",
+        latitude: 43.54,
+        longitude: -80.25,
+        routingPriority: "FASTEST"
+      }
+    },
+    createResponse
+  );
+  const updateResponse = responseRecorder();
+  await updatePickupLocationController(
+    {
+      params: { id: "location-1" },
+      body: { routingPriority: "FASTEST" }
+    },
+    updateResponse
+  );
+
+  assert.equal(createResponse.statusCode, 400);
+  assert.equal(updateResponse.statusCode, 400);
+  assert.equal(createCalled, false);
+  assert.equal(updateCalled, false);
 });
 
 test("pickup location update can clear postal code", async (t) => {

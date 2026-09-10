@@ -279,9 +279,25 @@ type PickupLocation = {
   latitude: number;
   longitude: number;
   isActive: boolean;
+  routingPriority?: PickupLocationRoutingPriority;
   createdAt?: string;
   updatedAt?: string;
 };
+
+type PickupLocationRoutingPriority = "PREFERRED" | "STANDARD" | "FALLBACK";
+
+const PICKUP_LOCATION_ROUTING_PRIORITY_OPTIONS: PickupLocationRoutingPriority[] = [
+  "PREFERRED",
+  "STANDARD",
+  "FALLBACK"
+];
+
+const isPickupLocationRoutingPriority = (
+  value: string
+): value is PickupLocationRoutingPriority =>
+  PICKUP_LOCATION_ROUTING_PRIORITY_OPTIONS.includes(
+    value as PickupLocationRoutingPriority
+  );
 
 type PickupLocationForm = {
   name: string;
@@ -293,6 +309,7 @@ type PickupLocationForm = {
   latitude: string;
   longitude: string;
   isActive: boolean;
+  routingPriority: PickupLocationRoutingPriority;
 };
 
 type CustomerProfile = {
@@ -644,6 +661,7 @@ const initialPickupLocationForm: PickupLocationForm = {
   latitude: "",
   longitude: "",
   isActive: true,
+  routingPriority: "STANDARD",
 };
 
 function App() {
@@ -2413,6 +2431,9 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     if (!isPickupLocationType(form.pickupType)) {
       return "Select a supported pickup type";
     }
+    if (!isPickupLocationRoutingPriority(form.routingPriority)) {
+      return "Select a routing priority";
+    }
     if (!form.addressLine1.trim()) return "Street address is required";
     if (!form.city.trim()) return "City is required";
     if (!form.province.trim()) return "Province is required";
@@ -2460,6 +2481,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
             latitude: Number(pickupLocationForm.latitude),
             longitude: Number(pickupLocationForm.longitude),
             isActive: pickupLocationForm.isActive,
+            routingPriority: pickupLocationForm.routingPriority,
           }),
         }
       );
@@ -2492,6 +2514,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       latitude: String(location.latitude ?? ""),
       longitude: String(location.longitude ?? ""),
       isActive: location.isActive,
+      routingPriority: location.routingPriority ?? "STANDARD",
     });
   };
 
@@ -2543,6 +2566,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
             latitude: Number(pickupLocationEditForm.latitude),
             longitude: Number(pickupLocationEditForm.longitude),
             isActive: pickupLocationEditForm.isActive,
+            routingPriority: pickupLocationEditForm.routingPriority,
           }),
         }
       );
@@ -4985,6 +5009,23 @@ const handleSaveEditedOrder = async (orderId: string) => {
               ))}
             </select>
 
+            <label className="grid gap-1 text-sm text-zinc-300">
+              Routing Priority
+              <select
+                value={pickupLocationForm.routingPriority}
+                onChange={(e) =>
+                  handlePickupLocationFormChange("routingPriority", e.target.value)
+                }
+                className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+              >
+                {PICKUP_LOCATION_ROUTING_PRIORITY_OPTIONS.map((priority) => (
+                  <option key={priority} value={priority}>
+                    {priority.charAt(0) + priority.slice(1).toLowerCase()}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <input
               type="text"
               placeholder="Street Address"
@@ -5087,6 +5128,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   <tr>
                     <th className="text-left p-3">Location</th>
                     <th className="text-left p-3">Pickup Type</th>
+                    <th className="text-left p-3">Priority</th>
                     <th className="text-left p-3">Address</th>
                     <th className="text-left p-3">Latitude</th>
                     <th className="text-left p-3">Longitude</th>
@@ -5137,6 +5179,26 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                 {PICKUP_LOCATION_TYPE_OPTIONS.map((pickupType) => (
                                   <option key={pickupType} value={pickupType}>
                                     {pickupType.replace(/_/g, " ")}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+
+                            <td className="p-2 align-top">
+                              <select
+                                aria-label="Routing priority"
+                                value={pickupLocationEditForm.routingPriority}
+                                onChange={(e) =>
+                                  handlePickupLocationEditFieldChange(
+                                    "routingPriority",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+                              >
+                                {PICKUP_LOCATION_ROUTING_PRIORITY_OPTIONS.map((priority) => (
+                                  <option key={priority} value={priority}>
+                                    {priority.charAt(0) + priority.slice(1).toLowerCase()}
                                   </option>
                                 ))}
                               </select>
@@ -5277,6 +5339,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
                             <td className="p-3 align-top text-zinc-300">
                               {location.pickupType}
+                            </td>
+
+                            <td className="p-3 align-top text-zinc-300">
+                              {location.routingPriority ?? "STANDARD"}
                             </td>
 
                             <td className="p-3 align-top text-zinc-300">

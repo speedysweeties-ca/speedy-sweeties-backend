@@ -5,6 +5,9 @@ import {
   isRoutablePickupType,
   parsePickupType
 } from "../constants/pickupTypes";
+import {
+  parsePickupLocationRoutingPriority
+} from "../constants/pickupLocationRoutingPriority";
 import { prisma } from "../lib/prisma";
 import { refreshPickupLocationHours } from "../services/pickupLocationHours.service";
 
@@ -183,6 +186,7 @@ export const createPickupLocationController = async (
     latitude,
     longitude,
     isActive,
+    routingPriority,
     googlePlaceId,
     postalCode
   } = req.body;
@@ -207,11 +211,22 @@ export const createPickupLocationController = async (
   }
 
   const parsedPickupType = parsePickupType(pickupType);
+  const parsedRoutingPriority =
+    routingPriority === undefined
+      ? "STANDARD"
+      : parsePickupLocationRoutingPriority(routingPriority);
 
   if (!parsedPickupType || !isRoutablePickupType(parsedPickupType)) {
     return res.status(400).json({
       success: false,
       message: `pickupType must be one of: ${ROUTABLE_PICKUP_TYPE_OPTIONS.join(", ")}`
+    });
+  }
+
+  if (!parsedRoutingPriority) {
+    return res.status(400).json({
+      success: false,
+      message: "routingPriority must be one of: PREFERRED, STANDARD, FALLBACK"
     });
   }
 
@@ -263,6 +278,7 @@ export const createPickupLocationController = async (
       latitude: parsedLatitude,
       longitude: parsedLongitude,
       ...(typeof isActive === "boolean" ? { isActive } : {}),
+      routingPriority: parsedRoutingPriority,
       ...(typeof googlePlaceId === "string" && googlePlaceId.trim()
         ? { googlePlaceId: googlePlaceId.trim() }
         : {})
@@ -302,6 +318,7 @@ export const updatePickupLocationController = async (
     latitude,
     longitude,
     isActive,
+    routingPriority,
     googlePlaceId,
     manualHoursOverride,
     manualHoursOverrideNote,
@@ -309,6 +326,10 @@ export const updatePickupLocationController = async (
   } = req.body;
 
   const parsedPickupType = parsePickupType(pickupType);
+  const parsedRoutingPriority =
+    routingPriority === undefined
+      ? undefined
+      : parsePickupLocationRoutingPriority(routingPriority);
 
   if (
     pickupType !== undefined &&
@@ -319,6 +340,13 @@ export const updatePickupLocationController = async (
     return res.status(400).json({
       success: false,
       message: `pickupType must be one of: ${ROUTABLE_PICKUP_TYPE_OPTIONS.join(", ")}`
+    });
+  }
+
+  if (routingPriority !== undefined && !parsedRoutingPriority) {
+    return res.status(400).json({
+      success: false,
+      message: "routingPriority must be one of: PREFERRED, STANDARD, FALLBACK"
     });
   }
 
@@ -450,6 +478,7 @@ export const updatePickupLocationController = async (
       ...(parsedLatitude !== undefined ? { latitude: parsedLatitude } : {}),
       ...(parsedLongitude !== undefined ? { longitude: parsedLongitude } : {}),
       ...(typeof isActive === "boolean" ? { isActive } : {}),
+      ...(parsedRoutingPriority ? { routingPriority: parsedRoutingPriority } : {}),
       ...(normalizedGooglePlaceId !== undefined
         ? { googlePlaceId: normalizedGooglePlaceId }
         : {}),

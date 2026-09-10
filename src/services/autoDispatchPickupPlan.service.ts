@@ -13,6 +13,7 @@ import {
   computeTrafficAwareRouteMatrixToDestinations
 } from "./multiDestinationRouteMatrix.service";
 import {
+  hasValidPickupStoreCoordinates,
   pickupStoreRouteNodeId,
   selectSequentialPickupRoutePlan,
   type PickupStoreCandidate,
@@ -284,7 +285,7 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
     return { dispatched: false, reason: "UNKNOWN_PICKUP_TYPE" };
   }
 
-  const stores = (await prisma.pickupLocation.findMany({
+  const stores = ((await prisma.pickupLocation.findMany({
     where: buildRoutablePickupLocationWhere(requiredPickupTypes),
     select: {
       id: true,
@@ -295,13 +296,15 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
       province: true,
       latitude: true,
       longitude: true,
+      isActive: true,
+      routingPriority: true,
       googleBusinessStatus: true,
       regularOpeningHours: true,
       currentOpeningHours: true,
       manualHoursOverride: true
     },
     orderBy: [{ pickupType: "asc" }, { name: "asc" }]
-  })) as PickupStoreCandidate[];
+  })) as PickupStoreCandidate[]).filter(hasValidPickupStoreCoordinates);
 
   const availableStoreTypes = new Set(stores.map((store) => store.pickupType));
   if (

@@ -3,6 +3,7 @@ const test = require("node:test");
 
 const {
   PICKUP_STORE_CLOSING_BUFFER_MINUTES,
+  PREFERRED_PICKUP_ROUTE_MAX_EXTRA_SECONDS,
   evaluatePickupStoreEligibility,
   pickupStoreRouteNodeId,
   selectSequentialPickupRoutePlan,
@@ -56,6 +57,187 @@ const sequentialPlan = (stores, matrix, requiredPickupTypes, generatedAt = toron
 
 test("pickup-store closing safety buffer is exactly three minutes", () => {
   assert.equal(PICKUP_STORE_CLOSING_BUFFER_MINUTES, 3);
+});
+
+test("preferred pickup routes are selected only within the centralized allowance", () => {
+  const standard = baseStore({ id: "standard", name: "Standard Store" });
+  const preferred = baseStore({
+    id: "preferred",
+    name: "Preferred Store",
+    routingPriority: "PREFERRED"
+  });
+  const withinAllowance = sequentialPlan(
+    [standard, preferred],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("standard"), 100),
+      route("driver:driver-a", pickupStoreRouteNodeId("preferred"), 100),
+      route(pickupStoreRouteNodeId("standard"), "customer:order-a", 100),
+      route(pickupStoreRouteNodeId("preferred"), "customer:order-a", 279)
+    ],
+    ["BEER_STORE"]
+  );
+  const overAllowance = sequentialPlan(
+    [standard, preferred],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("standard"), 100),
+      route("driver:driver-a", pickupStoreRouteNodeId("preferred"), 100),
+      route(pickupStoreRouteNodeId("standard"), "customer:order-a", 100),
+      route(pickupStoreRouteNodeId("preferred"), "customer:order-a", 281)
+    ],
+    ["BEER_STORE"]
+  );
+
+  assert.equal(PREFERRED_PICKUP_ROUTE_MAX_EXTRA_SECONDS, 180);
+  assert.equal(withinAllowance.pickupStops[0].storeId, "preferred");
+  assert.equal(overAllowance.pickupStops[0].storeId, "standard");
+});
+
+test("the fastest route wins between qualifying preferred routes", () => {
+  const standard = baseStore({ id: "standard" });
+  const preferredSlow = baseStore({ id: "preferred-slow", routingPriority: "PREFERRED" });
+  const preferredFast = baseStore({ id: "preferred-fast", routingPriority: "PREFERRED" });
+  const plan = sequentialPlan(
+    [standard, preferredSlow, preferredFast],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("standard"), 100),
+      route("driver:driver-a", pickupStoreRouteNodeId("preferred-slow"), 100),
+      route("driver:driver-a", pickupStoreRouteNodeId("preferred-fast"), 100),
+      route(pickupStoreRouteNodeId("standard"), "customer:order-a", 100),
+      route(pickupStoreRouteNodeId("preferred-slow"), "customer:order-a", 250),
+      route(pickupStoreRouteNodeId("preferred-fast"), "customer:order-a", 200)
+    ],
+    ["BEER_STORE"]
+  );
+
+  assert.equal(plan.pickupStops[0].storeId, "preferred-fast");
+});
+
+test("ineligible preferred stores cannot override a valid standard route", () => {
+  const standard = baseStore({ id: "standard" });
+  const closedPreferred = baseStore({
+    id: "closed",
+    routingPriority: "PREFERRED",
+    googleBusinessStatus: "CLOSED_PERMANENTLY"
+  });
+  const inactivePreferred = baseStore({
+    id: "inactive",
+    routingPriority: "PREFERRED",
+    isActive: false
+  });
+  const invalidPreferred = baseStore({
+    id: "invalid",
+    routingPriority: "PREFERRED",
+    latitude: 999
+  });
+  const incompatiblePreferred = baseStore({
+    id: "incompatible",
+    pickupType: "LCBO",
+    routingPriority: "PREFERRED"
+  });
+  const plan = sequentialPlan(
+    [standard, closedPreferred, inactivePreferred, invalidPreferred, incompatiblePreferred],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("standard"), 100),
+      route(pickupStoreRouteNodeId("standard"), "customer:order-a", 100),
+      route("driver:driver-a", pickupStoreRouteNodeId("closed"), 1),
+      route(pickupStoreRouteNodeId("closed"), "customer:order-a", 1),
+      route("driver:driver-a", pickupStoreRouteNodeId("inactive"), 1),
+      route(pickupStoreRouteNodeId("inactive"), "customer:order-a", 1),
+      route("driver:driver-a", pickupStoreRouteNodeId("invalid"), 1),
+      route(pickupStoreRouteNodeId("invalid"), "customer:order-a", 1)
+    ],
+    ["BEER_STORE"]
+  );
+
+  assert.equal(plan.pickupStops[0].storeId, "standard");
+});
+
+test("standard-only routing preserves the fastest complete route", () => {
+  const first = baseStore({ id: "first" });
+  const second = baseStore({ id: "second" });
+  const plan = sequentialPlan(
+    [first, second],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("first"), 20),
+      route("driver:driver-a", pickupStoreRouteNodeId("second"), 100),
+      route(pickupStoreRouteNodeId("first"), "customer:order-a", 500),
+      route(pickupStoreRouteNodeId("second"), "customer:order-a", 100)
+    ],
+    ["BEER_STORE"]
+  );
+
+  assert.equal(plan.pickupStops[0].storeId, "second");
+  assert.equal(plan.totalDurationSeconds, 200);
+});
+
+test("fallback stores are used only when no complete preferred-or-standard route exists", () => {
+  const standard = baseStore({ id: "standard" });
+  const fallback = baseStore({ id: "fallback", routingPriority: "FALLBACK" });
+  const standardPlan = sequentialPlan(
+    [standard, fallback],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("standard"), 200),
+      route(pickupStoreRouteNodeId("standard"), "customer:order-a", 200),
+      route("driver:driver-a", pickupStoreRouteNodeId("fallback"), 10),
+      route(pickupStoreRouteNodeId("fallback"), "customer:order-a", 10)
+    ],
+    ["BEER_STORE"]
+  );
+  const fallbackOnlyPlan = sequentialPlan(
+    [fallback],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("fallback"), 10),
+      route(pickupStoreRouteNodeId("fallback"), "customer:order-a", 10)
+    ],
+    ["BEER_STORE"]
+  );
+
+  assert.equal(standardPlan.pickupStops[0].storeId, "standard");
+  assert.equal(fallbackOnlyPlan.pickupStops[0].storeId, "fallback");
+});
+
+test("priority comparison uses the complete multi-stop journey", () => {
+  const standardBeer = baseStore({ id: "standard-beer" });
+  const preferredBeer = baseStore({
+    id: "preferred-beer",
+    routingPriority: "PREFERRED"
+  });
+  const lcbo = baseStore({ id: "lcbo", pickupType: "LCBO" });
+  const plan = sequentialPlan(
+    [standardBeer, preferredBeer, lcbo],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("standard-beer"), 20),
+      route("driver:driver-a", pickupStoreRouteNodeId("preferred-beer"), 20),
+      route("driver:driver-a", pickupStoreRouteNodeId("lcbo"), 1000),
+      route(pickupStoreRouteNodeId("standard-beer"), pickupStoreRouteNodeId("lcbo"), 80),
+      route(pickupStoreRouteNodeId("preferred-beer"), pickupStoreRouteNodeId("lcbo"), 230),
+      route(pickupStoreRouteNodeId("lcbo"), "customer:order-a", 100)
+    ],
+    ["BEER_STORE", "LCBO"]
+  );
+
+  assert.deepEqual(
+    plan.pickupStops.map((stop) => stop.storeId),
+    ["preferred-beer", "lcbo"]
+  );
+  assert.equal(plan.totalDurationSeconds, 350);
+});
+
+test("equal preferred routes use a stable store-id tie-breaker", () => {
+  const preferredB = baseStore({ id: "preferred-b", routingPriority: "PREFERRED" });
+  const preferredA = baseStore({ id: "preferred-a", routingPriority: "PREFERRED" });
+  const plan = sequentialPlan(
+    [preferredB, preferredA],
+    [
+      route("driver:driver-a", pickupStoreRouteNodeId("preferred-a"), 100),
+      route("driver:driver-a", pickupStoreRouteNodeId("preferred-b"), 100),
+      route(pickupStoreRouteNodeId("preferred-a"), "customer:order-a", 100),
+      route(pickupStoreRouteNodeId("preferred-b"), "customer:order-a", 100)
+    ],
+    ["BEER_STORE"]
+  );
+
+  assert.equal(plan.pickupStops[0].storeId, "preferred-a");
 });
 
 test("arrival exactly three minutes before closing is eligible", () => {
