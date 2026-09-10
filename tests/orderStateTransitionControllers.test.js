@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { OrderStatus, UserRole } = require("@prisma/client");
+const { OrderSource, OrderStatus, UserRole } = require("@prisma/client");
 const { messaging } = require("../dist/config/firebase.js");
 const { prisma } = require("../dist/lib/prisma.js");
 const {
@@ -69,6 +69,7 @@ const order = (overrides = {}) => ({
   customerName: "Test Customer",
   addressLine1: "10 Test Street",
   city: "Guelph",
+  orderSource: OrderSource.ANDROID_APP,
   fcmToken: "customer-token",
   customerId: null,
   items: [],

@@ -261,7 +261,10 @@ export const driverActionController = async (
       include: orderInclude
     });
 
-    const loyaltyResult = await recordDeliveredOrderLoyalty(order.customerId);
+    const loyaltyResult = await recordDeliveredOrderLoyalty(
+      order.customerId,
+      order.orderSource
+    );
     await sendCustomerLoyaltyNotification(order.fcmToken, loyaltyResult);
 
     res.status(200).json({

@@ -1,9 +1,13 @@
-import { Prisma } from "@prisma/client";
+import { OrderSource, Prisma } from "@prisma/client";
 import { messaging } from "../config/firebase";
 import { prisma } from "../lib/prisma";
 
 const LOYALTY_TIME_ZONE = "America/Toronto";
 const LOYALTY_DELIVERIES_PER_REWARD = 10;
+const LOYALTY_ELIGIBLE_ORDER_SOURCES = new Set<OrderSource>([
+  OrderSource.ANDROID_APP,
+  OrderSource.IOS_APP
+]);
 
 type LoyaltyNotification =
   | "LOYALTY_REWARD_EARNED"
@@ -72,6 +76,24 @@ const noCustomerResult = (): LoyaltyMutationResult => ({
   notificationShouldBeAttempted: false
 });
 
+const noMutationResultForCustomer = (
+  customer: LockedLoyaltyCustomer
+): LoyaltyMutationResult => ({
+  ...noCustomerResult(),
+  customerFound: true,
+  completedOrders: customer.loyaltyCompletedOrders
+});
+
+export const isLoyaltyEligibleOrderSource = (
+  orderSource: OrderSource | null | undefined
+): boolean => {
+  return (
+    orderSource !== null &&
+    orderSource !== undefined &&
+    LOYALTY_ELIGIBLE_ORDER_SOURCES.has(orderSource)
+  );
+};
+
 /**
  * PostgreSQL row locks are transaction-scoped and therefore serialize this customer's
  * loyalty decisions across every Render process, not merely within one Node process.
@@ -125,8 +147,21 @@ const resetLoyaltyMonthIfNeeded = async (
 export const redeemFreeDeliveryRewardForOrder = async (
   tx: Prisma.TransactionClient,
   customerId: string,
+  orderSource: OrderSource,
   now: Date = new Date()
 ): Promise<{ customer: LockedLoyaltyCustomer | null; result: LoyaltyMutationResult }> => {
+  if (!isLoyaltyEligibleOrderSource(orderSource)) {
+    const customer = await tx.customer.findUnique({
+      where: { id: customerId },
+      select: loyaltyCustomerSelect
+    });
+
+    return {
+      customer,
+      result: customer ? noMutationResultForCustomer(customer) : noCustomerResult()
+    };
+  }
+
   const lockedCustomer = await lockCustomerLoyalty(tx, customerId);
   if (!lockedCustomer) {
     return { customer: null, result: noCustomerResult() };
@@ -182,9 +217,12 @@ export const redeemFreeDeliveryRewardForOrder = async (
 
 export const recordDeliveredOrderLoyalty = async (
   customerId: string | null,
+  orderSource: OrderSource,
   now: Date = new Date()
 ): Promise<LoyaltyMutationResult> => {
-  if (!customerId) return noCustomerResult();
+  if (!customerId || !isLoyaltyEligibleOrderSource(orderSource)) {
+    return noCustomerResult();
+  }
 
   return prisma.$transaction(async (tx) => {
     const lockedCustomer = await lockCustomerLoyalty(tx, customerId);

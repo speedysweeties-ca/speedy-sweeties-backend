@@ -561,6 +561,11 @@ const createOrder = async (
     Object.prototype.hasOwnProperty.call(req.body, "recurringDriverNotes");
 
   const appFcmToken = hasAppFcmToken(fcmToken) ? String(fcmToken).trim() : null;
+  const resolvedOrderSource = resolveOrderSourceAttribution({
+    requestedSource: orderSource,
+    requestOrigin: req.headers?.origin,
+    override: options.orderSourceOverride
+  });
 
   const deliveryAddress: DeliveryAddressInput = {
     addressLine1,
@@ -611,7 +616,11 @@ const createOrder = async (
         }
       })).id;
 
-    const loyaltyRedemption = await redeemFreeDeliveryRewardForOrder(tx, customerId);
+    const loyaltyRedemption = await redeemFreeDeliveryRewardForOrder(
+      tx,
+      customerId,
+      resolvedOrderSource
+    );
     const customer = loyaltyRedemption.customer;
 
     if (!customer) {
@@ -649,11 +658,7 @@ const createOrder = async (
         itemsText: rawItems.map((i) => `${i.quantity}x ${i.name}`).join(", "),
         additionalNotes: finalNotes,
         paymentMethod: normalizePaymentMethod(paymentMethod),
-        orderSource: resolveOrderSourceAttribution({
-          requestedSource: orderSource,
-          requestOrigin: req.headers?.origin,
-          override: options.orderSourceOverride
-        }),
+        orderSource: resolvedOrderSource,
         utmSource: normalizeAttributionValue(utmSource, true),
         utmMedium: normalizeAttributionValue(utmMedium, true),
         utmCampaign: normalizeAttributionValue(utmCampaign),

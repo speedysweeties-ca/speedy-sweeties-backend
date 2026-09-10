@@ -11,6 +11,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "retention:90": "node dist/jobs/retention90.job.js",
+    "audit:app-only-loyalty": "npm run build && node dist/jobs/auditAppOnlyLoyalty.job.js",
     "backfill:delivery-locations": "npm run build && node dist/jobs/backfillOrderDeliveryLocations.job.js",
     "test": "npm run build && node --test tests/*.test.js",
     "check": "npm run prisma:generate && npx prisma validate && npm test"
