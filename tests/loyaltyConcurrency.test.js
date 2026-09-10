@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
+const { OrderSource } = require("@prisma/client");
 
 const { messaging } = require("../dist/config/firebase.js");
 const { prisma } = require("../dist/lib/prisma.js");
@@ -8,6 +9,7 @@ const {
 } = require("../dist/controllers/customer.controller.js");
 const {
   getCurrentLoyaltyMonth,
+  isLoyaltyEligibleOrderSource,
   recordDeliveredOrderLoyalty,
   redeemFreeDeliveryRewardForOrder,
   sendCustomerLoyaltyNotification
@@ -147,6 +149,71 @@ const installLoyaltyDatabase = (t, initialCustomers) => {
   };
 };
 
+test("only Android and iOS customer-app orders are loyalty eligible", () => {
+  assert.equal(isLoyaltyEligibleOrderSource(OrderSource.ANDROID_APP), true);
+  assert.equal(isLoyaltyEligibleOrderSource(OrderSource.IOS_APP), true);
+
+  for (const source of [
+    OrderSource.DISPATCHER_MANUAL,
+    OrderSource.WEBFLOW,
+    OrderSource.UNKNOWN,
+    null,
+    undefined
+  ]) {
+    assert.equal(isLoyaltyEligibleOrderSource(source), false, String(source));
+  }
+});
+
+test("manual, Webflow, and unknown orders neither redeem nor earn loyalty", async (t) => {
+  const excludedSources = [
+    OrderSource.DISPATCHER_MANUAL,
+    OrderSource.WEBFLOW,
+    OrderSource.UNKNOWN
+  ];
+  const database = installLoyaltyDatabase(
+    t,
+    excludedSources.map((_, index) =>
+      customer({
+        id: `customer-${index + 1}`,
+        loyaltyCompletedOrders: 9,
+        loyaltyRewardsEarned: 1,
+        loyaltyRewardBalance: 1,
+        loyaltyFreeDelivery: true
+      })
+    )
+  );
+
+  for (const [index, orderSource] of excludedSources.entries()) {
+    const customerId = `customer-${index + 1}`;
+    const redemption = await prisma.$transaction((tx) =>
+      redeemFreeDeliveryRewardForOrder(tx, customerId, orderSource)
+    );
+    const delivery = await recordDeliveredOrderLoyalty(
+      customerId,
+      orderSource,
+      new Date("2026-09-15T12:00:00.000Z")
+    );
+
+    assert.equal(redemption.result.customerFound, true);
+    assert.equal(redemption.result.rewardRedeemed, false);
+    assert.equal(redemption.result.notificationShouldBeAttempted, false);
+    assert.equal(delivery.progressIncreased, false);
+    assert.equal(delivery.rewardEarned, false);
+    assert.deepEqual(
+      database.getCustomer(customerId),
+      customer({
+        id: customerId,
+        loyaltyCompletedOrders: 9,
+        loyaltyRewardsEarned: 1,
+        loyaltyRewardBalance: 1,
+        loyaltyFreeDelivery: true
+      })
+    );
+  }
+
+  assert.deepEqual(database.getNotifications(), []);
+});
+
 test("two simultaneous orders consume one reward exactly once and notify once after commit", async (t) => {
   const database = installLoyaltyDatabase(t, [
     customer({ loyaltyRewardBalance: 1, loyaltyFreeDelivery: true })
@@ -155,7 +222,11 @@ test("two simultaneous orders consume one reward exactly once and notify once af
   const attempts = await Promise.all(
     ["first", "second"].map(async () => {
       const redemption = await prisma.$transaction((tx) =>
-        redeemFreeDeliveryRewardForOrder(tx, "customer-1")
+        redeemFreeDeliveryRewardForOrder(
+          tx,
+          "customer-1",
+          OrderSource.ANDROID_APP
+        )
       );
       await sendCustomerLoyaltyNotification("customer-token", redemption.result);
       return redemption.result;
@@ -182,7 +253,11 @@ test("a rolled-back order transaction leaves its reward available and schedules 
 
   await assert.rejects(
     prisma.$transaction(async (tx) => {
-      const redemption = await redeemFreeDeliveryRewardForOrder(tx, "customer-1");
+      const redemption = await redeemFreeDeliveryRewardForOrder(
+        tx,
+        "customer-1",
+        OrderSource.IOS_APP
+      );
       assert.equal(redemption.result.rewardRedeemed, true);
       throw new Error("simulated order creation failure");
     }),
@@ -201,8 +276,16 @@ test("two completed deliveries for one customer serialize to the correct ten-ord
   ]);
 
   const results = await Promise.all([
-    recordDeliveredOrderLoyalty("customer-1", new Date("2026-09-15T12:00:00.000Z")),
-    recordDeliveredOrderLoyalty("customer-1", new Date("2026-09-15T12:00:00.000Z"))
+    recordDeliveredOrderLoyalty(
+      "customer-1",
+      OrderSource.ANDROID_APP,
+      new Date("2026-09-15T12:00:00.000Z")
+    ),
+    recordDeliveredOrderLoyalty(
+      "customer-1",
+      OrderSource.IOS_APP,
+      new Date("2026-09-15T12:00:00.000Z")
+    )
   ]);
 
   assert.equal(results.filter((result) => result.progressIncreased).length, 2);
@@ -220,6 +303,7 @@ test("the tenth delivery earns exactly one reward and its notification is post-c
 
   const result = await recordDeliveredOrderLoyalty(
     "customer-1",
+    OrderSource.ANDROID_APP,
     new Date("2026-09-15T12:00:00.000Z")
   );
   await sendCustomerLoyaltyNotification("customer-token", result);
@@ -246,8 +330,8 @@ test("month reset and delivery use the Toronto month of the locked decision", as
   assert.equal(getCurrentLoyaltyMonth(october), "2026-10");
 
   await Promise.all([
-    recordDeliveredOrderLoyalty("customer-1", september),
-    recordDeliveredOrderLoyalty("customer-1", october)
+    recordDeliveredOrderLoyalty("customer-1", OrderSource.ANDROID_APP, september),
+    recordDeliveredOrderLoyalty("customer-1", OrderSource.IOS_APP, october)
   ]);
 
   assert.equal(database.getCustomer().loyaltyProgressMonth, "2026-10");
@@ -261,8 +345,18 @@ test("two customers update independently and an accumulated second reward remain
   ]);
 
   const [delivery, redemption] = await Promise.all([
-    recordDeliveredOrderLoyalty("customer-1", new Date("2026-09-15T12:00:00.000Z")),
-    prisma.$transaction((tx) => redeemFreeDeliveryRewardForOrder(tx, "customer-2"))
+    recordDeliveredOrderLoyalty(
+      "customer-1",
+      OrderSource.ANDROID_APP,
+      new Date("2026-09-15T12:00:00.000Z")
+    ),
+    prisma.$transaction((tx) =>
+      redeemFreeDeliveryRewardForOrder(
+        tx,
+        "customer-2",
+        OrderSource.IOS_APP
+      )
+    )
   ]);
 
   assert.equal(delivery.completedOrders, 9);

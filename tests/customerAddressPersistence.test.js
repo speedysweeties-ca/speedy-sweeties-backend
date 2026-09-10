@@ -333,7 +333,8 @@ test("NEEDS_REVIEW orders retain existing loyalty reward processing", async (t) 
     {
       body: {
         ...firstOrderBody,
-        addressLine1: "99 New Street"
+        addressLine1: "99 New Street",
+        orderSource: "ANDROID_APP"
       }
     },
     response

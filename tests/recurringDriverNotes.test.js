@@ -108,10 +108,10 @@ test("manual creation atomically snapshots and persists against the resolved cus
     recurringDriverNotes: "Old recurring note",
     loyaltyCompletedOrders: 0,
     loyaltyProgressMonth: currentTorontoMonth,
-    loyaltyRewardsEarned: 0,
+    loyaltyRewardsEarned: 1,
     loyaltyRewardsUsed: 0,
-    loyaltyRewardBalance: 0,
-    loyaltyFreeDelivery: false
+    loyaltyRewardBalance: 1,
+    loyaltyFreeDelivery: true
   };
   const customerUpdates = [];
   const createdOrders = [];
