@@ -1,5 +1,4 @@
 import { DispatchSource, OrderStatus, UserRole } from "@prisma/client";
-import { normalizePickupTypeOrUnknown } from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
 import {
   getDriverFreshnessCutoff,
@@ -9,28 +8,10 @@ import {
   buildOrderTransitionTimestampData,
   evaluateOrderStatusTransition
 } from "./orderStateTransition.service";
-import {
-  computeTrafficAwareRouteMatrixToDestinations
-} from "./multiDestinationRouteMatrix.service";
-import {
-  hasValidPickupStoreCoordinates,
-  pickupStoreRouteNodeId,
-  selectSequentialPickupRoutePlan,
-  type PickupStoreCandidate,
-  type PickupStoreRecommendation
-} from "./pickupStoreRouting.service";
+import { computeTrafficAwareRouteMatrixToDestinations } from "./multiDestinationRouteMatrix.service";
 import { RoutingPreviewUnavailableError } from "./routingPreview.service";
-import { buildRoutablePickupLocationWhere } from "../utils/pickupLocationAvailability";
 
 const AUTO_DISPATCH_SETTING_KEY = "autoDispatchEnabled";
-export const AUTO_DISPATCH_ALLOCATION_LOCK_NAMESPACE = 20_260_909;
-export const AUTO_DISPATCH_ALLOCATION_LOCK_KEY = 4;
-const AUTO_DISPATCH_ACTIVE_STATUSES: OrderStatus[] = [
-  OrderStatus.PLACED,
-  OrderStatus.DISPATCHED,
-  OrderStatus.ACCEPTED,
-  OrderStatus.OUT_FOR_DELIVERY
-];
 
 const isAutoDispatchHardDisabledByEnv = (): boolean => {
   const value = process.env.AUTO_DISPATCH_ENABLED;
@@ -52,33 +33,13 @@ const isAutoDispatchEnabled = async (): Promise<boolean> => {
   return settingValueToBoolean(setting?.value);
 };
 
-export type AutoDispatchPickupStop = {
-  pickupType: string;
-  storeId: string;
-  storeName: string;
-  addressLine1: string;
-  city: string;
-  province: string;
-  sequence: number;
-  etaSeconds: number;
-  distanceMeters: number | null;
-  projectedArrivalAt: string;
-  hoursSource: string;
-  closingDate: string | null;
-  closingTime: string | null;
-  closingBufferMinutes: number;
-};
-
 export type AutoDispatchPickupPlanResult = {
   dispatched: boolean;
   reason:
     | "DISPATCHED"
     | "AUTO_DISPATCH_DISABLED"
     | "ORDER_NOT_ELIGIBLE"
-    | "UNKNOWN_PICKUP_TYPE"
-    | "NO_PICKUP_LOCATIONS"
     | "NO_ROUTEABLE_DRIVERS"
-    | "NO_COMPLETE_PICKUP_PLAN"
     | "ROUTING_UNAVAILABLE"
     | "ORDER_CHANGED"
     | "ALLOCATION_UNAVAILABLE";
@@ -91,7 +52,7 @@ export type AutoDispatchPickupPlanResult = {
   addressLine1?: string;
   city?: string;
   pickupSummary?: string;
-  pickupStops?: AutoDispatchPickupStop[];
+  pickupStops?: [];
   routeDurationSeconds?: number;
   routeEtaMinutes?: number;
 };
@@ -130,9 +91,8 @@ type AutoDispatchDriver = {
 
 export type AutoDispatchAllocationCandidate = {
   driver: AutoDispatchDriver;
-  activeOrderCount: number;
-  pickupStops: AutoDispatchPickupStop[];
   routeDurationSeconds: number;
+  routeDistanceMeters: number | null;
 };
 
 const compareDriverIdentity = (
@@ -153,12 +113,23 @@ export const selectAutoDispatchAllocationCandidate = (
   candidates: AutoDispatchAllocationCandidate[]
 ): AutoDispatchAllocationCandidate | null => {
   const sortedCandidates = candidates.slice().sort((a, b) => {
-    if (a.activeOrderCount !== b.activeOrderCount) {
-      return a.activeOrderCount - b.activeOrderCount;
-    }
-
     if (a.routeDurationSeconds !== b.routeDurationSeconds) {
       return a.routeDurationSeconds - b.routeDurationSeconds;
+    }
+
+    if (
+      a.routeDistanceMeters !== null &&
+      b.routeDistanceMeters !== null &&
+      a.routeDistanceMeters !== b.routeDistanceMeters
+    ) {
+      return a.routeDistanceMeters - b.routeDistanceMeters;
+    }
+
+    if (a.routeDistanceMeters !== null && b.routeDistanceMeters === null) {
+      return -1;
+    }
+    if (a.routeDistanceMeters === null && b.routeDistanceMeters !== null) {
+      return 1;
     }
 
     return compareDriverIdentity(a.driver, b.driver);
@@ -177,39 +148,14 @@ type AutoDispatchAllocationResult =
       reason: Exclude<AutoDispatchPickupPlanResult["reason"], "DISPATCHED">;
     };
 
-export const orderPickupRecommendations = (
-  recommendations: Array<
-    PickupStoreRecommendation | { pickupType: string; unavailable: true }
-  >
-): AutoDispatchPickupStop[] | null => {
-  if (
-    recommendations.some(
-      (recommendation) => "unavailable" in recommendation
-    )
-  ) {
-    return null;
-  }
-
-  return (recommendations as PickupStoreRecommendation[]).map(
-    (recommendation, index) => ({
-      pickupType: recommendation.pickupType,
-      storeId: recommendation.storeId,
-      storeName: recommendation.storeName,
-      addressLine1: recommendation.addressLine1,
-      city: recommendation.city,
-      province: recommendation.province,
-      sequence: index + 1,
-      etaSeconds: recommendation.durationSeconds,
-      distanceMeters: recommendation.distanceMeters,
-      projectedArrivalAt: recommendation.projectedArrivalAt,
-      hoursSource: recommendation.hoursSource,
-      closingDate: recommendation.closingDate,
-      closingTime: recommendation.closingTime,
-      closingBufferMinutes: recommendation.closingBufferMinutes
-    })
-  );
-};
-
+/**
+ * Assigns a newly created order to the online driver with fresh GPS whose
+ * traffic-aware direct drive to the customer's address is shortest.
+ *
+ * The legacy function name is retained because the order controller already
+ * calls it. Item pickup types and pickup locations intentionally do not take
+ * part in this assignment decision.
+ */
 export const autoDispatchCreatedOrderWithPickupPlan = async (
   orderId: string
 ): Promise<AutoDispatchPickupPlanResult> => {
@@ -229,14 +175,7 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
       city: true,
       deliveryLatitude: true,
       deliveryLongitude: true,
-      geocodeStatus: true,
-      items: {
-        select: {
-          itemCatalog: {
-            select: { pickupType: true }
-          }
-        }
-      }
+      geocodeStatus: true
     }
   });
 
@@ -261,59 +200,12 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
     hasStoredDeliveryCoordinates &&
     Number.isFinite(deliveryLatitude) &&
     Number.isFinite(deliveryLongitude);
+
   if (!hasVerifiedDeliveryLocation) {
     console.warn(
-      `[Auto Dispatch Pickup Plan] Order ${order.id} held: delivery location is unavailable for complete pickup routing.`
+      `[Auto Dispatch] Order ${order.id} held: the delivery address has no verified coordinates.`
     );
     return { dispatched: false, reason: "ROUTING_UNAVAILABLE" };
-  }
-
-  const itemPickupTypes = order.items.map((item) =>
-    normalizePickupTypeOrUnknown(item.itemCatalog?.pickupType)
-  );
-  const unknownItemCount = itemPickupTypes.filter(
-    (pickupType) => pickupType === "UNKNOWN"
-  ).length;
-  const requiredPickupTypes = Array.from(
-    new Set(itemPickupTypes.filter((pickupType) => pickupType !== "UNKNOWN"))
-  ).sort((a, b) => a.localeCompare(b));
-
-  if (unknownItemCount > 0 || requiredPickupTypes.length === 0) {
-    console.log(
-      `[Auto Dispatch Pickup Plan] Order ${order.id} held for dispatcher review: ${unknownItemCount} unknown pickup item(s).`
-    );
-    return { dispatched: false, reason: "UNKNOWN_PICKUP_TYPE" };
-  }
-
-  const stores = ((await prisma.pickupLocation.findMany({
-    where: buildRoutablePickupLocationWhere(requiredPickupTypes),
-    select: {
-      id: true,
-      name: true,
-      pickupType: true,
-      addressLine1: true,
-      city: true,
-      province: true,
-      latitude: true,
-      longitude: true,
-      isActive: true,
-      routingPriority: true,
-      googleBusinessStatus: true,
-      regularOpeningHours: true,
-      currentOpeningHours: true,
-      manualHoursOverride: true
-    },
-    orderBy: [{ pickupType: "asc" }, { name: "asc" }]
-  })) as PickupStoreCandidate[]).filter(hasValidPickupStoreCoordinates);
-
-  const availableStoreTypes = new Set(stores.map((store) => store.pickupType));
-  if (
-    requiredPickupTypes.some((pickupType) => !availableStoreTypes.has(pickupType))
-  ) {
-    console.warn(
-      `[Auto Dispatch Pickup Plan] Order ${order.id} held: at least one required pickup type has no active pickup location.`
-    );
-    return { dispatched: false, reason: "NO_PICKUP_LOCATIONS" };
   }
 
   const now = new Date();
@@ -353,7 +245,7 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
 
   if (routeableDrivers.length === 0) {
     console.log(
-      `[Auto Dispatch Pickup Plan] Order ${order.id} held: no online driver has fresh GPS.`
+      `[Auto Dispatch] Order ${order.id} held: no online driver has fresh GPS.`
     );
     return { dispatched: false, reason: "NO_ROUTEABLE_DRIVERS" };
   }
@@ -369,24 +261,20 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
     ])
   );
 
-  let matrix;
-  try {
-    const customerRouteNodeId = `customer:${order.id}`;
-    const driverRoutePoints = routeableDrivers.map((driver) => ({
-      id: `driver:${driver.id}`,
-      latitude: Number(driver.latitude),
-      longitude: Number(driver.longitude)
-    }));
-    const storeRoutePoints = stores.map((store) => ({
-      id: pickupStoreRouteNodeId(store.id),
-      latitude: store.latitude,
-      longitude: store.longitude
-    }));
+  const customerRouteNodeId = `customer:${order.id}`;
+  const directRoutesByDriverId = new Map<
+    string,
+    { durationSeconds: number; distanceMeters: number | null }
+  >();
 
-    matrix = await computeTrafficAwareRouteMatrixToDestinations(
-      [...driverRoutePoints, ...storeRoutePoints],
+  try {
+    const matrix = await computeTrafficAwareRouteMatrixToDestinations(
+      routeableDrivers.map((driver) => ({
+        id: `driver:${driver.id}`,
+        latitude: Number(driver.latitude),
+        longitude: Number(driver.longitude)
+      })),
       [
-        ...storeRoutePoints,
         {
           id: customerRouteNodeId,
           latitude: deliveryLatitude,
@@ -394,9 +282,25 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
         }
       ]
     );
+
+    for (const route of matrix) {
+      if (
+        route.destinationId !== customerRouteNodeId ||
+        !route.originId.startsWith("driver:") ||
+        !route.routeAvailable ||
+        route.durationSeconds === null
+      ) {
+        continue;
+      }
+
+      directRoutesByDriverId.set(route.originId.slice("driver:".length), {
+        durationSeconds: route.durationSeconds,
+        distanceMeters: route.distanceMeters
+      });
+    }
   } catch (error) {
     console.error(
-      `[Auto Dispatch Pickup Plan] Order ${order.id} held: pickup routing unavailable.`,
+      `[Auto Dispatch] Order ${order.id} held: direct driver routing unavailable.`,
       error instanceof RoutingPreviewUnavailableError
         ? error.message
         : error instanceof Error
@@ -406,17 +310,17 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
     return { dispatched: false, reason: "ROUTING_UNAVAILABLE" };
   }
 
+  if (directRoutesByDriverId.size === 0) {
+    console.warn(
+      `[Auto Dispatch] Order ${order.id} held: no driver has a route to the delivery address.`
+    );
+    return { dispatched: false, reason: "ROUTING_UNAVAILABLE" };
+  }
+
   let allocationResult: AutoDispatchAllocationResult;
   try {
     allocationResult = await prisma.$transaction<AutoDispatchAllocationResult>(
       async (tx) => {
-        await tx.$queryRaw`
-          SELECT pg_advisory_xact_lock(
-            CAST(${AUTO_DISPATCH_ALLOCATION_LOCK_NAMESPACE} AS integer),
-            CAST(${AUTO_DISPATCH_ALLOCATION_LOCK_KEY} AS integer)
-          )
-        `;
-
         if (isAutoDispatchHardDisabledByEnv()) {
           return { selected: null, reason: "AUTO_DISPATCH_DISABLED" };
         }
@@ -497,10 +401,12 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
           }
         })) as AutoDispatchDriver[];
 
-        const currentRouteableDrivers = currentDrivers.filter((driver) => {
+        const candidates = currentDrivers.flatMap((driver) => {
           const plannedRouteSource = plannedDriverRouteSources.get(driver.id);
+          const directRoute = directRoutesByDriverId.get(driver.id);
           if (
             !plannedRouteSource ||
+            !directRoute ||
             driver.latitude === null ||
             driver.longitude === null ||
             !Number.isFinite(Number(driver.latitude)) ||
@@ -509,61 +415,27 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
               driver.lastSeenAt,
               driver.locationUpdatedAt,
               allocationTime
-            )
+            ) ||
+            Number(driver.latitude) !== plannedRouteSource.latitude ||
+            Number(driver.longitude) !== plannedRouteSource.longitude ||
+            (driver.locationUpdatedAt?.getTime() ?? null) !==
+              plannedRouteSource.locationUpdatedAtMs
           ) {
-            return false;
+            return [];
           }
 
-          return (
-            Number(driver.latitude) === plannedRouteSource.latitude &&
-            Number(driver.longitude) === plannedRouteSource.longitude &&
-            (driver.locationUpdatedAt?.getTime() ?? null) ===
-              plannedRouteSource.locationUpdatedAtMs
-          );
+          return [
+            {
+              driver,
+              routeDurationSeconds: directRoute.durationSeconds,
+              routeDistanceMeters: directRoute.distanceMeters
+            }
+          ];
         });
 
-        if (currentRouteableDrivers.length === 0) {
-          return { selected: null, reason: "NO_ROUTEABLE_DRIVERS" };
-        }
-
-        const candidates = (
-          await Promise.all(
-            currentRouteableDrivers.map(async (driver) => {
-              const routePlan = selectSequentialPickupRoutePlan({
-                driverRouteNodeId: `driver:${driver.id}`,
-                customerRouteNodeId: `customer:${order.id}`,
-                requiredPickupTypes,
-                stores,
-                matrix,
-                generatedAt: allocationTime
-              });
-              const pickupStops = routePlan
-                ? orderPickupRecommendations(routePlan.pickupStops)
-                : null;
-              if (!pickupStops || !routePlan) return null;
-
-              const activeOrderCount = await tx.order.count({
-                where: {
-                  assignedDriverId: driver.id,
-                  orderStatus: { in: AUTO_DISPATCH_ACTIVE_STATUSES }
-                }
-              });
-
-              return {
-                driver,
-                activeOrderCount,
-                pickupStops,
-                routeDurationSeconds: routePlan.totalDurationSeconds
-              };
-            })
-          )
-        ).filter(
-          (candidate): candidate is AutoDispatchAllocationCandidate =>
-            candidate !== null
-        );
         const selected = selectAutoDispatchAllocationCandidate(candidates);
         if (!selected) {
-          return { selected: null, reason: "NO_COMPLETE_PICKUP_PLAN" };
+          return { selected: null, reason: "NO_ROUTEABLE_DRIVERS" };
         }
 
         const assignmentUpdate = await tx.order.updateMany({
@@ -590,49 +462,16 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
           return { selected: null, reason: "ORDER_CHANGED" };
         }
 
+        // Auto-dispatch no longer persists an item-derived pickup plan.
         await tx.orderPickupStop.deleteMany({ where: { orderId: order.id } });
-
-        for (const stop of selected.pickupStops) {
-          const store = stores.find((candidate) => candidate.id === stop.storeId);
-          if (!store) {
-            throw new Error(`Pickup location ${stop.storeId} disappeared during assignment.`);
-          }
-
-          await tx.orderPickupStop.create({
-            data: {
-              orderId: order.id,
-              pickupLocationId: stop.storeId,
-              pickupType: stop.pickupType,
-              sequence: stop.sequence,
-              plannedForDriverId: selected.driver.id,
-              selectionSource: "AUTO",
-              selectedAt: allocationTime,
-              etaSeconds: stop.etaSeconds,
-              distanceMeters: stop.distanceMeters,
-              projectedArrivalAt: new Date(stop.projectedArrivalAt),
-              hoursSource: stop.hoursSource,
-              closingDate: stop.closingDate,
-              closingTime: stop.closingTime,
-              closingBufferMinutes: stop.closingBufferMinutes,
-              storeName: store.name,
-              addressLine1: store.addressLine1,
-              city: store.city,
-              province: store.province,
-              latitude: store.latitude,
-              longitude: store.longitude
-            }
-          });
-        }
 
         return { selected, reason: "DISPATCHED" };
       }
     );
   } catch (error) {
     console.error(
-      `[Auto Dispatch Pickup Plan] Order ${order.id} held: allocation transaction unavailable.`,
-      error instanceof Error
-        ? `${error.name}: ${error.message}`
-        : typeof error
+      `[Auto Dispatch] Order ${order.id} held: allocation transaction unavailable.`,
+      error instanceof Error ? `${error.name}: ${error.message}` : typeof error
     );
     return { dispatched: false, reason: "ALLOCATION_UNAVAILABLE" };
   }
@@ -643,12 +482,8 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
 
   const selected = allocationResult.selected;
 
-  const pickupSummary = selected.pickupStops
-    .map((stop) => stop.storeName)
-    .join(" → ");
-
   console.log(
-    `[Auto Dispatch Pickup Plan] Order ${order.id} dispatched to driver ${selected.driver.id} with ${selected.pickupStops.length} persisted pickup stop(s): ${pickupSummary}.`
+    `[Auto Dispatch] Order ${order.id} dispatched to closest driver ${selected.driver.id}; direct ETA ${selected.routeDurationSeconds} second(s).`
   );
 
   return {
@@ -662,8 +497,7 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
     customerName: order.customerName,
     addressLine1: order.addressLine1,
     city: order.city,
-    pickupSummary,
-    pickupStops: selected.pickupStops,
+    pickupStops: [],
     routeDurationSeconds: selected.routeDurationSeconds,
     routeEtaMinutes: Math.max(1, Math.round(selected.routeDurationSeconds / 60))
   };

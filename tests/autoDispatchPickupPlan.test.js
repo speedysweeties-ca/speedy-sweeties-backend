@@ -1,37 +1,16 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { OrderStatus } = require("@prisma/client");
+const { DispatchSource, OrderStatus } = require("@prisma/client");
 const { prisma } = require("../dist/lib/prisma.js");
 
 process.env.GOOGLE_ROUTES_API_KEY = "auto-dispatch-test-key";
 process.env.AUTO_DISPATCH_ENABLED = "true";
 
 const {
-  AUTO_DISPATCH_ALLOCATION_LOCK_KEY,
-  AUTO_DISPATCH_ALLOCATION_LOCK_NAMESPACE,
   autoDispatchCreatedOrderWithPickupPlan,
-  orderPickupRecommendations,
   selectAutoDispatchAllocationCandidate,
   shouldNotifyAutoDispatchedDriver
 } = require("../dist/services/autoDispatchPickupPlan.service.js");
-
-const recommendation = (overrides = {}) => ({
-  pickupType: "BEER_STORE",
-  storeId: "store-a",
-  storeName: "The Beer Store - Municipal Street",
-  addressLine1: "710 Municipal Street",
-  city: "Guelph",
-  province: "ON",
-  etaMinutes: 8,
-  durationSeconds: 480,
-  distanceMeters: 4200,
-  projectedArrivalAt: "2026-09-09T00:08:00.000Z",
-  hoursSource: "CURRENT",
-  closingDate: "2026-09-08",
-  closingTime: "20:00",
-  closingBufferMinutes: 3,
-  ...overrides
-});
 
 const replaceForTest = (t, target, property, replacement) => {
   const original = target[property];
@@ -41,7 +20,7 @@ const replaceForTest = (t, target, property, replacement) => {
   });
 };
 
-const allocationDriver = (id, firstName, latitude) => {
+const allocationDriver = (id, firstName, latitude, overrides = {}) => {
   const now = new Date();
   return {
     id,
@@ -55,45 +34,34 @@ const allocationDriver = (id, firstName, latitude) => {
     latitude,
     longitude: -80.25,
     locationUpdatedAt: now,
-    createdAt: new Date("2026-01-01T00:00:00.000Z")
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    ...overrides
   };
 };
 
-const autoDispatchOrder = (id, orderNumber) => ({
+const autoDispatchOrder = (id, orderNumber, overrides = {}) => ({
   id,
   orderNumber,
   orderStatus: OrderStatus.PLACED,
   assignedDriverId: null,
+  assignedAt: null,
+  dispatchedAt: null,
+  acceptedAt: null,
+  outForDeliveryAt: null,
+  deliveredAt: null,
   customerName: "Test Customer",
   addressLine1: "10 Test Street",
   city: "Guelph",
   deliveryLatitude: 43.54,
   deliveryLongitude: -80.25,
   geocodeStatus: "VERIFIED",
-  items: [{ itemCatalog: { pickupType: "BEER_STORE" } }]
+  items: [{ itemCatalog: { pickupType: "UNKNOWN" } }],
+  ...overrides
 });
-
-const alwaysOpenStore = {
-  id: "store-1",
-  name: "Always Open Store",
-  pickupType: "BEER_STORE",
-  addressLine1: "20 Store Street",
-  city: "Guelph",
-  province: "ON",
-  latitude: 43.53,
-  longitude: -80.25,
-  googleBusinessStatus: "OPERATIONAL",
-  regularOpeningHours: {
-    periods: [{ open: { day: 0, hour: 0, minute: 0 } }]
-  },
-  currentOpeningHours: null,
-  manualHoursOverride: null
-};
 
 const routePointId = (latitude) => {
   if (latitude === 43.51) return "driver-a";
   if (latitude === 43.52) return "driver-b";
-  if (latitude === 43.53) return "store";
   if (latitude === 43.54) return "customer";
   return "unknown";
 };
@@ -138,7 +106,7 @@ const routeFetch = (durations) => async (_url, options) => {
 const cloneOrder = (order) =>
   order && {
     ...order,
-    items: order.items.map((item) => ({
+    items: order.items?.map((item) => ({
       ...item,
       itemCatalog: item.itemCatalog && { ...item.itemCatalog }
     }))
@@ -148,38 +116,26 @@ const installAllocationHarness = (t, options) => {
   const orderRows = new Map(
     options.orders.map((order) => [order.id, cloneOrder(order)])
   );
-  const stopsByOrder = new Map(options.orders.map((order) => [order.id, []]));
   const drivers = options.drivers.map((driver) => ({ ...driver }));
-  let advisoryLockTail = Promise.resolve();
-  let advisoryLockCount = 0;
-  const advisoryLockQueries = [];
-  const advisoryLockValues = [];
-  let stopCreationFailure = options.stopCreationFailure === true;
+  const rowLockTails = new Map();
+  const rawQueries = [];
   let rootOrderReadCount = 0;
+  let stopDeleteCount = 0;
+  let transactionCount = 0;
   let releaseRootOrderReads;
   const initialReadsReady = new Promise((resolve) => {
     releaseRootOrderReads = resolve;
   });
 
-  const snapshotState = () => ({
-    orders: Array.from(orderRows.entries()).map(([id, order]) => [id, cloneOrder(order)]),
-    stops: Array.from(stopsByOrder.entries()).map(([id, stops]) => [
-      id,
-      stops.map((stop) => ({ ...stop }))
-    ])
-  });
-  const restoreState = (snapshot) => {
-    orderRows.clear();
-    snapshot.orders.forEach(([id, order]) => orderRows.set(id, order));
-    stopsByOrder.clear();
-    snapshot.stops.forEach(([id, stops]) => stopsByOrder.set(id, stops));
-  };
-  const acquireAdvisoryLock = async () => {
-    const previousLock = advisoryLockTail;
+  const acquireOrderLock = async (orderId) => {
+    const previousLock = rowLockTails.get(orderId) ?? Promise.resolve();
     let releaseLock;
-    advisoryLockTail = new Promise((resolve) => {
-      releaseLock = resolve;
-    });
+    rowLockTails.set(
+      orderId,
+      new Promise((resolve) => {
+        releaseLock = resolve;
+      })
+    );
     await previousLock;
     return releaseLock;
   };
@@ -188,9 +144,6 @@ const installAllocationHarness = (t, options) => {
   replaceForTest(t, prisma.systemSetting, "findUnique", async () => ({
     value: "true"
   }));
-  replaceForTest(t, prisma.pickupLocation, "findMany", async () => [
-    { ...alwaysOpenStore }
-  ]);
   replaceForTest(t, prisma.user, "findMany", async () =>
     drivers.map((driver) => ({ ...driver }))
   );
@@ -208,35 +161,43 @@ const installAllocationHarness = (t, options) => {
     return cloneOrder(orderRows.get(where.id));
   });
   replaceForTest(t, prisma, "$transaction", async (callback) => {
+    transactionCount += 1;
+    if (options.beforeFirstTransaction && transactionCount === 1) {
+      options.beforeFirstTransaction(drivers);
+    }
+
     let releaseLock;
+    let lockedOrderId;
     let snapshot;
     const tx = {
       $queryRaw: async (queryStrings, ...queryValues) => {
         const queryText = Array.isArray(queryStrings)
-          ? queryStrings.join(" ")
+          ? queryStrings.join(" ").replace(/\s+/g, " ").trim()
           : "";
-        if (queryText.includes('FROM "Order"')) {
-          const orderId = queryValues.find(
-            (value) => typeof value === "string" && orderRows.has(value)
-          );
-          const order = orderRows.get(orderId);
-          return order
-            ? [
-                {
-                  id: order.id,
-                  orderStatus: order.orderStatus,
-                  assignedDriverId: order.assignedDriverId
-                }
-              ]
-            : [];
-        }
+        rawQueries.push(queryText);
+        const orderId = queryValues.find(
+          (value) => typeof value === "string" && orderRows.has(value)
+        );
+        if (!orderId) return [];
 
-        releaseLock = await acquireAdvisoryLock();
-        advisoryLockCount += 1;
-        advisoryLockQueries.push(queryText.replace(/\s+/g, " ").trim());
-        advisoryLockValues.push(queryValues);
-        snapshot = snapshotState();
-        return [];
+        releaseLock = await acquireOrderLock(orderId);
+        lockedOrderId = orderId;
+        snapshot = cloneOrder(orderRows.get(orderId));
+        const order = orderRows.get(orderId);
+        return order
+          ? [
+              {
+                id: order.id,
+                orderStatus: order.orderStatus,
+                assignedDriverId: order.assignedDriverId,
+                assignedAt: order.assignedAt,
+                dispatchedAt: order.dispatchedAt,
+                acceptedAt: order.acceptedAt,
+                outForDeliveryAt: order.outForDeliveryAt,
+                deliveredAt: order.deliveredAt
+              }
+            ]
+          : [];
       },
       systemSetting: {
         findUnique: async () => ({ value: "true" })
@@ -245,12 +206,6 @@ const installAllocationHarness = (t, options) => {
         findMany: async () => drivers.map((driver) => ({ ...driver }))
       },
       order: {
-        count: async ({ where }) =>
-          Array.from(orderRows.values()).filter(
-            (order) =>
-              order.assignedDriverId === where.assignedDriverId &&
-              where.orderStatus.in.includes(order.orderStatus)
-          ).length,
         updateMany: async ({ where, data }) => {
           const order = orderRows.get(where.id);
           if (
@@ -266,16 +221,12 @@ const installAllocationHarness = (t, options) => {
         }
       },
       orderPickupStop: {
-        deleteMany: async ({ where }) => {
-          stopsByOrder.set(where.orderId, []);
-          return { count: 1 };
-        },
-        create: async ({ data }) => {
-          if (stopCreationFailure) {
-            throw new Error("simulated pickup-stop persistence failure");
+        deleteMany: async () => {
+          if (options.stopDeletionFailure) {
+            throw new Error("simulated pickup-stop deletion failure");
           }
-          stopsByOrder.get(data.orderId).push({ ...data });
-          return { id: `stop-${data.sequence}` };
+          stopDeleteCount += 1;
+          return { count: 0 };
         }
       }
     };
@@ -283,7 +234,9 @@ const installAllocationHarness = (t, options) => {
     try {
       return await callback(tx);
     } catch (error) {
-      if (snapshot) restoreState(snapshot);
+      if (lockedOrderId && snapshot) {
+        orderRows.set(lockedOrderId, snapshot);
+      }
       throw error;
     } finally {
       if (releaseLock) releaseLock();
@@ -291,121 +244,90 @@ const installAllocationHarness = (t, options) => {
   });
 
   return {
+    drivers,
     orderRows,
-    stopsByOrder,
-    getAdvisoryLockCount: () => advisoryLockCount,
-    getAdvisoryLockQueries: () => advisoryLockQueries,
-    getAdvisoryLockValues: () => advisoryLockValues,
-    setStopCreationFailure: (value) => {
-      stopCreationFailure = value;
-    }
+    getRawQueries: () => rawQueries,
+    getStopDeleteCount: () => stopDeleteCount
   };
 };
 
-const singleStopRouteDurations = (driverADuration = 60, driverBDuration = 60) => ({
-  "driver-a->store": driverADuration,
-  "driver-b->store": driverBDuration,
-  "store->customer": 120
+const directRouteDurations = (driverADuration = 60, driverBDuration = 120) => ({
+  "driver-a->customer": driverADuration,
+  "driver-b->customer": driverBDuration
 });
 
-test("an incomplete recommendation set cannot become an auto-dispatch pickup plan", () => {
-  const result = orderPickupRecommendations([
-    recommendation(),
-    { pickupType: "LCBO", unavailable: true }
-  ]);
-
-  assert.equal(result, null);
-});
-
-test("persisted pickup stops retain the selected travel sequence", () => {
-  const result = orderPickupRecommendations([
-    recommendation({
-      pickupType: "LCBO",
-      storeId: "lcbo-a",
-      storeName: "LCBO - Scottsdale Drive",
-      durationSeconds: 720,
-      etaMinutes: 12
-    }),
-    recommendation({
-      pickupType: "BEER_STORE",
-      storeId: "beer-a",
-      storeName: "The Beer Store - Municipal Street",
-      durationSeconds: 300,
-      etaMinutes: 5
-    })
-  ]);
-
-  assert.ok(result);
-  assert.equal(result.length, 2);
-  assert.equal(result[0].pickupType, "LCBO");
-  assert.equal(result[0].sequence, 1);
-  assert.equal(result[1].pickupType, "BEER_STORE");
-  assert.equal(result[1].sequence, 2);
-});
-
-test("persisted pickup stops preserve the three-minute closing safety data", () => {
-  const result = orderPickupRecommendations([recommendation()]);
-
-  assert.ok(result);
-  assert.equal(result[0].closingBufferMinutes, 3);
-  assert.equal(result[0].closingTime, "20:00");
-  assert.equal(result[0].hoursSource, "CURRENT");
-  assert.equal(result[0].storeName, "The Beer Store - Municipal Street");
-});
-
-test("automatic allocation prioritizes workload, then complete route duration, then driver identity", () => {
+test("automatic allocation chooses shortest direct travel time, then distance and identity", () => {
   const alpha = allocationDriver("driver-alpha", "Alpha", 43.51);
   const bravo = allocationDriver("driver-bravo", "Bravo", 43.52);
-  const candidate = (driver, activeOrderCount, routeDurationSeconds) => ({
+  const candidate = (driver, routeDurationSeconds, routeDistanceMeters) => ({
     driver,
-    activeOrderCount,
     routeDurationSeconds,
-    pickupStops: []
+    routeDistanceMeters
   });
 
   assert.equal(
     selectAutoDispatchAllocationCandidate([
-      candidate(alpha, 1, 60),
-      candidate(bravo, 0, 600)
+      candidate(alpha, 600, 100),
+      candidate(bravo, 60, 10000)
     ]).driver.id,
     "driver-bravo"
   );
   assert.equal(
     selectAutoDispatchAllocationCandidate([
-      candidate(alpha, 0, 600),
-      candidate(bravo, 0, 60)
+      candidate(alpha, 60, 5000),
+      candidate(bravo, 60, 1000)
     ]).driver.id,
     "driver-bravo"
   );
   assert.equal(
     selectAutoDispatchAllocationCandidate([
-      candidate(bravo, 0, 60),
-      candidate(alpha, 0, 60)
+      candidate(bravo, 60, 1000),
+      candidate(alpha, 60, 1000)
     ]).driver.id,
     "driver-alpha"
   );
-
-  const sameNameA = allocationDriver("driver-z", "Same", 43.51);
-  const sameNameB = allocationDriver("driver-a", "Same", 43.52);
-  sameNameA.email = "same@example.com";
-  sameNameB.email = "same@example.com";
-  assert.equal(
-    selectAutoDispatchAllocationCandidate([
-      candidate(sameNameA, 0, 60),
-      candidate(sameNameB, 0, 60)
-    ]).driver.id,
-    "driver-a"
-  );
 });
 
-test("concurrent auto-dispatches re-read workload after the first committed assignment", async (t) => {
+test("unknown items do not block dispatch to the closest driver", async (t) => {
+  const order = autoDispatchOrder("order-a", 101, {
+    items: [
+      { itemCatalog: null },
+      { itemCatalog: { pickupType: "UNKNOWN" } }
+    ]
+  });
+  const harness = installAllocationHarness(t, {
+    orders: [order],
+    drivers: [
+      allocationDriver("driver-a", "Alpha", 43.51),
+      allocationDriver("driver-b", "Bravo", 43.52)
+    ],
+    routeDurations: directRouteDurations(600, 60)
+  });
+
+  const result = await autoDispatchCreatedOrderWithPickupPlan("order-a");
+  const assignedOrder = harness.orderRows.get("order-a");
+
+  assert.equal(result.dispatched, true);
+  assert.equal(result.driverId, "driver-b");
+  assert.equal(result.routeDurationSeconds, 60);
+  assert.deepEqual(result.pickupStops, []);
+  assert.equal(assignedOrder.assignedDriverId, "driver-b");
+  assert.equal(assignedOrder.orderStatus, OrderStatus.DISPATCHED);
+  assert.equal(assignedOrder.dispatchSource, DispatchSource.AUTO);
+  assert.equal(harness.getStopDeleteCount(), 1);
+  assert.equal(harness.getRawQueries().length, 1);
+  assert.equal(harness.getRawQueries()[0].includes("pg_advisory"), false);
+  assert.equal(shouldNotifyAutoDispatchedDriver(result), true);
+});
+
+test("concurrent orders can both go to the same closest driver", async (t) => {
   const harness = installAllocationHarness(t, {
     orders: [autoDispatchOrder("order-a", 101), autoDispatchOrder("order-b", 102)],
     drivers: [
       allocationDriver("driver-a", "Alpha", 43.51),
       allocationDriver("driver-b", "Bravo", 43.52)
     ],
-    routeDurations: singleStopRouteDurations(),
+    routeDurations: directRouteDurations(600, 60),
     waitForInitialOrderReads: 2
   });
 
@@ -413,58 +335,22 @@ test("concurrent auto-dispatches re-read workload after the first committed assi
     autoDispatchCreatedOrderWithPickupPlan("order-a"),
     autoDispatchCreatedOrderWithPickupPlan("order-b")
   ]);
-  const assignedDriverIds = [
-    harness.orderRows.get("order-a").assignedDriverId,
-    harness.orderRows.get("order-b").assignedDriverId
-  ].sort();
 
   assert.equal(results.every((result) => result.dispatched), true);
-  assert.deepEqual(assignedDriverIds, ["driver-a", "driver-b"]);
-  assert.equal(harness.stopsByOrder.get("order-a").length, 1);
-  assert.equal(harness.stopsByOrder.get("order-b").length, 1);
-  assert.equal(harness.getAdvisoryLockCount(), 2);
-  assert.deepEqual(harness.getAdvisoryLockValues(), [
-    [AUTO_DISPATCH_ALLOCATION_LOCK_NAMESPACE, AUTO_DISPATCH_ALLOCATION_LOCK_KEY],
-    [AUTO_DISPATCH_ALLOCATION_LOCK_NAMESPACE, AUTO_DISPATCH_ALLOCATION_LOCK_KEY]
-  ]);
-  assert.deepEqual(harness.getAdvisoryLockQueries(), [
-    "SELECT pg_advisory_xact_lock( CAST( AS integer), CAST( AS integer) )",
-    "SELECT pg_advisory_xact_lock( CAST( AS integer), CAST( AS integer) )"
-  ]);
+  assert.equal(harness.orderRows.get("order-a").assignedDriverId, "driver-b");
+  assert.equal(harness.orderRows.get("order-b").assignedDriverId, "driver-b");
+  assert.equal(harness.getRawQueries().length, 2);
   assert.equal(
-    results.filter(shouldNotifyAutoDispatchedDriver).length,
-    2
+    harness.getRawQueries().every((query) => !query.includes("pg_advisory")),
+    true
   );
 });
 
-test("a sole eligible driver can receive concurrent automatic assignments", async (t) => {
-  const harness = installAllocationHarness(t, {
-    orders: [autoDispatchOrder("order-a", 101), autoDispatchOrder("order-b", 102)],
-    drivers: [allocationDriver("driver-a", "Alpha", 43.51)],
-    routeDurations: singleStopRouteDurations(),
-    waitForInitialOrderReads: 2
-  });
-
-  const results = await Promise.all([
-    autoDispatchCreatedOrderWithPickupPlan("order-a"),
-    autoDispatchCreatedOrderWithPickupPlan("order-b")
-  ]);
-
-  assert.equal(results.every((result) => result.dispatched), true);
-  assert.equal(harness.orderRows.get("order-a").assignedDriverId, "driver-a");
-  assert.equal(harness.orderRows.get("order-b").assignedDriverId, "driver-a");
-  assert.equal(harness.stopsByOrder.get("order-a").length, 1);
-  assert.equal(harness.stopsByOrder.get("order-b").length, 1);
-});
-
-test("concurrent attempts for one order commit once and schedule one driver notification", async (t) => {
+test("concurrent attempts for one order commit once and notify once", async (t) => {
   const harness = installAllocationHarness(t, {
     orders: [autoDispatchOrder("order-a", 101)],
-    drivers: [
-      allocationDriver("driver-a", "Alpha", 43.51),
-      allocationDriver("driver-b", "Bravo", 43.52)
-    ],
-    routeDurations: singleStopRouteDurations(),
+    drivers: [allocationDriver("driver-a", "Alpha", 43.51)],
+    routeDurations: directRouteDurations(),
     waitForInitialOrderReads: 2
   });
 
@@ -472,39 +358,86 @@ test("concurrent attempts for one order commit once and schedule one driver noti
     autoDispatchCreatedOrderWithPickupPlan("order-a"),
     autoDispatchCreatedOrderWithPickupPlan("order-a")
   ]);
-  const successfulResults = results.filter((result) => result.dispatched);
 
-  assert.equal(successfulResults.length, 1);
-  assert.equal(harness.orderRows.get("order-a").orderStatus, OrderStatus.DISPATCHED);
-  assert.equal(harness.orderRows.get("order-a").assignedDriverId, "driver-a");
-  assert.equal(harness.stopsByOrder.get("order-a").length, 1);
+  assert.equal(results.filter((result) => result.dispatched).length, 1);
   assert.equal(
     results.filter(shouldNotifyAutoDispatchedDriver).length,
     1
   );
+  assert.equal(harness.orderRows.get("order-a").assignedDriverId, "driver-a");
+  assert.equal(harness.orderRows.get("order-a").orderStatus, OrderStatus.DISPATCHED);
 });
 
-test("a rolled-back allocation leaves no assignment or stops and releases the advisory lock", async (t) => {
+test("stale driver presence and GPS are excluded", async (t) => {
+  const staleAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  const harness = installAllocationHarness(t, {
+    orders: [autoDispatchOrder("order-a", 101)],
+    drivers: [
+      allocationDriver("driver-a", "Alpha", 43.51, {
+        lastSeenAt: staleAt,
+        locationUpdatedAt: staleAt
+      }),
+      allocationDriver("driver-b", "Bravo", 43.52)
+    ],
+    routeDurations: directRouteDurations(30, 300)
+  });
+
+  const result = await autoDispatchCreatedOrderWithPickupPlan("order-a");
+
+  assert.equal(result.dispatched, true);
+  assert.equal(result.driverId, "driver-b");
+  assert.equal(harness.orderRows.get("order-a").assignedDriverId, "driver-b");
+});
+
+test("a driver whose GPS changes after routing is not assigned from a stale route", async (t) => {
+  const harness = installAllocationHarness(t, {
+    orders: [autoDispatchOrder("order-a", 101)],
+    drivers: [
+      allocationDriver("driver-a", "Alpha", 43.51),
+      allocationDriver("driver-b", "Bravo", 43.52)
+    ],
+    routeDurations: directRouteDurations(30, 300),
+    beforeFirstTransaction: (drivers) => {
+      drivers[0].latitude = 43.515;
+      drivers[0].locationUpdatedAt = new Date(
+        drivers[0].locationUpdatedAt.getTime() + 1000
+      );
+    }
+  });
+
+  const result = await autoDispatchCreatedOrderWithPickupPlan("order-a");
+
+  assert.equal(result.dispatched, true);
+  assert.equal(result.driverId, "driver-b");
+  assert.equal(harness.orderRows.get("order-a").assignedDriverId, "driver-b");
+});
+
+test("an unavailable direct route leaves the order unassigned", async (t) => {
   const harness = installAllocationHarness(t, {
     orders: [autoDispatchOrder("order-a", 101)],
     drivers: [allocationDriver("driver-a", "Alpha", 43.51)],
-    routeDurations: singleStopRouteDurations(),
-    stopCreationFailure: true
+    routeDurations: {}
   });
 
-  const failedResult = await autoDispatchCreatedOrderWithPickupPlan("order-a");
+  const result = await autoDispatchCreatedOrderWithPickupPlan("order-a");
 
-  assert.equal(failedResult.dispatched, false);
-  assert.equal(failedResult.reason, "ALLOCATION_UNAVAILABLE");
-  assert.equal(harness.orderRows.get("order-a").orderStatus, OrderStatus.PLACED);
+  assert.equal(result.dispatched, false);
+  assert.equal(result.reason, "ROUTING_UNAVAILABLE");
   assert.equal(harness.orderRows.get("order-a").assignedDriverId, null);
-  assert.equal(harness.stopsByOrder.get("order-a").length, 0);
+});
 
-  harness.setStopCreationFailure(false);
-  const retryResult = await autoDispatchCreatedOrderWithPickupPlan("order-a");
+test("a transaction failure rolls back the assignment", async (t) => {
+  const harness = installAllocationHarness(t, {
+    orders: [autoDispatchOrder("order-a", 101)],
+    drivers: [allocationDriver("driver-a", "Alpha", 43.51)],
+    routeDurations: directRouteDurations(),
+    stopDeletionFailure: true
+  });
 
-  assert.equal(retryResult.dispatched, true);
-  assert.equal(harness.orderRows.get("order-a").assignedDriverId, "driver-a");
-  assert.equal(harness.stopsByOrder.get("order-a").length, 1);
-  assert.equal(harness.getAdvisoryLockCount(), 2);
+  const result = await autoDispatchCreatedOrderWithPickupPlan("order-a");
+
+  assert.equal(result.dispatched, false);
+  assert.equal(result.reason, "ALLOCATION_UNAVAILABLE");
+  assert.equal(harness.orderRows.get("order-a").assignedDriverId, null);
+  assert.equal(harness.orderRows.get("order-a").orderStatus, OrderStatus.PLACED);
 });
