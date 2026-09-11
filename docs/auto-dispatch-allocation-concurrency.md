@@ -1,74 +1,45 @@
-# Auto-Dispatch Allocation Concurrency
+# Auto-Dispatch: Closest Online Driver
 
-## Entry point and previous boundary
+## Current rule
 
-`src/controllers/order.controller.ts` calls
-`autoDispatchCreatedOrderWithPickupPlan(orderId)` after the order-creation
-transaction has committed. The planner reads the order, pickup locations, and
-eligible drivers, then calls Google Routes before starting its assignment
-transaction.
+After a new order commits, `src/controllers/order.controller.ts` calls
+`autoDispatchCreatedOrderWithPickupPlan(orderId)`. The legacy function name is
+retained for compatibility, but automatic assignment no longer reads item
+pickup types, pickup locations, store hours, driver workloads, or pickup-stop
+plans.
 
-Before the allocation lock, driver workload counts were also read before that
-transaction. The transaction protected only the target order with an
-`updateMany` compare-and-set on `id`, `PLACED`, and an unassigned driver. Two
-different orders could therefore calculate the same old driver workload and
-each commit an assignment to the same driver. The compare-and-set prevented
-duplicate assignment of one order, but did not coordinate driver allocation
-between orders.
+When Auto Dispatch is enabled, the service:
 
-Manual assignment is a separate path in
-`src/controllers/orderAssignment.controller.ts` and is unchanged by this work.
+1. Requires the order to be `PLACED`, unassigned, and stored with verified
+   delivery coordinates.
+2. Loads active, dispatch-visible drivers who are marked online.
+3. Excludes drivers whose heartbeat or GPS is more than one hour old.
+4. Requests one traffic-aware Google Routes matrix from every eligible
+   driver's current location directly to the customer's delivery address.
+5. Selects the shortest drive time. Distance and stable driver identity are
+   used only to break equal-time ties.
+6. Rechecks the setting, order, driver presence, and unchanged GPS coordinates
+   inside the assignment transaction.
+7. Transitions the order from `PLACED` to `DISPATCHED` with
+   `dispatchSource = AUTO` and clears any stale assigned pickup stops.
 
-## Current allocation protocol
+Item catalog classifications—including `UNKNOWN`—cannot prevent assignment.
+The driver apps continue to receive the order's item list and existing routing
+response shape. Opening the order remains the driver's `DISPATCHED` to
+`ACCEPTED` action.
 
-The planner calculates the Number 2 traffic-aware route matrix before opening
-the protected transaction. The route remains `driver -> ordered pickup stores
--> customer`; no Google call occurs while an allocation lock is held.
+## Concurrency
 
-Inside `prisma.$transaction`, the planner runs:
+The transaction locks only the target order with `SELECT ... FOR UPDATE` and
+then uses an `updateMany` compare-and-set requiring `PLACED` and no assigned
+driver. Concurrent attempts for the same order therefore commit one assignment
+and schedule one notification.
 
-```sql
-SELECT pg_advisory_xact_lock(
-  CAST(20260909 AS integer),
-  CAST(4 AS integer)
-)
-```
+There is intentionally no global advisory lock. Different orders may be
+assigned concurrently to the same closest driver because workload balancing is
+not part of the current rule.
 
-This fixed PostgreSQL transaction-scoped advisory lock serializes only the
-brief auto-dispatch allocation and persistence phase across every Node process
-using the same database. PostgreSQL releases it automatically on commit,
-rollback, or connection loss. This is database coordination rather than a
-process-local JavaScript mutex. The explicit casts are required because Prisma
-binds interpolated JavaScript integers as PostgreSQL `bigint`, while the
-two-key advisory-lock overload accepts two `integer` arguments.
+## Deferred behavior
 
-After acquiring the lock, the transaction:
-
-1. Rechecks the auto-dispatch setting.
-2. Locks and verifies the target order is still `PLACED` and unassigned.
-3. Re-reads active, visible, online drivers and applies the unchanged one-hour
-   last-seen and location freshness checks.
-4. Accepts only drivers whose coordinates still match the precomputed
-   traffic-aware route matrix, avoiding a fabricated route after a location
-   change.
-5. Recalculates active-order workloads and regenerates Number 2 sequential
-   pickup plans using the current allocation time for projected arrivals.
-6. Selects lowest workload first, shortest complete route second, and
-   name/email/ID ordering as the deterministic final tie-breaker.
-7. Reapplies the existing `updateMany` compare-and-set, then deletes and
-   creates the selected ordered pickup stops within the same transaction.
-
-Any error rolls back the assignment and stop writes. A transaction failure is
-reported as allocation unavailable, leaving the order `PLACED` and unassigned
-for retry or manual dispatch.
-
-## Notifications and schema
-
-The order controller sends a driver push only after the planner returns a
-committed `dispatched: true` result. A losing or rolled-back allocation returns
-`dispatched: false`, so it cannot schedule an extra notification. The
-transactional stop writes and existing `(orderId, pickupType)` uniqueness rule
-prevent committed duplicate pickup-stop sets.
-
-No Prisma schema change is required: PostgreSQL advisory locks provide the
-cross-process allocation mechanism without persisted lock rows.
+City geofencing and multi-driver territory rules are deferred. They can be
+added later without restoring item-based assignment blocking.
