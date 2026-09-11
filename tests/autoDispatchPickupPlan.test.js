@@ -152,6 +152,7 @@ const installAllocationHarness = (t, options) => {
   const drivers = options.drivers.map((driver) => ({ ...driver }));
   let advisoryLockTail = Promise.resolve();
   let advisoryLockCount = 0;
+  const advisoryLockQueries = [];
   const advisoryLockValues = [];
   let stopCreationFailure = options.stopCreationFailure === true;
   let rootOrderReadCount = 0;
@@ -232,7 +233,8 @@ const installAllocationHarness = (t, options) => {
 
         releaseLock = await acquireAdvisoryLock();
         advisoryLockCount += 1;
-  advisoryLockValues.push(queryValues);
+        advisoryLockQueries.push(queryText.replace(/\s+/g, " ").trim());
+        advisoryLockValues.push(queryValues);
         snapshot = snapshotState();
         return [];
       },
@@ -292,6 +294,7 @@ const installAllocationHarness = (t, options) => {
     orderRows,
     stopsByOrder,
     getAdvisoryLockCount: () => advisoryLockCount,
+    getAdvisoryLockQueries: () => advisoryLockQueries,
     getAdvisoryLockValues: () => advisoryLockValues,
     setStopCreationFailure: (value) => {
       stopCreationFailure = value;
@@ -423,6 +426,10 @@ test("concurrent auto-dispatches re-read workload after the first committed assi
   assert.deepEqual(harness.getAdvisoryLockValues(), [
     [AUTO_DISPATCH_ALLOCATION_LOCK_NAMESPACE, AUTO_DISPATCH_ALLOCATION_LOCK_KEY],
     [AUTO_DISPATCH_ALLOCATION_LOCK_NAMESPACE, AUTO_DISPATCH_ALLOCATION_LOCK_KEY]
+  ]);
+  assert.deepEqual(harness.getAdvisoryLockQueries(), [
+    "SELECT pg_advisory_xact_lock( CAST( AS integer), CAST( AS integer) )",
+    "SELECT pg_advisory_xact_lock( CAST( AS integer), CAST( AS integer) )"
   ]);
   assert.equal(
     results.filter(shouldNotifyAutoDispatchedDriver).length,
