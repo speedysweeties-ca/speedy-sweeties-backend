@@ -28,14 +28,19 @@ the protected transaction. The route remains `driver -> ordered pickup stores
 Inside `prisma.$transaction`, the planner runs:
 
 ```sql
-SELECT pg_advisory_xact_lock(20260909, 4)
+SELECT pg_advisory_xact_lock(
+  CAST(20260909 AS integer),
+  CAST(4 AS integer)
+)
 ```
 
 This fixed PostgreSQL transaction-scoped advisory lock serializes only the
 brief auto-dispatch allocation and persistence phase across every Node process
 using the same database. PostgreSQL releases it automatically on commit,
 rollback, or connection loss. This is database coordination rather than a
-process-local JavaScript mutex.
+process-local JavaScript mutex. The explicit casts are required because Prisma
+binds interpolated JavaScript integers as PostgreSQL `bigint`, while the
+two-key advisory-lock overload accepts two `integer` arguments.
 
 After acquiring the lock, the transaction:
 

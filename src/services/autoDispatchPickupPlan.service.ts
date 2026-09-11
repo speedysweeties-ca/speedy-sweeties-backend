@@ -412,8 +412,8 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
       async (tx) => {
         await tx.$queryRaw`
           SELECT pg_advisory_xact_lock(
-            ${AUTO_DISPATCH_ALLOCATION_LOCK_NAMESPACE},
-            ${AUTO_DISPATCH_ALLOCATION_LOCK_KEY}
+            CAST(${AUTO_DISPATCH_ALLOCATION_LOCK_NAMESPACE} AS integer),
+            CAST(${AUTO_DISPATCH_ALLOCATION_LOCK_KEY} AS integer)
           )
         `;
 
@@ -630,7 +630,9 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
   } catch (error) {
     console.error(
       `[Auto Dispatch Pickup Plan] Order ${order.id} held: allocation transaction unavailable.`,
-      error instanceof Error ? error.name : typeof error
+      error instanceof Error
+        ? `${error.name}: ${error.message}`
+        : typeof error
     );
     return { dispatched: false, reason: "ALLOCATION_UNAVAILABLE" };
   }
