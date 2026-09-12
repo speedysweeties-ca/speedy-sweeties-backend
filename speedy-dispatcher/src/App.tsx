@@ -25,6 +25,11 @@ import {
   type DispatcherPerformanceData,
 } from "./DispatcherPerformance";
 import {
+  buildDispatcherPerformanceRequestBody,
+  toggleDispatcherPerformanceFilter,
+  type DispatcherPerformanceSourceGroup,
+} from "./dispatcherPerformanceFilters";
+import {
   CATALOG_PICKUP_TYPE_OPTIONS,
   PICKUP_LOCATION_TYPE_OPTIONS,
   isPickupLocationType,
@@ -792,6 +797,8 @@ function App() {
   const [dispatcherPerformanceEndDate, setDispatcherPerformanceEndDate] =
     useState(defaultDispatcherPerformanceEndDate);
   const [dispatcherPerformanceIds, setDispatcherPerformanceIds] = useState<string[]>([]);
+  const [dispatcherPerformanceSourceGroups, setDispatcherPerformanceSourceGroups] =
+    useState<DispatcherPerformanceSourceGroup[]>([]);
 
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("LIVE_ORDERS");
@@ -826,6 +833,10 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   const hasCompletedInitialLoadRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const manualEntryStartedAtRef = useRef<Date | null>(null);
+  const dispatcherPerformanceRequestIdRef = useRef(0);
+  const dispatcherPerformanceIdsRef = useRef<string[]>([]);
+  const dispatcherPerformanceSourceGroupsRef =
+    useRef<DispatcherPerformanceSourceGroup[]>([]);
 
   const manualFormIsDirty = useMemo(() => {
     return JSON.stringify(manualOrderForm) !== JSON.stringify(initialManualOrderForm);
@@ -2863,31 +2874,39 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       startDate: string;
       endDate: string;
       dispatcherIds?: string[];
+      sourceGroups?: DispatcherPerformanceSourceGroup[];
     }
   ) => {
+    const requestId = ++dispatcherPerformanceRequestIdRef.current;
+
     try {
       if (showLoader) {
         setDispatcherPerformanceLoading(true);
       }
 
-      const params = new URLSearchParams({
+      const requestBody = buildDispatcherPerformanceRequestBody({
         startDate: filters?.startDate ?? dispatcherPerformanceStartDate,
         endDate: filters?.endDate ?? dispatcherPerformanceEndDate,
+        dispatcherIds:
+          filters?.dispatcherIds ?? dispatcherPerformanceIdsRef.current,
+        sourceGroups:
+          filters?.sourceGroups ?? dispatcherPerformanceSourceGroupsRef.current,
       });
-      const selectedIds = filters?.dispatcherIds ?? dispatcherPerformanceIds;
-      if (selectedIds.length > 0) {
-        params.set("dispatcherIds", selectedIds.join(","));
-      }
 
       const response = await fetch(
-        `${API_V1_BASE_URL}/orders/dispatcher-performance?${params.toString()}`,
+        `${API_V1_BASE_URL}/orders/dispatcher-performance`,
         {
+          method: "POST",
           headers: {
             Authorization: `Bearer ${authToken}`,
+            "Content-Type": "application/json",
           },
+          body: JSON.stringify(requestBody),
         }
       );
       const data = await response.json();
+
+      if (requestId !== dispatcherPerformanceRequestIdRef.current) return;
 
       if (response.ok) {
         setDispatcherPerformance(data);
@@ -2895,29 +2914,101 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         alert(getApiErrorMessage(data, "Failed to load dispatcher performance"));
       }
     } catch (error) {
+      if (requestId !== dispatcherPerformanceRequestIdRef.current) return;
       console.error(error);
       alert("Server error while loading dispatcher performance");
     } finally {
-      if (showLoader) {
+      if (
+        showLoader &&
+        requestId === dispatcherPerformanceRequestIdRef.current
+      ) {
         setDispatcherPerformanceLoading(false);
       }
     }
   };
 
   const toggleDispatcherPerformanceId = (dispatcherId: string) => {
-    setDispatcherPerformanceIds((current) =>
-      current.includes(dispatcherId)
-        ? current.filter((id) => id !== dispatcherId)
-        : [...current, dispatcherId]
+    const dispatcherIds = toggleDispatcherPerformanceFilter(
+      dispatcherPerformanceIdsRef.current,
+      dispatcherId
     );
+    dispatcherPerformanceIdsRef.current = dispatcherIds;
+    setDispatcherPerformanceIds(dispatcherIds);
+
+    if (token) {
+      void fetchDispatcherPerformance(token, true, {
+        startDate: dispatcherPerformanceStartDate,
+        endDate: dispatcherPerformanceEndDate,
+        dispatcherIds,
+        sourceGroups: dispatcherPerformanceSourceGroupsRef.current,
+      });
+    }
   };
 
   const selectAllDispatcherPerformanceIds = () => {
-    setDispatcherPerformanceIds(
+    const dispatcherIds =
       dispatcherPerformance?.dispatchers.map(
         (dispatcher) => dispatcher.dispatcherId
-      ) ?? []
+      ) ?? [];
+    dispatcherPerformanceIdsRef.current = dispatcherIds;
+    setDispatcherPerformanceIds(dispatcherIds);
+
+    if (token) {
+      void fetchDispatcherPerformance(token, true, {
+        startDate: dispatcherPerformanceStartDate,
+        endDate: dispatcherPerformanceEndDate,
+        dispatcherIds,
+        sourceGroups: dispatcherPerformanceSourceGroupsRef.current,
+      });
+    }
+  };
+
+  const clearDispatcherPerformanceIds = () => {
+    dispatcherPerformanceIdsRef.current = [];
+    setDispatcherPerformanceIds([]);
+
+    if (token) {
+      void fetchDispatcherPerformance(token, true, {
+        startDate: dispatcherPerformanceStartDate,
+        endDate: dispatcherPerformanceEndDate,
+        dispatcherIds: [],
+        sourceGroups: dispatcherPerformanceSourceGroupsRef.current,
+      });
+    }
+  };
+
+  const toggleDispatcherPerformanceSourceGroup = (
+    sourceGroup: DispatcherPerformanceSourceGroup
+  ) => {
+    const sourceGroups = toggleDispatcherPerformanceFilter(
+      dispatcherPerformanceSourceGroupsRef.current,
+      sourceGroup
     );
+    dispatcherPerformanceSourceGroupsRef.current = sourceGroups;
+    setDispatcherPerformanceSourceGroups(sourceGroups);
+
+    if (token) {
+      void fetchDispatcherPerformance(token, true, {
+        startDate: dispatcherPerformanceStartDate,
+        endDate: dispatcherPerformanceEndDate,
+        dispatcherIds: dispatcherPerformanceIdsRef.current,
+        sourceGroups,
+      });
+    }
+  };
+
+  const clearDispatcherPerformanceSourceGroups = () => {
+    dispatcherPerformanceSourceGroupsRef.current = [];
+    setDispatcherPerformanceSourceGroups([]);
+
+    if (token) {
+      void fetchDispatcherPerformance(token, true, {
+        startDate: dispatcherPerformanceStartDate,
+        endDate: dispatcherPerformanceEndDate,
+        dispatcherIds: dispatcherPerformanceIdsRef.current,
+        sourceGroups: [],
+      });
+    }
   };
 
   const applyDispatcherPerformanceDatePreset = (days: number) => {
@@ -2930,7 +3021,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       void fetchDispatcherPerformance(token, true, {
         startDate,
         endDate,
-        dispatcherIds: dispatcherPerformanceIds,
+        dispatcherIds: dispatcherPerformanceIdsRef.current,
+        sourceGroups: dispatcherPerformanceSourceGroupsRef.current,
       });
     }
   };
@@ -3179,6 +3271,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setDeliveredOrders([]);
     setDriverStats([]);
     setDispatcherPerformance(null);
+    setDispatcherPerformanceLoading(false);
     setDrivers([]);
     setManagedDrivers([]);
     setDriverSelections({});
@@ -3189,6 +3282,10 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setStatsStartDate("");
     setStatsEndDate("");
     setDispatcherPerformanceIds([]);
+    setDispatcherPerformanceSourceGroups([]);
+    dispatcherPerformanceIdsRef.current = [];
+    dispatcherPerformanceSourceGroupsRef.current = [];
+    dispatcherPerformanceRequestIdRef.current += 1;
     setDispatcherPerformanceStartDate(defaultDispatcherPerformanceStartDate);
     setDispatcherPerformanceEndDate(defaultDispatcherPerformanceEndDate);
     setShowDriverPanel(false);
@@ -7814,11 +7911,14 @@ const handleSaveEditedOrder = async (orderId: string) => {
             startDate={dispatcherPerformanceStartDate}
             endDate={dispatcherPerformanceEndDate}
             selectedDispatcherIds={dispatcherPerformanceIds}
+            selectedSourceGroups={dispatcherPerformanceSourceGroups}
             onStartDateChange={setDispatcherPerformanceStartDate}
             onEndDateChange={setDispatcherPerformanceEndDate}
             onToggleDispatcher={toggleDispatcherPerformanceId}
             onSelectAllDispatchers={selectAllDispatcherPerformanceIds}
-            onClearDispatchers={() => setDispatcherPerformanceIds([])}
+            onClearDispatchers={clearDispatcherPerformanceIds}
+            onToggleSourceGroup={toggleDispatcherPerformanceSourceGroup}
+            onClearSourceGroups={clearDispatcherPerformanceSourceGroups}
             onPresetDays={applyDispatcherPerformanceDatePreset}
             onRefresh={() => token && void fetchDispatcherPerformance(token, true)}
           />

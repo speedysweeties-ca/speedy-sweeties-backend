@@ -62,7 +62,7 @@ type DispatcherAccumulator = {
   unassignments: number;
 };
 
-const SOURCE_GROUPS: DispatcherPerformanceSourceGroup[] = [
+export const DISPATCHER_PERFORMANCE_SOURCE_GROUPS: DispatcherPerformanceSourceGroup[] = [
   "APP",
   "ONLINE",
   "MANUAL",
@@ -149,7 +149,7 @@ const displayName = (dispatcher: DispatcherPerformanceUser): string => {
 };
 
 const buildSourceBreakdown = (orders: DispatcherPerformanceOrder[]) => {
-  return SOURCE_GROUPS.map((sourceGroup) => ({
+  return DISPATCHER_PERFORMANCE_SOURCE_GROUPS.map((sourceGroup) => ({
     sourceGroup,
     ...buildDurationBreakdown(
       orders.filter(
@@ -207,8 +207,26 @@ export const buildDispatcherPerformance = (input: {
   orders: DispatcherPerformanceOrder[];
   events: DispatcherPerformanceEvent[];
   selectedDispatcherIds?: string[];
+  selectedSourceGroups?: DispatcherPerformanceSourceGroup[];
 }) => {
-  const firstDispatchOrders = buildFirstDispatchOrders(input);
+  const requestedSourceGroups = new Set(input.selectedSourceGroups ?? []);
+  const sourceFilteredOrders = input.orders.filter(
+    (order) =>
+      requestedSourceGroups.size === 0 ||
+      requestedSourceGroups.has(
+        getDispatcherPerformanceSourceGroup(order.orderSource)
+      )
+  );
+  const sourceFilteredOrderIds = new Set(
+    sourceFilteredOrders.map((order) => order.id)
+  );
+  const sourceFilteredEvents = input.events.filter((event) =>
+    sourceFilteredOrderIds.has(event.orderId)
+  );
+  const firstDispatchOrders = buildFirstDispatchOrders({
+    orders: sourceFilteredOrders,
+    events: sourceFilteredEvents
+  });
   const requestedIds = new Set(input.selectedDispatcherIds ?? []);
   const selectedDispatchers = input.dispatchers.filter(
     (dispatcher) => requestedIds.size === 0 || requestedIds.has(dispatcher.id)
@@ -229,7 +247,7 @@ export const buildDispatcherPerformance = (input: {
     ])
   );
 
-  for (const order of input.orders) {
+  for (const order of sourceFilteredOrders) {
     if (
       order.orderSource === OrderSource.DISPATCHER_MANUAL &&
       order.createdByUserId &&
@@ -255,7 +273,7 @@ export const buildDispatcherPerformance = (input: {
     accumulators.get(order.dispatchedByUserId)?.dispatchedOrders.push(order);
   }
 
-  for (const event of input.events) {
+  for (const event of sourceFilteredEvents) {
     if (
       event.dispatchSource !== DispatchSource.MANUAL ||
       !event.actorUserId ||
@@ -286,13 +304,13 @@ export const buildDispatcherPerformance = (input: {
       Boolean(order.dispatchedByUserId) &&
       selectedIds.has(order.dispatchedByUserId ?? "")
   );
-  const selectedManualOrders = input.orders.filter(
+  const selectedManualOrders = sourceFilteredOrders.filter(
     (order) =>
       order.orderSource === OrderSource.DISPATCHER_MANUAL &&
       Boolean(order.createdByUserId) &&
       selectedIds.has(order.createdByUserId ?? "")
   );
-  const selectedEvents = input.events.filter(
+  const selectedEvents = sourceFilteredEvents.filter(
     (event) =>
       event.dispatchSource === DispatchSource.MANUAL &&
       Boolean(event.actorUserId) &&
@@ -419,6 +437,7 @@ export const buildDispatcherPerformance = (input: {
       }))
       .sort((a, b) => a.displayName.localeCompare(b.displayName)),
     selectedDispatcherIds: Array.from(selectedIds),
+    selectedSourceGroups: Array.from(requestedSourceGroups),
     summary: {
       manualOrdersCreated: selectedManualOrders.length,
       manualEntryTimeSamples: manualEntryMinutes.length,
@@ -452,23 +471,25 @@ export const buildDispatcherPerformance = (input: {
       ).length
     },
     coverage: {
-      totalOrders: input.orders.length,
-      automaticDispatches: input.orders.filter(
+      allOrdersInRange: input.orders.length,
+      totalOrders: sourceFilteredOrders.length,
+      automaticDispatches: sourceFilteredOrders.filter(
         (order) => order.dispatchSource === DispatchSource.AUTO
       ).length,
-      driverDispatches: input.orders.filter(
+      driverDispatches: sourceFilteredOrders.filter(
         (order) => order.dispatchSource === DispatchSource.DRIVER
       ).length,
-      unattributedManualDispatches: input.orders.filter(
+      unattributedManualDispatches: sourceFilteredOrders.filter(
         (order) =>
           order.dispatchSource === DispatchSource.MANUAL &&
           !order.dispatchedByUserId
       ).length,
-      unattributedDispatches: input.orders.filter(
+      unattributedDispatches: sourceFilteredOrders.filter(
         (order) => order.dispatchedAt && !order.dispatchSource
       ).length,
-      undispatchedOrders: input.orders.filter((order) => !order.dispatchedAt).length,
-      unknownSourceOrders: input.orders.filter(
+      undispatchedOrders: sourceFilteredOrders.filter((order) => !order.dispatchedAt)
+        .length,
+      unknownSourceOrders: sourceFilteredOrders.filter(
         (order) => order.orderSource === OrderSource.UNKNOWN
       ).length
     },
