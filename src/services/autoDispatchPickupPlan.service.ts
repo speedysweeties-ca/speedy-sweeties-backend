@@ -1,4 +1,9 @@
-import { DispatchSource, OrderStatus, UserRole } from "@prisma/client";
+import {
+  DispatchEventType,
+  DispatchSource,
+  OrderStatus,
+  UserRole
+} from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import {
   getDriverFreshnessCutoff,
@@ -10,6 +15,7 @@ import {
 } from "./orderStateTransition.service";
 import { computeTrafficAwareRouteMatrixToDestinations } from "./multiDestinationRouteMatrix.service";
 import { RoutingPreviewUnavailableError } from "./routingPreview.service";
+import { recordDispatchEventBestEffort } from "./dispatcherPerformanceTracking.service";
 
 const AUTO_DISPATCH_SETTING_KEY = "autoDispatchEnabled";
 
@@ -481,6 +487,15 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
   }
 
   const selected = allocationResult.selected;
+
+  await recordDispatchEventBestEffort({
+    orderId: order.id,
+    eventType: DispatchEventType.ASSIGNED,
+    dispatchSource: DispatchSource.AUTO,
+    actorUserId: null,
+    fromDriverId: null,
+    toDriverId: selected.driver.id
+  });
 
   console.log(
     `[Auto Dispatch] Order ${order.id} dispatched to closest driver ${selected.driver.id}; direct ETA ${selected.routeDurationSeconds} second(s).`

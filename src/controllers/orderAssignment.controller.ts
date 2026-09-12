@@ -1,4 +1,6 @@
 import {
+  DispatchEventType,
+  DispatchSource,
   UserRole,
   OrderStatus,
   OrderPriority
@@ -12,6 +14,7 @@ import {
   buildOrderTransitionTimestampData,
   evaluateOrderStatusTransition
 } from "../services/orderStateTransition.service";
+import { recordDispatchEventBestEffort } from "../services/dispatcherPerformanceTracking.service";
 
 type AssignDriverParams = {
   id: string;
@@ -170,6 +173,17 @@ export const assignDriverToOrderController = async (
 
     await prisma.orderPickupStop.deleteMany({ where: { orderId: id } });
 
+    if (existingOrder.assignedDriverId) {
+      await recordDispatchEventBestEffort({
+        orderId: id,
+        eventType: DispatchEventType.UNASSIGNED,
+        dispatchSource: DispatchSource.MANUAL,
+        actorUserId: authUser.userId,
+        fromDriverId: existingOrder.assignedDriverId,
+        occurredAt: new Date()
+      });
+    }
+
     const updatedOrder = await prisma.order.findUniqueOrThrow({
       where: { id },
       include: {
@@ -325,6 +339,18 @@ export const assignDriverToOrderController = async (
 
   if (wasAssignedToDifferentDriver) {
     await prisma.orderPickupStop.deleteMany({ where: { orderId: id } });
+
+    await recordDispatchEventBestEffort({
+      orderId: id,
+      eventType: existingOrder.assignedDriverId
+        ? DispatchEventType.REASSIGNED
+        : DispatchEventType.ASSIGNED,
+      dispatchSource: DispatchSource.MANUAL,
+      actorUserId: authUser.userId,
+      fromDriverId: existingOrder.assignedDriverId,
+      toDriverId: driver.id,
+      occurredAt: now
+    });
   }
 
   const updatedOrder = await prisma.order.findUniqueOrThrow({

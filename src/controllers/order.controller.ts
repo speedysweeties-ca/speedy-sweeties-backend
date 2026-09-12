@@ -48,6 +48,7 @@ import {
   normalizePaymentMethod
 } from "../utils/paymentMethod";
 import { buildCustomerLookupWhere } from "../utils/customerIdentity";
+import { normalizeManualEntryStartedAt } from "../services/dispatcherPerformanceTracking.service";
 
 /* ================= TYPES ================= */
 
@@ -490,6 +491,7 @@ type CreateOrderOptions = {
   bypassBusinessHours: boolean;
   acceptRecurringDriverNotes: boolean;
   orderSourceOverride?: OrderSource;
+  createdByUserId?: string;
 };
 
 const normalizeAttributionValue = (
@@ -546,6 +548,7 @@ const createOrder = async (
     notes,
     dispatcherNotes,
     recurringDriverNotes,
+    manualEntryStartedAt,
     fcmToken,
     orderSource,
     utmSource,
@@ -667,6 +670,10 @@ const createOrder = async (
         referralCode: normalizeAttributionValue(referralCode, true),
         orderStatus: INITIAL_ORDER_STATUS,
         priority: OrderPriority.NORMAL,
+        createdByUserId: options.createdByUserId,
+        manualEntryStartedAt: options.createdByUserId
+          ? normalizeManualEntryStartedAt(manualEntryStartedAt)
+          : null,
         fcmToken: appFcmToken,
         trackingTokenHash: trackingCredential.hash,
         trackingTokenExpiresAt: trackingCredential.expiresAt,
@@ -794,10 +801,15 @@ export const createManualOrderController = async (
   req: Request,
   res: Response
 ): Promise<void> => {
+  const authUser = (req as Request & {
+    user?: { userId: string; role: UserRole };
+  }).user;
+
   await createOrder(req, res, {
     bypassBusinessHours: true,
     acceptRecurringDriverNotes: true,
-    orderSourceOverride: OrderSource.DISPATCHER_MANUAL
+    orderSourceOverride: OrderSource.DISPATCHER_MANUAL,
+    createdByUserId: authUser?.userId
   });
 };
 
