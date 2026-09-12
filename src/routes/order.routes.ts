@@ -83,6 +83,13 @@ router.get(
   asyncHandler(getDispatcherPerformanceController)
 );
 
+router.post(
+  "/dispatcher-performance",
+  requireAuth,
+  requireRole([UserRole.ADMIN]),
+  asyncHandler(getDispatcherPerformanceController)
+);
+
 // 🔒 DRIVER — only their orders
 router.get(
   "/my-orders",

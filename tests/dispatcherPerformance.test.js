@@ -14,6 +14,10 @@ const {
 const {
   normalizeManualEntryStartedAt
 } = require("../dist/services/dispatcherPerformanceTracking.service.js");
+const {
+  readDispatcherPerformanceDispatcherIds,
+  readDispatcherPerformanceSourceGroups
+} = require("../dist/controllers/dispatcherPerformance.controller.js");
 
 const at = (value) => new Date(value);
 
@@ -62,6 +66,25 @@ test("groups Android/iOS, Webflow, manual, and unknown sources for reporting", (
     "MANUAL"
   );
   assert.equal(getDispatcherPerformanceSourceGroup(OrderSource.UNKNOWN), "UNKNOWN");
+});
+
+test("accepts POST-body filter arrays and rejects unknown order sources", () => {
+  assert.deepEqual(
+    readDispatcherPerformanceDispatcherIds([
+      "dispatcher-1",
+      "dispatcher-1",
+      "admin-1"
+    ]),
+    ["dispatcher-1", "admin-1"]
+  );
+  assert.deepEqual(
+    readDispatcherPerformanceSourceGroups(["online", "APP", "online"]),
+    ["ONLINE", "APP"]
+  );
+  assert.throws(
+    () => readDispatcherPerformanceSourceGroups(["ONLINE", "KIOSK"]),
+    /Invalid order source: KIOSK/
+  );
 });
 
 test("builds dispatcher metrics from first-dispatch attribution without crediting auto dispatch", () => {
@@ -185,6 +208,76 @@ test("dispatcher selection recomputes the summary while retaining overall covera
   assert.equal(result.summary.ordersDispatched, 1);
   assert.equal(result.summary.manualOrdersCreated, 1);
   assert.equal(result.coverage.totalOrders, 2);
+  assert.equal(result.coverage.allOrdersInRange, 2);
+});
+
+test("order-source selection intersects with dispatcher selection across the report", () => {
+  const orders = [
+    order({ id: "order-app-dana", orderNumber: 201 }),
+    order({
+      id: "order-web-dana",
+      orderNumber: 202,
+      orderSource: OrderSource.WEBFLOW,
+      createdAt: at("2026-09-10T17:00:00.000Z"),
+      dispatchedAt: at("2026-09-10T17:04:00.000Z")
+    }),
+    order({
+      id: "order-web-alex",
+      orderNumber: 203,
+      orderSource: OrderSource.WEBFLOW,
+      createdAt: at("2026-09-10T18:00:00.000Z"),
+      dispatchedAt: at("2026-09-10T18:08:00.000Z"),
+      dispatchedByUserId: "admin-1"
+    })
+  ];
+  const events = [
+    {
+      orderId: "order-app-dana",
+      eventType: DispatchEventType.REASSIGNED,
+      dispatchSource: DispatchSource.MANUAL,
+      actorUserId: "dispatcher-1",
+      occurredAt: at("2026-09-10T16:05:00.000Z")
+    },
+    {
+      orderId: "order-web-alex",
+      eventType: DispatchEventType.REASSIGNED,
+      dispatchSource: DispatchSource.MANUAL,
+      actorUserId: "admin-1",
+      occurredAt: at("2026-09-10T18:09:00.000Z")
+    }
+  ];
+
+  const result = buildDispatcherPerformance({
+    dispatchers,
+    orders,
+    events,
+    selectedDispatcherIds: ["admin-1"],
+    selectedSourceGroups: ["ONLINE"]
+  });
+
+  assert.deepEqual(result.selectedSourceGroups, ["ONLINE"]);
+  assert.equal(result.stats.length, 1);
+  assert.equal(result.stats[0].dispatcherId, "admin-1");
+  assert.equal(result.stats[0].ordersDispatched, 1);
+  assert.equal(result.stats[0].averageDispatchMinutes, 8);
+  assert.equal(result.stats[0].assignmentActions, 1);
+  assert.equal(result.summary.ordersDispatched, 1);
+  assert.equal(result.summary.averageDispatchMinutes, 8);
+  assert.equal(result.summary.assignmentActions, 1);
+  assert.equal(result.coverage.totalOrders, 2);
+  assert.equal(result.coverage.allOrdersInRange, 3);
+  assert.equal(result.orders.length, 1);
+  assert.equal(result.orders[0].orderNumber, 203);
+  assert.equal(
+    result.sourceBreakdown.find((source) => source.sourceGroup === "ONLINE")
+      .totalOrders,
+    1
+  );
+  assert.equal(
+    result.sourceBreakdown.find((source) => source.sourceGroup === "APP")
+      .totalOrders,
+    0
+  );
 });
 
 test("first-dispatch performance survives a later unassignment that clears current order attribution", () => {

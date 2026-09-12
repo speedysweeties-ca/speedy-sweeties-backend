@@ -1,4 +1,8 @@
 import { useMemo, useState } from "react";
+import {
+  DISPATCHER_PERFORMANCE_SOURCE_GROUPS,
+  type DispatcherPerformanceSourceGroup,
+} from "./dispatcherPerformanceFilters";
 
 type UserRole = "ADMIN" | "DISPATCHER";
 type OrderStatus =
@@ -14,10 +18,9 @@ type OrderSource =
   | "IOS_APP"
   | "WEBFLOW"
   | "DISPATCHER_MANUAL";
-type SourceGroup = "APP" | "ONLINE" | "MANUAL" | "UNKNOWN";
 
 type DurationBreakdown = {
-  sourceGroup: SourceGroup;
+  sourceGroup: DispatcherPerformanceSourceGroup;
   totalOrders: number;
   averageDispatchMinutes: number | null;
   medianDispatchMinutes: number | null;
@@ -69,7 +72,7 @@ type PerformanceOrder = {
   dispatcherId: string | null;
   orderStatus: OrderStatus;
   orderSource: OrderSource;
-  sourceGroup: SourceGroup;
+  sourceGroup: DispatcherPerformanceSourceGroup;
   createdAt: string;
   dispatchedAt: string | null;
   dispatchMinutes: number | null;
@@ -85,8 +88,10 @@ export type DispatcherPerformanceData = {
   range: { startDate: string; endDate: string; days: number };
   dispatchers: DispatcherOption[];
   selectedDispatcherIds: string[];
+  selectedSourceGroups: DispatcherPerformanceSourceGroup[];
   summary: PerformanceSummary;
   coverage: {
+    allOrdersInRange: number;
     totalOrders: number;
     automaticDispatches: number;
     driverDispatches: number;
@@ -114,16 +119,19 @@ type DispatcherPerformanceProps = {
   startDate: string;
   endDate: string;
   selectedDispatcherIds: string[];
+  selectedSourceGroups: DispatcherPerformanceSourceGroup[];
   onStartDateChange: (value: string) => void;
   onEndDateChange: (value: string) => void;
   onToggleDispatcher: (dispatcherId: string) => void;
   onSelectAllDispatchers: () => void;
   onClearDispatchers: () => void;
+  onToggleSourceGroup: (sourceGroup: DispatcherPerformanceSourceGroup) => void;
+  onClearSourceGroups: () => void;
   onPresetDays: (days: number) => void;
   onRefresh: () => void;
 };
 
-const sourceLabels: Record<SourceGroup, string> = {
+const sourceLabels: Record<DispatcherPerformanceSourceGroup, string> = {
   APP: "Customer Apps",
   ONLINE: "Website",
   MANUAL: "Manual / Telephone",
@@ -186,11 +194,14 @@ export function DispatcherPerformance({
   startDate,
   endDate,
   selectedDispatcherIds,
+  selectedSourceGroups,
   onStartDateChange,
   onEndDateChange,
   onToggleDispatcher,
   onSelectAllDispatchers,
   onClearDispatchers,
+  onToggleSourceGroup,
+  onClearSourceGroups,
   onPresetDays,
   onRefresh
 }: DispatcherPerformanceProps) {
@@ -205,6 +216,20 @@ export function DispatcherPerformance({
     const start = (detailPage - 1) * detailPageSize;
     return data?.orders.slice(start, start + detailPageSize) ?? [];
   }, [data?.orders, detailPage]);
+
+  const selectedDispatcherLabel =
+    selectedDispatcherIds.length === 0
+      ? "All dispatchers"
+      : (data?.dispatchers ?? [])
+          .filter((dispatcher) =>
+            selectedDispatcherIds.includes(dispatcher.dispatcherId)
+          )
+          .map((dispatcher) => dispatcher.displayName)
+          .join(", ") || `${selectedDispatcherIds.length} dispatcher(s)`;
+  const selectedSourceLabel =
+    selectedSourceGroups.length === 0
+      ? "All order sources"
+      : selectedSourceGroups.map((sourceGroup) => sourceLabels[sourceGroup]).join(", ");
 
   return (
     <div className="space-y-6">
@@ -275,7 +300,7 @@ export function DispatcherPerformance({
             <div>
               <h3 className="font-semibold">Filter by Dispatcher</h3>
               <p className="mt-1 text-xs text-zinc-500">
-                No boxes selected means all dispatchers.
+                Select one or more people. Changes apply immediately.
               </p>
             </div>
             <div className="flex gap-2">
@@ -291,7 +316,7 @@ export function DispatcherPerformance({
                 onClick={onClearDispatchers}
                 className="rounded-lg bg-zinc-700 px-3 py-1 text-xs hover:bg-zinc-600"
               >
-                Clear
+                Show All
               </button>
             </div>
           </div>
@@ -300,12 +325,19 @@ export function DispatcherPerformance({
             {(data?.dispatchers ?? []).map((dispatcher) => (
               <label
                 key={dispatcher.dispatcherId}
-                className="flex cursor-pointer items-center gap-3 rounded-lg border border-zinc-700 bg-zinc-900 p-3 transition hover:border-red-500"
+                className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition hover:border-red-500 ${
+                  selectedDispatcherIds.includes(dispatcher.dispatcherId)
+                    ? "border-red-500 bg-red-950/30"
+                    : "border-zinc-700 bg-zinc-900"
+                }`}
               >
                 <input
                   type="checkbox"
                   checked={selectedDispatcherIds.includes(dispatcher.dispatcherId)}
-                  onChange={() => onToggleDispatcher(dispatcher.dispatcherId)}
+                  onChange={() => {
+                    setDetailPage(1);
+                    onToggleDispatcher(dispatcher.dispatcherId);
+                  }}
                   className="h-4 w-4"
                 />
                 <span>
@@ -318,6 +350,59 @@ export function DispatcherPerformance({
               </label>
             ))}
           </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-zinc-700 bg-zinc-800/70 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold">Filter by Order Source</h3>
+              <p className="mt-1 text-xs text-zinc-500">
+                Combine a source with any dispatcher selection. Changes apply immediately.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClearSourceGroups}
+              className="rounded-lg bg-zinc-700 px-3 py-1 text-xs hover:bg-zinc-600"
+            >
+              Show All
+            </button>
+          </div>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {DISPATCHER_PERFORMANCE_SOURCE_GROUPS.map((sourceGroup) => (
+              <label
+                key={sourceGroup}
+                className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition hover:border-red-500 ${
+                  selectedSourceGroups.includes(sourceGroup)
+                    ? "border-red-500 bg-red-950/30"
+                    : "border-zinc-700 bg-zinc-900"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedSourceGroups.includes(sourceGroup)}
+                  onChange={() => {
+                    setDetailPage(1);
+                    onToggleSourceGroup(sourceGroup);
+                  }}
+                  className="h-4 w-4"
+                />
+                <span className="font-medium">{sourceLabels[sourceGroup]}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-zinc-500">Showing:</span>
+          <span className="rounded-full bg-red-950 px-3 py-1 font-semibold text-red-200">
+            {selectedDispatcherLabel}
+          </span>
+          <span className="rounded-full bg-red-950 px-3 py-1 font-semibold text-red-200">
+            {selectedSourceLabel}
+          </span>
+          {loading && <span className="text-zinc-400">Updating results...</span>}
         </div>
       </section>
 
@@ -400,7 +485,13 @@ export function DispatcherPerformance({
                   </tr>
                 </thead>
                 <tbody>
-                  {data.stats.map((stat) => (
+                  {data.stats.length === 0 ? (
+                    <tr>
+                      <td colSpan={12} className="border-t border-zinc-800 p-5 text-zinc-400">
+                        No dispatcher results match these filters.
+                      </td>
+                    </tr>
+                  ) : data.stats.map((stat) => (
                     <tr
                       key={stat.dispatcherId}
                       className="border-t border-zinc-800 hover:bg-zinc-800/40"
@@ -474,7 +565,8 @@ export function DispatcherPerformance({
               </div>
               <dl className="grid gap-3 p-5 sm:grid-cols-2">
                 {[
-                  ["All orders in range", data.coverage.totalOrders],
+                  ["Orders matching source/date", data.coverage.totalOrders],
+                  ["All orders in date range", data.coverage.allOrdersInRange],
                   ["Automatic dispatches", data.coverage.automaticDispatches],
                   ["Driver-originated dispatches", data.coverage.driverDispatches],
                   ["Unattributed manual", data.coverage.unattributedManualDispatches],
@@ -489,7 +581,7 @@ export function DispatcherPerformance({
                 ))}
               </dl>
               <p className="px-5 pb-5 text-xs text-zinc-500">
-                Manual-entry and assignment-event coverage begins with this upgrade; older records remain honest blanks.
+                Coverage follows the date and order-source filters. Manual-entry and assignment-event coverage begins with this upgrade; older records remain honest blanks.
               </p>
             </section>
           </div>
