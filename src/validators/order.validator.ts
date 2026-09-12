@@ -94,6 +94,7 @@ export const createOrderSchema = z.object({
 
 export const createManualOrderSchema = createOrderSchema.extend({
   body: createOrderSchema.shape.body.safeExtend({
+    manualEntryStartedAt: z.string().datetime({ offset: true }).optional(),
     recurringDriverNotes: z
       .string()
       .trim()

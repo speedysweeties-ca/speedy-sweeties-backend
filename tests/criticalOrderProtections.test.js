@@ -269,6 +269,11 @@ test("manual assignment still accepts an online driver with a fresh heartbeat", 
   replaceForTest(t, prisma.orderPickupStop, "deleteMany", async () => ({
     count: 0
   }));
+  let dispatchEventData;
+  replaceForTest(t, prisma.dispatchEvent, "create", async ({ data }) => {
+    dispatchEventData = data;
+    return { id: "dispatch-event-1", ...data };
+  });
   replaceForTest(t, prisma.order, "findUniqueOrThrow", async () => ({
     ...existingOrder,
     assignedDriverId: "driver-1",
@@ -289,4 +294,7 @@ test("manual assignment still accepts an online driver with a fresh heartbeat", 
   assert.equal(response.body.message, "Driver assigned successfully");
   assert.equal(assignmentData.assignedDriverId, "driver-1");
   assert.equal(assignmentData.orderStatus, OrderStatus.DISPATCHED);
+  assert.equal(dispatchEventData.eventType, "ASSIGNED");
+  assert.equal(dispatchEventData.actorUserId, "dispatcher-1");
+  assert.equal(dispatchEventData.toDriverId, "driver-1");
 });

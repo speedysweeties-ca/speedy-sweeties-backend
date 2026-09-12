@@ -68,6 +68,12 @@ enum OrderSource {
   DISPATCHER_MANUAL
 }
 
+enum DispatchEventType {
+  ASSIGNED
+  REASSIGNED
+  UNASSIGNED
+}
+
 model User {
   id                  String   @id @default(uuid())
   email               String   @unique
@@ -100,6 +106,10 @@ model User {
 
   assignedOrders       Order[]                         @relation("DriverOrders")
   dispatchedOrders     Order[]                         @relation("DispatchedOrders")
+  createdOrders        Order[]                         @relation("CreatedOrders")
+  dispatchEvents       DispatchEvent[]                 @relation("DispatchEventActor")
+  dispatchEventsFrom   DispatchEvent[]                 @relation("DispatchEventFromDriver")
+  dispatchEventsTo     DispatchEvent[]                 @relation("DispatchEventToDriver")
   checklistCompletions DispatcherChecklistCompletion[] @relation("ChecklistCompletedBy")
 
   @@index([role])
@@ -234,6 +244,9 @@ model Order {
   createdAt              DateTime      @default(now())
   updatedAt              DateTime      @updatedAt
 
+  createdByUserId      String?
+  manualEntryStartedAt DateTime?
+
   dispatchedAt        DateTime?
   dispatchedByUserId  String?
   dispatchSource      DispatchSource?
@@ -262,10 +275,12 @@ model Order {
   customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   assignedDriver User?     @relation("DriverOrders", fields: [assignedDriverId], references: [id], onDelete: SetNull)
   dispatchedBy   User?     @relation("DispatchedOrders", fields: [dispatchedByUserId], references: [id], onDelete: SetNull)
+  createdBy      User?     @relation("CreatedOrders", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   items          OrderItem[]
   digitalReceipt DigitalReceipt?
   pickupStops    OrderPickupStop[]
+  dispatchEvents DispatchEvent[]
 
   @@index([customerId])
   @@index([orderSource])
@@ -274,6 +289,8 @@ model Order {
   @@index([referralCode])
   @@index([assignedDriverId])
   @@index([dispatchedByUserId])
+  @@index([createdByUserId])
+  @@index([manualEntryStartedAt])
   @@index([orderStatus])
   @@index([priority])
   @@index([createdAt])
@@ -282,6 +299,29 @@ model Order {
   @@index([cancelledAt])
   @@index([cancelledFromStatus])
   @@index([geocodeStatus])
+}
+
+model DispatchEvent {
+  id             String            @id @default(uuid())
+  orderId        String
+  eventType      DispatchEventType
+  dispatchSource DispatchSource
+  actorUserId    String?
+  fromDriverId   String?
+  toDriverId     String?
+  occurredAt     DateTime          @default(now())
+
+  order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actorUser  User? @relation("DispatchEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  fromDriver User? @relation("DispatchEventFromDriver", fields: [fromDriverId], references: [id], onDelete: SetNull)
+  toDriver   User? @relation("DispatchEventToDriver", fields: [toDriverId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, occurredAt])
+  @@index([actorUserId, occurredAt])
+  @@index([eventType])
+  @@index([dispatchSource])
+  @@index([fromDriverId])
+  @@index([toDriverId])
 }
 
 model OrderItem {

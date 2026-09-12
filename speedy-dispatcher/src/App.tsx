@@ -21,6 +21,10 @@ import {
   type GrowthDashboardData,
 } from "./GrowthCommandCentre";
 import {
+  DispatcherPerformance,
+  type DispatcherPerformanceData,
+} from "./DispatcherPerformance";
+import {
   CATALOG_PICKUP_TYPE_OPTIONS,
   PICKUP_LOCATION_TYPE_OPTIONS,
   isPickupLocationType,
@@ -48,6 +52,11 @@ const shiftDateInputValue = (dateValue: string, days: number) => {
 
 const defaultGrowthEndDate = getTorontoDateInputValue();
 const defaultGrowthStartDate = shiftDateInputValue(defaultGrowthEndDate, -29);
+const defaultDispatcherPerformanceEndDate = getTorontoDateInputValue();
+const defaultDispatcherPerformanceStartDate = shiftDateInputValue(
+  defaultDispatcherPerformanceEndDate,
+  -29
+);
 
 
 type OrderStatus =
@@ -91,6 +100,13 @@ type AssignedDriver = {
 };
 
 type DispatcherIdentity = {
+  firstName?: string | null;
+  lastName?: string | null;
+};
+
+type AuthUserProfile = {
+  id: string;
+  role: "ADMIN" | "DISPATCHER" | "DRIVER";
   firstName?: string | null;
   lastName?: string | null;
 };
@@ -180,6 +196,7 @@ type ActiveTab =
   | "DELIVERED_HISTORY"
   | "CUSTOMER_RETENTION"
   | "DRIVER_STATS"
+  | "DISPATCHER_PERFORMANCE"
   | "CATALOG"
   | "PICKUP_LOCATIONS"
   | "CUSTOMERS"
@@ -672,6 +689,7 @@ function App() {
   const [manualOrderLoading, setManualOrderLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [driverStatsLoading, setDriverStatsLoading] = useState(false);
+  const [dispatcherPerformanceLoading, setDispatcherPerformanceLoading] = useState(false);
   const [growthDashboardLoading, setGrowthDashboardLoading] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [pickupLocationsLoading, setPickupLocationsLoading] = useState(false);
@@ -685,10 +703,13 @@ function App() {
   const [completingChecklistItemId, setCompletingChecklistItemId] = useState<string | null>(null);
 
   const [token, setToken] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUserProfile | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [deliveredOrders, setDeliveredOrders] = useState<Order[]>([]);
   const [driverStats, setDriverStats] = useState<DriverStat[]>([]);
   const [growthDashboard, setGrowthDashboard] = useState<GrowthDashboardData | null>(null);
+  const [dispatcherPerformance, setDispatcherPerformance] =
+    useState<DispatcherPerformanceData | null>(null);
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
   const [managedDrivers, setManagedDrivers] = useState<DriverManagementItem[]>([]);
   const [driverManagementLoading, setDriverManagementLoading] = useState(false);
@@ -766,6 +787,11 @@ function App() {
 
   const [growthStartDate, setGrowthStartDate] = useState(defaultGrowthStartDate);
   const [growthEndDate, setGrowthEndDate] = useState(defaultGrowthEndDate);
+  const [dispatcherPerformanceStartDate, setDispatcherPerformanceStartDate] =
+    useState(defaultDispatcherPerformanceStartDate);
+  const [dispatcherPerformanceEndDate, setDispatcherPerformanceEndDate] =
+    useState(defaultDispatcherPerformanceEndDate);
+  const [dispatcherPerformanceIds, setDispatcherPerformanceIds] = useState<string[]>([]);
 
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("LIVE_ORDERS");
@@ -799,6 +825,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const hasCompletedInitialLoadRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const manualEntryStartedAtRef = useRef<Date | null>(null);
 
   const manualFormIsDirty = useMemo(() => {
     return JSON.stringify(manualOrderForm) !== JSON.stringify(initialManualOrderForm);
@@ -811,6 +838,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     activeTab === "DELIVERED_HISTORY" ||
     activeTab === "CUSTOMER_RETENTION" ||
     activeTab === "DRIVER_STATS" ||
+    activeTab === "DISPATCHER_PERFORMANCE" ||
     activeTab === "CATALOG" ||
     activeTab === "PICKUP_LOCATIONS" ||
     activeTab === "CUSTOMERS" ||
@@ -820,6 +848,12 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     manualOrderLoading ||
     editingOrderId !== null ||
     editOrderForm !== null;
+
+  useEffect(() => {
+    if (manualFormIsDirty && !manualEntryStartedAtRef.current) {
+      manualEntryStartedAtRef.current = new Date();
+    }
+  }, [manualFormIsDirty]);
 
   const filteredDeliveredOrders = deliveredOrders;
 
@@ -956,6 +990,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
     if (savedToken) {
       setToken(savedToken);
+      void fetchCurrentUser(savedToken);
       void fetchOrders(savedToken, false);
       void fetchDrivers(savedToken);
       void fetchAutoDispatchSetting(savedToken, false);
@@ -2801,6 +2836,105 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     }
   };
 
+  const fetchCurrentUser = async (authToken: string) => {
+    try {
+      const response = await fetch(`${API_V1_BASE_URL}/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        setCurrentUser(data.user || null);
+      } else {
+        setCurrentUser(null);
+      }
+    } catch (error) {
+      console.error(error);
+      setCurrentUser(null);
+    }
+  };
+
+  const fetchDispatcherPerformance = async (
+    authToken: string,
+    showLoader = true,
+    filters?: {
+      startDate: string;
+      endDate: string;
+      dispatcherIds?: string[];
+    }
+  ) => {
+    try {
+      if (showLoader) {
+        setDispatcherPerformanceLoading(true);
+      }
+
+      const params = new URLSearchParams({
+        startDate: filters?.startDate ?? dispatcherPerformanceStartDate,
+        endDate: filters?.endDate ?? dispatcherPerformanceEndDate,
+      });
+      const selectedIds = filters?.dispatcherIds ?? dispatcherPerformanceIds;
+      if (selectedIds.length > 0) {
+        params.set("dispatcherIds", selectedIds.join(","));
+      }
+
+      const response = await fetch(
+        `${API_V1_BASE_URL}/orders/dispatcher-performance?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        }
+      );
+      const data = await response.json();
+
+      if (response.ok) {
+        setDispatcherPerformance(data);
+      } else {
+        alert(getApiErrorMessage(data, "Failed to load dispatcher performance"));
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server error while loading dispatcher performance");
+    } finally {
+      if (showLoader) {
+        setDispatcherPerformanceLoading(false);
+      }
+    }
+  };
+
+  const toggleDispatcherPerformanceId = (dispatcherId: string) => {
+    setDispatcherPerformanceIds((current) =>
+      current.includes(dispatcherId)
+        ? current.filter((id) => id !== dispatcherId)
+        : [...current, dispatcherId]
+    );
+  };
+
+  const selectAllDispatcherPerformanceIds = () => {
+    setDispatcherPerformanceIds(
+      dispatcherPerformance?.dispatchers.map(
+        (dispatcher) => dispatcher.dispatcherId
+      ) ?? []
+    );
+  };
+
+  const applyDispatcherPerformanceDatePreset = (days: number) => {
+    const endDate = getTorontoDateInputValue();
+    const startDate = shiftDateInputValue(endDate, -(days - 1));
+    setDispatcherPerformanceEndDate(endDate);
+    setDispatcherPerformanceStartDate(startDate);
+
+    if (token) {
+      void fetchDispatcherPerformance(token, true, {
+        startDate,
+        endDate,
+        dispatcherIds: dispatcherPerformanceIds,
+      });
+    }
+  };
+
   const fetchGrowthDashboard = async (
     authToken: string,
     showLoader = true,
@@ -3022,6 +3156,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       if (response.ok) {
         localStorage.setItem("token", data.token);
         setToken(data.token);
+        await fetchCurrentUser(data.token);
         await fetchOrders(data.token, true);
         await fetchDrivers(data.token);
         await fetchAutoDispatchSetting(data.token, false);
@@ -3039,9 +3174,11 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   const handleLogout = () => {
     localStorage.removeItem("token");
     setToken(null);
+    setCurrentUser(null);
     setOrders([]);
     setDeliveredOrders([]);
     setDriverStats([]);
+    setDispatcherPerformance(null);
     setDrivers([]);
     setManagedDrivers([]);
     setDriverSelections({});
@@ -3051,11 +3188,15 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setStatsDriverIds([]);
     setStatsStartDate("");
     setStatsEndDate("");
+    setDispatcherPerformanceIds([]);
+    setDispatcherPerformanceStartDate(defaultDispatcherPerformanceStartDate);
+    setDispatcherPerformanceEndDate(defaultDispatcherPerformanceEndDate);
     setShowDriverPanel(false);
     setEmail("");
     setPassword("");
     setActiveTab("LIVE_ORDERS");
     setManualOrderForm(initialManualOrderForm);
+    manualEntryStartedAtRef.current = null;
     setEditingOrderId(null);
     setEditOrderForm(null);
     setEditItemSuggestions({});
@@ -3957,6 +4098,12 @@ const handleSaveEditedOrder = async (orderId: string) => {
           paymentMethod: manualOrderForm.paymentMethod,
           ...manualOrderNotes,
           dispatcherNotes,
+          ...(manualEntryStartedAtRef.current
+            ? {
+                manualEntryStartedAt:
+                  manualEntryStartedAtRef.current.toISOString(),
+              }
+            : {}),
         }),
       });
 
@@ -3965,6 +4112,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
       if (response.ok) {
         alert("Manual order created successfully");
         setManualOrderForm(initialManualOrderForm);
+        manualEntryStartedAtRef.current = null;
         setCustomerSuggestions([]);
         setItemSuggestions({});
         setActiveTab("LIVE_ORDERS");
@@ -3991,6 +4139,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
     if (!shouldDiscard) return;
 
     setManualOrderForm(initialManualOrderForm);
+    manualEntryStartedAtRef.current = null;
     setCustomerSuggestions([]);
     setItemSuggestions({});
     setActiveTab("LIVE_ORDERS");
@@ -7058,6 +7207,24 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 Driver Stats
               </button>
 
+              {currentUser?.role === "ADMIN" && (
+                <button
+                  onClick={() => {
+                    setActiveTab("DISPATCHER_PERFORMANCE");
+                    if (token) {
+                      void fetchDispatcherPerformance(token, true);
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-lg font-semibold transition ${
+                    activeTab === "DISPATCHER_PERFORMANCE"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-zinc-800 hover:bg-zinc-700"
+                  }`}
+                >
+                  Dispatcher Performance
+                </button>
+              )}
+
               <button
                 onClick={() => setActiveTab("PICKUP_LOCATIONS")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
@@ -7092,6 +7259,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     void fetchDriverStats(token, true);
                   }
 
+                  if (activeTab === "DISPATCHER_PERFORMANCE") {
+                    void fetchDispatcherPerformance(token, true);
+                  }
+
                   if (activeTab === "GROWTH_COMMAND_CENTRE") {
                     void fetchGrowthDashboard(token, true);
                   }
@@ -7117,10 +7288,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     void fetchDispatcherChecklistHistory(token, false);
                   }
                 }}
-                disabled={dashboardLoading || historyLoading || driverStatsLoading || growthDashboardLoading || catalogLoading || pickupLocationsLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading}
+                disabled={dashboardLoading || historyLoading || driverStatsLoading || dispatcherPerformanceLoading || growthDashboardLoading || catalogLoading || pickupLocationsLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading}
                 className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
               >
-                {dashboardLoading || historyLoading || driverStatsLoading || growthDashboardLoading || catalogLoading || pickupLocationsLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading
+                {dashboardLoading || historyLoading || driverStatsLoading || dispatcherPerformanceLoading || growthDashboardLoading || catalogLoading || pickupLocationsLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading
                   ? "Refreshing..."
                   : "Refresh"}
               </button>
@@ -7635,6 +7806,22 @@ const handleSaveEditedOrder = async (orderId: string) => {
           renderCustomerRetention()
         ) : activeTab === "DRIVER_STATS" ? (
           renderDriverStats()
+        ) : activeTab === "DISPATCHER_PERFORMANCE" ? (
+          <DispatcherPerformance
+            key={dispatcherPerformance?.generatedAt ?? "dispatcher-performance"}
+            data={dispatcherPerformance}
+            loading={dispatcherPerformanceLoading}
+            startDate={dispatcherPerformanceStartDate}
+            endDate={dispatcherPerformanceEndDate}
+            selectedDispatcherIds={dispatcherPerformanceIds}
+            onStartDateChange={setDispatcherPerformanceStartDate}
+            onEndDateChange={setDispatcherPerformanceEndDate}
+            onToggleDispatcher={toggleDispatcherPerformanceId}
+            onSelectAllDispatchers={selectAllDispatcherPerformanceIds}
+            onClearDispatchers={() => setDispatcherPerformanceIds([])}
+            onPresetDays={applyDispatcherPerformanceDatePreset}
+            onRefresh={() => token && void fetchDispatcherPerformance(token, true)}
+          />
         ) : activeTab === "CATALOG" ? (
           renderCatalogAdmin()
         ) : activeTab === "PICKUP_LOCATIONS" ? (

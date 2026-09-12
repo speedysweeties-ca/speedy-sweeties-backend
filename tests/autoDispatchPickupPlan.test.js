@@ -121,6 +121,7 @@ const installAllocationHarness = (t, options) => {
   const rawQueries = [];
   let rootOrderReadCount = 0;
   let stopDeleteCount = 0;
+  const dispatchEvents = [];
   let transactionCount = 0;
   let releaseRootOrderReads;
   const initialReadsReady = new Promise((resolve) => {
@@ -159,6 +160,13 @@ const installAllocationHarness = (t, options) => {
       await initialReadsReady;
     }
     return cloneOrder(orderRows.get(where.id));
+  });
+  replaceForTest(t, prisma.dispatchEvent, "create", async ({ data }) => {
+    if (options.eventFailure) {
+      throw new Error("simulated dispatch-event failure");
+    }
+    dispatchEvents.push({ ...data });
+    return { id: `event-${dispatchEvents.length}`, ...data };
   });
   replaceForTest(t, prisma, "$transaction", async (callback) => {
     transactionCount += 1;
@@ -247,7 +255,8 @@ const installAllocationHarness = (t, options) => {
     drivers,
     orderRows,
     getRawQueries: () => rawQueries,
-    getStopDeleteCount: () => stopDeleteCount
+    getStopDeleteCount: () => stopDeleteCount,
+    getDispatchEvents: () => dispatchEvents
   };
 };
 
@@ -314,10 +323,29 @@ test("unknown items do not block dispatch to the closest driver", async (t) => {
   assert.equal(assignedOrder.assignedDriverId, "driver-b");
   assert.equal(assignedOrder.orderStatus, OrderStatus.DISPATCHED);
   assert.equal(assignedOrder.dispatchSource, DispatchSource.AUTO);
+  assert.equal(harness.getDispatchEvents().length, 1);
+  assert.equal(harness.getDispatchEvents()[0].eventType, "ASSIGNED");
+  assert.equal(harness.getDispatchEvents()[0].toDriverId, "driver-b");
   assert.equal(harness.getStopDeleteCount(), 1);
   assert.equal(harness.getRawQueries().length, 1);
   assert.equal(harness.getRawQueries()[0].includes("pg_advisory"), false);
   assert.equal(shouldNotifyAutoDispatchedDriver(result), true);
+});
+
+test("audit persistence failure does not roll back a successful automatic dispatch", async (t) => {
+  const harness = installAllocationHarness(t, {
+    orders: [autoDispatchOrder("order-a", 101)],
+    drivers: [allocationDriver("driver-a", "Alpha", 43.51)],
+    routeDurations: directRouteDurations(60),
+    eventFailure: true
+  });
+
+  const result = await autoDispatchCreatedOrderWithPickupPlan("order-a");
+
+  assert.equal(result.dispatched, true);
+  assert.equal(harness.orderRows.get("order-a").assignedDriverId, "driver-a");
+  assert.equal(harness.orderRows.get("order-a").orderStatus, OrderStatus.DISPATCHED);
+  assert.equal(harness.getDispatchEvents().length, 0);
 });
 
 test("concurrent orders can both go to the same closest driver", async (t) => {

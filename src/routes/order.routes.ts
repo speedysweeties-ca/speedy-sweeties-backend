@@ -30,6 +30,7 @@ import { getDriverOrdersController } from "../controllers/driverOrders.controlle
 import { driverActionController } from "../controllers/driverAction.controller";
 import { getDriverStatsController } from "../controllers/driverStats.controller";
 import { getGrowthDashboardController } from "../controllers/growthDashboard.controller";
+import { getDispatcherPerformanceController } from "../controllers/dispatcherPerformance.controller";
 
 import {
   createOrUpdateReceiptController,
@@ -73,6 +74,13 @@ router.get(
   requireAuth,
   requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
   asyncHandler(getGrowthDashboardController)
+);
+
+router.get(
+  "/dispatcher-performance",
+  requireAuth,
+  requireRole([UserRole.ADMIN]),
+  asyncHandler(getDispatcherPerformanceController)
 );
 
 // 🔒 DRIVER — only their orders

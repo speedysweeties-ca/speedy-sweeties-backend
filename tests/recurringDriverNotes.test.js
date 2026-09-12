@@ -216,12 +216,15 @@ test("manual creation atomically snapshots and persists against the resolved cus
   );
 
   const manualResponse = responseRecorder();
+  const manualEntryStartedAt = new Date(Date.now() - 60_000).toISOString();
   await createManualOrderController(
     {
+      user: { userId: "dispatcher-1", role: "DISPATCHER" },
       body: {
         ...createOrderBody,
         additionalNotes: "Leave at side door",
-        recurringDriverNotes: "$10 distance charge"
+        recurringDriverNotes: "$10 distance charge",
+        manualEntryStartedAt
       }
     },
     manualResponse
@@ -230,6 +233,11 @@ test("manual creation atomically snapshots and persists against the resolved cus
   assert.equal(manualResponse.statusCode, 201);
   assert.equal(createdOrders[0].customerId, "resolved-customer");
   assert.equal(createdOrders[0].orderSource, "DISPATCHER_MANUAL");
+  assert.equal(createdOrders[0].createdByUserId, "dispatcher-1");
+  assert.equal(
+    createdOrders[0].manualEntryStartedAt.toISOString(),
+    manualEntryStartedAt
+  );
   assert.equal(
     createdOrders[0].additionalNotes,
     "$10 distance charge | Leave at side door"
