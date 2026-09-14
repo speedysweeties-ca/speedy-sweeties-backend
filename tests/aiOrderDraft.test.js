@@ -8,7 +8,8 @@ const {
   extractOpenAiOutputText,
   findBestCatalogMatch,
   normalizeLikelySpeechTranscript,
-  normalizeProductText
+  normalizeProductText,
+  sanitizeAdditionalNotes
 } = require("../dist/services/aiOrderDraft.service.js");
 
 const catalogItem = (overrides = {}) => ({
@@ -214,6 +215,50 @@ test("regular Canadian Club matches the regular catalog item instead of 12 Year"
   assert.equal(response.draft.items[0].catalogMatch.id, "regular-cc");
 });
 
+test("assistant guidance is removed from dispatcher notes", () => {
+  assert.equal(
+    sanitizeAdditionalNotes(
+      "Please review the order form and press Place Order when ready."
+    ),
+    null
+  );
+
+  assert.equal(
+    sanitizeAdditionalNotes(
+      "Please have the driver call when outside. Please review the order form and press Place Order."
+    ),
+    "Please have the driver call when outside."
+  );
+});
+
+test("customer-requested delivery notes are preserved in a ready draft", () => {
+  const response = buildOrderDraftResponse(
+    {
+      status: "READY",
+      assistantMessage: "Please review the order form and press Place Order.",
+      clarificationQuestion: null,
+      items: [
+        {
+          requestedName: "Bag of ice",
+          packageDescription: null,
+          quantity: 2,
+          confidence: "HIGH"
+        }
+      ],
+      paymentMethod: "DEBIT",
+      additionalNotes:
+        "Please have the driver call when outside. Please review the order form and press Place Order."
+    },
+    []
+  );
+
+  assert.equal(response.draft.paymentMethod, "DEBIT");
+  assert.equal(
+    response.draft.additionalNotes,
+    "Please have the driver call when outside."
+  );
+});
+
 test("package details are not duplicated in completed item names", () => {
   assert.equal(
     combineRequestedNameAndPackage("Crown Royal 750 mL", "750 mL"),
@@ -287,6 +332,7 @@ test("an empty model draft is forced back to clarification", () => {
 
   assert.equal(response.status, "NEEDS_CLARIFICATION");
   assert.equal(response.readyForReview, false);
+  assert.equal(response.assistantMessage, "I need one more detail.");
   assert.equal(
     response.clarificationQuestion,
     "What would you like Speedy Sweeties to deliver?"
