@@ -34,6 +34,20 @@ export const env = {
   FIREBASE_SERVICE_ACCOUNT_JSON: requireEnv("FIREBASE_SERVICE_ACCOUNT_JSON"),
   CORS_ORIGIN,
 
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
+  OPENAI_ORDER_DRAFT_MODEL:
+    process.env.OPENAI_ORDER_DRAFT_MODEL ?? "gpt-5.6-luna",
+  OPENAI_ORDER_DRAFT_TIMEOUT_MS: Math.min(
+    30_000,
+    Math.max(1_000, numberEnv("OPENAI_ORDER_DRAFT_TIMEOUT_MS", 12_000))
+  ),
+  AI_ORDER_DRAFT_CATALOG_LIMIT: Math.floor(
+    Math.min(
+      500,
+      Math.max(25, numberEnv("AI_ORDER_DRAFT_CATALOG_LIMIT", 300))
+    )
+  ),
+
   GOOGLE_PLACES_API_KEY: process.env.GOOGLE_PLACES_API_KEY ?? "",
   GOOGLE_PLACE_ID: process.env.GOOGLE_PLACE_ID ?? "ChIJBSxQSViaK4gRaS6LjGPMvTs",
 
