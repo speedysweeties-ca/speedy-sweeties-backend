@@ -43,8 +43,8 @@ export const env = {
   ),
   AI_ORDER_DRAFT_CATALOG_LIMIT: Math.floor(
     Math.min(
-      500,
-      Math.max(25, numberEnv("AI_ORDER_DRAFT_CATALOG_LIMIT", 300))
+      1_000,
+      Math.max(25, numberEnv("AI_ORDER_DRAFT_CATALOG_LIMIT", 750))
     )
   ),
 
