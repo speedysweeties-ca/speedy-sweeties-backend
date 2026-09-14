@@ -229,6 +229,13 @@ test("assistant guidance is removed from dispatcher notes", () => {
     ),
     "Please have the driver call when outside."
   );
+
+  assert.equal(
+    sanitizeAdditionalNotes(
+      "Please review the order form and press Place Order\nPlease have the driver call when outside"
+    ),
+    "Please have the driver call when outside"
+  );
 });
 
 test("customer-requested delivery notes are preserved in a ready draft", () => {
