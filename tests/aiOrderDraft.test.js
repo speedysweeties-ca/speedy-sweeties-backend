@@ -5,6 +5,7 @@ const {
   buildCatalogReference,
   buildOrderDraftResponse,
   combineRequestedNameAndPackage,
+  extractExplicitDeliveryInstructions,
   extractOpenAiOutputText,
   findBestCatalogMatch,
   normalizeLikelySpeechTranscript,
@@ -61,6 +62,22 @@ test("explicit Canadian Club 12 Year wording is preserved", () => {
   assert.equal(
     normalizeLikelySpeechTranscript("Canadian Club 12 Year 750 mL"),
     "Canadian Club 12 Year 750 mL"
+  );
+});
+
+test("phone's went-outside transcription is normalized as call when outside", () => {
+  assert.equal(
+    normalizeLikelySpeechTranscript(
+      "please have the driver call went outside"
+    ),
+    "please have the driver call when outside"
+  );
+
+  assert.equal(
+    extractExplicitDeliveryInstructions(
+      "please have the driver call went outside"
+    ),
+    "Please have the driver call when outside."
   );
 });
 
@@ -260,6 +277,33 @@ test("customer-requested delivery notes are preserved in a ready draft", () => {
   );
 
   assert.equal(response.draft.paymentMethod, "DEBIT");
+  assert.equal(
+    response.draft.additionalNotes,
+    "Please have the driver call when outside."
+  );
+});
+
+test("explicit call-when-outside wording overrides an inaccurate model paraphrase", () => {
+  const response = buildOrderDraftResponse(
+    {
+      status: "READY",
+      assistantMessage: "I prepared your draft.",
+      clarificationQuestion: null,
+      items: [
+        {
+          requestedName: "Bag of ice",
+          packageDescription: null,
+          quantity: 2,
+          confidence: "HIGH"
+        }
+      ],
+      paymentMethod: "DEBIT",
+      additionalNotes: "Caller will drive and went outside."
+    },
+    [],
+    "Please have the driver call when outside."
+  );
+
   assert.equal(
     response.draft.additionalNotes,
     "Please have the driver call when outside."
