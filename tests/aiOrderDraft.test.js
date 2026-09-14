@@ -38,12 +38,28 @@ test("Canadian package slang normalizes for catalog matching", () => {
   assert.equal(match.id, "catalog-1");
 });
 
-test("confirmed noisy phone transcript is normalized without changing its product counts", () => {
+test("confirmed noisy phone transcript is normalized with product boundaries", () => {
   assert.equal(
     normalizeLikelySpeechTranscript(
       "get me a 26 year of Canadian Club 12 tall comedian and a 10 pack of Steve a pre-rolls"
     ),
-    "get me a 26er of Canadian Club 12 tall Canadian and a 10 pack of sativa pre-rolls"
+    "get me a 26er of Canadian Club; 12 Molson Canadian 473 mL tall cans and a 10 pack of sativa pre-rolls"
+  );
+});
+
+test("latest CC phone transcript is normalized with the same product boundaries", () => {
+  assert.equal(
+    normalizeLikelySpeechTranscript(
+      "get me a 26 serve CC 12 tall Canadian and a 10 pack of sativa pre-rolls"
+    ),
+    "get me a 26er of Canadian Club; 12 Molson Canadian 473 mL tall cans and a 10 pack of sativa pre-rolls"
+  );
+});
+
+test("explicit Canadian Club 12 Year wording is preserved", () => {
+  assert.equal(
+    normalizeLikelySpeechTranscript("Canadian Club 12 Year 750 mL"),
+    "Canadian Club 12 Year 750 mL"
   );
 });
 
@@ -102,7 +118,7 @@ test("confirmed three-item order preserves product boundaries and quantities", (
   const response = buildOrderDraftResponse(
     {
       status: "READY",
-      assistantMessage: "Please review the corrected transcript.",
+      assistantMessage: "I interpreted sativa from serve.",
       clarificationQuestion: null,
       items: [
         {
@@ -130,6 +146,10 @@ test("confirmed three-item order preserves product boundaries and quantities", (
     []
   );
 
+  assert.equal(
+    response.assistantMessage,
+    "I've drafted your order. Please review each item before you place it."
+  );
   assert.deepEqual(
     response.draft.items.map((item) => ({
       requestedName: item.requestedName,
@@ -154,6 +174,44 @@ test("confirmed three-item order preserves product boundaries and quantities", (
       }
     ]
   );
+});
+
+test("regular Canadian Club matches the regular catalog item instead of 12 Year", () => {
+  const response = buildOrderDraftResponse(
+    {
+      status: "READY",
+      assistantMessage: "I prepared your draft.",
+      clarificationQuestion: null,
+      items: [
+        {
+          requestedName: "Canadian Club",
+          packageDescription: "750 mL",
+          quantity: 1,
+          confidence: "HIGH"
+        }
+      ],
+      paymentMethod: null,
+      additionalNotes: null
+    },
+    [
+      catalogItem({
+        id: "regular-cc",
+        name: "Canadian club 750ml",
+        normalizedName: "canadian club 750ml",
+        brand: "Canadian Club",
+        popularityScore: 0
+      }),
+      catalogItem({
+        id: "aged-cc",
+        name: "Canadian Club 12 Year 750 ml",
+        normalizedName: "canadian club 12 year 750ml",
+        brand: "Canadian Club",
+        popularityScore: 0
+      })
+    ]
+  );
+
+  assert.equal(response.draft.items[0].catalogMatch.id, "regular-cc");
 });
 
 test("package details are not duplicated in completed item names", () => {
