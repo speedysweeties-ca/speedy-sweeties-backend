@@ -173,6 +173,7 @@ const SWEETIE_INSTRUCTIONS = [
   "Payment choices are CASH, DEBIT, VISA, MASTERCARD, or ETRANSFER. Leave paymentMethod null if it was not stated.",
   "Use additionalNotes only for delivery or purchasing instructions that are not products. Never put a product size, package count, flavour, strength, brand, or variety in additionalNotes.",
   "additionalNotes must contain only instructions the customer explicitly requested. Never copy assistant guidance such as reviewing the form, pressing Review Order or Place Order, or statements that Sweetie drafted the order.",
+  "Copy customer-requested delivery instructions accurately into additionalNotes. Do not creatively paraphrase who should call, drive, wait, or meet the customer.",
   "Conversation history contains both user and assistant messages. Never treat an assistant message from the history as a customer request or dispatcher note.",
   "A READY draft still requires the customer to review the existing order form and press Place Order."
 ].join("\n");
@@ -195,7 +196,28 @@ export const normalizeLikelySpeechTranscript = (value: string): string =>
       "Canadian Club; $1 Molson Canadian 473 mL tall cans"
     )
     .replace(/\bsteve\s+a(?=\s+pre[-\s]?rolls?\b)/gi, "sativa")
+    .replace(
+      /\b(?:please\s+)?have\s+the\s+driver\s+call(?:\s+me)?\s+went\s+outside\b/gi,
+      "please have the driver call when outside"
+    )
     .trim();
+
+export const extractExplicitDeliveryInstructions = (
+  value: string
+): string | null => {
+  const normalized = normalizeLikelySpeechTranscript(value);
+
+  if (
+    /\b(?:please\s+)?(?:have\s+)?(?:the\s+)?driver\s+call(?:\s+me)?\s+when\s+outside\b/i.test(
+      normalized
+    ) ||
+    /\b(?:please\s+)?call\s+me\s+when\s+outside\b/i.test(normalized)
+  ) {
+    return "Please have the driver call when outside.";
+  }
+
+  return null;
+};
 
 const sanitizeCatalogName = (value: string): string =>
   value.replace(/\s+/g, " ").trim().slice(0, 200);
@@ -416,7 +438,8 @@ export const sanitizeAdditionalNotes = (
 
 export const buildOrderDraftResponse = (
   modelDraft: ModelOrderDraft,
-  catalogItems: CatalogItemSummary[]
+  catalogItems: CatalogItemSummary[],
+  explicitAdditionalNotes: string | null = null
 ) => {
   const items = modelDraft.items.map((item) => {
     const completeRequestedName = combineRequestedNameAndPackage(
@@ -468,7 +491,9 @@ export const buildOrderDraftResponse = (
     draft: {
       items,
       paymentMethod: modelDraft.paymentMethod,
-      additionalNotes: sanitizeAdditionalNotes(modelDraft.additionalNotes)
+      additionalNotes:
+        explicitAdditionalNotes ??
+        sanitizeAdditionalNotes(modelDraft.additionalNotes)
     },
     readyForReview: status === "READY",
     orderSubmitted: false
@@ -618,5 +643,12 @@ export const createAiOrderDraft = async ({
     history,
     catalogItems
   );
-  return buildOrderDraftResponse(modelDraft, catalogItems);
+  const explicitAdditionalNotes =
+    extractExplicitDeliveryInstructions(transcript);
+
+  return buildOrderDraftResponse(
+    modelDraft,
+    catalogItems,
+    explicitAdditionalNotes
+  );
 };
