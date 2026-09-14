@@ -23,6 +23,7 @@ export interface CatalogItemSummary {
 
 const modelOrderItemSchema = z.object({
   requestedName: z.string().trim().min(1).max(200),
+  packageDescription: z.string().trim().min(1).max(100).nullable(),
   quantity: z.number().int().min(1).max(100),
   confidence: z.enum(["HIGH", "MEDIUM", "LOW"])
 }).strict();
@@ -85,12 +86,29 @@ const ORDER_DRAFT_JSON_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["requestedName", "quantity", "confidence"],
+        required: [
+          "requestedName",
+          "packageDescription",
+          "quantity",
+          "confidence"
+        ],
         properties: {
           requestedName: {
             type: "string",
             minLength: 1,
             maxLength: 200
+          },
+          packageDescription: {
+            anyOf: [
+              {
+                type: "string",
+                minLength: 1,
+                maxLength: 100
+              },
+              {
+                type: "null"
+              }
+            ]
           },
           quantity: {
             type: "integer",
@@ -136,12 +154,16 @@ const SWEETIE_INSTRUCTIONS = [
   "Keep the personality warm, brief, and helpful. Ask at most one short clarification question at a time.",
   "Understand common Canadian product slang: a 26er normally means 750 mL, a mickey normally means 375 mL, a forty normally means 1.14 L, a sixty-sixer normally means 1.75 L, and a two-four means a case of 24.",
   "Preserve the requested brand, variety, package size, nicotine strength, flavour, and quantity when stated.",
+  "Set requestedName to the product, brand, and variety. Set packageDescription to the stated package size or format, normalized for the order form, or null when none was stated.",
+  "Translate familiar Canadian package slang in packageDescription: mickey becomes 375 mL, 26er becomes 750 mL, forty becomes 1.14 L, sixty-sixer becomes 1.75 L, and two-four becomes 24-pack.",
+  "Quantity always means how many packages or individual products the customer wants. A number contained in a package description is not the quantity.",
+  "Examples: 'a mickey of Smirnoff' means requestedName 'Smirnoff', packageDescription '375 mL', quantity 1. 'a 10-pack of sativa pre-rolls' means requestedName 'sativa pre-rolls', packageDescription '10-pack', quantity 1. 'two 10-packs' means quantity 2. 'ten sativa pre-rolls' means packageDescription null and quantity 10.",
   "Do not invent a brand, size, flavour, quantity, price, product availability, store, delivery charge, customer identity, or delivery address.",
   "If a product, size, quantity, or payment method is genuinely ambiguous, return NEEDS_CLARIFICATION and ask one focused question.",
   "If the customer uses an unfamiliar size such as 27er, do not silently change it to 26er.",
   "Items must contain the customer's complete intended order across the entire supplied conversation, not only the newest sentence.",
   "Payment choices are CASH, DEBIT, VISA, MASTERCARD, or ETRANSFER. Leave paymentMethod null if it was not stated.",
-  "Use additionalNotes only for delivery or purchasing instructions that are not products.",
+  "Use additionalNotes only for delivery or purchasing instructions that are not products. Never put a product size, package count, flavour, strength, brand, or variety in additionalNotes.",
   "A READY draft still requires the customer to review the existing order form and press Place Order."
 ].join("\n");
 
@@ -282,18 +304,44 @@ export const findBestCatalogMatch = (
   return best.catalogItem;
 };
 
+export const combineRequestedNameAndPackage = (
+  requestedName: string,
+  packageDescription: string | null
+): string => {
+  const requested = requestedName.trim();
+  const packageDetail = packageDescription?.trim();
+
+  if (!packageDetail) return requested;
+
+  const normalizedRequested = normalizeProductText(requested);
+  const normalizedPackage = normalizeProductText(packageDetail);
+
+  if (
+    normalizedPackage &&
+    normalizedRequested.includes(normalizedPackage)
+  ) {
+    return requested;
+  }
+
+  return requested + " — " + packageDetail;
+};
+
 export const buildOrderDraftResponse = (
   modelDraft: ModelOrderDraft,
   catalogItems: CatalogItemSummary[]
 ) => {
   const items = modelDraft.items.map((item) => {
-    const catalogMatch = findBestCatalogMatch(
+    const completeRequestedName = combineRequestedNameAndPackage(
       item.requestedName,
+      item.packageDescription
+    );
+    const catalogMatch = findBestCatalogMatch(
+      completeRequestedName,
       catalogItems
     );
 
     return {
-      requestedName: item.requestedName.trim(),
+      requestedName: completeRequestedName,
       quantity: item.quantity,
       confidence: item.confidence,
       catalogMatch: catalogMatch

@@ -3,6 +3,7 @@ const test = require("node:test");
 
 const {
   buildOrderDraftResponse,
+  combineRequestedNameAndPackage,
   extractOpenAiOutputText,
   findBestCatalogMatch,
   normalizeProductText
@@ -33,6 +34,46 @@ test("Canadian package slang normalizes for catalog matching", () => {
   );
 
   assert.equal(match.id, "catalog-1");
+});
+
+test("package sizes stay in item names and package counts do not become quantities", () => {
+  const response = buildOrderDraftResponse(
+    {
+      status: "READY",
+      assistantMessage: "I prepared your draft.",
+      clarificationQuestion: null,
+      items: [
+        {
+          requestedName: "Smirnoff",
+          packageDescription: "375 mL",
+          quantity: 1,
+          confidence: "HIGH"
+        },
+        {
+          requestedName: "sativa pre-rolls",
+          packageDescription: "10-pack",
+          quantity: 1,
+          confidence: "HIGH"
+        }
+      ],
+      paymentMethod: null,
+      additionalNotes: null
+    },
+    []
+  );
+
+  assert.equal(response.draft.items[0].requestedName, "Smirnoff — 375 mL");
+  assert.equal(response.draft.items[0].quantity, 1);
+  assert.equal(response.draft.items[1].requestedName, "sativa pre-rolls — 10-pack");
+  assert.equal(response.draft.items[1].quantity, 1);
+  assert.equal(response.draft.additionalNotes, null);
+});
+
+test("package details are not duplicated in completed item names", () => {
+  assert.equal(
+    combineRequestedNameAndPackage("Crown Royal 750 mL", "750 mL"),
+    "Crown Royal 750 mL"
+  );
 });
 
 test("ambiguous catalog candidates are not guessed", () => {
@@ -69,6 +110,7 @@ test("weak catalog similarity is left for dispatcher review", () => {
       items: [
         {
           requestedName: "A very specific unknown vape",
+          packageDescription: null,
           quantity: 1,
           confidence: "HIGH"
         }
