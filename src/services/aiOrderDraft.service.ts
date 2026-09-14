@@ -396,18 +396,19 @@ const INTERNAL_ORDER_NOTE_PATTERNS = [
 export const sanitizeAdditionalNotes = (
   value: string | null
 ): string | null => {
-  const normalized = value?.replace(/\s+/g, " ").trim();
-  if (!normalized) return null;
+  const rawNote = value?.trim();
+  if (!rawNote) return null;
 
   const segments =
-    normalized.match(/[^.!?]+[.!?]?/g)?.map((segment) => segment.trim()) ??
-    [normalized];
+    rawNote.match(/[^.!?\n]+[.!?]?/g) ?? [rawNote];
 
-  const customerRequestedSegments = segments.filter(
-    (segment) =>
-      segment &&
-      !INTERNAL_ORDER_NOTE_PATTERNS.some((pattern) => pattern.test(segment))
-  );
+  const customerRequestedSegments = segments
+    .map((segment) => segment.replace(/\s+/g, " ").trim())
+    .filter(
+      (segment) =>
+        segment &&
+        !INTERNAL_ORDER_NOTE_PATTERNS.some((pattern) => pattern.test(segment))
+    );
 
   const sanitized = customerRequestedSegments.join(" ").trim();
   return sanitized || null;
