@@ -172,6 +172,8 @@ const SWEETIE_INSTRUCTIONS = [
   "Items must contain the customer's complete intended order across the entire supplied conversation, not only the newest sentence.",
   "Payment choices are CASH, DEBIT, VISA, MASTERCARD, or ETRANSFER. Leave paymentMethod null if it was not stated.",
   "Use additionalNotes only for delivery or purchasing instructions that are not products. Never put a product size, package count, flavour, strength, brand, or variety in additionalNotes.",
+  "additionalNotes must contain only instructions the customer explicitly requested. Never copy assistant guidance such as reviewing the form, pressing Review Order or Place Order, or statements that Sweetie drafted the order.",
+  "Conversation history contains both user and assistant messages. Never treat an assistant message from the history as a customer request or dispatcher note.",
   "A READY draft still requires the customer to review the existing order form and press Place Order."
 ].join("\n");
 
@@ -382,6 +384,35 @@ export const combineRequestedNameAndPackage = (
   return requested + " — " + packageDetail;
 };
 
+const INTERNAL_ORDER_NOTE_PATTERNS = [
+  /\breview (?:the|your) order form\b/i,
+  /\bpress (?:the )?(?:review order|place order)\b/i,
+  /\btap (?:the )?(?:review order|place order)\b/i,
+  /\bdrafted (?:the|your) order\b/i,
+  /\bcart (?:is|has been) filled\b/i,
+  /\bsweetie (?:never|does not|doesn't|won't) submit\b/i
+];
+
+export const sanitizeAdditionalNotes = (
+  value: string | null
+): string | null => {
+  const normalized = value?.replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+
+  const segments =
+    normalized.match(/[^.!?]+[.!?]?/g)?.map((segment) => segment.trim()) ??
+    [normalized];
+
+  const customerRequestedSegments = segments.filter(
+    (segment) =>
+      segment &&
+      !INTERNAL_ORDER_NOTE_PATTERNS.some((pattern) => pattern.test(segment))
+  );
+
+  const sanitized = customerRequestedSegments.join(" ").trim();
+  return sanitized || null;
+};
+
 export const buildOrderDraftResponse = (
   modelDraft: ModelOrderDraft,
   catalogItems: CatalogItemSummary[]
@@ -427,7 +458,7 @@ export const buildOrderDraftResponse = (
   const assistantMessage =
     status === "READY"
       ? "I've drafted your order. Please review each item before you place it."
-      : modelDraft.assistantMessage.trim();
+      : "I need one more detail.";
 
   return {
     status,
@@ -436,7 +467,7 @@ export const buildOrderDraftResponse = (
     draft: {
       items,
       paymentMethod: modelDraft.paymentMethod,
-      additionalNotes: modelDraft.additionalNotes
+      additionalNotes: sanitizeAdditionalNotes(modelDraft.additionalNotes)
     },
     readyForReview: status === "READY",
     orderSubmitted: false
