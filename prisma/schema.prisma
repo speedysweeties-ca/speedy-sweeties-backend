@@ -191,19 +191,21 @@ model RetentionMessage {
 }
 
 model ItemCatalog {
-  id              String   @id @default(uuid())
-  name            String
-  normalizedName  String
-  size            String?
-  category        String?
-  brand           String?
-  normalizedBrand String?
-  source          String?
-  pickupType      String   @default("UNKNOWN")
-  isActive        Boolean  @default(true)
-  popularityScore Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                 String    @id @default(uuid())
+  name               String
+  normalizedName     String
+  size               String?
+  category           String?
+  brand              String?
+  normalizedBrand    String?
+  source             String?
+  pickupType         String    @default("UNKNOWN")
+  isActive           Boolean   @default(true)
+  popularityScore    Int       @default(0)
+  webVerificationUrl String?   @unique
+  webVerifiedAt      DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   orderItems OrderItem[]
 
@@ -214,6 +216,7 @@ model ItemCatalog {
   @@index([source])
   @@index([isActive])
   @@index([popularityScore])
+  @@index([webVerifiedAt])
 }
 
 model Order {

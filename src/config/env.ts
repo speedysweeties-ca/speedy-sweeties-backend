@@ -21,6 +21,17 @@ function numberEnv(name: string, fallback: number): number {
   return value;
 }
 
+function booleanEnv(name: string, fallback: boolean): boolean {
+  const rawValue = process.env[name];
+  if (rawValue === undefined) return fallback;
+
+  const normalized = rawValue.trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+
+  throw new Error(`Invalid boolean environment variable: ${name}`);
+}
+
 const NODE_ENV = process.env.NODE_ENV ?? "development";
 const CORS_ORIGIN =
   process.env.CORS_ORIGIN ??
@@ -45,6 +56,24 @@ export const env = {
     Math.min(
       1_000,
       Math.max(25, numberEnv("AI_ORDER_DRAFT_CATALOG_LIMIT", 750))
+    )
+  ),
+  AI_PRODUCT_WEB_LOOKUP_ENABLED: booleanEnv(
+    "AI_PRODUCT_WEB_LOOKUP_ENABLED",
+    true
+  ),
+  OPENAI_PRODUCT_WEB_LOOKUP_MODEL:
+    process.env.OPENAI_PRODUCT_WEB_LOOKUP_MODEL ??
+    process.env.OPENAI_ORDER_DRAFT_MODEL ??
+    "gpt-5.6-luna",
+  AI_PRODUCT_WEB_LOOKUP_TIMEOUT_MS: Math.min(
+    15_000,
+    Math.max(1_000, numberEnv("AI_PRODUCT_WEB_LOOKUP_TIMEOUT_MS", 8_000))
+  ),
+  AI_PRODUCT_WEB_LOOKUP_MAX_ITEMS: Math.floor(
+    Math.min(
+      3,
+      Math.max(1, numberEnv("AI_PRODUCT_WEB_LOOKUP_MAX_ITEMS", 2))
     )
   ),
 
