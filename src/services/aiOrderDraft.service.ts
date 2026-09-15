@@ -24,7 +24,7 @@ export interface CatalogItemSummary {
 const modelOrderItemSchema = z.object({
   requestedName: z.string().trim().min(1).max(200),
   packageDescription: z.string().trim().min(1).max(100).nullable(),
-  quantity: z.number().int().min(1).max(100),
+  quantity: z.number().int().min(1).max(1_000_000),
   confidence: z.enum(["HIGH", "MEDIUM", "LOW"])
 }).strict();
 
@@ -113,7 +113,7 @@ const ORDER_DRAFT_JSON_SCHEMA = {
           quantity: {
             type: "integer",
             minimum: 1,
-            maximum: 100
+            maximum: 1000000
           },
           confidence: {
             type: "string",
@@ -165,6 +165,8 @@ const SWEETIE_INSTRUCTIONS = [
   "Set requestedName to the product, brand, and variety. Set packageDescription to the stated package size or format, normalized for the order form, or null when none was stated.",
   "Translate familiar Canadian package slang in packageDescription: mickey becomes 375 mL, 26er becomes 750 mL, forty becomes 1.14 L, sixty-sixer becomes 1.75 L, and two-four becomes 24-pack.",
   "Quantity always means how many packages or individual products the customer wants. A number contained in a package description is not the quantity.",
+  "Never split one requested product into repeated duplicate item rows to avoid a quantity limit. Return one item row with the customer's exact requested quantity.",
+  "If a customer requests more than 100 of one item, preserve that exact quantity in one item and return NEEDS_CLARIFICATION. The backend will enforce the limit and ask the customer for a quantity from 1 to 100.",
   "Examples: 'a mickey of Smirnoff' means requestedName 'Smirnoff', packageDescription '375 mL', quantity 1. 'a 10-pack of sativa pre-rolls' means requestedName 'sativa pre-rolls', packageDescription '10-pack', quantity 1. 'two 10-packs' means quantity 2. 'ten sativa pre-rolls' means packageDescription null and quantity 10.",
   "Do not invent a brand, size, flavour, quantity, price, product availability, store, delivery charge, customer identity, or delivery address.",
   "If a product, size, quantity, or payment method is genuinely ambiguous, return NEEDS_CLARIFICATION and ask one focused question.",
@@ -436,45 +438,97 @@ export const sanitizeAdditionalNotes = (
   return sanitized || null;
 };
 
+type ConsolidatedModelOrderItem = {
+  requestedName: string;
+  quantity: number;
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+};
+
+const confidenceRank: Record<ConsolidatedModelOrderItem["confidence"], number> = {
+  HIGH: 3,
+  MEDIUM: 2,
+  LOW: 1
+};
+
+export const consolidateModelOrderItems = (
+  modelItems: ModelOrderDraft["items"]
+): ConsolidatedModelOrderItem[] => {
+  const consolidated = new Map<string, ConsolidatedModelOrderItem>();
+
+  for (const item of modelItems) {
+    const requestedName = combineRequestedNameAndPackage(
+      item.requestedName,
+      item.packageDescription
+    );
+    const key = normalizeProductText(requestedName);
+    if (!key) continue;
+
+    const existing = consolidated.get(key);
+    if (existing) {
+      existing.quantity += item.quantity;
+      if (confidenceRank[item.confidence] < confidenceRank[existing.confidence]) {
+        existing.confidence = item.confidence;
+      }
+      continue;
+    }
+
+    consolidated.set(key, {
+      requestedName,
+      quantity: item.quantity,
+      confidence: item.confidence
+    });
+  }
+
+  return Array.from(consolidated.values());
+};
+
 export const buildOrderDraftResponse = (
   modelDraft: ModelOrderDraft,
   catalogItems: CatalogItemSummary[],
   explicitAdditionalNotes: string | null = null
 ) => {
-  const items = modelDraft.items.map((item) => {
-    const completeRequestedName = combineRequestedNameAndPackage(
-      item.requestedName,
-      item.packageDescription
-    );
-    const catalogMatch = findBestCatalogMatch(
-      completeRequestedName,
-      catalogItems
-    );
+  const consolidatedItems = consolidateModelOrderItems(modelDraft.items);
+  const oversizedItem = consolidatedItems.find((item) => item.quantity > 100);
 
-    return {
-      requestedName: completeRequestedName,
-      quantity: item.quantity,
-      confidence: item.confidence,
-      catalogMatch: catalogMatch
-        ? {
-            id: catalogMatch.id,
-            name: catalogMatch.name,
-            brand: catalogMatch.brand,
-            size: catalogMatch.size,
-            category: catalogMatch.category,
-            pickupType: catalogMatch.pickupType
-          }
-        : null,
-      needsDispatcherReview:
-        catalogMatch === null || item.confidence !== "HIGH"
-    };
-  });
+  const items = oversizedItem
+    ? []
+    : consolidatedItems.map((item) => {
+        const catalogMatch = findBestCatalogMatch(
+          item.requestedName,
+          catalogItems
+        );
 
-  const missingItems = items.length === 0;
+        return {
+          requestedName: item.requestedName,
+          quantity: item.quantity,
+          confidence: item.confidence,
+          catalogMatch: catalogMatch
+            ? {
+                id: catalogMatch.id,
+                name: catalogMatch.name,
+                brand: catalogMatch.brand,
+                size: catalogMatch.size,
+                category: catalogMatch.category,
+                pickupType: catalogMatch.pickupType
+              }
+            : null,
+          needsDispatcherReview:
+            catalogMatch === null || item.confidence !== "HIGH"
+        };
+      });
+
+  const missingItems = consolidatedItems.length === 0;
   const status =
-    missingItems ? "NEEDS_CLARIFICATION" : modelDraft.status;
-  const clarificationQuestion =
-    status === "NEEDS_CLARIFICATION"
+    oversizedItem || missingItems
+      ? "NEEDS_CLARIFICATION"
+      : modelDraft.status;
+
+  const clarificationQuestion = oversizedItem
+    ? `You asked for ${oversizedItem.quantity} of ${oversizedItem.requestedName.slice(
+        0,
+        100
+      )}. The maximum quantity for one item is 100. What quantity from 1 to 100 would you like?`
+    : status === "NEEDS_CLARIFICATION"
       ? modelDraft.clarificationQuestion ??
         "What would you like Speedy Sweeties to deliver?"
       : null;
