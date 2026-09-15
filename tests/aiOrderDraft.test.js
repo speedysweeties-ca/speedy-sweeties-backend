@@ -9,6 +9,7 @@ const {
   extractExplicitDeliveryInstructions,
   extractOpenAiOutputText,
   findBestCatalogMatch,
+  findUnmatchedRequestedNames,
   normalizeLikelySpeechTranscript,
   normalizeProductText,
   sanitizeAdditionalNotes
@@ -39,6 +40,44 @@ test("Canadian package slang normalizes for catalog matching", () => {
   );
 
   assert.equal(match.id, "catalog-1");
+});
+
+test("explicit Canadian 40-ounce speech normalizes to 1.14 L", () => {
+  assert.equal(
+    normalizeLikelySpeechTranscript(
+      "I want a 40 ounce of Johnnie Walker Black Label"
+    ),
+    "I want a 1.14 L of Johnnie Walker Black Label"
+  );
+});
+
+test("only products missing from the active catalog are selected for web verification", () => {
+  const modelDraft = {
+    status: "READY",
+    assistantMessage: "I prepared your draft.",
+    clarificationQuestion: null,
+    items: [
+      {
+        requestedName: "Crown Royal",
+        packageDescription: "750 mL",
+        quantity: 1,
+        confidence: "HIGH"
+      },
+      {
+        requestedName: "Johnnie Walker Black Label",
+        packageDescription: "1.14 L",
+        quantity: 1,
+        confidence: "HIGH"
+      }
+    ],
+    paymentMethod: null,
+    additionalNotes: null
+  };
+
+  assert.deepEqual(
+    findUnmatchedRequestedNames(modelDraft, [catalogItem()]),
+    ["Johnnie Walker Black Label — 1.14 L"]
+  );
 });
 
 test("confirmed noisy phone transcript is normalized with product boundaries", () => {

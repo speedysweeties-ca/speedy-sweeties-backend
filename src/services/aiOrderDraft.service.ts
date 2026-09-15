@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { env } from "../config/env";
 import { ApiError } from "../utils/ApiError";
+import { verifyAndPersistRequestedProducts } from "./productWebVerification.service";
 
 export type AiConversationRole = "user" | "assistant";
 
@@ -169,6 +170,7 @@ const SWEETIE_INSTRUCTIONS = [
   "If a customer requests more than 100 of one item, preserve that exact quantity in one item and return NEEDS_CLARIFICATION. The backend will enforce the limit and ask the customer for a quantity from 1 to 100.",
   "Examples: 'a mickey of Smirnoff' means requestedName 'Smirnoff', packageDescription '375 mL', quantity 1. 'a 10-pack of sativa pre-rolls' means requestedName 'sativa pre-rolls', packageDescription '10-pack', quantity 1. 'two 10-packs' means quantity 2. 'ten sativa pre-rolls' means packageDescription null and quantity 10.",
   "Do not invent a brand, size, flavour, quantity, price, product availability, store, delivery charge, customer identity, or delivery address.",
+  "An exact product that is absent from the active catalog is still a valid requested item. Catalog absence alone is not ambiguity; preserve the customer's exact product and let the backend verify it on approved retailer websites.",
   "If a product, size, quantity, or payment method is genuinely ambiguous, return NEEDS_CLARIFICATION and ask one focused question.",
   "If the customer uses an unfamiliar size such as 27er, do not silently change it to 26er.",
   "Items must contain the customer's complete intended order across the entire supplied conversation, not only the newest sentence.",
@@ -185,6 +187,10 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 export const normalizeLikelySpeechTranscript = (value: string): string =>
   value
+    .replace(
+      /\b(?:40|forty)[\s-]*(?:oz|ounce|ounces|ouncer)\b/gi,
+      "1.14 L"
+    )
     .replace(
       /\b26\s+(?:years?|serve|sir)\b\s*(?:of\s+)?(?=(?:cc\b|canadian\s+club\b))/gi,
       "26er of "
@@ -554,6 +560,16 @@ export const buildOrderDraftResponse = (
   };
 };
 
+export const findUnmatchedRequestedNames = (
+  modelDraft: ModelOrderDraft,
+  catalogItems: CatalogItemSummary[]
+): string[] =>
+  consolidateModelOrderItems(modelDraft.items)
+    .map((item) => item.requestedName)
+    .filter((requestedName) =>
+      findBestCatalogMatch(requestedName, catalogItems) === null
+    );
+
 const parseModelDraft = (rawText: string): ModelOrderDraft => {
   let parsedJson: unknown;
 
@@ -699,10 +715,16 @@ export const createAiOrderDraft = async ({
   );
   const explicitAdditionalNotes =
     extractExplicitDeliveryInstructions(transcript);
+  const webVerifiedCatalogItems =
+    modelDraft.status === "READY"
+      ? await verifyAndPersistRequestedProducts(
+          findUnmatchedRequestedNames(modelDraft, catalogItems)
+        )
+      : [];
 
   return buildOrderDraftResponse(
     modelDraft,
-    catalogItems,
+    [...catalogItems, ...webVerifiedCatalogItems],
     explicitAdditionalNotes
   );
 };
