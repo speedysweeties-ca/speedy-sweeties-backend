@@ -4,6 +4,7 @@ const test = require("node:test");
 const {
   buildCatalogReference,
   buildOrderDraftResponse,
+  consolidateModelOrderItems,
   combineRequestedNameAndPackage,
   extractExplicitDeliveryInstructions,
   extractOpenAiOutputText,
@@ -366,6 +367,89 @@ test("weak catalog similarity is left for dispatcher review", () => {
   assert.equal(response.orderSubmitted, false);
   assert.equal(response.draft.items[0].catalogMatch, null);
   assert.equal(response.draft.items[0].needsDispatcherReview, true);
+});
+
+test("duplicate model rows are consolidated into one order item", () => {
+  const consolidated = consolidateModelOrderItems([
+    {
+      requestedName: "Bag of ice",
+      packageDescription: null,
+      quantity: 2,
+      confidence: "HIGH"
+    },
+    {
+      requestedName: "bag of ice",
+      packageDescription: null,
+      quantity: 3,
+      confidence: "MEDIUM"
+    }
+  ]);
+
+  assert.deepEqual(consolidated, [
+    {
+      requestedName: "Bag of ice",
+      quantity: 5,
+      confidence: "MEDIUM"
+    }
+  ]);
+});
+
+test("a quantity above 100 is forced to clarification without cart rows", () => {
+  const response = buildOrderDraftResponse(
+    {
+      status: "READY",
+      assistantMessage: "I prepared your draft.",
+      clarificationQuestion: null,
+      items: [
+        {
+          requestedName: "Bag of ice",
+          packageDescription: null,
+          quantity: 120,
+          confidence: "HIGH"
+        }
+      ],
+      paymentMethod: null,
+      additionalNotes: null
+    },
+    []
+  );
+
+  assert.equal(response.status, "NEEDS_CLARIFICATION");
+  assert.equal(response.readyForReview, false);
+  assert.deepEqual(response.draft.items, []);
+  assert.match(response.clarificationQuestion, /maximum quantity.*100/i);
+  assert.match(response.clarificationQuestion, /120/);
+});
+
+test("duplicate rows whose combined quantity exceeds 100 are forced to clarification", () => {
+  const response = buildOrderDraftResponse(
+    {
+      status: "READY",
+      assistantMessage: "I prepared your draft.",
+      clarificationQuestion: null,
+      items: [
+        {
+          requestedName: "Bag of ice",
+          packageDescription: null,
+          quantity: 60,
+          confidence: "HIGH"
+        },
+        {
+          requestedName: "bag of ice",
+          packageDescription: null,
+          quantity: 60,
+          confidence: "HIGH"
+        }
+      ],
+      paymentMethod: null,
+      additionalNotes: null
+    },
+    []
+  );
+
+  assert.equal(response.status, "NEEDS_CLARIFICATION");
+  assert.equal(response.readyForReview, false);
+  assert.deepEqual(response.draft.items, []);
 });
 
 test("an empty model draft is forced back to clarification", () => {
