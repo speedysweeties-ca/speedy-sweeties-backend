@@ -89,7 +89,31 @@ test("the OpenAI request can search only the approved retailer domains", async (
     assert.deepEqual(requestBody.tools[0].filters.allowed_domains, [
       "lcbo.com",
       "thebeerstore.ca",
-      "savagecloud.ca"
+      "savagecloud.ca",
+      "6ixvape.ca",
+      "e-cigz.com",
+      "guelphvapourco.com",
+      "rockaffair.ca",
+      "wildvapes.ca",
+      "canjacannabis.ca",
+      "cannacabana.com",
+      "fikacannabis.com",
+      "fireandflower.com",
+      "highlife.ca",
+      "jsupplyco.com",
+      "kraftcannabisguelph.com",
+      "matchboxcannabis.com",
+      "purcannabis.ca",
+      "purenorthcannabis.ca",
+      "reservedcannabis.ca",
+      "ronincannabis.ca",
+      "spiritleaf.ca",
+      "cannabistshop.ca",
+      "thegreenroomcannabis.ca",
+      "thehunnypot.com",
+      "thepotery.com",
+      "tncc.ca",
+      "valuebuds.com"
     ]);
     assert.equal(requestBody.tool_choice, "required");
     assert.deepEqual(requestBody.include, ["web_search_call.action.sources"]);
@@ -213,6 +237,50 @@ test("Savage Cloud products map to the VAPE pickup type", () => {
 
   assert.equal(result.source, "SAVAGE_CLOUD");
   assert.equal(result.pickupType, "VAPE");
+});
+
+test("saved dispensary product pages map to the DISPENSARY pickup type", () => {
+  const productUrl =
+    "https://cannacabana.com/products/wlc-boysenberry-gummies";
+  const result = validateWebVerificationResult(
+    foundResult({
+      canonicalName: "Wyld Boysenberry Gummies",
+      brand: "Wyld",
+      size: "10 Pack",
+      category: "CANNABIS",
+      retailer: "CANNA_CABANA",
+      productUrl
+    }),
+    [productUrl],
+    "Wyld Boysenberry Gummies 10 Pack"
+  );
+
+  assert.equal(result.source, "CANNA_CABANA");
+  assert.equal(result.pickupType, "DISPENSARY");
+});
+
+test("saved retailer home and location pages cannot verify products", () => {
+  const result = foundResult({
+    canonicalName: "Wyld Boysenberry Gummies",
+    brand: "Wyld",
+    size: "10 Pack",
+    category: "CANNABIS",
+    retailer: "CANNA_CABANA"
+  });
+
+  for (const productUrl of [
+    "https://cannacabana.com/",
+    "https://cannacabana.com/pages/store/guelph-silvercreek"
+  ]) {
+    assert.equal(
+      validateWebVerificationResult(
+        { ...result, productUrl },
+        [productUrl],
+        "Wyld Boysenberry Gummies 10 Pack"
+      ),
+      null
+    );
+  }
 });
 
 test("the verified page must match the requested product and size", () => {
