@@ -1,7 +1,16 @@
 export type AddressFields = {
   addressLine1: string;
+  unitNumber?: string | null;
+  buzzCode?: string | null;
   city: string;
   province: string;
+};
+
+type ParsedGoogleAddressFields = Omit<
+  AddressFields,
+  "unitNumber" | "buzzCode"
+> & {
+  unitNumber: string;
 };
 
 export type GoogleAddressComponent = {
@@ -24,7 +33,7 @@ const getAddressComponent = (
 
 export const parseGoogleAutocompleteAddress = (
   place: GoogleAutocompletePlace
-): AddressFields | null => {
+): ParsedGoogleAddressFields | null => {
   const streetNumber = getAddressComponent(place, ["street_number"]);
   const route = getAddressComponent(place, ["route"]);
   const subpremise = getAddressComponent(place, ["subpremise"]);
@@ -42,15 +51,15 @@ export const parseGoogleAutocompleteAddress = (
     .join(" ")
     .trim();
   const unit = subpremise?.long_name?.trim();
-  const addressLine1 = unit ? `${streetAddress} Unit ${unit}` : streetAddress;
   const city = municipality?.long_name?.trim() || "";
   const provinceValue =
     province?.short_name?.trim() || province?.long_name?.trim() || "";
 
-  if (!addressLine1 || !city || !provinceValue) return null;
+  if (!streetAddress || !city || !provinceValue) return null;
 
   return {
-    addressLine1,
+    addressLine1: streetAddress,
+    unitNumber: unit || "",
     city,
     province: provinceValue,
   };
@@ -58,8 +67,20 @@ export const parseGoogleAutocompleteAddress = (
 
 export const buildAddressRequestFields = (
   address: AddressFields
-): AddressFields => ({
-  addressLine1: address.addressLine1.trim(),
-  city: address.city.trim(),
-  province: address.province.trim(),
-});
+): AddressFields => {
+  const hasUnitNumber = Object.prototype.hasOwnProperty.call(
+    address,
+    "unitNumber"
+  );
+  const hasBuzzCode = Object.prototype.hasOwnProperty.call(address, "buzzCode");
+
+  return {
+    addressLine1: address.addressLine1.trim(),
+    ...(hasUnitNumber
+      ? { unitNumber: address.unitNumber?.trim() || null }
+      : {}),
+    ...(hasBuzzCode ? { buzzCode: address.buzzCode?.trim() || null } : {}),
+    city: address.city.trim(),
+    province: address.province.trim(),
+  };
+};

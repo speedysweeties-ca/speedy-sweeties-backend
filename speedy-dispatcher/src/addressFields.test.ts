@@ -28,7 +28,8 @@ test("autocomplete provides the complete civic address used by order forms", () 
   });
 
   assert.deepEqual(address, {
-    addressLine1: "10A Industrial Drive Unit 4",
+    addressLine1: "10A Industrial Drive",
+    unitNumber: "4",
     city: "Guelph",
     province: "ON",
   });
@@ -46,21 +47,54 @@ test("autocomplete rejects a selection missing required civic components", () =>
   assert.equal(address, null);
 });
 
-test("address request fields contain only the complete trimmed civic address", () => {
+test("delivery address requests keep unit and buzz details separate", () => {
   const fields = buildAddressRequestFields({
-    addressLine1: " 10A Industrial Drive Unit 4 ",
+    addressLine1: " 10A Industrial Drive ",
+    unitNumber: " 4B ",
+    buzzCode: " 1234 ",
     city: " Guelph ",
     province: " ON ",
   });
 
   assert.deepEqual(fields, {
-    addressLine1: "10A Industrial Drive Unit 4",
+    addressLine1: "10A Industrial Drive",
+    unitNumber: "4B",
+    buzzCode: "1234",
     city: "Guelph",
     province: "ON",
   });
   assert.deepEqual(Object.keys(fields).sort(), [
     "addressLine1",
+    "buzzCode",
     "city",
     "province",
+    "unitNumber",
   ]);
+});
+
+test("blank access fields are sent as null so saved values can be cleared", () => {
+  const fields = buildAddressRequestFields({
+    addressLine1: "10A Industrial Drive",
+    unitNumber: "   ",
+    buzzCode: "",
+    city: "Guelph",
+    province: "ON",
+  });
+
+  assert.equal(fields.unitNumber, null);
+  assert.equal(fields.buzzCode, null);
+});
+
+test("pickup civic-address requests do not gain delivery access fields", () => {
+  const fields = buildAddressRequestFields({
+    addressLine1: "1515 Gordon Street Unit 106",
+    city: "Guelph",
+    province: "ON",
+  });
+
+  assert.deepEqual(fields, {
+    addressLine1: "1515 Gordon Street Unit 106",
+    city: "Guelph",
+    province: "ON",
+  });
 });

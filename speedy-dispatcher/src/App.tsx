@@ -162,6 +162,8 @@ type Order = {
   orderNumber: number;
   customerName: string;
   addressLine1: string;
+  unitNumber?: string | null;
+  buzzCode?: string | null;
   city?: string;
   province?: string;
   phone?: string;
@@ -218,6 +220,8 @@ type ManualOrderForm = {
   customerPhone: string;
   customerEmail: string;
   addressLine1: string;
+  unitNumber: string;
+  buzzCode: string;
   city: string;
   province: string;
   paymentMethod: PaymentMethod;
@@ -232,6 +236,8 @@ type EditOrderForm = {
   customerPhone: string;
   customerEmail: string;
   addressLine1: string;
+  unitNumber: string;
+  buzzCode: string;
   city: string;
   province: string;
   paymentMethod: PaymentMethod;
@@ -245,6 +251,8 @@ type CustomerSuggestion = {
   phone: string;
   email?: string | null;
   addressLine1: string;
+  unitNumber?: string | null;
+  buzzCode?: string | null;
   city: string;
   province: string;
   dispatcherNotes?: string | null;
@@ -340,6 +348,8 @@ type CustomerProfile = {
   phone: string;
   email?: string | null;
   addressLine1: string;
+  unitNumber?: string | null;
+  buzzCode?: string | null;
   city: string;
   province: string;
   dispatcherNotes?: string | null;
@@ -365,6 +375,8 @@ type CustomerRetentionItem = {
   phone: string;
   email?: string | null;
   addressLine1: string;
+  unitNumber?: string | null;
+  buzzCode?: string | null;
   city: string;
   province: string;
   dispatcherNotes?: string | null;
@@ -399,6 +411,8 @@ type CustomerEditForm = {
   phone: string;
   email: string;
   addressLine1: string;
+  unitNumber: string;
+  buzzCode: string;
   city: string;
   province: string;
   dispatcherNotes: string;
@@ -664,6 +678,8 @@ const initialManualOrderForm: ManualOrderForm = {
   customerPhone: "",
   customerEmail: "example@yahoo.com",
   addressLine1: "",
+  unitNumber: "",
+  buzzCode: "",
   dispatcherNotes: "",
   recurringDriverNotes: "",
   city: "Guelph",
@@ -887,6 +903,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       customer.phone,
       customer.email,
       customer.addressLine1,
+      customer.unitNumber,
       customer.city,
       customer.province,
       customer.dispatcherNotes,
@@ -951,6 +968,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
           customer.phone,
           customer.email,
           customer.addressLine1,
+          customer.unitNumber,
           customer.city,
           customer.province,
           customer.dispatcherNotes,
@@ -1418,6 +1436,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     activeOrders.forEach((order) => {
       const fullAddress = [
         order.addressLine1,
+        order.unitNumber ? `Unit ${order.unitNumber}` : null,
         order.city,
         order.province,
         "Canada",
@@ -3467,6 +3486,8 @@ const createEditFormFromOrder = (order: Order): EditOrderForm => ({
   customerPhone: order.phone || "",
   customerEmail: order.email || "",
   addressLine1: order.addressLine1 || "",
+  unitNumber: order.unitNumber || "",
+  buzzCode: order.buzzCode || "",
   city: order.city || "Guelph",
   province: order.province || "ON",
   paymentMethod: order.paymentMethod || "CASH",
@@ -3852,6 +3873,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
       customerPhone: customer.phone || "",
       customerEmail: customer.email || "",
       addressLine1: customer.addressLine1 || "",
+      unitNumber: customer.unitNumber || "",
+      buzzCode: customer.buzzCode || "",
       city: customer.city || "Guelph",
       province: customer.province || "ON",
       recurringDriverNotes: recurringDriverNotesForCustomer(
@@ -4179,7 +4202,13 @@ const handleSaveEditedOrder = async (orderId: string) => {
           customerName,
           customerPhone,
           customerEmail,
-          ...buildAddressRequestFields({ addressLine1, city, province }),
+          ...buildAddressRequestFields({
+            addressLine1,
+            unitNumber: manualOrderForm.unitNumber,
+            buzzCode: manualOrderForm.buzzCode,
+            city,
+            province,
+          }),
           items: validItems.map((item) => ({
             name: item.name,
             quantity: item.quantity,
@@ -4449,6 +4478,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
       phone: customer.phone || "",
       email: customer.email || "",
       addressLine1: customer.addressLine1 || "",
+      unitNumber: customer.unitNumber || "",
+      buzzCode: customer.buzzCode || "",
       city: customer.city || "Guelph",
       province: customer.province || "ON",
       dispatcherNotes: customer.dispatcherNotes || "",
@@ -5828,6 +5859,17 @@ const handleSaveEditedOrder = async (orderId: string) => {
                         <p className="text-zinc-500 text-xs mt-1">
                           {customer.addressLine1}, {customer.city}, {customer.province}
                         </p>
+                        {(customer.unitNumber || customer.buzzCode) && (
+                          <p className="text-zinc-400 text-xs mt-1">
+                            {customer.unitNumber
+                              ? `Unit: ${customer.unitNumber}`
+                              : ""}
+                            {customer.unitNumber && customer.buzzCode ? " • " : ""}
+                            {customer.buzzCode
+                              ? `Buzz: ${customer.buzzCode}`
+                              : ""}
+                          </p>
+                        )}
                         {customer.dispatcherNotes ? (
                           <p className="text-zinc-400 text-xs mt-2">
                             Notes: {customer.dispatcherNotes}
@@ -6145,6 +6187,31 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                 <div className="grid grid-cols-2 gap-2">
                                   <input
                                     type="text"
+                                    maxLength={50}
+                                    placeholder="Apartment / Unit"
+                                    value={customerEditForm.unitNumber}
+                                    onChange={(e) =>
+                                      handleCustomerEditFieldChange("unitNumber", e.target.value)
+                                    }
+                                    className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
+                                  />
+
+                                  <input
+                                    type="text"
+                                    maxLength={50}
+                                    autoComplete="off"
+                                    placeholder="Buzz Code"
+                                    value={customerEditForm.buzzCode}
+                                    onChange={(e) =>
+                                      handleCustomerEditFieldChange("buzzCode", e.target.value)
+                                    }
+                                    className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
+                                  />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  <input
+                                    type="text"
                                     value={customerEditForm.city}
                                     onChange={(e) =>
                                       handleCustomerEditFieldChange("city", e.target.value)
@@ -6218,6 +6285,16 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
                             <td className="p-2 align-top text-zinc-300">
                               <p>{customer.addressLine1}</p>
+                              {customer.unitNumber && (
+                                <p className="text-zinc-300 text-xs mt-1">
+                                  Apartment / Unit: {customer.unitNumber}
+                                </p>
+                              )}
+                              {customer.buzzCode && (
+                                <p className="text-amber-300 text-xs mt-1 font-semibold">
+                                  Buzz Code: {customer.buzzCode}
+                                </p>
+                              )}
                               <p className="text-zinc-500 text-xs mt-1">
                                 {[customer.city, customer.province]
                                   .filter(Boolean)
@@ -6316,8 +6393,27 @@ const handleSaveEditedOrder = async (orderId: string) => {
           />
 
           <p className="text-zinc-500 text-xs md:col-span-2 -mt-2">
-            Select a suggestion to fill the civic address, or enter an unusual valid address manually. Put access instructions in Additional Notes.
+            Select a suggestion to fill the street address. Apartment/unit and buzz code stay separate from Google Maps.
           </p>
+
+          <input
+            type="text"
+            maxLength={50}
+            placeholder="Apartment / Unit Number (Optional)"
+            value={editOrderForm.unitNumber}
+            onChange={(e) => handleEditOrderFieldChange("unitNumber", e.target.value)}
+            className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
+          />
+
+          <input
+            type="text"
+            maxLength={50}
+            autoComplete="off"
+            placeholder="Buzz Code (Optional)"
+            value={editOrderForm.buzzCode}
+            onChange={(e) => handleEditOrderFieldChange("buzzCode", e.target.value)}
+            className="w-full p-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
+          />
 
           <input
             type="text"
@@ -6753,6 +6849,16 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
                       <td className="p-2 align-top text-zinc-300">
                         <p>{order.addressLine1}</p>
+                        {order.unitNumber && (
+                          <p className="text-zinc-300 text-xs mt-1">
+                            Apartment / Unit: {order.unitNumber}
+                          </p>
+                        )}
+                        {order.buzzCode && (
+                          <p className="text-amber-300 text-xs mt-1 font-semibold">
+                            Buzz Code: {order.buzzCode}
+                          </p>
+                        )}
                         <p className="text-zinc-500 text-xs mt-1">
                           {[order.city, order.province]
                             .filter(Boolean)
@@ -7666,6 +7772,16 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
                         <h2 className="text-xl font-semibold">{order.customerName}</h2>
                         <p className="text-zinc-400 mt-1">{order.addressLine1}</p>
+                        {order.unitNumber && (
+                          <p className="text-zinc-300 text-sm mt-1">
+                            Apartment / Unit: {order.unitNumber}
+                          </p>
+                        )}
+                        {order.buzzCode && (
+                          <p className="text-amber-300 text-sm mt-1 font-bold">
+                            Buzz Code: {order.buzzCode}
+                          </p>
+                        )}
                         {(order.city || order.province) && (
                           <p className="text-zinc-500 text-sm mt-1">
                             {[order.city, order.province]
@@ -7970,7 +8086,11 @@ const handleSaveEditedOrder = async (orderId: string) => {
                           {customer.phone}
                         </div>
                         <div className="text-zinc-500 text-xs">
-                          {customer.addressLine1}, {customer.city},{" "}
+                          {customer.addressLine1}
+                          {customer.unitNumber
+                            ? `, Unit ${customer.unitNumber}`
+                            : ""}
+                          , {customer.city},{" "}
                           {customer.province}
                         </div>
                       </button>
@@ -8007,7 +8127,11 @@ const handleSaveEditedOrder = async (orderId: string) => {
                           {customer.phone}
                         </div>
                         <div className="text-zinc-500 text-xs">
-                          {customer.addressLine1}, {customer.city},{" "}
+                          {customer.addressLine1}
+                          {customer.unitNumber
+                            ? `, Unit ${customer.unitNumber}`
+                            : ""}
+                          , {customer.city},{" "}
                           {customer.province}
                         </div>
                       </button>
@@ -8038,8 +8162,31 @@ const handleSaveEditedOrder = async (orderId: string) => {
               />
 
               <p className="text-zinc-500 text-xs -mt-2 md:col-span-2">
-                Select a suggestion to fill the civic address, or type an unusual valid address manually. Keep delivery instructions in Additional Notes.
+                Select a suggestion to fill the street address. Apartment/unit and buzz code stay separate from Google Maps.
               </p>
+
+              <input
+                type="text"
+                maxLength={50}
+                placeholder="Apartment / Unit Number (Optional)"
+                className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+                value={manualOrderForm.unitNumber}
+                onChange={(e) =>
+                  handleManualOrderFieldChange("unitNumber", e.target.value)
+                }
+              />
+
+              <input
+                type="text"
+                maxLength={50}
+                autoComplete="off"
+                placeholder="Buzz Code (Optional)"
+                className="w-full p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-400 focus:outline-none focus:border-red-500"
+                value={manualOrderForm.buzzCode}
+                onChange={(e) =>
+                  handleManualOrderFieldChange("buzzCode", e.target.value)
+                }
+              />
 
               <input
                 type="text"
