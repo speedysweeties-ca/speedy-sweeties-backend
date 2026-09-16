@@ -129,6 +129,8 @@ model Customer {
   email                String?
   normalizedEmail      String?
   addressLine1         String
+  unitNumber           String?
+  buzzCode             String?
   city                 String
   province             String
   postalCode           String?
@@ -225,6 +227,8 @@ model Order {
   fcmToken               String?
   customerName           String
   addressLine1           String
+  unitNumber             String?
+  buzzCode               String?
   city                   String
   province               String
   postalCode             String?

@@ -37,6 +37,8 @@ test("driver fallback candidates query only active operational pickup locations"
       id: "order-1",
       orderStatus: "PLACED",
       addressLine1: "1 Destination Street",
+      unitNumber: "4B",
+      buzzCode: "1234",
       city: "Guelph",
       province: "ON",
       postalCode: "N1G 1A1",
@@ -88,6 +90,8 @@ test("driver fallback candidates query only active operational pickup locations"
     response.body.orders[0].routingPlan.pickupLocationCandidates[0].id,
     "store-1"
   );
+  assert.equal(response.body.orders[0].routingPlan.destination.unitNumber, "4B");
+  assert.equal(response.body.orders[0].routingPlan.destination.buzzCode, "1234");
 });
 
 test("driver orders preserve the assigned pickup-stop response fields and sequence", async (t) => {
@@ -127,6 +131,8 @@ test("driver orders preserve the assigned pickup-stop response fields and sequen
       id: "order-1",
       orderStatus: "PLACED",
       addressLine1: "1 Destination Street",
+      unitNumber: null,
+      buzzCode: null,
       city: "Guelph",
       province: "ON",
       postalCode: "N1G 1A1",

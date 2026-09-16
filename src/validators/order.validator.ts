@@ -43,6 +43,12 @@ const publicOrderSourceSchema = z.enum([
 ]);
 
 const attributionField = z.string().trim().max(150).optional();
+const optionalAddressAccessField = z
+  .string()
+  .trim()
+  .max(50)
+  .optional()
+  .nullable();
 
 const compatiblePaymentMethodSchema = z.union([
   z.nativeEnum(PaymentMethod),
@@ -55,7 +61,8 @@ export const createOrderSchema = z.object({
     customerPhone: z.string().trim().regex(phoneRegex, "Invalid phone number"),
     customerEmail: z.string().trim().email(),
     addressLine1: z.string().trim().min(3).max(200),
-    addressLine2: z.string().trim().max(200).optional(),
+    unitNumber: optionalAddressAccessField,
+    buzzCode: optionalAddressAccessField,
     city: z.string().trim().min(2).max(100),
     province: z.string().trim().min(2).max(100),
     deliveryInstructions: z.string().trim().max(500).optional(),
@@ -122,6 +129,8 @@ export const updateOrderDetailsSchema = z.object({
     customerPhone: z.string().trim().regex(phoneRegex, "Invalid phone number"),
     customerEmail: z.string().trim().email(),
     addressLine1: z.string().trim().min(3).max(200),
+    unitNumber: optionalAddressAccessField,
+    buzzCode: optionalAddressAccessField,
     city: z.string().trim().min(2).max(100),
     province: z.string().trim().min(2).max(100),
     additionalNotes: z.string().trim().max(1000).optional().nullable(),

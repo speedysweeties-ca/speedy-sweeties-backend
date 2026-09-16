@@ -93,6 +93,8 @@ type UpdateOrderDetailsBody = {
   customerPhone: string;
   customerEmail: string;
   addressLine1: string;
+  unitNumber?: string | null;
+  buzzCode?: string | null;
   city: string;
   province: string;
   additionalNotes?: string | null;
@@ -190,6 +192,13 @@ const createTrackingCredential = (): {
 const normalize = (value: string) => value.trim().toLowerCase();
 
 const normalizePhone = (value: string) => value.replace(/\D/g, "");
+
+const normalizeAddressAccessField = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+
+  const cleaned = value.trim();
+  return cleaned || null;
+};
 
 const summarizePickupRouting = (
   pickupTypes: Array<string | null | undefined>
@@ -539,6 +548,8 @@ const createOrder = async (
     customerPhone,
     customerEmail,
     addressLine1,
+    unitNumber,
+    buzzCode,
     city,
     province,
     items,
@@ -587,10 +598,30 @@ const createOrder = async (
   const normalizedEmail = customerEmail ? normalize(customerEmail) : null;
   const normalizedPhone = normalizePhone(customerPhone);
   const normalizedName = normalize(customerName);
-  const orderAddressSnapshot = {
+  const normalizedUnitNumber = normalizeAddressAccessField(unitNumber);
+  const normalizedBuzzCode = normalizeAddressAccessField(buzzCode);
+  const unitNumberSubmitted = Object.prototype.hasOwnProperty.call(
+    req.body,
+    "unitNumber"
+  );
+  const buzzCodeSubmitted = Object.prototype.hasOwnProperty.call(
+    req.body,
+    "buzzCode"
+  );
+  const civicAddressSnapshot = {
     addressLine1: addressLine1.trim(),
     city: city.trim(),
     province: province.trim()
+  };
+  const orderAddressSnapshot = {
+    ...civicAddressSnapshot,
+    unitNumber: normalizedUnitNumber,
+    buzzCode: normalizedBuzzCode
+  };
+  const customerAddressUpdate = {
+    ...civicAddressSnapshot,
+    ...(unitNumberSubmitted ? { unitNumber: normalizedUnitNumber } : {}),
+    ...(buzzCodeSubmitted ? { buzzCode: normalizedBuzzCode } : {})
   };
 
   const incomingItems: CreateOrderItemInput[] = Array.isArray(items) ? items : [];
@@ -683,7 +714,7 @@ const createOrder = async (
 
     await tx.customer.update({
       where: { id: customer.id },
-      data: orderAddressSnapshot
+      data: customerAddressUpdate
     });
 
     await persistSubmittedRecurringDriverNotes(
@@ -849,6 +880,8 @@ export const updateOrderDetailsController = async (
     customerPhone,
     customerEmail,
     addressLine1,
+    unitNumber,
+    buzzCode,
     city,
     province,
     additionalNotes,
@@ -883,6 +916,15 @@ export const updateOrderDetailsController = async (
   const normalizedEmail = customerEmail ? normalize(customerEmail) : null;
   const normalizedPhone = normalizePhone(customerPhone);
   const normalizedName = normalize(customerName);
+  const nextUnitNumber = Object.prototype.hasOwnProperty.call(
+    req.body,
+    "unitNumber"
+  )
+    ? normalizeAddressAccessField(unitNumber)
+    : existingOrder.unitNumber;
+  const nextBuzzCode = Object.prototype.hasOwnProperty.call(req.body, "buzzCode")
+    ? normalizeAddressAccessField(buzzCode)
+    : existingOrder.buzzCode;
 
   const nextDeliveryAddress: DeliveryAddressInput = {
     addressLine1,
@@ -926,6 +968,8 @@ export const updateOrderDetailsController = async (
           email: normalizedEmail,
           normalizedEmail,
           addressLine1: addressLine1.trim(),
+          unitNumber: nextUnitNumber,
+          buzzCode: nextBuzzCode,
           city: city.trim(),
           province: province.trim(),
           loyaltyProgressMonth: getCurrentLoyaltyMonth()
@@ -942,6 +986,8 @@ export const updateOrderDetailsController = async (
           email: normalizedEmail,
           normalizedEmail,
           addressLine1: addressLine1.trim(),
+          unitNumber: nextUnitNumber,
+          buzzCode: nextBuzzCode,
           city: city.trim(),
           province: province.trim()
         }
@@ -996,6 +1042,8 @@ export const updateOrderDetailsController = async (
         phone: customerPhone.trim(),
         email: customerEmail.trim().toLowerCase(),
         addressLine1: addressLine1.trim(),
+        unitNumber: nextUnitNumber,
+        buzzCode: nextBuzzCode,
         city: city.trim(),
         province: province.trim(),
         itemsText: items.map((i) => `${i.quantity}x ${i.name}`).join(", "),

@@ -7,12 +7,17 @@ const businessController = require("../dist/controllers/business.controller.js")
 const {
   createOrderController
 } = require("../dist/controllers/order.controller.js");
+const {
+  updateCustomerController
+} = require("../dist/controllers/customer.controller.js");
 
 const firstOrderBody = {
   customerName: "Test Customer",
   customerPhone: "519-555-0100",
   customerEmail: "test@example.com",
   addressLine1: "10A Industrial Dr",
+  unitNumber: "4B",
+  buzzCode: "1234",
   city: "Guelph",
   province: "Ontario",
   items: [
@@ -187,7 +192,11 @@ test("NEEDS_REVIEW orders create or retain a customer and save the latest order 
   const database = installOrderCreationDatabase(t);
 
   replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
-  replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
+  let geocodedInput;
+  replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async (input) => {
+    geocodedInput = input;
+    return needsReviewLocation;
+  });
 
   const firstResponse = responseRecorder();
   await createOrderController({ body: firstOrderBody }, firstResponse);
@@ -198,15 +207,24 @@ test("NEEDS_REVIEW orders create or retain a customer and save the latest order 
   assert.deepEqual(
     {
       addressLine1: database.database.customer.addressLine1,
+      unitNumber: database.database.customer.unitNumber,
+      buzzCode: database.database.customer.buzzCode,
       city: database.database.customer.city,
       province: database.database.customer.province
     },
     {
       addressLine1: "10A Industrial Dr",
+      unitNumber: "4B",
+      buzzCode: "1234",
       city: "Guelph",
       province: "Ontario"
     }
   );
+  assert.deepEqual(geocodedInput, {
+    addressLine1: "10A Industrial Dr",
+    city: "Guelph",
+    province: "Ontario"
+  });
 
   database.database.customer.recurringDriverNotes = "Use the side entrance";
   database.database.customer.postalCode = "N1G 2W1";
@@ -220,6 +238,8 @@ test("NEEDS_REVIEW orders create or retain a customer and save the latest order 
   const secondOrderBody = {
     ...firstOrderBody,
     addressLine1: "99 New Street",
+    unitNumber: "12",
+    buzzCode: "99",
     city: "Kitchener"
   };
   const secondResponse = responseRecorder();
@@ -231,26 +251,36 @@ test("NEEDS_REVIEW orders create or retain a customer and save the latest order 
   assert.deepEqual(
     {
       addressLine1: database.database.customer.addressLine1,
+      unitNumber: database.database.customer.unitNumber,
+      buzzCode: database.database.customer.buzzCode,
       city: database.database.customer.city,
       province: database.database.customer.province
     },
     {
       addressLine1: "99 New Street",
+      unitNumber: "12",
+      buzzCode: "99",
       city: "Kitchener",
       province: "Ontario"
     }
   );
   assert.equal(database.database.orders[0].addressLine1, "10A Industrial Dr");
+  assert.equal(database.database.orders[0].unitNumber, "4B");
+  assert.equal(database.database.orders[0].buzzCode, "1234");
   assert.equal(database.database.orders[0].city, "Guelph");
   assert.equal(database.database.orders[1].addressLine1, "99 New Street");
   assert.deepEqual(
     {
       addressLine1: database.database.customer.addressLine1,
+      unitNumber: database.database.customer.unitNumber,
+      buzzCode: database.database.customer.buzzCode,
       city: database.database.customer.city,
       province: database.database.customer.province
     },
     {
       addressLine1: database.database.orders[1].addressLine1,
+      unitNumber: database.database.orders[1].unitNumber,
+      buzzCode: database.database.orders[1].buzzCode,
       city: database.database.orders[1].city,
       province: database.database.orders[1].province
     }
@@ -263,6 +293,34 @@ test("NEEDS_REVIEW orders create or retain a customer and save the latest order 
   assert.equal(database.database.customer.postalCode, "N1G 2W1");
   assert.equal(database.database.customer.notes, "Existing customer note");
   assert.equal(database.database.customer.createdAt, "2026-01-01T00:00:00.000Z");
+});
+
+test("older clients do not erase saved unit or buzz-code details when fields are omitted", async (t) => {
+  const database = installOrderCreationDatabase(t, {
+    id: "customer-1",
+    addressLine1: "10 Working Street",
+    unitNumber: "8C",
+    buzzCode: "2468",
+    city: "Guelph",
+    province: "Ontario",
+    recurringDriverNotes: null,
+    loyaltyFreeDelivery: false
+  });
+  replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
+  replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
+
+  const legacyBody = { ...firstOrderBody };
+  delete legacyBody.unitNumber;
+  delete legacyBody.buzzCode;
+
+  const response = responseRecorder();
+  await createOrderController({ body: legacyBody }, response);
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(database.database.customer.unitNumber, "8C");
+  assert.equal(database.database.customer.buzzCode, "2468");
+  assert.equal(database.database.orders[0].unitNumber, null);
+  assert.equal(database.database.orders[0].buzzCode, null);
 });
 
 test("iOS E_TRANSFER orders are stored with the Prisma ETRANSFER value", async (t) => {
@@ -435,4 +493,72 @@ test("a transaction failure rolls back a customer address update", async (t) => 
   assert.equal(database.database.customer.recurringDriverNotes, "Use the side entrance");
   assert.equal(database.database.customer.loyaltyCompletedOrders, 4);
   assert.equal(database.database.orders.length, 0);
+});
+
+test("customer profile edits trim unit details and can clear a buzz code", async (t) => {
+  const existingCustomer = {
+    id: "customer-1",
+    fullName: "Test Customer",
+    phone: "519-555-0100",
+    email: "test@example.com",
+    addressLine1: "10A Industrial Dr",
+    unitNumber: "4B",
+    buzzCode: "1234",
+    city: "Guelph",
+    province: "Ontario",
+    dispatcherNotes: null
+  };
+  replaceForTest(t, prisma.customer, "findUnique", async () => existingCustomer);
+
+  let updateData;
+  replaceForTest(t, prisma.customer, "update", async ({ data }) => {
+    updateData = data;
+    return { ...existingCustomer, ...data };
+  });
+
+  const response = responseRecorder();
+  await updateCustomerController(
+    {
+      params: { id: "customer-1" },
+      body: { unitNumber: "  8C  ", buzzCode: "" }
+    },
+    response
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(updateData.unitNumber, "8C");
+  assert.equal(updateData.buzzCode, null);
+  assert.equal(updateData.addressLine1, "10A Industrial Dr");
+});
+
+test("customer profile edits reject overlong access details", async (t) => {
+  replaceForTest(t, prisma.customer, "findUnique", async () => ({
+    id: "customer-1",
+    fullName: "Test Customer",
+    phone: "519-555-0100",
+    email: "test@example.com",
+    addressLine1: "10A Industrial Dr",
+    unitNumber: null,
+    buzzCode: null,
+    city: "Guelph",
+    province: "Ontario",
+    dispatcherNotes: null
+  }));
+
+  let updateCalled = false;
+  replaceForTest(t, prisma.customer, "update", async () => {
+    updateCalled = true;
+  });
+
+  const response = responseRecorder();
+  await updateCustomerController(
+    {
+      params: { id: "customer-1" },
+      body: { unitNumber: "U".repeat(51) }
+    },
+    response
+  );
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(updateCalled, false);
 });

@@ -31,6 +31,51 @@ test("order creation validation accepts a complete address without postalCode", 
   assert.equal(parsed.success, true);
 });
 
+test("order validation accepts and trims optional unit and buzz-code fields", () => {
+  const createParsed = createOrderSchema.safeParse({
+    body: {
+      ...createOrderBody,
+      unitNumber: "  4B  ",
+      buzzCode: "  1234  "
+    }
+  });
+  const updateParsed = updateOrderDetailsSchema.safeParse({
+    params: { id: "order-1" },
+    body: {
+      customerName: createOrderBody.customerName,
+      customerPhone: createOrderBody.customerPhone,
+      customerEmail: createOrderBody.customerEmail,
+      addressLine1: createOrderBody.addressLine1,
+      unitNumber: "  4B  ",
+      buzzCode: null,
+      city: createOrderBody.city,
+      province: createOrderBody.province,
+      additionalNotes: null,
+      paymentMethod: createOrderBody.paymentMethod,
+      items: createOrderBody.items
+    }
+  });
+
+  assert.equal(createParsed.success, true);
+  assert.equal(createParsed.data.body.unitNumber, "4B");
+  assert.equal(createParsed.data.body.buzzCode, "1234");
+  assert.equal(updateParsed.success, true);
+  assert.equal(updateParsed.data.body.unitNumber, "4B");
+  assert.equal(updateParsed.data.body.buzzCode, null);
+});
+
+test("order validation limits unit and buzz-code fields to 50 characters", () => {
+  const parsed = createOrderSchema.safeParse({
+    body: {
+      ...createOrderBody,
+      unitNumber: "U".repeat(51),
+      buzzCode: "B".repeat(51)
+    }
+  });
+
+  assert.equal(parsed.success, false);
+});
+
 test("order creation validation accepts public attribution fields", () => {
   const parsed = createOrderSchema.safeParse({
     body: {
