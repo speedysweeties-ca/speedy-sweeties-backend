@@ -12,6 +12,9 @@ const {
   assignDriverToOrderController
 } = require("../dist/controllers/orderAssignment.controller.js");
 const {
+  getPublicOrderTrackingController
+} = require("../dist/controllers/order.controller.js");
+const {
   createOrderSchema,
   updateOrderDetailsSchema
 } = require("../dist/validators/order.validator.js");
@@ -139,6 +142,50 @@ test("duplicate fingerprint ignores FCM changes and payment alias spelling", () 
   });
 
   assert.equal(first, second);
+});
+
+test("duplicate fingerprint distinguishes unit and buzz-code changes", () => {
+  const first = createOrderSubmissionFingerprint({
+    ...sampleOrderBody,
+    unitNumber: "4B",
+    buzzCode: "1234"
+  });
+  const differentUnit = createOrderSubmissionFingerprint({
+    ...sampleOrderBody,
+    unitNumber: "5C",
+    buzzCode: "1234"
+  });
+  const differentBuzzCode = createOrderSubmissionFingerprint({
+    ...sampleOrderBody,
+    unitNumber: "4B",
+    buzzCode: "5678"
+  });
+
+  assert.notEqual(first, differentUnit);
+  assert.notEqual(first, differentBuzzCode);
+});
+
+test("public tracking never exposes unit or buzz-code details", async (t) => {
+  replaceForTest(t, prisma.order, "findUnique", async () => ({
+    id: "order-1",
+    orderNumber: 123,
+    orderStatus: OrderStatus.PLACED,
+    unitNumber: "4B",
+    buzzCode: "1234",
+    digitalReceipt: null,
+    assignedDriver: null
+  }));
+
+  const response = responseRecorder();
+  await getPublicOrderTrackingController(
+    { params: { id: "order-1" } },
+    response
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(Object.hasOwn(response.body.data, "unitNumber"), false);
+  assert.equal(Object.hasOwn(response.body.data, "buzzCode"), false);
+  assert.equal(JSON.stringify(response.body).includes("1234"), false);
 });
 
 test("duplicate public order submission is rejected", async (t) => {

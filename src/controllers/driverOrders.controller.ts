@@ -183,6 +183,8 @@ export const getDriverOrdersController = async (
         pickupLocationCandidates,
         destination: {
           addressLine1: order.addressLine1,
+          unitNumber: order.unitNumber,
+          buzzCode: order.buzzCode,
           city: order.city,
           province: order.province,
           postalCode: order.postalCode

@@ -474,6 +474,8 @@ test("historical order snapshots do not change when the customer note changes", 
 
 test("authenticated dispatcher customer lookup selects recurring driver notes", () => {
   assert.equal(dispatcherCustomerLookupSelect.recurringDriverNotes, true);
+  assert.equal(dispatcherCustomerLookupSelect.unitNumber, true);
+  assert.equal(dispatcherCustomerLookupSelect.buzzCode, true);
 });
 
 test("driver order responses retain additionalNotes and exclude customer-only notes", () => {

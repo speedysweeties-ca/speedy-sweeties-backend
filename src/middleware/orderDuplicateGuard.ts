@@ -41,6 +41,8 @@ export const createOrderSubmissionFingerprint = (body: unknown): string => {
     customerPhone: normalizeString(requestBody.customerPhone).replace(/\D/g, ""),
     customerEmail: normalizeString(requestBody.customerEmail),
     addressLine1: normalizeString(requestBody.addressLine1),
+    unitNumber: normalizeString(requestBody.unitNumber),
+    buzzCode: normalizeString(requestBody.buzzCode),
     city: normalizeString(requestBody.city),
     province: normalizeString(requestBody.province),
     paymentMethod: normalizePaymentMethodForFingerprint(

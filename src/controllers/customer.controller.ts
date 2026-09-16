@@ -17,6 +17,8 @@ type CustomerSearchResult = {
   phone: string;
   email: string | null;
   addressLine1: string;
+  unitNumber: string | null;
+  buzzCode: string | null;
   city: string;
   province: string;
   postalCode: string | null;
@@ -35,6 +37,8 @@ export const dispatcherCustomerLookupSelect = {
   phone: true,
   email: true,
   addressLine1: true,
+  unitNumber: true,
+  buzzCode: true,
   city: true,
   province: true,
   postalCode: true,
@@ -56,6 +60,9 @@ const cleanStringOrNull = (value: unknown): string | null => {
   return trimmed ? trimmed : null;
 };
 
+const isValidAddressAccessField = (value: unknown): boolean =>
+  value === null || (typeof value === "string" && value.trim().length <= 50);
+
 const isPhoneOnlySearch = (searchText: string) => {
   const digits = normalizePhone(searchText);
   const nonDigits = searchText.replace(/\d/g, "").trim();
@@ -73,6 +80,7 @@ const getCustomerSearchScore = (
   const name = normalize(customer.fullName || "");
   const email = normalize(customer.email || "");
   const address = normalize(customer.addressLine1 || "");
+  const unitNumber = normalize(customer.unitNumber || "");
   const city = normalize(customer.city || "");
   const phone = normalizePhone(customer.phone || "");
 
@@ -81,6 +89,8 @@ const getCustomerSearchScore = (
   if (address === query) return 850;
   if (address.startsWith(query)) return 800;
   if (address.includes(query)) return 750;
+  if (unitNumber === query) return 740;
+  if (unitNumber.includes(query)) return 730;
   if (city === query) return 600;
   if (city.includes(query)) return 550;
   if (name.includes(query)) return 500;
@@ -254,6 +264,7 @@ export const searchCustomersController = async (
           : []),
         { normalizedEmail: { contains: normalizedQuery } },
         { addressLine1: { contains: searchText, mode: "insensitive" } },
+        { unitNumber: { contains: searchText, mode: "insensitive" } },
         { city: { contains: searchText, mode: "insensitive" } },
       ],
     },
@@ -298,6 +309,7 @@ export const listCustomersController = async (
                 : []),
               { normalizedEmail: { contains: normalizedQuery } },
               { addressLine1: { contains: searchText, mode: "insensitive" } },
+              { unitNumber: { contains: searchText, mode: "insensitive" } },
               { city: { contains: searchText, mode: "insensitive" } },
             ],
           }
@@ -343,6 +355,8 @@ export const listCustomerRetentionController = async (
       phone: true,
       email: true,
       addressLine1: true,
+      unitNumber: true,
+      buzzCode: true,
       city: true,
       province: true,
       postalCode: true,
@@ -395,6 +409,8 @@ export const listCustomerRetentionController = async (
         phone: customer.phone,
         email: customer.email,
         addressLine1: customer.addressLine1,
+        unitNumber: customer.unitNumber,
+        buzzCode: customer.buzzCode,
         city: customer.city,
         province: customer.province,
         postalCode: customer.postalCode,
@@ -414,6 +430,8 @@ export const listCustomerRetentionController = async (
         phone: string;
         email: string | null;
         addressLine1: string;
+        unitNumber: string | null;
+        buzzCode: string | null;
         city: string;
         province: string;
         postalCode: string | null;
@@ -533,10 +551,32 @@ export const updateCustomerController = async (
     phone,
     email,
     addressLine1,
+    unitNumber,
+    buzzCode,
     city,
     province,
     dispatcherNotes,
   } = req.body;
+
+  const unitNumberSubmitted = Object.prototype.hasOwnProperty.call(
+    req.body,
+    "unitNumber"
+  );
+  const buzzCodeSubmitted = Object.prototype.hasOwnProperty.call(
+    req.body,
+    "buzzCode"
+  );
+
+  if (
+    (unitNumberSubmitted && !isValidAddressAccessField(unitNumber)) ||
+    (buzzCodeSubmitted && !isValidAddressAccessField(buzzCode))
+  ) {
+    res.status(400).json({
+      success: false,
+      message: "Unit number and buzz code must each be 50 characters or fewer",
+    });
+    return;
+  }
 
   const cleanedFullName =
     typeof fullName === "string" && fullName.trim()
@@ -554,6 +594,14 @@ export const updateCustomerController = async (
     typeof addressLine1 === "string" && addressLine1.trim()
       ? addressLine1.trim()
       : existingCustomer.addressLine1;
+
+  const cleanedUnitNumber = unitNumberSubmitted
+    ? cleanStringOrNull(unitNumber)
+    : existingCustomer.unitNumber;
+
+  const cleanedBuzzCode = buzzCodeSubmitted
+    ? cleanStringOrNull(buzzCode)
+    : existingCustomer.buzzCode;
 
   const cleanedCity =
     typeof city === "string" && city.trim()
@@ -575,6 +623,8 @@ export const updateCustomerController = async (
       email: cleanedEmail,
       normalizedEmail: cleanedEmail ? normalize(cleanedEmail) : null,
       addressLine1: cleanedAddressLine1,
+      unitNumber: cleanedUnitNumber,
+      buzzCode: cleanedBuzzCode,
       city: cleanedCity,
       province: cleanedProvince,
       dispatcherNotes:
