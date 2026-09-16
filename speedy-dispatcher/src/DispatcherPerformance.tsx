@@ -24,6 +24,7 @@ type DurationBreakdown = {
   totalOrders: number;
   averageDispatchMinutes: number | null;
   medianDispatchMinutes: number | null;
+  longestDispatchMinutes: number | null;
   p90DispatchMinutes: number | null;
   withinFiveMinutesPercent: number | null;
 };
@@ -536,7 +537,7 @@ export function DispatcherPerformance({
                       <th className="p-3 text-left">Orders</th>
                       <th className="p-3 text-left">Average</th>
                       <th className="p-3 text-left">Median</th>
-                      <th className="p-3 text-left">90th Percentile</th>
+                      <th className="p-3 text-left">Longest Dispatch</th>
                       <th className="p-3 text-left">Within 5 Min</th>
                     </tr>
                   </thead>
@@ -547,7 +548,7 @@ export function DispatcherPerformance({
                         <td className="p-3">{source.totalOrders}</td>
                         <td className="p-3">{formatMinutes(source.averageDispatchMinutes)}</td>
                         <td className="p-3">{formatMinutes(source.medianDispatchMinutes)}</td>
-                        <td className="p-3">{formatMinutes(source.p90DispatchMinutes)}</td>
+                        <td className="p-3">{formatMinutes(source.longestDispatchMinutes)}</td>
                         <td className="p-3">{formatPercent(source.withinFiveMinutesPercent)}</td>
                       </tr>
                     ))}
