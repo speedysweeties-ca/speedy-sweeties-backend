@@ -48,6 +48,7 @@ type DurationBreakdown = {
   totalOrders: number;
   averageDispatchMinutes: number | null;
   medianDispatchMinutes: number | null;
+  longestDispatchMinutes: number | null;
   p90DispatchMinutes: number | null;
   withinFiveMinutesPercent: number | null;
 };
@@ -101,6 +102,11 @@ const median = (values: number[]): number | null => {
     : round(sorted[middle]);
 };
 
+const longest = (values: number[]): number | null => {
+  if (values.length === 0) return null;
+  return round(Math.max(...values));
+};
+
 const percentage = (numerator: number, denominator: number): number | null => {
   if (denominator === 0) return null;
   return round((numerator / denominator) * 100);
@@ -132,6 +138,7 @@ const buildDurationBreakdown = (
     totalOrders: orders.length,
     averageDispatchMinutes: average(dispatchMinutes),
     medianDispatchMinutes: median(dispatchMinutes),
+    longestDispatchMinutes: longest(dispatchMinutes),
     p90DispatchMinutes: percentile(dispatchMinutes, 0.9),
     withinFiveMinutesPercent: percentage(
       dispatchMinutes.filter((minutes) => minutes <= 5).length,
@@ -350,6 +357,7 @@ export const buildDispatcherPerformance = (input: {
         ).length,
         averageDispatchMinutes: dispatchDurations.averageDispatchMinutes,
         medianDispatchMinutes: dispatchDurations.medianDispatchMinutes,
+        longestDispatchMinutes: dispatchDurations.longestDispatchMinutes,
         p90DispatchMinutes: dispatchDurations.p90DispatchMinutes,
         withinFiveMinutesPercent: dispatchDurations.withinFiveMinutesPercent,
         deliveredOrders: deliveredOrders.length,
@@ -448,6 +456,7 @@ export const buildDispatcherPerformance = (input: {
       ).length,
       averageDispatchMinutes: dispatchSummary.averageDispatchMinutes,
       medianDispatchMinutes: dispatchSummary.medianDispatchMinutes,
+      longestDispatchMinutes: dispatchSummary.longestDispatchMinutes,
       p90DispatchMinutes: dispatchSummary.p90DispatchMinutes,
       withinFiveMinutesPercent: dispatchSummary.withinFiveMinutesPercent,
       deliveredOrders: selectedDispatchedOrders.filter(
