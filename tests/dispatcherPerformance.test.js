@@ -156,6 +156,7 @@ test("builds dispatcher metrics from first-dispatch attribution without creditin
   assert.equal(dana.ordersDispatched, 2);
   assert.equal(dana.averageDispatchMinutes, 6);
   assert.equal(dana.medianDispatchMinutes, 6);
+  assert.equal(dana.longestDispatchMinutes, 10);
   assert.equal(dana.p90DispatchMinutes, 10);
   assert.equal(dana.withinFiveMinutesPercent, 50);
   assert.equal(dana.averageTotalDeliveryMinutes, 30);
@@ -172,11 +173,17 @@ test("builds dispatcher metrics from first-dispatch attribution without creditin
     dana.sourceBreakdown.find((source) => source.sourceGroup === "ONLINE").totalOrders,
     1
   );
+  assert.equal(
+    dana.sourceBreakdown.find((source) => source.sourceGroup === "ONLINE")
+      .longestDispatchMinutes,
+    10
+  );
 
   assert.equal(alex.ordersDispatched, 1);
   assert.equal(alex.manualOrdersCreated, 1);
   assert.equal(alex.averageManualEntryMinutes, 5);
   assert.equal(result.summary.ordersDispatched, 3);
+  assert.equal(result.summary.longestDispatchMinutes, 10);
   assert.equal(result.coverage.totalOrders, 5);
   assert.equal(result.coverage.automaticDispatches, 1);
   assert.equal(result.coverage.unattributedDispatches, 1);
