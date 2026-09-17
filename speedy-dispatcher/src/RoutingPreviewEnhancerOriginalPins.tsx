@@ -101,7 +101,14 @@ const ACTIVE_ORDER_STATUSES = new Set([
   "OUT_FOR_DELIVERY",
 ]);
 
-const CLIENT_CACHE_MS = 45_000;
+const CLIENT_CACHE_FALLBACK_MS = 300_000;
+
+const getClientCacheMs = (preview: RoutingPreviewResponse) => {
+  const serverCacheMs = Number(preview.cacheSeconds) * 1_000;
+  return Number.isFinite(serverCacheMs) && serverCacheMs > 0
+    ? serverCacheMs
+    : CLIENT_CACHE_FALLBACK_MS;
+};
 
 const getDriverDisplayName = (
   driver: Pick<DriverMapItem, "firstName" | "lastName" | "email">,
@@ -410,9 +417,9 @@ function RoutingPreviewMap() {
 
       const note = makeTextElement(
         "p",
-        `Customer ETA remains each driver's current GPS location → customer. Pickup suggestions are driver → store and require arrival at least ${
+        `Pickup-order ETAs include the selected pickup stops in travel order and the final customer leg. Stores must be reached at least ${
           pickupRouting?.closingBufferMinutes ?? 3
-        } minutes before closing. Existing deliveries and multi-store sequencing are not yet added to the ETA.`,
+        } minutes before closing. Route previews may be cached for up to five minutes to control mapping costs.`,
       );
       note.style.fontSize = "10px";
       note.style.lineHeight = "1.35";
@@ -465,7 +472,11 @@ function RoutingPreviewMap() {
       const cached = previewCacheRef.current[orderId];
       const now = Date.now();
 
-      if (!forceRefresh && cached && now - cached.fetchedAtMs < CLIENT_CACHE_MS) {
+      if (
+        !forceRefresh &&
+        cached &&
+        now - cached.fetchedAtMs < getClientCacheMs(cached.data)
+      ) {
         openOrderPreview(orderId, buildPreviewContent(order, cached.data));
         updateDriverMarkerTitles(cached.data);
         return;
@@ -485,7 +496,7 @@ function RoutingPreviewMap() {
       try {
         const url = `${API_V1_BASE_URL}/routing-preview/orders/${encodeURIComponent(
           orderId,
-        )}${forceRefresh ? "?refresh=true" : ""}`;
+        )}`;
 
         const response = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },

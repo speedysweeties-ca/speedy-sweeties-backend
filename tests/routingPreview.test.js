@@ -92,6 +92,21 @@ test("route matrix sends one traffic-aware batch for all drivers", async () => {
   ]);
 });
 
+test("route matrix can use traffic-unaware pricing for interactive previews", async () => {
+  let requestedBody;
+
+  await computeTrafficAwareRouteMatrix(origins, destination, {
+    apiKey: "routes-test-key",
+    routingPreference: "TRAFFIC_UNAWARE",
+    fetchImplementation: async (_url, options) => {
+      requestedBody = JSON.parse(options.body);
+      return response([]);
+    }
+  });
+
+  assert.equal(requestedBody.routingPreference, "TRAFFIC_UNAWARE");
+});
+
 test("origin indexes keep route results attached to the correct driver", async () => {
   const results = await computeTrafficAwareRouteMatrix(origins, destination, {
     apiKey: "routes-test-key",

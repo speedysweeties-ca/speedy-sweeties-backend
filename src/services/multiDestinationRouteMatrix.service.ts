@@ -1,5 +1,6 @@
 import { env } from "../config/env";
 import {
+  type GoogleRoutingPreference,
   parseGoogleDurationSeconds,
   RoutingPreviewUnavailableError
 } from "./routingPreview.service";
@@ -30,11 +31,12 @@ type GoogleRouteMatrixElement = {
   duration?: string;
 };
 
-type MultiDestinationRouteMatrixOptions = {
+export type MultiDestinationRouteMatrixOptions = {
   apiKey?: string;
   timeoutMs?: number;
   fetchImplementation?: typeof fetch;
   maxElementsPerRequest?: number;
+  routingPreference?: GoogleRoutingPreference;
 };
 
 const DEFAULT_MAX_ELEMENTS_PER_REQUEST = 625;
@@ -99,7 +101,7 @@ const computeBatch = async (
             }
           })),
           travelMode: "DRIVE",
-          routingPreference: "TRAFFIC_AWARE"
+          routingPreference: options.routingPreference ?? "TRAFFIC_AWARE"
         }),
         signal: abortController.signal
       }

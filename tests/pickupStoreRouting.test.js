@@ -8,6 +8,7 @@ const {
   PREFERRED_PICKUP_ROUTE_MAX_EXTRA_SECONDS,
   evaluatePickupStoreEligibility,
   pickupStoreRouteNodeId,
+  selectPickupStoreMatrixCandidates,
   selectSequentialPickupRoutePlan,
   selectPickupStoreRecommendations
 } = require("../dist/services/pickupStoreRouting.service.js");
@@ -60,6 +61,73 @@ const sequentialPlan = (stores, matrix, requiredPickupTypes, generatedAt = toron
 
 test("pickup-store closing safety buffer is exactly three minutes", () => {
   assert.equal(PICKUP_STORE_CLOSING_BUFFER_MINUTES, 3);
+});
+
+test("route-matrix candidates are capped independently by pickup type and priority", () => {
+  const stores = ["PREFERRED", "STANDARD", "FALLBACK"].flatMap(
+    (routingPriority, priorityIndex) =>
+      Array.from({ length: 4 }, (_, index) =>
+        baseStore({
+          id: `${routingPriority.toLowerCase()}-${index}`,
+          name: `${routingPriority} ${index}`,
+          routingPriority,
+          latitude: 43.5 + priorityIndex * 0.01,
+          longitude: -80.25 + index * 0.01
+        })
+      )
+  );
+
+  const candidates = selectPickupStoreMatrixCandidates({
+    stores,
+    requiredPickupTypes: ["BEER_STORE"],
+    driverLocations: [{ latitude: 43.5, longitude: -80.25 }],
+    destination: { latitude: 43.52, longitude: -80.25 }
+  });
+
+  assert.equal(candidates.length, 6);
+  assert.deepEqual(
+    Object.fromEntries(
+      ["PREFERRED", "STANDARD", "FALLBACK"].map((routingPriority) => [
+        routingPriority,
+        candidates.filter(
+          (store) => store.routingPriority === routingPriority
+        ).length
+      ])
+    ),
+    { PREFERRED: 2, STANDARD: 2, FALLBACK: 2 }
+  );
+});
+
+test("route-matrix preselection uses complete journey proximity and stable ties", () => {
+  const candidates = selectPickupStoreMatrixCandidates({
+    stores: [
+      baseStore({ id: "far", name: "Far", latitude: 44.5, longitude: -80.25 }),
+      baseStore({ id: "tie-b", name: "Same", latitude: 43.51, longitude: -80.25 }),
+      baseStore({ id: "tie-a", name: "Same", latitude: 43.51, longitude: -80.25 }),
+      baseStore({
+        id: "closed",
+        name: "Closed",
+        latitude: 43.5,
+        longitude: -80.25,
+        googleBusinessStatus: "CLOSED_PERMANENTLY"
+      }),
+      baseStore({
+        id: "other-type",
+        name: "Other",
+        pickupType: "LCBO",
+        latitude: 43.5,
+        longitude: -80.25
+      })
+    ],
+    requiredPickupTypes: ["BEER_STORE"],
+    driverLocations: [{ latitude: 43.5, longitude: -80.25 }],
+    destination: { latitude: 43.52, longitude: -80.25 }
+  });
+
+  assert.deepEqual(
+    candidates.map((store) => store.id),
+    ["tie-a", "tie-b"]
+  );
 });
 
 test("preferred pickup routes are selected only within the centralized allowance", () => {
