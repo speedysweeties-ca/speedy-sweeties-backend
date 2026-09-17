@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildCustomerProfileNotesPayload,
   buildManualOrderNotesPayload,
   recurringDriverNotesForCustomer,
 } from "./manualOrderNotes.ts";
@@ -35,5 +36,25 @@ test("a deliberate recurring-note clear is submitted as an empty string", () => 
   assert.deepEqual(buildManualOrderNotesPayload("Order note", "   "), {
     additionalNotes: "Order note",
     recurringDriverNotes: "",
+  });
+});
+
+test("customer profile edits save both current note fields", () => {
+  assert.deepEqual(
+    buildCustomerProfileNotesPayload(
+      " Use the side entrance ",
+      " Do not assign to Driver A "
+    ),
+    {
+      recurringDriverNotes: "Use the side entrance",
+      dispatcherNotes: "Do not assign to Driver A",
+    }
+  );
+});
+
+test("customer profile edits can deliberately clear either saved note", () => {
+  assert.deepEqual(buildCustomerProfileNotesPayload("   ", ""), {
+    recurringDriverNotes: "",
+    dispatcherNotes: "",
   });
 });

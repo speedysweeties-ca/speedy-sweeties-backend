@@ -14,3 +14,11 @@ export const buildManualOrderNotesPayload = (
   additionalNotes: additionalNotes.trim(),
   recurringDriverNotes: recurringDriverNotes.trim(),
 });
+
+export const buildCustomerProfileNotesPayload = (
+  recurringDriverNotes: string,
+  dispatcherNotes: string
+) => ({
+  recurringDriverNotes: recurringDriverNotes.trim(),
+  dispatcherNotes: dispatcherNotes.trim(),
+});
