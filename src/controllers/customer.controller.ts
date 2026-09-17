@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { getCustomerLoyaltySnapshot } from "../services/loyalty.service";
+import { RECURRING_DRIVER_NOTES_MAX_LENGTH } from "../services/recurringDriverNotes.service";
 import { verifyCustomerLoyaltyToken } from "../utils/jwt";
 
 const normalize = (value: string) => value.trim().toLowerCase();
@@ -62,6 +63,11 @@ const cleanStringOrNull = (value: unknown): string | null => {
 
 const isValidAddressAccessField = (value: unknown): boolean =>
   value === null || (typeof value === "string" && value.trim().length <= 50);
+
+const isValidRecurringDriverNotes = (value: unknown): boolean =>
+  value === null ||
+  (typeof value === "string" &&
+    value.trim().length <= RECURRING_DRIVER_NOTES_MAX_LENGTH);
 
 const isPhoneOnlySearch = (searchText: string) => {
   const digits = normalizePhone(searchText);
@@ -555,6 +561,7 @@ export const updateCustomerController = async (
     buzzCode,
     city,
     province,
+    recurringDriverNotes,
     dispatcherNotes,
   } = req.body;
 
@@ -566,6 +573,10 @@ export const updateCustomerController = async (
     req.body,
     "buzzCode"
   );
+  const recurringDriverNotesSubmitted = Object.prototype.hasOwnProperty.call(
+    req.body,
+    "recurringDriverNotes"
+  );
 
   if (
     (unitNumberSubmitted && !isValidAddressAccessField(unitNumber)) ||
@@ -574,6 +585,17 @@ export const updateCustomerController = async (
     res.status(400).json({
       success: false,
       message: "Unit number and buzz code must each be 50 characters or fewer",
+    });
+    return;
+  }
+
+  if (
+    recurringDriverNotesSubmitted &&
+    !isValidRecurringDriverNotes(recurringDriverNotes)
+  ) {
+    res.status(400).json({
+      success: false,
+      message: `Recurring driver notes must be ${RECURRING_DRIVER_NOTES_MAX_LENGTH} characters or fewer`,
     });
     return;
   }
@@ -627,6 +649,9 @@ export const updateCustomerController = async (
       buzzCode: cleanedBuzzCode,
       city: cleanedCity,
       province: cleanedProvince,
+      recurringDriverNotes: recurringDriverNotesSubmitted
+        ? cleanStringOrNull(recurringDriverNotes)
+        : existingCustomer.recurringDriverNotes,
       dispatcherNotes:
         typeof dispatcherNotes === "string"
           ? dispatcherNotes.trim()

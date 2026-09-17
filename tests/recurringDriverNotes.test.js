@@ -14,7 +14,8 @@ const { prisma } = require("../dist/lib/prisma.js");
 const deliveryGeocodingService = require("../dist/services/deliveryGeocoding.service.js");
 const businessController = require("../dist/controllers/business.controller.js");
 const {
-  dispatcherCustomerLookupSelect
+  dispatcherCustomerLookupSelect,
+  updateCustomerController
 } = require("../dist/controllers/customer.controller.js");
 const {
   driverOrderInclude,
@@ -476,6 +477,111 @@ test("authenticated dispatcher customer lookup selects recurring driver notes", 
   assert.equal(dispatcherCustomerLookupSelect.recurringDriverNotes, true);
   assert.equal(dispatcherCustomerLookupSelect.unitNumber, true);
   assert.equal(dispatcherCustomerLookupSelect.buzzCode, true);
+});
+
+test("customer profile edits save and clear recurring driver notes", async (t) => {
+  const existingCustomer = {
+    id: "customer-1",
+    fullName: "Test Customer",
+    phone: "519-555-0100",
+    email: "test@example.com",
+    addressLine1: "10A Industrial Dr",
+    unitNumber: "4B",
+    buzzCode: "1234",
+    city: "Guelph",
+    province: "Ontario",
+    recurringDriverNotes: "Old recurring note",
+    dispatcherNotes: "Internal note"
+  };
+  replaceForTest(t, prisma.customer, "findUnique", async () => existingCustomer);
+
+  const updates = [];
+  replaceForTest(t, prisma.customer, "update", async ({ data }) => {
+    updates.push(data);
+    return { ...existingCustomer, ...data };
+  });
+
+  const saveResponse = responseRecorder();
+  await updateCustomerController(
+    {
+      params: { id: "customer-1" },
+      body: { recurringDriverNotes: "  Use the side entrance  " }
+    },
+    saveResponse
+  );
+
+  const clearResponse = responseRecorder();
+  await updateCustomerController(
+    {
+      params: { id: "customer-1" },
+      body: { recurringDriverNotes: "   " }
+    },
+    clearResponse
+  );
+
+  assert.equal(saveResponse.statusCode, 200);
+  assert.equal(clearResponse.statusCode, 200);
+  assert.equal(updates[0].recurringDriverNotes, "Use the side entrance");
+  assert.equal(updates[1].recurringDriverNotes, null);
+});
+
+test("customer profile edits preserve an omitted recurring driver note", async (t) => {
+  const existingCustomer = {
+    id: "customer-1",
+    fullName: "Test Customer",
+    phone: "519-555-0100",
+    email: "test@example.com",
+    addressLine1: "10A Industrial Dr",
+    unitNumber: null,
+    buzzCode: null,
+    city: "Guelph",
+    province: "Ontario",
+    recurringDriverNotes: "Keep this note",
+    dispatcherNotes: null
+  };
+  replaceForTest(t, prisma.customer, "findUnique", async () => existingCustomer);
+
+  let updateData;
+  replaceForTest(t, prisma.customer, "update", async ({ data }) => {
+    updateData = data;
+    return { ...existingCustomer, ...data };
+  });
+
+  const response = responseRecorder();
+  await updateCustomerController(
+    {
+      params: { id: "customer-1" },
+      body: { dispatcherNotes: "Updated internal note" }
+    },
+    response
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(updateData.recurringDriverNotes, "Keep this note");
+});
+
+test("customer profile edits reject overlong recurring driver notes", async (t) => {
+  replaceForTest(t, prisma.customer, "findUnique", async () => ({
+    id: "customer-1",
+    recurringDriverNotes: null
+  }));
+
+  let updateCalled = false;
+  replaceForTest(t, prisma.customer, "update", async () => {
+    updateCalled = true;
+  });
+
+  const response = responseRecorder();
+  await updateCustomerController(
+    {
+      params: { id: "customer-1" },
+      body: { recurringDriverNotes: "N".repeat(1001) }
+    },
+    response
+  );
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(updateCalled, false);
 });
 
 test("driver order responses retain additionalNotes and exclude customer-only notes", () => {

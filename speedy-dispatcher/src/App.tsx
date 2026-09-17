@@ -13,6 +13,7 @@ import {
   type GoogleAutocompletePlace,
 } from "./addressFields";
 import {
+  buildCustomerProfileNotesPayload,
   buildManualOrderNotesPayload,
   recurringDriverNotesForCustomer,
 } from "./manualOrderNotes";
@@ -352,6 +353,7 @@ type CustomerProfile = {
   buzzCode?: string | null;
   city: string;
   province: string;
+  recurringDriverNotes?: string | null;
   dispatcherNotes?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -415,6 +417,7 @@ type CustomerEditForm = {
   buzzCode: string;
   city: string;
   province: string;
+  recurringDriverNotes: string;
   dispatcherNotes: string;
 };
 
@@ -4482,6 +4485,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
       buzzCode: customer.buzzCode || "",
       city: customer.city || "Guelph",
       province: customer.province || "ON",
+      recurringDriverNotes: customer.recurringDriverNotes || "",
       dispatcherNotes: customer.dispatcherNotes || "",
     });
   };
@@ -4539,7 +4543,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
             phone: customerEditForm.phone.trim(),
             email: customerEditForm.email.trim(),
             ...buildAddressRequestFields(customerEditForm),
-            dispatcherNotes: customerEditForm.dispatcherNotes.trim(),
+            ...buildCustomerProfileNotesPayload(
+              customerEditForm.recurringDriverNotes,
+              customerEditForm.dispatcherNotes
+            ),
           }),
         }
       );
@@ -6048,7 +6055,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             <div>
               <h2 className="text-2xl font-bold">Customer Profiles</h2>
               <p className="text-zinc-400 mt-1">
-                Search and edit customer profile information and dispatcher notes.
+                Search and edit every current customer profile field and saved note.
               </p>
               <p className="text-zinc-500 text-sm mt-2">
                 Showing {customers.length} customers.
@@ -6116,14 +6123,14 @@ const handleSaveEditedOrder = async (orderId: string) => {
         ) : (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1200px] text-sm">
+              <table className="w-full min-w-[1350px] text-sm">
                 <thead className="bg-zinc-800 text-zinc-300">
                   <tr>
                     <th className="text-left p-3">Customer</th>
                     <th className="text-left p-3">Phone</th>
                     <th className="text-left p-3">Email</th>
                     <th className="text-left p-3">Address</th>
-                    <th className="text-left p-3">Dispatcher Notes</th>
+                    <th className="text-left p-3">Saved Notes</th>
                     <th className="text-left p-3">Orders</th>
                     <th className="text-left p-3">Actions</th>
                   </tr>
@@ -6143,6 +6150,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                             <td className="p-2 align-top">
                               <input
                                 type="text"
+                                placeholder="Customer Name"
                                 value={customerEditForm.fullName}
                                 onChange={(e) =>
                                   handleCustomerEditFieldChange("fullName", e.target.value)
@@ -6154,6 +6162,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                             <td className="p-2 align-top">
                               <input
                                 type="text"
+                                placeholder="Customer Phone"
                                 value={customerEditForm.phone}
                                 onChange={(e) =>
                                   handleCustomerEditFieldChange("phone", e.target.value)
@@ -6165,6 +6174,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                             <td className="p-2 align-top">
                               <input
                                 type="email"
+                                placeholder="Customer Email"
                                 value={customerEditForm.email}
                                 onChange={(e) =>
                                   handleCustomerEditFieldChange("email", e.target.value)
@@ -6177,6 +6187,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                               <div className="space-y-2">
                                 <input
                                   type="text"
+                                  placeholder="Address Line 1"
                                   value={customerEditForm.addressLine1}
                                   onChange={(e) =>
                                     handleCustomerEditFieldChange("addressLine1", e.target.value)
@@ -6212,6 +6223,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                 <div className="grid grid-cols-2 gap-2">
                                   <input
                                     type="text"
+                                    placeholder="City"
                                     value={customerEditForm.city}
                                     onChange={(e) =>
                                       handleCustomerEditFieldChange("city", e.target.value)
@@ -6221,6 +6233,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
                                   <input
                                     type="text"
+                                    placeholder="Province"
                                     value={customerEditForm.province}
                                     onChange={(e) =>
                                       handleCustomerEditFieldChange("province", e.target.value)
@@ -6233,13 +6246,43 @@ const handleSaveEditedOrder = async (orderId: string) => {
                             </td>
 
                             <td className="p-2 align-top min-w-[260px]">
-                              <textarea
-                                value={customerEditForm.dispatcherNotes}
-                                onChange={(e) =>
-                                  handleCustomerEditFieldChange("dispatcherNotes", e.target.value)
-                                }
-                                className="w-full min-h-[90px] p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
-                              />
+                              <div className="space-y-3">
+                                <label className="block">
+                                  <span className="block text-xs text-zinc-400 mb-1">
+                                    Recurring Driver Notes
+                                  </span>
+                                  <textarea
+                                    value={customerEditForm.recurringDriverNotes}
+                                    maxLength={1000}
+                                    placeholder="Saved instructions included on future manual orders"
+                                    onChange={(e) =>
+                                      handleCustomerEditFieldChange(
+                                        "recurringDriverNotes",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-full min-h-[90px] p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
+                                  />
+                                </label>
+
+                                <label className="block">
+                                  <span className="block text-xs text-zinc-400 mb-1">
+                                    Dispatcher Notes (Internal)
+                                  </span>
+                                  <textarea
+                                    value={customerEditForm.dispatcherNotes}
+                                    maxLength={1000}
+                                    placeholder="Internal dispatcher warning or instruction"
+                                    onChange={(e) =>
+                                      handleCustomerEditFieldChange(
+                                        "dispatcherNotes",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-full min-h-[90px] p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-500"
+                                  />
+                                </label>
+                              </div>
                             </td>
 
                             <td className="p-2 align-top text-zinc-300">
@@ -6303,14 +6346,29 @@ const handleSaveEditedOrder = async (orderId: string) => {
                             </td>
 
                             <td className="p-2 align-top">
-                              {customer.dispatcherNotes ? (
-                                <div className="bg-red-900 border border-red-500 rounded-xl p-3">
-                                  <p className="text-red-300 text-xs mb-1">
-                                    Dispatcher Warning
-                                  </p>
-                                  <p className="text-red-100 font-semibold">
-                                    ⚠ {customer.dispatcherNotes}
-                                  </p>
+                              {customer.recurringDriverNotes || customer.dispatcherNotes ? (
+                                <div className="space-y-2">
+                                  {customer.recurringDriverNotes ? (
+                                    <div className="bg-amber-950 border border-amber-700 rounded-xl p-3">
+                                      <p className="text-amber-300 text-xs mb-1">
+                                        Recurring Driver Notes
+                                      </p>
+                                      <p className="text-amber-100 font-semibold">
+                                        {customer.recurringDriverNotes}
+                                      </p>
+                                    </div>
+                                  ) : null}
+
+                                  {customer.dispatcherNotes ? (
+                                    <div className="bg-red-900 border border-red-500 rounded-xl p-3">
+                                      <p className="text-red-300 text-xs mb-1">
+                                        Dispatcher Warning
+                                      </p>
+                                      <p className="text-red-100 font-semibold">
+                                        ⚠ {customer.dispatcherNotes}
+                                      </p>
+                                    </div>
+                                  ) : null}
                                 </div>
                               ) : (
                                 <span className="text-zinc-500">—</span>
