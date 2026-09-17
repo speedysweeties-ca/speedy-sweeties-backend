@@ -49,18 +49,38 @@ routing.
 
 ## Sequential algorithm
 
-For orders with pickup requirements, both auto-dispatch and dispatcher preview
-now request one traffic-aware directed matrix containing every required leg:
-each driver to every candidate store, every candidate store to every candidate
-store, and every candidate store to the customer destination. Destination
-coordinates must be verified for auto-dispatch to create a complete plan.
+For orders with pickup requirements, auto-dispatch and dispatcher preview both
+request a directed matrix containing the required legs: each driver to every
+retained candidate store, every retained store to every retained store, and
+every retained store to the customer destination. Destination coordinates must
+be verified for auto-dispatch to create a complete plan.
+
+Before the dispatcher preview makes its paid matrix request, it retains at
+most two stores for each pickup-type/routing-priority pair. The preselection
+uses the shortest straight-line `driver -> store -> customer` journey across
+the available drivers, with store name and ID as stable tie-breakers. Priority
+capacity remains protected, so nearby Standard stores cannot displace all
+Preferred or Fallback options. For a one-type order this bounds the preview to
+at most six stores; with three drivers, the matrix falls from 483 elements for
+20 stores to at most 63 elements.
+
+Dispatcher previews use `TRAFFIC_UNAWARE`, which keeps them on the lower-cost
+Routes Essentials matrix tier. Preview results are cached server-side for five
+minutes by default, and interactive refreshes cannot bypass that provider
+cache. The client honors the cache duration returned by the server.
+
+Auto-dispatch retains `TRAFFIC_AWARE` routing for its final operational driver
+selection. That call is deliberately small (one destination per eligible
+driver), so the cost-sensitive preview optimization does not remove live
+traffic from the actual assignment decision.
 
 For each driver, the route scorer groups stores by required pickup type and
 keeps at most two candidates for each routing priority within that type. The
 Preferred and Standard phase therefore considers at most four candidates per
-type; Preferred capacity cannot be consumed by Standard stores. Candidates are
-shortlisted by traffic-aware `driver -> store -> customer` usefulness (then
-store name and ID), rather than by driver distance alone. This means a
+type; Preferred capacity cannot be consumed by Standard stores. Within the
+retained matrix, candidates are shortlisted by routed
+`driver -> store -> customer` usefulness (then store name and ID), rather than
+by driver distance alone. This means a
 Preferred location outside the four closest driver-to-store legs remains
 eligible when its complete journey is competitive.
 

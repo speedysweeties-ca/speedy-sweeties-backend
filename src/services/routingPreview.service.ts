@@ -18,6 +18,10 @@ export type RoutingPreviewMatrixResult = {
   routeAvailable: boolean;
 };
 
+export type GoogleRoutingPreference =
+  | "TRAFFIC_UNAWARE"
+  | "TRAFFIC_AWARE";
+
 type GoogleRouteMatrixElement = {
   originIndex?: number;
   destinationIndex?: number;
@@ -34,6 +38,7 @@ export type RoutingPreviewServiceOptions = {
   apiKey?: string;
   timeoutMs?: number;
   fetchImplementation?: typeof fetch;
+  routingPreference?: GoogleRoutingPreference;
 };
 
 export class RoutingPreviewUnavailableError extends Error {
@@ -133,7 +138,7 @@ export const computeTrafficAwareRouteMatrix = async (
             }
           ],
           travelMode: "DRIVE",
-          routingPreference: "TRAFFIC_AWARE"
+          routingPreference: options.routingPreference ?? "TRAFFIC_AWARE"
         }),
         signal: abortController.signal
       }

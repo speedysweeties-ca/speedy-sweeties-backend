@@ -16,6 +16,7 @@ import {
   PICKUP_STORE_CLOSING_BUFFER_MINUTES,
   hasValidPickupStoreCoordinates,
   pickupStoreRouteNodeId,
+  selectPickupStoreMatrixCandidates,
   selectSequentialPickupRoutePlan,
   type PickupStoreCandidate
 } from "../services/pickupStoreRouting.service";
@@ -262,10 +263,10 @@ export const getOrderRoutingPreviewController = async (
     destinationLongitude,
     routeableDrivers.map((driver) => driver.id)
   );
-  const forceRefresh = String(req.query.refresh || "").toLowerCase() === "true";
   const cached = routingPreviewCache.get(order.id);
+  // Interactive refreshes may re-read the endpoint, but they cannot bypass
+  // the provider-result TTL and create another paid matrix request.
   const canUseCache =
-    !forceRefresh &&
     cached?.key === cacheKey &&
     cached.expiresAtMs > now.getTime();
 
@@ -287,6 +288,9 @@ export const getOrderRoutingPreviewController = async (
           {
             latitude: destinationLatitude,
             longitude: destinationLongitude
+          },
+          {
+            routingPreference: "TRAFFIC_UNAWARE"
           }
         );
       } catch (error) {
@@ -313,17 +317,29 @@ export const getOrderRoutingPreviewController = async (
   let pickupRoutingError: string | null = null;
   const customerRouteNodeId = `customer:${order.id}`;
 
-  if (routeableDrivers.length > 0 && pickupStores.length > 0) {
+  const matrixPickupStores = selectPickupStoreMatrixCandidates({
+    stores: pickupStores,
+    requiredPickupTypes,
+    driverLocations: routeableDrivers.map((driver) => ({
+      latitude: Number(driver.latitude),
+      longitude: Number(driver.longitude)
+    })),
+    destination: {
+      latitude: destinationLatitude,
+      longitude: destinationLongitude
+    }
+  });
+
+  if (routeableDrivers.length > 0 && matrixPickupStores.length > 0) {
     const pickupCacheKey = buildPickupRoutingCacheKey(
       order.id,
       destinationLatitude,
       destinationLongitude,
       routeableDrivers.map((driver) => driver.id),
-      pickupStores
+      matrixPickupStores
     );
     const cachedPickup = pickupRoutingMatrixCache.get(order.id);
     const canUsePickupCache =
-      !forceRefresh &&
       cachedPickup?.key === pickupCacheKey &&
       cachedPickup.expiresAtMs > now.getTime();
 
@@ -337,7 +353,7 @@ export const getOrderRoutingPreviewController = async (
           latitude: Number(driver.latitude),
           longitude: Number(driver.longitude)
         }));
-        const storeRoutePoints = pickupStores.map((store) => ({
+        const storeRoutePoints = matrixPickupStores.map((store) => ({
           id: pickupStoreRouteNodeId(store.id),
           latitude: store.latitude,
           longitude: store.longitude
@@ -352,7 +368,10 @@ export const getOrderRoutingPreviewController = async (
               latitude: destinationLatitude,
               longitude: destinationLongitude
             }
-          ]
+          ],
+          {
+            routingPreference: "TRAFFIC_UNAWARE"
+          }
         );
 
         pickupRoutingMatrixCache.set(order.id, {
@@ -384,7 +403,7 @@ export const getOrderRoutingPreviewController = async (
               driverRouteNodeId: `driver:${driver.id}`,
               customerRouteNodeId,
               requiredPickupTypes,
-              stores: pickupStores,
+              stores: matrixPickupStores,
               matrix: pickupMatrix,
               generatedAt: now
             })

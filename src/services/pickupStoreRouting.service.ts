@@ -94,6 +94,11 @@ export type PickupStoreCandidate = {
   manualHoursOverride: Prisma.JsonValue | null;
 };
 
+export type RoutingCoordinate = {
+  latitude: number;
+  longitude: number;
+};
+
 export const hasValidPickupStoreCoordinates = <T extends PickupStoreCandidate>(
   store: T
 ): store is T & { latitude: number; longitude: number } =>
@@ -106,6 +111,108 @@ export const hasValidPickupStoreCoordinates = <T extends PickupStoreCandidate>(
   store.latitude <= 90 &&
   store.longitude >= -180 &&
   store.longitude <= 180;
+
+const ROUTING_PRIORITY_ORDER: readonly PickupLocationRoutingPriority[] = [
+  "PREFERRED",
+  "STANDARD",
+  "FALLBACK"
+];
+const EARTH_RADIUS_METERS = 6_371_000;
+
+const degreesToRadians = (degrees: number): number =>
+  (degrees * Math.PI) / 180;
+
+const approximateDistanceMeters = (
+  from: RoutingCoordinate,
+  to: RoutingCoordinate
+): number => {
+  const latitudeDelta = degreesToRadians(to.latitude - from.latitude);
+  const longitudeDelta = degreesToRadians(to.longitude - from.longitude);
+  const fromLatitude = degreesToRadians(from.latitude);
+  const toLatitude = degreesToRadians(to.latitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(fromLatitude) *
+      Math.cos(toLatitude) *
+      Math.sin(longitudeDelta / 2) ** 2;
+
+  const boundedHaversine = Math.min(1, Math.max(0, haversine));
+  return (
+    2 *
+    EARTH_RADIUS_METERS *
+    Math.atan2(
+      Math.sqrt(boundedHaversine),
+      Math.sqrt(1 - boundedHaversine)
+    )
+  );
+};
+
+/**
+ * Bounds the paid route matrix before it is sent to Google. Each routing
+ * priority keeps its own capacity so a nearby Standard store cannot displace
+ * every Preferred or Fallback option. Straight-line distance is used only for
+ * this inexpensive preselection; the retained stores are still scored with
+ * Google route durations by the sequential planner.
+ */
+export const selectPickupStoreMatrixCandidates = <T extends PickupStoreCandidate>(
+  input: {
+    stores: T[];
+    requiredPickupTypes: string[];
+    driverLocations: RoutingCoordinate[];
+    destination: RoutingCoordinate;
+    maxPerPriorityAndType?: number;
+  }
+): Array<T & { latitude: number; longitude: number }> => {
+  if (input.driverLocations.length === 0) return [];
+
+  const maxPerPriorityAndType = Math.max(
+    1,
+    Math.floor(
+      input.maxPerPriorityAndType ??
+        MAX_PICKUP_STORE_CANDIDATES_PER_PRIORITY_AND_TYPE
+    )
+  );
+  const pickupTypes = Array.from(new Set(input.requiredPickupTypes)).sort(
+    (a, b) => a.localeCompare(b)
+  );
+
+  return pickupTypes.flatMap((pickupType) =>
+    ROUTING_PRIORITY_ORDER.flatMap((routingPriority) =>
+      input.stores
+        .filter(
+          (store): store is T & { latitude: number; longitude: number } =>
+            store.pickupType === pickupType &&
+            normalizePickupLocationRoutingPriority(store.routingPriority) ===
+              routingPriority &&
+            hasValidPickupStoreCoordinates(store) &&
+            (!store.googleBusinessStatus ||
+              store.googleBusinessStatus === "OPERATIONAL")
+        )
+        .map((store) => ({
+          store,
+          approximateCompleteJourneyMeters: Math.min(
+            ...input.driverLocations.map(
+              (driverLocation) =>
+                approximateDistanceMeters(driverLocation, store) +
+                approximateDistanceMeters(store, input.destination)
+            )
+          )
+        }))
+        .sort((a, b) => {
+          const distanceDifference =
+            a.approximateCompleteJourneyMeters -
+            b.approximateCompleteJourneyMeters;
+          if (distanceDifference !== 0) return distanceDifference;
+
+          const nameComparison = a.store.name.localeCompare(b.store.name);
+          if (nameComparison !== 0) return nameComparison;
+          return a.store.id.localeCompare(b.store.id);
+        })
+        .slice(0, maxPerPriorityAndType)
+        .map(({ store }) => store)
+    )
+  );
+};
 
 export type PickupStoreRecommendation = {
   pickupType: string;
@@ -659,11 +766,7 @@ export const selectSequentialPickupRoutePlan = (input: {
     customerLegDistanceMeters: number | null;
   };
 
-  const prioritySearchOrder: PickupLocationRoutingPriority[] = [
-    "PREFERRED",
-    "STANDARD",
-    "FALLBACK"
-  ];
+  const prioritySearchOrder = ROUTING_PRIORITY_ORDER;
   const routeSignatureForStops = (stops: RouteSearchStop[]): string =>
     stops.map((stop) => `${stop.pickupType}:${stop.store.id}`).join("|");
   const toPriorityRoutePlan = (completedRoute: CompletedRoute): PriorityRoutePlan => {

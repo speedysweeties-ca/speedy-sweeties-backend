@@ -87,7 +87,7 @@ export const env = {
   GOOGLE_ROUTES_TIMEOUT_MS: numberEnv("GOOGLE_ROUTES_TIMEOUT_MS", 6_000),
   ROUTING_PREVIEW_CACHE_SECONDS: numberEnv(
     "ROUTING_PREVIEW_CACHE_SECONDS",
-    45
+    300
   ),
 
   RESEND_API_KEY: process.env.RESEND_API_KEY ?? "",
