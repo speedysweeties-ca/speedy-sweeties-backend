@@ -18,6 +18,13 @@ const APPROVED_RETAILERS = {
     pickupType: "BEER_STORE",
     productPathKind: "BEER_STORE"
   },
+  BROTHERS_BREWING: {
+    displayName: "Brothers Brewing Company",
+    domain: "brothersbrewingcompany.ca",
+    source: "BROTHERS_BREWING",
+    pickupType: "BROTHERS_BREWING",
+    productPathKind: "STANDARD"
+  },
   SAVAGE_CLOUD: {
     displayName: "Savage Cloud Vape Shop",
     domain: "savagecloud.ca",
