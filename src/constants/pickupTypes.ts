@@ -2,6 +2,7 @@ export const PICKUP_TYPE_OPTIONS = [
   "UNKNOWN",
   "CONVENIENCE",
   "BEER_STORE",
+  "BROTHERS_BREWING",
   "LCBO",
   "VAPE",
   "DISPENSARY"
@@ -12,6 +13,7 @@ export type PickupTypeValue = (typeof PICKUP_TYPE_OPTIONS)[number];
 export const ROUTABLE_PICKUP_TYPE_OPTIONS = [
   "CONVENIENCE",
   "BEER_STORE",
+  "BROTHERS_BREWING",
   "LCBO",
   "VAPE",
   "DISPENSARY"

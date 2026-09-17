@@ -89,6 +89,7 @@ test("the OpenAI request can search only the approved retailer domains", async (
     assert.deepEqual(requestBody.tools[0].filters.allowed_domains, [
       "lcbo.com",
       "thebeerstore.ca",
+      "brothersbrewingcompany.ca",
       "savagecloud.ca",
       "6ixvape.ca",
       "e-cigz.com",
@@ -237,6 +238,26 @@ test("Savage Cloud products map to the VAPE pickup type", () => {
 
   assert.equal(result.source, "SAVAGE_CLOUD");
   assert.equal(result.pickupType, "VAPE");
+});
+
+test("Brothers Brewing products map to the BROTHERS_BREWING pickup type", () => {
+  const productUrl =
+    "https://brothersbrewingcompany.ca/collections/beer/products/lamplighter-ipa-473ml-can";
+  const result = validateWebVerificationResult(
+    foundResult({
+      canonicalName: "Lamplighter IPA",
+      brand: "Brothers Brewing Company",
+      size: "473 mL",
+      category: "BEER",
+      retailer: "BROTHERS_BREWING",
+      productUrl
+    }),
+    [productUrl],
+    "Lamplighter IPA 473 mL"
+  );
+
+  assert.equal(result.source, "BROTHERS_BREWING");
+  assert.equal(result.pickupType, "BROTHERS_BREWING");
 });
 
 test("saved dispensary product pages map to the DISPENSARY pickup type", () => {

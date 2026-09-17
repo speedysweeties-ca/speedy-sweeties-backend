@@ -1,6 +1,6 @@
 export type PickupDryRunLocation = {
   name: string;
-  pickupType: "LCBO" | "BEER_STORE" | "DISPENSARY" | "VAPE" | "CONVENIENCE";
+  pickupType: "LCBO" | "BEER_STORE" | "BROTHERS_BREWING" | "DISPENSARY" | "VAPE" | "CONVENIENCE";
   addressLine1: string;
   city: "Guelph";
   province: "ON";
@@ -19,6 +19,7 @@ export const GUELPH_PICKUP_DRY_RUN_LOCATIONS: readonly PickupDryRunLocation[] = 
   l("The Beer Store - Silvercreek Parkway North", "BEER_STORE", "111 Silvercreek Parkway North", "N1H 3T2"),
   l("The Beer Store - Woolwich Street", "BEER_STORE", "710 Woolwich Street", "N1H 3Z1"),
   l("The Beer Store - Clair Road East", "BEER_STORE", "63 Clair Road East", "N1L 0J4"),
+  l("Brothers Brewing Company", "BROTHERS_BREWING", "15 Wyndham Street North Unit A", "N1H 4E5"),
   l("Canja - Surrey Street East", "DISPENSARY", "83 Surrey Street East", "N1H 3P7"),
   l("Canna Cabana - Woodlawn", "DISPENSARY", "3 Woodlawn Road West", "N1H 1G8"),
   l("Canna Cabana - Silvercreek", "DISPENSARY", "106 Silvercreek Parkway North Unit 1", "N1H 7L6"),

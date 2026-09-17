@@ -29,3 +29,18 @@ test("Guelph pickup source includes both requested 7-Eleven stores", () => {
     }
   ]);
 });
+
+test("Guelph pickup source includes Brothers Brewing as its own pickup type", () => {
+  const brothersBrewing = GUELPH_PICKUP_DRY_RUN_LOCATIONS.find(
+    (location) => location.pickupType === "BROTHERS_BREWING"
+  );
+
+  assert.deepEqual(brothersBrewing, {
+    name: "Brothers Brewing Company",
+    pickupType: "BROTHERS_BREWING",
+    addressLine1: "15 Wyndham Street North Unit A",
+    city: "Guelph",
+    province: "ON",
+    postalCode: "N1H 4E5"
+  });
+});
