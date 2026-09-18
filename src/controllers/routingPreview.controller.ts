@@ -4,14 +4,15 @@ import { env } from "../config/env";
 import { normalizePickupTypeOrUnknown } from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
 import {
-  computeTrafficAwareRouteMatrix,
   RoutingPreviewUnavailableError,
   type RoutingPreviewMatrixResult
 } from "../services/routingPreview.service";
+import { type MultiDestinationRouteMatrixResult } from "../services/multiDestinationRouteMatrix.service";
+import { getGoogleLiveTrafficEnabled } from "../services/googleLiveTrafficSettings.service";
 import {
-  computeTrafficAwareRouteMatrixToDestinations,
-  type MultiDestinationRouteMatrixResult
-} from "../services/multiDestinationRouteMatrix.service";
+  computeConfiguredRouteMatrixToDestinations,
+  type TrafficRoutingMode
+} from "../services/trafficRouting.service";
 import {
   PICKUP_STORE_CLOSING_BUFFER_MINUTES,
   hasValidPickupStoreCoordinates,
@@ -45,10 +46,12 @@ const buildCacheKey = (
   orderId: string,
   destinationLatitude: number,
   destinationLongitude: number,
-  routeableDriverIds: string[]
+  routeableDriverIds: string[],
+  routingMode: TrafficRoutingMode
 ): string =>
   [
     orderId,
+    routingMode,
     destinationLatitude.toFixed(6),
     destinationLongitude.toFixed(6),
     [...routeableDriverIds].sort().join(",")
@@ -59,6 +62,7 @@ const buildPickupRoutingCacheKey = (
   destinationLatitude: number,
   destinationLongitude: number,
   routeableDriverIds: string[],
+  routingMode: TrafficRoutingMode,
   stores: Array<
     PickupStoreCandidate & {
       currentHoursUpdatedAt: Date | null;
@@ -69,6 +73,7 @@ const buildPickupRoutingCacheKey = (
 ): string =>
   [
     orderId,
+    routingMode,
     destinationLatitude.toFixed(6),
     destinationLongitude.toFixed(6),
     [...routeableDriverIds].sort().join(","),
@@ -171,6 +176,11 @@ export const getOrderRoutingPreviewController = async (
     return;
   }
 
+  const googleLiveTrafficEnabled = await getGoogleLiveTrafficEnabled();
+  const routingMode: TrafficRoutingMode = googleLiveTrafficEnabled
+    ? "GOOGLE_LIVE_TRAFFIC"
+    : "FREE_COORDINATE_ESTIMATE";
+
   const now = new Date();
   const drivers = await prisma.user.findMany({
     where: {
@@ -257,11 +267,13 @@ export const getOrderRoutingPreviewController = async (
           }
         >).filter(hasValidPickupStoreCoordinates);
 
+  const customerRouteNodeId = `customer:${order.id}`;
   const cacheKey = buildCacheKey(
     order.id,
     destinationLatitude,
     destinationLongitude,
-    routeableDrivers.map((driver) => driver.id)
+    routeableDrivers.map((driver) => driver.id),
+    routingMode
   );
   const cached = routingPreviewCache.get(order.id);
   // Interactive refreshes may re-read the endpoint, but they cannot bypass
@@ -279,20 +291,27 @@ export const getOrderRoutingPreviewController = async (
       cacheHit = true;
     } else {
       try {
-        matrix = await computeTrafficAwareRouteMatrix(
+        const configuredMatrix = await computeConfiguredRouteMatrixToDestinations(
           routeableDrivers.map((driver) => ({
-            driverId: driver.id,
+            id: driver.id,
             latitude: Number(driver.latitude),
             longitude: Number(driver.longitude)
           })),
-          {
-            latitude: destinationLatitude,
-            longitude: destinationLongitude
-          },
-          {
-            routingPreference: "TRAFFIC_UNAWARE"
-          }
+          [
+            {
+              id: customerRouteNodeId,
+              latitude: destinationLatitude,
+              longitude: destinationLongitude
+            }
+          ],
+          { liveTrafficEnabled: googleLiveTrafficEnabled }
         );
+        matrix = configuredMatrix.matrix.map((route) => ({
+          driverId: route.originId,
+          durationSeconds: route.durationSeconds,
+          distanceMeters: route.distanceMeters,
+          routeAvailable: route.routeAvailable
+        }));
       } catch (error) {
         if (error instanceof RoutingPreviewUnavailableError) {
           res.status(503).json({
@@ -315,7 +334,6 @@ export const getOrderRoutingPreviewController = async (
 
   let pickupMatrix: MultiDestinationRouteMatrixResult[] = [];
   let pickupRoutingError: string | null = null;
-  const customerRouteNodeId = `customer:${order.id}`;
 
   const matrixPickupStores = selectPickupStoreMatrixCandidates({
     stores: pickupStores,
@@ -336,6 +354,7 @@ export const getOrderRoutingPreviewController = async (
       destinationLatitude,
       destinationLongitude,
       routeableDrivers.map((driver) => driver.id),
+      routingMode,
       matrixPickupStores
     );
     const cachedPickup = pickupRoutingMatrixCache.get(order.id);
@@ -359,7 +378,7 @@ export const getOrderRoutingPreviewController = async (
           longitude: store.longitude
         }));
 
-        pickupMatrix = await computeTrafficAwareRouteMatrixToDestinations(
+        const configuredMatrix = await computeConfiguredRouteMatrixToDestinations(
           [...driverRoutePoints, ...storeRoutePoints],
           [
             ...storeRoutePoints,
@@ -369,10 +388,9 @@ export const getOrderRoutingPreviewController = async (
               longitude: destinationLongitude
             }
           ],
-          {
-            routingPreference: "TRAFFIC_UNAWARE"
-          }
+          { liveTrafficEnabled: googleLiveTrafficEnabled }
         );
+        pickupMatrix = configuredMatrix.matrix;
 
         pickupRoutingMatrixCache.set(order.id, {
           key: pickupCacheKey,
@@ -459,6 +477,8 @@ export const getOrderRoutingPreviewController = async (
   const responseGeneratedAt = new Date();
   res.status(200).json({
     success: true,
+    googleLiveTrafficEnabled,
+    routingMode,
     cached: cacheHit,
     cacheSeconds: env.ROUTING_PREVIEW_CACHE_SECONDS,
     generatedAt: responseGeneratedAt.toISOString(),

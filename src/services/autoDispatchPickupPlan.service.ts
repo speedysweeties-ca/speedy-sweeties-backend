@@ -13,9 +13,12 @@ import {
   buildOrderTransitionTimestampData,
   evaluateOrderStatusTransition
 } from "./orderStateTransition.service";
-import { computeTrafficAwareRouteMatrixToDestinations } from "./multiDestinationRouteMatrix.service";
 import { RoutingPreviewUnavailableError } from "./routingPreview.service";
 import { recordDispatchEventBestEffort } from "./dispatcherPerformanceTracking.service";
+import {
+  computeConfiguredRouteMatrixToDestinations,
+  type TrafficRoutingMode
+} from "./trafficRouting.service";
 
 const AUTO_DISPATCH_SETTING_KEY = "autoDispatchEnabled";
 
@@ -61,6 +64,7 @@ export type AutoDispatchPickupPlanResult = {
   pickupStops?: [];
   routeDurationSeconds?: number;
   routeEtaMinutes?: number;
+  routeCalculationMode?: TrafficRoutingMode;
 };
 
 export const shouldNotifyAutoDispatchedDriver = (
@@ -156,7 +160,9 @@ type AutoDispatchAllocationResult =
 
 /**
  * Assigns a newly created order to the online driver with fresh GPS whose
- * traffic-aware direct drive to the customer's address is shortest.
+ * shortest configured route to the customer's address. With Google Live
+ * Traffic enabled this is the traffic-aware drive time; with it disabled this
+ * is the free coordinate estimate.
  *
  * The legacy function name is retained because the order controller already
  * calls it. Item pickup types and pickup locations intentionally do not take
@@ -272,9 +278,10 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
     string,
     { durationSeconds: number; distanceMeters: number | null }
   >();
+  let routeCalculationMode: TrafficRoutingMode;
 
   try {
-    const matrix = await computeTrafficAwareRouteMatrixToDestinations(
+    const configuredMatrix = await computeConfiguredRouteMatrixToDestinations(
       routeableDrivers.map((driver) => ({
         id: `driver:${driver.id}`,
         latitude: Number(driver.latitude),
@@ -288,8 +295,9 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
         }
       ]
     );
+    routeCalculationMode = configuredMatrix.mode;
 
-    for (const route of matrix) {
+    for (const route of configuredMatrix.matrix) {
       if (
         route.destinationId !== customerRouteNodeId ||
         !route.originId.startsWith("driver:") ||
@@ -498,7 +506,11 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
   });
 
   console.log(
-    `[Auto Dispatch] Order ${order.id} dispatched to closest driver ${selected.driver.id}; direct ETA ${selected.routeDurationSeconds} second(s).`
+    `[Auto Dispatch] Order ${order.id} dispatched to closest driver ${selected.driver.id}; ${
+      routeCalculationMode === "GOOGLE_LIVE_TRAFFIC"
+        ? "live-traffic ETA"
+        : "free coordinate estimate"
+    } ${selected.routeDurationSeconds} second(s).`
   );
 
   return {
@@ -514,6 +526,7 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
     city: order.city,
     pickupStops: [],
     routeDurationSeconds: selected.routeDurationSeconds,
-    routeEtaMinutes: Math.max(1, Math.round(selected.routeDurationSeconds / 60))
+    routeEtaMinutes: Math.max(1, Math.round(selected.routeDurationSeconds / 60)),
+    routeCalculationMode
   };
 };

@@ -123,6 +123,7 @@ const installAllocationHarness = (t, options) => {
   let stopDeleteCount = 0;
   const dispatchEvents = [];
   let transactionCount = 0;
+  let routeFetchCount = 0;
   let releaseRootOrderReads;
   const initialReadsReady = new Promise((resolve) => {
     releaseRootOrderReads = resolve;
@@ -141,9 +142,17 @@ const installAllocationHarness = (t, options) => {
     return releaseLock;
   };
 
-  replaceForTest(t, global, "fetch", routeFetch(options.routeDurations));
-  replaceForTest(t, prisma.systemSetting, "findUnique", async () => ({
-    value: "true"
+  const routeFetchImplementation = routeFetch(options.routeDurations);
+  replaceForTest(t, global, "fetch", async (...args) => {
+    routeFetchCount += 1;
+    return routeFetchImplementation(...args);
+  });
+  replaceForTest(t, prisma.systemSetting, "findUnique", async ({ where }) => ({
+    value:
+      where.key === "googleLiveTrafficEnabled" &&
+      options.googleLiveTrafficEnabled === false
+        ? "false"
+        : "true"
   }));
   replaceForTest(t, prisma.user, "findMany", async () =>
     drivers.map((driver) => ({ ...driver }))
@@ -256,7 +265,8 @@ const installAllocationHarness = (t, options) => {
     orderRows,
     getRawQueries: () => rawQueries,
     getStopDeleteCount: () => stopDeleteCount,
-    getDispatchEvents: () => dispatchEvents
+    getDispatchEvents: () => dispatchEvents,
+    getRouteFetchCount: () => routeFetchCount
   };
 };
 
@@ -330,6 +340,26 @@ test("unknown items do not block dispatch to the closest driver", async (t) => {
   assert.equal(harness.getRawQueries().length, 1);
   assert.equal(harness.getRawQueries()[0].includes("pg_advisory"), false);
   assert.equal(shouldNotifyAutoDispatchedDriver(result), true);
+});
+
+test("traffic off auto-dispatches by free coordinate estimate without calling Google", async (t) => {
+  const harness = installAllocationHarness(t, {
+    orders: [autoDispatchOrder("order-a", 101)],
+    drivers: [
+      allocationDriver("driver-a", "Alpha", 43.51),
+      allocationDriver("driver-b", "Bravo", 43.53)
+    ],
+    routeDurations: directRouteDurations(30, 600),
+    googleLiveTrafficEnabled: false
+  });
+
+  const result = await autoDispatchCreatedOrderWithPickupPlan("order-a");
+
+  assert.equal(result.dispatched, true);
+  assert.equal(result.driverId, "driver-b");
+  assert.equal(result.routeCalculationMode, "FREE_COORDINATE_ESTIMATE");
+  assert.equal(harness.getRouteFetchCount(), 0);
+  assert.equal(harness.orderRows.get("order-a").assignedDriverId, "driver-b");
 });
 
 test("audit persistence failure does not roll back a successful automatic dispatch", async (t) => {
