@@ -49,6 +49,10 @@ import {
 } from "../utils/paymentMethod";
 import { buildCustomerLookupWhere } from "../utils/customerIdentity";
 import { normalizeManualEntryStartedAt } from "../services/dispatcherPerformanceTracking.service";
+import {
+  getGoogleLiveTrafficEnabled,
+  saveGoogleLiveTrafficEnabled
+} from "../services/googleLiveTrafficSettings.service";
 
 /* ================= TYPES ================= */
 
@@ -70,6 +74,10 @@ type UpdatePriorityBody = {
 };
 
 type AutoDispatchSettingsBody = {
+  enabled: boolean;
+};
+
+type GoogleLiveTrafficSettingsBody = {
   enabled: boolean;
 };
 
@@ -493,6 +501,53 @@ export const updateAutoDispatchSettingsController = async (
     autoDispatch: {
       enabled: finalEnabled
     }
+  });
+};
+
+export const getGoogleLiveTrafficSettingsController = async (
+  _req: Request,
+  res: Response
+): Promise<void> => {
+  const enabled = await getGoogleLiveTrafficEnabled();
+
+  res.status(200).json({
+    success: true,
+    routeVersion: "orders-settings-google-live-traffic-v1",
+    enabled,
+    googleLiveTrafficEnabled: enabled,
+    routingMode: enabled
+      ? "GOOGLE_LIVE_TRAFFIC"
+      : "FREE_COORDINATE_ESTIMATE"
+  });
+};
+
+export const updateGoogleLiveTrafficSettingsController = async (
+  req: Request<{}, {}, GoogleLiveTrafficSettingsBody>,
+  res: Response
+): Promise<void> => {
+  const { enabled } = req.body;
+
+  if (typeof enabled !== "boolean") {
+    res.status(400).json({
+      success: false,
+      message: "enabled must be true or false"
+    });
+    return;
+  }
+
+  const finalEnabled = await saveGoogleLiveTrafficEnabled(enabled);
+
+  res.status(200).json({
+    success: true,
+    routeVersion: "orders-settings-google-live-traffic-v1",
+    message: finalEnabled
+      ? "Google Live Traffic is now turned on"
+      : "Google Live Traffic is now turned off; routing uses free coordinate estimates",
+    enabled: finalEnabled,
+    googleLiveTrafficEnabled: finalEnabled,
+    routingMode: finalEnabled
+      ? "GOOGLE_LIVE_TRAFFIC"
+      : "FREE_COORDINATE_ESTIMATE"
   });
 };
 

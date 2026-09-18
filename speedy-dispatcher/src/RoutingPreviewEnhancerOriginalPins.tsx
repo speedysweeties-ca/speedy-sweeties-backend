@@ -66,6 +66,8 @@ type RoutingPreviewDriver = {
 
 type RoutingPreviewResponse = {
   success: boolean;
+  googleLiveTrafficEnabled: boolean;
+  routingMode: "GOOGLE_LIVE_TRAFFIC" | "FREE_COORDINATE_ESTIMATE";
   cached: boolean;
   cacheSeconds: number;
   generatedAt: string;
@@ -277,7 +279,7 @@ function RoutingPreviewMap() {
       if (loading) {
         const loadingText = makeTextElement(
           "div",
-          "Calculating traffic-aware driver and pickup-store ETAs…",
+          "Calculating driver and pickup-store estimates…",
         );
         loadingText.style.padding = "8px 0";
         container.appendChild(loadingText);
@@ -293,6 +295,22 @@ function RoutingPreviewMap() {
       }
 
       if (!preview) return container;
+
+      const routingModeNotice = makeTextElement(
+        "div",
+        preview.routingMode === "GOOGLE_LIVE_TRAFFIC"
+          ? "Google Live Traffic is ON — these estimates use current traffic-aware routes."
+          : "Google Live Traffic is OFF — these are free coordinate-based estimates and no new Google routing request was made.",
+      );
+      routingModeNotice.style.fontSize = "11px";
+      routingModeNotice.style.padding = "6px 8px";
+      routingModeNotice.style.marginBottom = "6px";
+      routingModeNotice.style.borderRadius = "6px";
+      routingModeNotice.style.background =
+        preview.routingMode === "GOOGLE_LIVE_TRAFFIC" ? "#dcfce7" : "#e0f2fe";
+      routingModeNotice.style.color =
+        preview.routingMode === "GOOGLE_LIVE_TRAFFIC" ? "#166534" : "#075985";
+      container.appendChild(routingModeNotice);
 
       const pickupRouting = preview.pickupRouting;
       if (pickupRouting?.unknownItemCount) {
@@ -417,9 +435,13 @@ function RoutingPreviewMap() {
 
       const note = makeTextElement(
         "p",
-        `Pickup-order ETAs include the selected pickup stops in travel order and the final customer leg. Stores must be reached at least ${
+        `${
+          preview.routingMode === "GOOGLE_LIVE_TRAFFIC"
+            ? "Live-traffic ETAs"
+            : "Coordinate-based estimates"
+        } include the selected pickup stops in travel order and the final customer leg. Stores must be reached at least ${
           pickupRouting?.closingBufferMinutes ?? 3
-        } minutes before closing. Route previews may be cached for up to five minutes to control mapping costs.`,
+        } minutes before closing. Route previews may be cached for up to five minutes.`,
       );
       note.style.fontSize = "10px";
       note.style.lineHeight = "1.35";
@@ -811,6 +833,21 @@ function RoutingPreviewMap() {
       refreshIntervalId = window.setInterval(() => void refreshData(), 3_000);
     };
 
+    const handleTrafficModeChange = () => {
+      previewCacheRef.current = {};
+      updateDriverMarkerTitles(null);
+
+      const selectedOrderId = selectedOrderIdRef.current;
+      if (selectedOrderId) {
+        void loadPreview(selectedOrderId, true);
+      }
+    };
+
+    window.addEventListener(
+      "speedy:google-live-traffic-changed",
+      handleTrafficModeChange,
+    );
+
     start();
 
     if (!(window as any).google?.maps) {
@@ -826,6 +863,10 @@ function RoutingPreviewMap() {
       if (mapsWaitIntervalId !== null) {
         window.clearInterval(mapsWaitIntervalId);
       }
+      window.removeEventListener(
+        "speedy:google-live-traffic-changed",
+        handleTrafficModeChange,
+      );
 
       Object.values(driverMarkersRef.current).forEach((marker) => marker.setMap(null));
       Object.values(orderMarkersRef.current).forEach((marker) => marker.setMap(null));
@@ -842,9 +883,10 @@ function RoutingPreviewMap() {
       <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-zinc-300">
         <div className="font-semibold text-green-300">Routing Previewer</div>
         <div>
-          Hover an order pin to compare traffic-aware ETAs and hours-aware pickup
-          recommendations for every signed-in driver. Click an order pin to keep
-          the preview open; click the map or close the popup to clear it.
+          Hover an order pin to compare driver and hours-aware pickup estimates.
+          The Google Live Traffic switch controls whether these use current road
+          traffic or the free coordinate estimate. Click an order pin to keep the
+          preview open; click the map or close the popup to clear it.
         </div>
         <div className="mt-1 text-xs text-zinc-500">{statusText}</div>
       </div>

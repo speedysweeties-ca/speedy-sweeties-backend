@@ -22,10 +22,12 @@ import {
   createManualOrderController,
   createOrderController,
   getAutoDispatchSettingsController,
+  getGoogleLiveTrafficSettingsController,
   getOrderByIdController,
   getPublicOrderTrackingController,
   getPublicOrderTrackingByTokenController,
   updateAutoDispatchSettingsController,
+  updateGoogleLiveTrafficSettingsController,
   updateOrderStatusController,
   updateOrderPriorityController,
   updateOrderDetailsController
@@ -109,6 +111,21 @@ router.patch(
   requireAuth,
   requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
   asyncHandler(updateAutoDispatchSettingsController)
+);
+
+// 🔒 STAFF — Google live-traffic routing cost control
+router.get(
+  "/settings/google-live-traffic",
+  requireAuth,
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
+  asyncHandler(getGoogleLiveTrafficSettingsController)
+);
+
+router.patch(
+  "/settings/google-live-traffic",
+  requireAuth,
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
+  asyncHandler(updateGoogleLiveTrafficSettingsController)
 );
 
 // 🔒 STAFF — stats

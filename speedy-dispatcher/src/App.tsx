@@ -724,6 +724,9 @@ function App() {
   const [autoDispatchEnabled, setAutoDispatchEnabled] = useState<boolean | null>(null);
   const [autoDispatchLoading, setAutoDispatchLoading] = useState(false);
   const [autoDispatchUpdating, setAutoDispatchUpdating] = useState(false);
+  const [googleLiveTrafficEnabled, setGoogleLiveTrafficEnabled] = useState<boolean | null>(null);
+  const [googleLiveTrafficLoading, setGoogleLiveTrafficLoading] = useState(false);
+  const [googleLiveTrafficUpdating, setGoogleLiveTrafficUpdating] = useState(false);
   const [completingChecklistItemId, setCompletingChecklistItemId] = useState<string | null>(null);
 
   const [token, setToken] = useState<string | null>(null);
@@ -1026,6 +1029,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       void fetchOrders(savedToken, false);
       void fetchDrivers(savedToken);
       void fetchAutoDispatchSetting(savedToken, false);
+      void fetchGoogleLiveTrafficSetting(savedToken, false);
     }
   }, []);
 
@@ -2228,6 +2232,112 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     }
   };
 
+  const getGoogleLiveTrafficEnabledFromResponse = (data: any): boolean | null => {
+    const rawValue = data?.googleLiveTrafficEnabled ?? data?.enabled;
+
+    if (typeof rawValue === "boolean") {
+      return rawValue;
+    }
+
+    if (typeof rawValue === "string") {
+      const cleanValue = rawValue.trim().toLowerCase();
+      if (cleanValue === "true") return true;
+      if (cleanValue === "false") return false;
+    }
+
+    return null;
+  };
+
+  const fetchGoogleLiveTrafficSetting = async (
+    authToken: string,
+    showLoader = true
+  ) => {
+    try {
+      if (showLoader) {
+        setGoogleLiveTrafficLoading(true);
+      }
+
+      const response = await fetch(
+        `${API_V1_BASE_URL}/orders/settings/google-live-traffic`,
+        {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        },
+      );
+      const data = await response.json();
+
+      if (response.ok) {
+        const enabled = getGoogleLiveTrafficEnabledFromResponse(data);
+        if (enabled !== null) {
+          setGoogleLiveTrafficEnabled(enabled);
+        }
+      } else if (showLoader) {
+        alert(getApiErrorMessage(data, "Failed to load Google Live Traffic setting"));
+      }
+    } catch (error) {
+      console.error("Failed to load Google Live Traffic setting:", error);
+      if (showLoader) {
+        alert("Server error while loading Google Live Traffic setting");
+      }
+    } finally {
+      if (showLoader) {
+        setGoogleLiveTrafficLoading(false);
+      }
+    }
+  };
+
+  const toggleGoogleLiveTraffic = async () => {
+    if (!token) return;
+
+    if (googleLiveTrafficEnabled === null) {
+      alert("Google Live Traffic setting has not loaded yet. Please refresh and try again.");
+      return;
+    }
+
+    const nextEnabled = !googleLiveTrafficEnabled;
+
+    try {
+      setGoogleLiveTrafficUpdating(true);
+
+      const response = await fetch(
+        `${API_V1_BASE_URL}/orders/settings/google-live-traffic`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ enabled: nextEnabled }),
+        },
+      );
+      const data = await response.json();
+
+      if (response.ok) {
+        const savedEnabled = getGoogleLiveTrafficEnabledFromResponse(data);
+        const finalEnabled = savedEnabled === null ? nextEnabled : savedEnabled;
+        setGoogleLiveTrafficEnabled(finalEnabled);
+        window.dispatchEvent(
+          new CustomEvent("speedy:google-live-traffic-changed", {
+            detail: { enabled: finalEnabled },
+          }),
+        );
+        alert(
+          finalEnabled
+            ? "Google Live Traffic is now ON. Traffic-aware Google routing usage may be billable."
+            : "Google Live Traffic is now OFF. New routing calculations use the free coordinate estimate.",
+        );
+      } else {
+        alert(getApiErrorMessage(data, "Failed to update Google Live Traffic setting"));
+      }
+    } catch (error) {
+      console.error("Failed to update Google Live Traffic setting:", error);
+      alert("Server error while updating Google Live Traffic setting");
+    } finally {
+      setGoogleLiveTrafficUpdating(false);
+    }
+  };
+
   const fetchDrivers = async (authToken: string) => {
     try {
      const response = await fetch(`${API_V1_BASE_URL}/auth/drivers`, {
@@ -3274,6 +3384,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         await fetchOrders(data.token, true);
         await fetchDrivers(data.token);
         await fetchAutoDispatchSetting(data.token, false);
+        await fetchGoogleLiveTrafficSetting(data.token, false);
       } else {
         alert(getApiErrorMessage(data, "Login failed"));
       }
@@ -3353,6 +3464,9 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setAutoDispatchEnabled(null);
     setAutoDispatchLoading(false);
     setAutoDispatchUpdating(false);
+    setGoogleLiveTrafficEnabled(null);
+    setGoogleLiveTrafficLoading(false);
+    setGoogleLiveTrafficUpdating(false);
     setDispatcherChecklistItems([]);
     setDispatcherChecklistHistory([]);
     setDispatcherChecklistSummary({
@@ -7503,6 +7617,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   void fetchOrders(token, true);
                   void fetchDrivers(token);
                   void fetchAutoDispatchSetting(token, true);
+                  void fetchGoogleLiveTrafficSetting(token, true);
 
                   if (showDriverPanel) {
                     void fetchDriverManagement(token, true);
@@ -7549,10 +7664,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     void fetchDispatcherChecklistHistory(token, false);
                   }
                 }}
-                disabled={dashboardLoading || historyLoading || driverStatsLoading || dispatcherPerformanceLoading || growthDashboardLoading || catalogLoading || pickupLocationsLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading}
+                disabled={dashboardLoading || historyLoading || driverStatsLoading || dispatcherPerformanceLoading || growthDashboardLoading || catalogLoading || pickupLocationsLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading || googleLiveTrafficLoading}
                 className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
               >
-                {dashboardLoading || historyLoading || driverStatsLoading || dispatcherPerformanceLoading || growthDashboardLoading || catalogLoading || pickupLocationsLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading
+                {dashboardLoading || historyLoading || driverStatsLoading || dispatcherPerformanceLoading || growthDashboardLoading || catalogLoading || pickupLocationsLoading || customersLoading || qrTrackingLoading || dispatcherChecklistLoading || autoDispatchLoading || googleLiveTrafficLoading
                   ? "Refreshing..."
                   : "Refresh"}
               </button>
@@ -7627,6 +7742,51 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   : autoDispatchEnabled === true
                   ? "Turn Auto Dispatch Off"
                   : "Turn Auto Dispatch On"}
+              </button>
+
+              <span
+                className={`inline-flex items-center rounded-full border px-3 py-1 font-semibold ${
+                  googleLiveTrafficEnabled === true
+                    ? "bg-green-500/20 text-green-200 border-green-400/40"
+                    : googleLiveTrafficEnabled === false
+                    ? "bg-sky-500/20 text-sky-200 border-sky-400/40"
+                    : "bg-zinc-800 text-zinc-300 border-zinc-700"
+                }`}
+                title={
+                  googleLiveTrafficEnabled === false
+                    ? "No new Google Routes requests; uses free coordinate estimates"
+                    : "Uses Google's live traffic-aware route calculations"
+                }
+              >
+                Google Live Traffic: {
+                  googleLiveTrafficLoading && googleLiveTrafficEnabled === null
+                    ? "Loading..."
+                    : googleLiveTrafficEnabled === true
+                    ? "ON"
+                    : googleLiveTrafficEnabled === false
+                    ? "OFF"
+                    : "Unknown"
+                }
+              </span>
+
+              <button
+                onClick={() => void toggleGoogleLiveTraffic()}
+                disabled={
+                  googleLiveTrafficLoading ||
+                  googleLiveTrafficUpdating ||
+                  googleLiveTrafficEnabled === null
+                }
+                className={`px-4 py-2 rounded-lg font-semibold transition disabled:opacity-50 ${
+                  googleLiveTrafficEnabled === true
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-green-600 hover:bg-green-700"
+                }`}
+              >
+                {googleLiveTrafficUpdating
+                  ? "Saving..."
+                  : googleLiveTrafficEnabled === true
+                  ? "Turn Live Traffic Off"
+                  : "Turn Live Traffic On"}
               </button>
             </div>
           </div>
