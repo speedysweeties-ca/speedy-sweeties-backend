@@ -6,9 +6,12 @@ import {
   createAiOrderDraft
 } from "../services/aiOrderDraft.service";
 
+import { CurrentCart } from "../services/aiOrderEdit";
+
 interface AiOrderDraftRequestBody {
   transcript: string;
   history?: AiConversationTurn[];
+  currentCart?: CurrentCart;
 }
 
 export const createAiOrderDraftController = async (
@@ -44,7 +47,8 @@ export const createAiOrderDraftController = async (
   const result = await createAiOrderDraft({
     transcript: req.body.transcript.trim(),
     history: Array.isArray(req.body.history) ? req.body.history : [],
-    catalogItems
+    catalogItems,
+    currentCart: req.body.currentCart
   });
 
   res.set("Cache-Control", "no-store");
