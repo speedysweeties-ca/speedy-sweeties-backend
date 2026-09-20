@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CurrentCart, orderEditSchema, ORDER_EDIT_INSTRUCTIONS, applyOrderEdit } from "./aiOrderEdit";
 import { env } from "../config/env";
 import { ApiError } from "../utils/ApiError";
 import { verifyAndPersistRequestedProducts } from "./productWebVerification.service";
@@ -46,6 +47,7 @@ export interface AiOrderDraftRequest {
   transcript: string;
   history: AiConversationTurn[];
   catalogItems: CatalogItemSummary[];
+  currentCart?: CurrentCart;
 }
 
 const ORDER_DRAFT_JSON_SCHEMA = {
@@ -596,7 +598,8 @@ const parseModelDraft = (rawText: string): ModelOrderDraft => {
 const requestModelDraft = async (
   transcript: string,
   history: AiConversationTurn[],
-  catalogItems: CatalogItemSummary[]
+  catalogItems: CatalogItemSummary[],
+  currentCart: CurrentCart = []
 ): Promise<ModelOrderDraft> => {
   if (!env.OPENAI_API_KEY) {
     throw new ApiError(
@@ -626,6 +629,7 @@ const requestModelDraft = async (
             normalizedTranscript
           ].join("\n");
 
+    const editing = currentCart.length > 0;
     const input = [
       ...history.map((turn) => ({
         role: turn.role,
@@ -633,7 +637,9 @@ const requestModelDraft = async (
       })),
       {
         role: "user",
-        content: userContent
+        content: editing
+          ? JSON.stringify({ currentCart, customerRequest: userContent })
+          : userContent
       }
     ];
 
@@ -649,16 +655,16 @@ const requestModelDraft = async (
         reasoning: {
           effort: "none"
         },
-        instructions: buildModelInstructions(catalogItems),
+        instructions: buildModelInstructions(catalogItems) + (editing ? "\n" + ORDER_EDIT_INSTRUCTIONS : ""),
         input,
-        max_output_tokens: 1200,
+        max_output_tokens: 2400,
         store: false,
         text: {
           format: {
             type: "json_schema",
             name: "speedy_sweeties_order_draft",
             strict: true,
-            schema: ORDER_DRAFT_JSON_SCHEMA
+            schema: editing ? z.toJSONSchema(orderEditSchema) : ORDER_DRAFT_JSON_SCHEMA
           }
         }
       })
@@ -683,6 +689,11 @@ const requestModelDraft = async (
       );
     }
 
+    if (editing) {
+      const edit = orderEditSchema.safeParse(JSON.parse(outputText));
+      if (!edit.success) throw new ApiError(502, "Sweetie returned an invalid edit. Please try again.");
+      return applyOrderEdit(currentCart, edit.data);
+    }
     return parseModelDraft(outputText);
   } catch (error) {
     if (error instanceof ApiError) throw error;
@@ -706,12 +717,14 @@ const requestModelDraft = async (
 export const createAiOrderDraft = async ({
   transcript,
   history,
-  catalogItems
+  catalogItems,
+  currentCart
 }: AiOrderDraftRequest) => {
   const modelDraft = await requestModelDraft(
     transcript,
     history,
-    catalogItems
+    catalogItems,
+    currentCart
   );
   const explicitAdditionalNotes =
     extractExplicitDeliveryInstructions(transcript);
