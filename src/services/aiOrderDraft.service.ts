@@ -714,12 +714,51 @@ const requestModelDraft = async (
   }
 };
 
+// Ask before treating a likely misheard bottle size as hundreds of bottles.
+// Explicit counts ("260 bottles"), other numbers and non-spirit products retain
+// the ordinary quantity validation path.
+export const ambiguous26erQuestion = (
+  transcript: string,
+  catalogItems: CatalogItemSummary[]
+): string | null => {
+  const match = transcript.trim().match(
+    /^(?:(?:please\s+)?(?:i (?:want|need|would like)|can i (?:get|have)|could i (?:get|have))\s+)?(?:a\s+)?260\s+(?:of\s+)?(.+?)(?:\s+please)?[.!?]*$/i
+  );
+  if (!match) return null;
+  const product = match[1].trim();
+  const normalized = normalizeProductText(product);
+  const spirit = catalogItems.some((item) => {
+    const spiritCategory = /vodka|whisk|rum|gin|tequila|brandy|cognac|spirits|liquor/i.test(item.category ?? "");
+    const productMatches = [item.name, item.brand].some(
+      (name) => name && normalizeProductText(name) === normalized
+    );
+    // Legacy live catalog records carry the size in the name and no category.
+    // Match plain Smirnoff 750 mL exactly; do not match Smirnoff Ice/coolers.
+    const legacySmirnoff = normalized === "smirnoff" &&
+      item.pickupType === "LCBO" &&
+      normalizeProductText(item.name) === "smirnoff 750ml";
+    return (spiritCategory && productMatches) || legacySmirnoff;
+  });
+  return spirit
+    ? `Did you mean one 26er (750 mL) of ${product.slice(0, 100)}?`
+    : null;
+};
+
 export const createAiOrderDraft = async ({
   transcript,
   history,
   catalogItems,
   currentCart
 }: AiOrderDraftRequest) => {
+  const sizeQuestion = ambiguous26erQuestion(transcript, catalogItems);
+  if (sizeQuestion) {
+    return buildOrderDraftResponse({
+      status: "NEEDS_CLARIFICATION",
+      assistantMessage: "I need one more detail.",
+      clarificationQuestion: sizeQuestion,
+      items: [], paymentMethod: null, additionalNotes: null
+    }, catalogItems);
+  }
   const modelDraft = await requestModelDraft(
     transcript,
     history,
@@ -741,3 +780,4 @@ export const createAiOrderDraft = async ({
     explicitAdditionalNotes
   );
 };
+
