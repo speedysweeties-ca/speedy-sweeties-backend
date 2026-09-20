@@ -534,7 +534,7 @@ test("OpenAI Responses output text is extracted without SDK helpers", () => {
 
 test("260 spirit transcript asks about a 26er without guessing or changing cart", async () => {
   const { ambiguous26erQuestion, createAiOrderDraft } = require("../dist/services/aiOrderDraft.service.js");
-  const catalogItems = [catalogItem({ name: "Smirnoff", brand: "Smirnoff", category: "Vodka" })];
+  const catalogItems = [catalogItem({ name: "Smirnoff 750ml", brand: null, size: null, category: null, source: null })];
   assert.equal(ambiguous26erQuestion("260 of Smirnoff please", catalogItems),
     "Did you mean one 26er (750 mL) of Smirnoff?");
   const response = await createAiOrderDraft({ transcript: "260 of Smirnoff please", history: [], catalogItems,

@@ -732,7 +732,12 @@ export const ambiguous26erQuestion = (
     const productMatches = [item.name, item.brand].some(
       (name) => name && normalizeProductText(name) === normalized
     );
-    return spiritCategory && productMatches;
+    // Legacy live catalog records carry the size in the name and no category.
+    // Match plain Smirnoff 750 mL exactly; do not match Smirnoff Ice/coolers.
+    const legacySmirnoff = normalized === "smirnoff" &&
+      item.pickupType === "LCBO" &&
+      normalizeProductText(item.name) === "smirnoff 750ml";
+    return (spiritCategory && productMatches) || legacySmirnoff;
   });
   return spirit
     ? `Did you mean one 26er (750 mL) of ${product.slice(0, 100)}?`
