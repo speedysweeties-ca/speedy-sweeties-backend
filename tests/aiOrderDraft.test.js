@@ -530,3 +530,21 @@ test("OpenAI Responses output text is extracted without SDK helpers", () => {
 
   assert.equal(text, "{\"status\":\"READY\"}");
 });
+
+
+test("260 spirit transcript asks about a 26er without guessing or changing cart", async () => {
+  const { ambiguous26erQuestion, createAiOrderDraft } = require("../dist/services/aiOrderDraft.service.js");
+  const catalogItems = [catalogItem({ name: "Smirnoff", brand: "Smirnoff", category: "Vodka" })];
+  assert.equal(ambiguous26erQuestion("260 of Smirnoff please", catalogItems),
+    "Did you mean one 26er (750 mL) of Smirnoff?");
+  const response = await createAiOrderDraft({ transcript: "260 of Smirnoff please", history: [], catalogItems,
+    currentCart: [{ name: "ice", quantity: 3 }] });
+  assert.equal(response.readyForReview, false);
+  assert.equal(response.orderSubmitted, false);
+  assert.deepEqual(response.draft.items, []);
+  assert.match(response.clarificationQuestion, /one 26er \(750 mL\) of Smirnoff/);
+  for (const text of ["260 bottles of Smirnoff", "120 of Smirnoff", "260 bags of ice", "260 of Coke", "a 26er of Smirnoff", "yes"]) {
+    assert.equal(ambiguous26erQuestion(text, catalogItems), null, text);
+  }
+  assert.equal(ambiguous26erQuestion("260 of Smirnoff Ice", [catalogItem({ name: "Smirnoff Ice", brand: "Smirnoff", category: "Coolers" })]), null);
+});
