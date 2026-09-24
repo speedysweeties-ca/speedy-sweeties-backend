@@ -548,3 +548,353 @@ test("260 spirit transcript asks about a 26er without guessing or changing cart"
   }
   assert.equal(ambiguous26erQuestion("260 of Smirnoff Ice", [catalogItem({ name: "Smirnoff Ice", brand: "Smirnoff", category: "Coolers" })]), null);
 });
+
+test("joined count and 2-litre speech asks a catalog-grounded question without changing the cart", async () => {
+  const {
+    ambiguousJoinedCountSizeQuestion,
+    createAiOrderDraft
+  } = require("../dist/services/aiOrderDraft.service.js");
+  const catalogItems = [
+    catalogItem({
+      id: "ginger-ale-2l",
+      name: "2L Ginger Ale",
+      normalizedName: "2l ginger ale",
+      brand: null,
+      size: null,
+      category: "Pop",
+      source: "retailer",
+      pickupType: "CONVENIENCE"
+    })
+  ];
+
+  assert.equal(
+    ambiguousJoinedCountSizeQuestion("32 L bottles of ginger ale", catalogItems),
+    "Did you mean three 2-litre bottles of ginger ale?"
+  );
+  assert.equal(
+    ambiguousJoinedCountSizeQuestion(
+      "62 L bottles of ginger ale and two bags of ice",
+      catalogItems
+    ),
+    "Did you mean six 2-litre bottles of ginger ale?"
+  );
+
+  const currentCart = [{ name: "Smirnoff 750 mL", quantity: 2 }];
+  const response = await createAiOrderDraft({
+    transcript: "32 L bottles of ginger ale and two bags of ice",
+    history: [],
+    catalogItems,
+    currentCart
+  });
+
+  assert.equal(response.status, "NEEDS_CLARIFICATION");
+  assert.equal(response.readyForReview, false);
+  assert.equal(response.orderSubmitted, false);
+  assert.deepEqual(response.draft.items, []);
+  assert.equal(
+    response.clarificationQuestion,
+    "Did you mean three 2-litre bottles of ginger ale?"
+  );
+  assert.deepEqual(currentCart, [{ name: "Smirnoff 750 mL", quantity: 2 }]);
+});
+
+test("joined-size guard covers likely counts but preserves explicit counts and other sizes", () => {
+  const { ambiguousJoinedCountSizeQuestion } = require("../dist/services/aiOrderDraft.service.js");
+  const catalogItems = [catalogItem({
+    id: "ginger-ale-2l",
+    name: "Ginger Ale",
+    normalizedName: "ginger ale",
+    brand: null,
+    size: "2 L",
+    category: "Pop",
+    source: "retailer",
+    pickupType: "CONVENIENCE"
+  })];
+
+  const counts = [1, 2, 3, 4, 5, 6, 8, 10];
+  const countWords = ["one", "two", "three", "four", "five", "six", "eight", "ten"];
+  for (let index = 0; index < counts.length; index += 1) {
+    assert.equal(
+      ambiguousJoinedCountSizeQuestion(
+        `${countWords[index]} two-litre bottles of ginger ale`,
+        catalogItems
+      ),
+      null
+    );
+    assert.match(
+      ambiguousJoinedCountSizeQuestion(
+        `${counts[index]}2 L bottles of ginger ale`,
+        catalogItems
+      ),
+      new RegExp(`Did you mean ${countWords[index]} 2-litre`)
+    );
+
+    const clearDraft = buildOrderDraftResponse({
+      status: "READY",
+      assistantMessage: "I've drafted your order.",
+      clarificationQuestion: null,
+      items: [{
+        requestedName: "Ginger Ale",
+        packageDescription: "2 L",
+        quantity: counts[index],
+        confidence: "HIGH"
+      }],
+      paymentMethod: null,
+      additionalNotes: null
+    }, catalogItems);
+    assert.equal(clearDraft.draft.items[0].quantity, counts[index]);
+    assert.equal(clearDraft.draft.items[0].catalogMatch?.size, "2 L");
+  }
+
+  for (const text of [
+    "32 bottles of ginger ale",
+    "12 L of ginger ale",
+    "two 750 mL bottles of ginger ale",
+    "32 L bottles of an unknown product"
+  ]) {
+    assert.equal(
+      ambiguousJoinedCountSizeQuestion(text, catalogItems),
+      null,
+      text
+    );
+  }
+});
+
+test("explicit bottle counts and unrelated volumes keep their own quantity and size semantics", () => {
+  const catalogItems = [
+    catalogItem({
+      id: "ginger-ale-2l",
+      name: "Ginger Ale",
+      normalizedName: "ginger ale",
+      brand: null,
+      size: "2 L",
+      category: "Pop",
+      source: "retailer",
+      pickupType: "CONVENIENCE"
+    }),
+    catalogItem({
+      id: "ginger-ale-750ml",
+      name: "Ginger Ale",
+      normalizedName: "ginger ale",
+      brand: null,
+      size: "750 mL",
+      category: "Pop",
+      source: "retailer",
+      pickupType: "CONVENIENCE"
+    })
+  ];
+  const response = buildOrderDraftResponse({
+    status: "READY",
+    assistantMessage: "I've drafted your order.",
+    clarificationQuestion: null,
+    items: [
+      {
+        requestedName: "ginger ale bottles",
+        packageDescription: null,
+        quantity: 32,
+        confidence: "HIGH"
+      },
+      {
+        requestedName: "ginger ale",
+        packageDescription: "12 L",
+        quantity: 1,
+        confidence: "HIGH"
+      },
+      {
+        requestedName: "ginger ale",
+        packageDescription: "750 mL",
+        quantity: 2,
+        confidence: "HIGH"
+      }
+    ],
+    paymentMethod: null,
+    additionalNotes: null
+  }, catalogItems);
+
+  assert.deepEqual(
+    response.draft.items.map(({ requestedName, quantity }) => ({ requestedName, quantity })),
+    [
+      { requestedName: "ginger ale bottles", quantity: 32 },
+      { requestedName: "ginger ale — 12 L", quantity: 1 },
+      { requestedName: "ginger ale — 750 mL", quantity: 2 }
+    ]
+  );
+});
+
+test("a spoken clarification answer keeps history, existing cart, and other requested items", async (t) => {
+  const { env } = require("../dist/config/env");
+  const { createAiOrderDraft } = require("../dist/services/aiOrderDraft.service.js");
+  const oldKey = env.OPENAI_API_KEY;
+  const oldLookup = env.AI_PRODUCT_WEB_LOOKUP_ENABLED;
+  env.OPENAI_API_KEY = "unit-test-only";
+  env.AI_PRODUCT_WEB_LOOKUP_ENABLED = false;
+  t.after(() => {
+    env.OPENAI_API_KEY = oldKey;
+    env.AI_PRODUCT_WEB_LOOKUP_ENABLED = oldLookup;
+  });
+
+  const currentCart = [{ name: "Smirnoff 750 mL", quantity: 2 }];
+  const history = [
+    { role: "user", content: "32 L bottles of ginger ale and two bags of ice" },
+    { role: "assistant", content: "Did you mean three 2-litre bottles of ginger ale?" }
+  ];
+
+  t.mock.method(global, "fetch", async (_url, options) => {
+    const modelRequest = JSON.parse(options.body);
+    assert.deepEqual(modelRequest.input.slice(0, 2), history);
+    const latestInput = JSON.parse(modelRequest.input.at(-1).content);
+    assert.deepEqual(latestInput.currentCart, currentCart);
+    assert.match(latestInput.customerRequest, /Clarification answer:\nyes/);
+    assert.match(
+      latestInput.customerRequest,
+      /Confirmed delivery-language hint:\nthree 2-litre bottles of ginger ale and two bags of ice/
+    );
+    return {
+      ok: true,
+      json: async () => ({
+        output_text: JSON.stringify({
+          status: "READY",
+          assistantMessage: "I've updated your draft.",
+          clarificationQuestion: null,
+          operations: [
+            {
+              action: "ADD",
+              index: null,
+              requestedName: "Ginger Ale",
+              packageDescription: "2 L",
+              quantity: 3,
+              confidence: "HIGH"
+            },
+            {
+              action: "ADD",
+              index: null,
+              requestedName: "Bag of ice",
+              packageDescription: null,
+              quantity: 2,
+              confidence: "HIGH"
+            }
+          ],
+          paymentMethod: null,
+          additionalNotes: null
+        })
+      })
+    };
+  });
+
+  const response = await createAiOrderDraft({
+    transcript: "yes",
+    history,
+    currentCart,
+    catalogItems: [catalogItem({
+      id: "ginger-ale-2l",
+      name: "Ginger Ale",
+      normalizedName: "ginger ale",
+      brand: null,
+      size: "2 L",
+      category: "Pop",
+      source: "retailer",
+      pickupType: "CONVENIENCE"
+    })]
+  });
+
+  assert.equal(response.readyForReview, true);
+  assert.deepEqual(
+    response.draft.items.map(({ requestedName, quantity }) => ({ requestedName, quantity })),
+    [
+      { requestedName: "Smirnoff 750 mL", quantity: 2 },
+      { requestedName: "Ginger Ale — 2 L", quantity: 3 },
+      { requestedName: "Bag of ice", quantity: 2 }
+    ]
+  );
+});
+
+test("a confirmed joined-size clarification is normalized once for an empty cart", async (t) => {
+  const { env } = require("../dist/config/env");
+  const {
+    createAiOrderDraft,
+    resolveConfirmedJoinedCountSizeTranscript
+  } = require("../dist/services/aiOrderDraft.service.js");
+  const oldKey = env.OPENAI_API_KEY;
+  const oldLookup = env.AI_PRODUCT_WEB_LOOKUP_ENABLED;
+  env.OPENAI_API_KEY = "unit-test-only";
+  env.AI_PRODUCT_WEB_LOOKUP_ENABLED = false;
+  t.after(() => {
+    env.OPENAI_API_KEY = oldKey;
+    env.AI_PRODUCT_WEB_LOOKUP_ENABLED = oldLookup;
+  });
+
+  const catalogItems = [catalogItem({
+    id: "ginger-ale-2l",
+    name: "Ginger Ale",
+    normalizedName: "ginger ale",
+    brand: null,
+    size: "2 L",
+    category: "Pop",
+    source: "retailer",
+    pickupType: "CONVENIENCE"
+  })];
+  const history = [
+    { role: "user", content: "32 L bottles of ginger ale and two bags of ice" },
+    {
+      role: "assistant",
+      content: "I need one more detail. Did you mean three 2-litre bottles of ginger ale?"
+    }
+  ];
+
+  assert.equal(
+    resolveConfirmedJoinedCountSizeTranscript("Yes", history, catalogItems),
+    "three 2-litre bottles of ginger ale and two bags of ice"
+  );
+
+  t.mock.method(global, "fetch", async (_url, options) => {
+    const modelRequest = JSON.parse(options.body);
+    assert.deepEqual(modelRequest.input.slice(0, 2), history);
+    assert.match(
+      modelRequest.input.at(-1).content,
+      /Confirmed delivery-language hint:\nthree 2-litre bottles of ginger ale and two bags of ice/
+    );
+    return {
+      ok: true,
+      json: async () => ({
+        output_text: JSON.stringify({
+          status: "READY",
+          assistantMessage: "I've drafted your order.",
+          clarificationQuestion: null,
+          items: [
+            {
+              requestedName: "Ginger Ale",
+              packageDescription: "2 L",
+              quantity: 3,
+              confidence: "HIGH"
+            },
+            {
+              requestedName: "Bag of ice",
+              packageDescription: null,
+              quantity: 2,
+              confidence: "HIGH"
+            }
+          ],
+          paymentMethod: null,
+          additionalNotes: null
+        })
+      })
+    };
+  });
+
+  const response = await createAiOrderDraft({
+    transcript: "Yes",
+    history,
+    currentCart: [],
+    catalogItems
+  });
+
+  assert.equal(response.status, "READY");
+  assert.equal(response.clarificationQuestion, null);
+  assert.deepEqual(
+    response.draft.items.map(({ requestedName, quantity }) => ({ requestedName, quantity })),
+    [
+      { requestedName: "Ginger Ale — 2 L", quantity: 3 },
+      { requestedName: "Bag of ice", quantity: 2 }
+    ]
+  );
+});

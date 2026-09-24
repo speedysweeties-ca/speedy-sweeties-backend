@@ -616,10 +616,26 @@ const requestModelDraft = async (
 
   try {
     const originalTranscript = transcript.trim();
+    const confirmedJoinedTranscript =
+      resolveConfirmedJoinedCountSizeTranscript(
+        originalTranscript,
+        history,
+        catalogItems
+      );
     const normalizedTranscript =
-      normalizeLikelySpeechTranscript(originalTranscript);
+      normalizeLikelySpeechTranscript(
+        confirmedJoinedTranscript ?? originalTranscript
+      );
     const userContent =
-      normalizedTranscript === originalTranscript
+      confirmedJoinedTranscript
+        ? [
+            "Clarification answer:",
+            originalTranscript,
+            "",
+            "Confirmed delivery-language hint:",
+            normalizedTranscript
+          ].join("\n")
+        : normalizedTranscript === originalTranscript
         ? originalTranscript
         : [
             "Original speech transcript:",
@@ -744,13 +760,121 @@ export const ambiguous26erQuestion = (
     : null;
 };
 
+const SMALL_COUNT_WORDS: Record<number, string> = {
+  1: "one",
+  2: "two",
+  3: "three",
+  4: "four",
+  5: "five",
+  6: "six",
+  7: "seven",
+  8: "eight",
+  9: "nine",
+  10: "ten"
+};
+
+type JoinedCountSizeMatch = {
+  count: number;
+  product: string;
+  question: string;
+  replacement: string;
+  startIndex: number;
+  length: number;
+};
+
+const hasTwoLitreCatalogMatch = (
+  product: string,
+  catalogItems: CatalogItemSummary[]
+): boolean => {
+  const match = findBestCatalogMatch(`${product} 2 L`, catalogItems);
+  return match !== null && catalogVariants(match).some((variant) =>
+    variant.split(" ").includes("2000ml")
+  );
+};
+
+const findAmbiguousJoinedCountSize = (
+  transcript: string,
+  catalogItems: CatalogItemSummary[]
+): JoinedCountSizeMatch | null => {
+  const pattern = /(\d{2,3})\s*(?:litres?|liters?|l)\s+bottles?\s+(?:of\s+)?(.+?)(?=\s+(?:and|plus)\s+(?:(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b)|[,.!?]|$)/gi;
+
+  for (const match of transcript.matchAll(pattern)) {
+    const joinedDigits = match[1];
+    if (!joinedDigits.endsWith("2")) continue;
+
+    const count = Number(joinedDigits.slice(0, -1));
+    if (!Number.isInteger(count) || count < 1 || count > 100) continue;
+
+    const product = match[2].replace(/\s+/g, " ").trim();
+    if (!product || !hasTwoLitreCatalogMatch(product, catalogItems)) continue;
+
+    const spokenCount = SMALL_COUNT_WORDS[count] ?? String(count);
+    const bottleWord = count === 1 ? "bottle" : "bottles";
+    return {
+      count,
+      product,
+      question: `Did you mean ${spokenCount} 2-litre ${bottleWord} of ${product.slice(0, 100)}?`,
+      replacement: `${spokenCount} 2-litre ${bottleWord} of ${product}`,
+      startIndex: match.index ?? 0,
+      length: match[0].length
+    };
+  }
+
+  return null;
+};
+
+// Apple and other speech recognizers can join a spoken count directly to the
+// following 2-litre size: "three two-litre bottles" becomes "32 L bottles".
+// This only asks a question when the grammar and active catalog both support
+// that interpretation. It never rewrites the transcript or changes the cart.
+export const ambiguousJoinedCountSizeQuestion = (
+  transcript: string,
+  catalogItems: CatalogItemSummary[]
+): string | null => {
+  return findAmbiguousJoinedCountSize(transcript, catalogItems)?.question ?? null;
+};
+
+export const resolveConfirmedJoinedCountSizeTranscript = (
+  transcript: string,
+  history: AiConversationTurn[],
+  catalogItems: CatalogItemSummary[]
+): string | null => {
+  if (!/^(?:yes|yeah|yep|correct|exactly|that(?:'s| is) right)(?:\s+please)?[.!?]*$/i.test(transcript.trim())) {
+    return null;
+  }
+
+  for (let index = history.length - 1; index > 0; index -= 1) {
+    const assistantTurn = history[index];
+    const userTurn = history[index - 1];
+    if (assistantTurn.role !== "assistant" || userTurn.role !== "user") continue;
+
+    const joinedMatch = findAmbiguousJoinedCountSize(
+      userTurn.content,
+      catalogItems
+    );
+    if (!joinedMatch || !assistantTurn.content.includes(joinedMatch.question)) {
+      continue;
+    }
+
+    return [
+      userTurn.content.slice(0, joinedMatch.startIndex),
+      joinedMatch.replacement,
+      userTurn.content.slice(joinedMatch.startIndex + joinedMatch.length)
+    ].join("");
+  }
+
+  return null;
+};
+
 export const createAiOrderDraft = async ({
   transcript,
   history,
   catalogItems,
   currentCart
 }: AiOrderDraftRequest) => {
-  const sizeQuestion = ambiguous26erQuestion(transcript, catalogItems);
+  const sizeQuestion =
+    ambiguous26erQuestion(transcript, catalogItems) ??
+    ambiguousJoinedCountSizeQuestion(transcript, catalogItems);
   if (sizeQuestion) {
     return buildOrderDraftResponse({
       status: "NEEDS_CLARIFICATION",
@@ -780,4 +904,3 @@ export const createAiOrderDraft = async ({
     explicitAdditionalNotes
   );
 };
-
