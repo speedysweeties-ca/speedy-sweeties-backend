@@ -821,6 +821,8 @@ function App() {
   const [dispatcherPerformanceIds, setDispatcherPerformanceIds] = useState<string[]>([]);
   const [dispatcherPerformanceSourceGroups, setDispatcherPerformanceSourceGroups] =
     useState<DispatcherPerformanceSourceGroup[]>([]);
+  const [dispatcherPerformanceOverFiveMinutesOnly, setDispatcherPerformanceOverFiveMinutesOnly] =
+    useState(false);
 
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("LIVE_ORDERS");
@@ -859,6 +861,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   const dispatcherPerformanceIdsRef = useRef<string[]>([]);
   const dispatcherPerformanceSourceGroupsRef =
     useRef<DispatcherPerformanceSourceGroup[]>([]);
+  const dispatcherPerformanceOverFiveMinutesOnlyRef = useRef(false);
 
   const manualFormIsDirty = useMemo(() => {
     return JSON.stringify(manualOrderForm) !== JSON.stringify(initialManualOrderForm);
@@ -3007,6 +3010,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       endDate: string;
       dispatcherIds?: string[];
       sourceGroups?: DispatcherPerformanceSourceGroup[];
+      overFiveMinutesOnly?: boolean;
     }
   ) => {
     const requestId = ++dispatcherPerformanceRequestIdRef.current;
@@ -3023,6 +3027,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
           filters?.dispatcherIds ?? dispatcherPerformanceIdsRef.current,
         sourceGroups:
           filters?.sourceGroups ?? dispatcherPerformanceSourceGroupsRef.current,
+        overFiveMinutesOnly:
+          filters?.overFiveMinutesOnly ?? dispatcherPerformanceOverFiveMinutesOnlyRef.current,
       });
 
       const response = await fetch(
@@ -3139,6 +3145,19 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         endDate: dispatcherPerformanceEndDate,
         dispatcherIds: dispatcherPerformanceIdsRef.current,
         sourceGroups: [],
+      });
+    }
+  };
+
+  const changeDispatcherPerformanceOverFiveMinutesOnly = (checked: boolean) => {
+    dispatcherPerformanceOverFiveMinutesOnlyRef.current = checked;
+    setDispatcherPerformanceOverFiveMinutesOnly(checked);
+
+    if (token) {
+      void fetchDispatcherPerformance(token, true, {
+        startDate: dispatcherPerformanceStartDate,
+        endDate: dispatcherPerformanceEndDate,
+        overFiveMinutesOnly: checked,
       });
     }
   };
@@ -3418,6 +3437,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setDispatcherPerformanceSourceGroups([]);
     dispatcherPerformanceIdsRef.current = [];
     dispatcherPerformanceSourceGroupsRef.current = [];
+    setDispatcherPerformanceOverFiveMinutesOnly(false);
+    dispatcherPerformanceOverFiveMinutesOnlyRef.current = false;
     dispatcherPerformanceRequestIdRef.current += 1;
     setDispatcherPerformanceStartDate(defaultDispatcherPerformanceStartDate);
     setDispatcherPerformanceEndDate(defaultDispatcherPerformanceEndDate);
@@ -8246,6 +8267,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             endDate={dispatcherPerformanceEndDate}
             selectedDispatcherIds={dispatcherPerformanceIds}
             selectedSourceGroups={dispatcherPerformanceSourceGroups}
+            overFiveMinutesOnly={dispatcherPerformanceOverFiveMinutesOnly}
             onStartDateChange={setDispatcherPerformanceStartDate}
             onEndDateChange={setDispatcherPerformanceEndDate}
             onToggleDispatcher={toggleDispatcherPerformanceId}
@@ -8253,6 +8275,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             onClearDispatchers={clearDispatcherPerformanceIds}
             onToggleSourceGroup={toggleDispatcherPerformanceSourceGroup}
             onClearSourceGroups={clearDispatcherPerformanceSourceGroups}
+            onOverFiveMinutesOnlyChange={changeDispatcherPerformanceOverFiveMinutesOnly}
             onPresetDays={applyDispatcherPerformanceDatePreset}
             onRefresh={() => token && void fetchDispatcherPerformance(token, true)}
           />

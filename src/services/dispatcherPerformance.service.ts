@@ -215,6 +215,7 @@ export const buildDispatcherPerformance = (input: {
   events: DispatcherPerformanceEvent[];
   selectedDispatcherIds?: string[];
   selectedSourceGroups?: DispatcherPerformanceSourceGroup[];
+  overFiveMinutesOnly?: boolean;
 }) => {
   const requestedSourceGroups = new Set(input.selectedSourceGroups ?? []);
   const sourceFilteredOrders = input.orders.filter(
@@ -233,7 +234,20 @@ export const buildDispatcherPerformance = (input: {
   const firstDispatchOrders = buildFirstDispatchOrders({
     orders: sourceFilteredOrders,
     events: sourceFilteredEvents
+  }).filter((order) => {
+    if (!input.overFiveMinutesOnly) return true;
+    const minutes = minutesBetween(order.createdAt, order.dispatchedAt);
+    return minutes !== null && minutes > 5;
   });
+  // Use immutable first-dispatch timing before filtering related entry work and
+  // assignment actions. Later reassignments must not turn a fast dispatch slow.
+  const matchingDispatchOrderIds = new Set(firstDispatchOrders.map((order) => order.id));
+  const performanceOrders = input.overFiveMinutesOnly
+    ? sourceFilteredOrders.filter((order) => matchingDispatchOrderIds.has(order.id))
+    : sourceFilteredOrders;
+  const performanceEvents = input.overFiveMinutesOnly
+    ? sourceFilteredEvents.filter((event) => matchingDispatchOrderIds.has(event.orderId))
+    : sourceFilteredEvents;
   const requestedIds = new Set(input.selectedDispatcherIds ?? []);
   const selectedDispatchers = input.dispatchers.filter(
     (dispatcher) => requestedIds.size === 0 || requestedIds.has(dispatcher.id)
@@ -254,7 +268,7 @@ export const buildDispatcherPerformance = (input: {
     ])
   );
 
-  for (const order of sourceFilteredOrders) {
+  for (const order of performanceOrders) {
     if (
       order.orderSource === OrderSource.DISPATCHER_MANUAL &&
       order.createdByUserId &&
@@ -280,7 +294,7 @@ export const buildDispatcherPerformance = (input: {
     accumulators.get(order.dispatchedByUserId)?.dispatchedOrders.push(order);
   }
 
-  for (const event of sourceFilteredEvents) {
+  for (const event of performanceEvents) {
     if (
       event.dispatchSource !== DispatchSource.MANUAL ||
       !event.actorUserId ||
@@ -311,13 +325,13 @@ export const buildDispatcherPerformance = (input: {
       Boolean(order.dispatchedByUserId) &&
       selectedIds.has(order.dispatchedByUserId ?? "")
   );
-  const selectedManualOrders = sourceFilteredOrders.filter(
+  const selectedManualOrders = performanceOrders.filter(
     (order) =>
       order.orderSource === OrderSource.DISPATCHER_MANUAL &&
       Boolean(order.createdByUserId) &&
       selectedIds.has(order.createdByUserId ?? "")
   );
-  const selectedEvents = sourceFilteredEvents.filter(
+  const selectedEvents = performanceEvents.filter(
     (event) =>
       event.dispatchSource === DispatchSource.MANUAL &&
       Boolean(event.actorUserId) &&
@@ -446,6 +460,7 @@ export const buildDispatcherPerformance = (input: {
       .sort((a, b) => a.displayName.localeCompare(b.displayName)),
     selectedDispatcherIds: Array.from(selectedIds),
     selectedSourceGroups: Array.from(requestedSourceGroups),
+    overFiveMinutesOnly: input.overFiveMinutesOnly ?? false,
     summary: {
       manualOrdersCreated: selectedManualOrders.length,
       manualEntryTimeSamples: manualEntryMinutes.length,

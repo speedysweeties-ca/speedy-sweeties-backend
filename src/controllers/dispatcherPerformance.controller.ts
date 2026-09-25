@@ -81,6 +81,14 @@ export const readDispatcherPerformanceSourceGroups = (
   return sourceGroups as DispatcherPerformanceSourceGroup[];
 };
 
+export const readDispatcherPerformanceOverFiveMinutesOnly = (
+  value: unknown
+): boolean => {
+  if (value === undefined || value === false || value === "false") return false;
+  if (value === true || value === "true") return true;
+  throw new Error("Over-five-minute filter must be true or false.");
+};
+
 export const getDispatcherPerformanceController = async (
   req: Request,
   res: Response
@@ -93,6 +101,7 @@ export const getDispatcherPerformanceController = async (
   let range;
   let selectedDispatcherIds: string[];
   let selectedSourceGroups: DispatcherPerformanceSourceGroup[];
+  let overFiveMinutesOnly: boolean;
 
   try {
     range = buildGrowthDashboardDateRange(
@@ -104,6 +113,9 @@ export const getDispatcherPerformanceController = async (
     );
     selectedSourceGroups = readDispatcherPerformanceSourceGroups(
       filters.sourceGroups
+    );
+    overFiveMinutesOnly = readDispatcherPerformanceOverFiveMinutesOnly(
+      filters.overFiveMinutesOnly
     );
   } catch (error) {
     throw new ApiError(
@@ -173,7 +185,8 @@ export const getDispatcherPerformanceController = async (
     orders,
     events,
     selectedDispatcherIds,
-    selectedSourceGroups
+    selectedSourceGroups,
+    overFiveMinutesOnly
   });
 
   res.status(StatusCodes.OK).json({
