@@ -16,7 +16,9 @@ const {
 } = require("../dist/services/dispatcherPerformanceTracking.service.js");
 const {
   readDispatcherPerformanceDispatcherIds,
-  readDispatcherPerformanceSourceGroups
+  readDispatcherPerformanceSourceGroups,
+  readDispatcherPerformanceOverFiveMinutesOnly,
+  getDispatcherPerformanceController
 } = require("../dist/controllers/dispatcherPerformance.controller.js");
 
 const at = (value) => new Date(value);
@@ -345,4 +347,156 @@ test("manual-entry start time accepts small clock skew and rejects untrustworthy
     normalizeManualEntryStartedAt("2026-09-10T12:00:00.000Z", now),
     null
   );
+});
+
+test("dispatch delay filter accepts boolean POST values and GET strings without truthy coercion", () => {
+  for (const value of [undefined, false, "false"]) {
+    assert.equal(readDispatcherPerformanceOverFiveMinutesOnly(value), false);
+  }
+  for (const value of [true, "true"]) {
+    assert.equal(readDispatcherPerformanceOverFiveMinutesOnly(value), true);
+  }
+  for (const value of [null, 0, 1, "yes", "", [], ["true"], {}]) {
+    assert.throws(() => readDispatcherPerformanceOverFiveMinutesOnly(value), /true or false/);
+  }
+});
+
+test("over-five-minute filter uses exact timestamps and excludes missing or invalid timing", () => {
+  const orders = [
+    ["fast", "2026-09-10T16:04:59.999Z"],
+    ["exactly-five", "2026-09-10T16:05:00.000Z"],
+    ["just-over-five", "2026-09-10T16:05:00.001Z"],
+    ["slow", "2026-09-10T16:10:00.000Z"],
+    ["negative", "2026-09-10T15:59:00.000Z"],
+    ["missing", null],
+    ["invalid", "invalid date"]
+  ].map(([id, timestamp], index) => order({
+    id,
+    orderNumber: index + 1,
+    dispatchedAt: timestamp === null ? null : at(timestamp)
+  }));
+  const input = { dispatchers, orders, events: [] };
+  const result = buildDispatcherPerformance({ ...input, overFiveMinutesOnly: true });
+
+  assert.deepEqual(result.orders.map((item) => item.orderId), ["just-over-five", "slow"]);
+  assert.equal(result.overFiveMinutesOnly, true);
+  assert.equal(result.summary.ordersDispatched, 2);
+  assert.equal(result.summary.averageDispatchMinutes, 7.5);
+  assert.equal(result.summary.withinFiveMinutesPercent, 0);
+  assert.equal(result.coverage.totalOrders, orders.length);
+  assert.deepEqual(
+    buildDispatcherPerformance({ ...input, overFiveMinutesOnly: false }),
+    buildDispatcherPerformance(input)
+  );
+});
+
+test("delay filter combines with dispatcher/source filters across metrics, events, and evidence", () => {
+  const slow = (id, overrides = {}) => order({
+    id, orderNumber: 1,
+    orderSource: OrderSource.DISPATCHER_MANUAL,
+    createdByUserId: "dispatcher-1",
+    manualEntryStartedAt: at("2026-09-10T15:58:00.000Z"),
+    dispatchedAt: at("2026-09-10T16:08:00.000Z"),
+    ...overrides
+  });
+  const orders = [
+    slow("manual-slow"),
+    slow("manual-fast", { dispatchedAt: at("2026-09-10T16:02:00.000Z") }),
+    slow("app-slow", { orderSource: OrderSource.IOS_APP }),
+    slow("other-dispatcher", { createdByUserId: "admin-1", dispatchedByUserId: "admin-1" })
+  ];
+  const events = orders.map((item) => ({
+    orderId: item.id,
+    eventType: DispatchEventType.REASSIGNED,
+    dispatchSource: DispatchSource.MANUAL,
+    actorUserId: item.dispatchedByUserId,
+    occurredAt: at("2026-09-10T16:20:00.000Z")
+  }));
+  const result = buildDispatcherPerformance({
+    dispatchers, orders, events,
+    selectedDispatcherIds: ["dispatcher-1"],
+    selectedSourceGroups: ["MANUAL"],
+    overFiveMinutesOnly: true
+  });
+
+  assert.deepEqual(result.orders.map((item) => item.orderId), ["manual-slow"]);
+  assert.equal(result.summary.ordersDispatched, 1);
+  assert.equal(result.summary.manualOrdersCreated, 1);
+  assert.equal(result.summary.averageManualEntryMinutes, 2);
+  assert.equal(result.summary.averageDispatchMinutes, 8);
+  assert.equal(result.summary.averageTotalDeliveryMinutes, 30);
+  assert.equal(result.summary.assignmentActions, 1);
+  assert.equal(result.summary.reassignments, 1);
+  assert.equal(result.stats.length, 1);
+  assert.equal(result.stats[0].ordersDispatched, 1);
+  assert.equal(result.stats[0].manualOrdersCreated, 1);
+  assert.equal(result.stats[0].assignmentActions, 1);
+  assert.equal(result.sourceBreakdown.find((source) => source.sourceGroup === "MANUAL").totalOrders, 1);
+  assert.equal(result.sourceBreakdown.find((source) => source.sourceGroup === "APP").totalOrders, 0);
+  assert.equal(result.dailyTrend.length, 1);
+  assert.equal(result.dailyTrend[0].totalOrders, 1);
+  assert.equal(result.dailyTrend[0].averageDispatchMinutes, 8);
+
+  const empty = buildDispatcherPerformance({
+    dispatchers, orders, events,
+    selectedSourceGroups: ["ONLINE"],
+    overFiveMinutesOnly: true
+  });
+  assert.deepEqual(empty.orders, []);
+  assert.equal(empty.summary.ordersDispatched, 0);
+  assert.equal(empty.summary.averageDispatchMinutes, null);
+  assert.equal(empty.summary.assignmentActions, 0);
+});
+
+test("delay filter retains slow first dispatches after unassignment and ignores later assignment timing", () => {
+  const orders = [
+    order({ id: "unassigned-slow", orderNumber: 1, dispatchedAt: null, dispatchSource: null, dispatchedByUserId: null }),
+    order({ id: "reassigned-fast", orderNumber: 2, dispatchedAt: at("2026-09-10T16:20:00.000Z") }),
+    order({ id: "auto-first", orderNumber: 3, dispatchedAt: at("2026-09-10T16:20:00.000Z") })
+  ];
+  const assigned = (orderId, timestamp, dispatchSource = DispatchSource.MANUAL) => ({
+    orderId, eventType: DispatchEventType.ASSIGNED,
+    dispatchSource, actorUserId: dispatchSource === DispatchSource.AUTO ? null : "dispatcher-1",
+    occurredAt: at(timestamp)
+  });
+  const events = [
+    assigned("unassigned-slow", "2026-09-10T16:08:00.000Z"),
+    assigned("reassigned-fast", "2026-09-10T16:20:00.000Z"),
+    assigned("reassigned-fast", "2026-09-10T16:02:00.000Z"),
+    assigned("auto-first", "2026-09-10T16:10:00.000Z", DispatchSource.AUTO)
+  ];
+  const result = buildDispatcherPerformance({ dispatchers, orders, events, overFiveMinutesOnly: true });
+  assert.deepEqual(result.orders.map((item) => item.orderId), ["unassigned-slow"]);
+  assert.equal(result.orders[0].dispatchMinutes, 8);
+  assert.equal(result.summary.assignmentActions, 1);
+});
+
+test("performance endpoint applies the delay filter from POST bodies and GET queries", async (t) => {
+  const { prisma } = require("../dist/lib/prisma.js");
+  const replaceFindMany = (model, replacement) => {
+    const original = model.findMany;
+    model.findMany = replacement;
+    t.after(() => { model.findMany = original; });
+  };
+  replaceFindMany(prisma.user, async () => dispatchers);
+  replaceFindMany(prisma.order, async () => [
+    order({ id: "fast", orderNumber: 1 }),
+    order({ id: "slow", orderNumber: 2, dispatchedAt: at("2026-09-10T16:08:00.000Z") })
+  ]);
+  replaceFindMany(prisma.dispatchEvent, async () => []);
+  for (const method of ["POST", "GET"]) {
+    for (const enabled of [true, false]) {
+      let response;
+      const filters = {
+        startDate: "2026-09-10", endDate: "2026-09-10",
+        overFiveMinutesOnly: method === "POST" ? enabled : String(enabled)
+      };
+      await getDispatcherPerformanceController({ method, body: filters, query: filters }, {
+        status(code) { assert.equal(code, 200); return this; },
+        json(data) { response = data; }
+      });
+      assert.equal(response.overFiveMinutesOnly, enabled);
+      assert.equal(response.orders.length, enabled ? 1 : 2);
+    }
+  }
 });

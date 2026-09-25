@@ -21,6 +21,7 @@ export const buildDispatcherPerformanceRequestBody = (filters: {
   endDate: string;
   dispatcherIds: string[];
   sourceGroups: DispatcherPerformanceSourceGroup[];
+  overFiveMinutesOnly?: boolean;
 }) => {
   return {
     startDate: filters.startDate,
@@ -31,5 +32,6 @@ export const buildDispatcherPerformanceRequestBody = (filters: {
     ...(filters.sourceGroups.length > 0
       ? { sourceGroups: filters.sourceGroups }
       : {}),
+    ...(filters.overFiveMinutesOnly ? { overFiveMinutesOnly: true } : {}),
   };
 };

@@ -45,6 +45,23 @@ test("toggles filter values on and off", () => {
   );
 });
 
+test("delay filter combines with existing selections and can be cleared independently", () => {
+  const filters = {
+    startDate: "2026-09-01",
+    endDate: "2026-09-12",
+    dispatcherIds: ["shannon-id"],
+    sourceGroups: ["ONLINE" as const],
+  };
+  assert.deepEqual(
+    buildDispatcherPerformanceRequestBody({ ...filters, overFiveMinutesOnly: true }),
+    { ...filters, overFiveMinutesOnly: true }
+  );
+  assert.deepEqual(
+    buildDispatcherPerformanceRequestBody({ ...filters, overFiveMinutesOnly: false }),
+    filters
+  );
+});
+
 test("dispatcher and source click handlers immediately reload performance", async () => {
   const source = await import("node:fs/promises").then((fs) =>
     fs.readFile(new URL("./App.tsx", import.meta.url), "utf8")

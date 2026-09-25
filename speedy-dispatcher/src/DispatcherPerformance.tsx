@@ -90,6 +90,7 @@ export type DispatcherPerformanceData = {
   dispatchers: DispatcherOption[];
   selectedDispatcherIds: string[];
   selectedSourceGroups: DispatcherPerformanceSourceGroup[];
+  overFiveMinutesOnly: boolean;
   summary: PerformanceSummary;
   coverage: {
     allOrdersInRange: number;
@@ -121,6 +122,7 @@ type DispatcherPerformanceProps = {
   endDate: string;
   selectedDispatcherIds: string[];
   selectedSourceGroups: DispatcherPerformanceSourceGroup[];
+  overFiveMinutesOnly: boolean;
   onStartDateChange: (value: string) => void;
   onEndDateChange: (value: string) => void;
   onToggleDispatcher: (dispatcherId: string) => void;
@@ -128,6 +130,7 @@ type DispatcherPerformanceProps = {
   onClearDispatchers: () => void;
   onToggleSourceGroup: (sourceGroup: DispatcherPerformanceSourceGroup) => void;
   onClearSourceGroups: () => void;
+  onOverFiveMinutesOnlyChange: (checked: boolean) => void;
   onPresetDays: (days: number) => void;
   onRefresh: () => void;
 };
@@ -196,6 +199,7 @@ export function DispatcherPerformance({
   endDate,
   selectedDispatcherIds,
   selectedSourceGroups,
+  overFiveMinutesOnly,
   onStartDateChange,
   onEndDateChange,
   onToggleDispatcher,
@@ -203,6 +207,7 @@ export function DispatcherPerformance({
   onClearDispatchers,
   onToggleSourceGroup,
   onClearSourceGroups,
+  onOverFiveMinutesOnlyChange,
   onPresetDays,
   onRefresh
 }: DispatcherPerformanceProps) {
@@ -395,6 +400,32 @@ export function DispatcherPerformance({
           </div>
         </div>
 
+        <label
+          className={`mt-4 flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition hover:border-red-500 ${
+            overFiveMinutesOnly
+              ? "border-red-500 bg-red-950/30"
+              : "border-zinc-700 bg-zinc-800/70"
+          }`}
+        >
+          <input
+            type="checkbox"
+            checked={overFiveMinutesOnly}
+            onChange={(event) => {
+              setDetailPage(1);
+              onOverFiveMinutesOnlyChange(event.target.checked);
+            }}
+            aria-describedby="dispatch-delay-filter-description"
+            className="mt-1 h-4 w-4 shrink-0"
+          />
+          <span>
+            <span className="block font-semibold">Longer than five minutes</span>
+            <span id="dispatch-delay-filter-description" className="mt-1 block text-xs text-zinc-400">
+              Only orders with more than 5 minutes between creation and first dispatch.
+              Combines with your date, dispatcher, and source filters. Changes apply immediately.
+            </span>
+          </span>
+        </label>
+
         <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
           <span className="text-zinc-500">Showing:</span>
           <span className="rounded-full bg-red-950 px-3 py-1 font-semibold text-red-200">
@@ -403,6 +434,11 @@ export function DispatcherPerformance({
           <span className="rounded-full bg-red-950 px-3 py-1 font-semibold text-red-200">
             {selectedSourceLabel}
           </span>
+          {overFiveMinutesOnly && (
+            <span className="rounded-full bg-red-950 px-3 py-1 font-semibold text-red-200">
+              Longer than five minutes
+            </span>
+          )}
           {loading && <span className="text-zinc-400">Updating results...</span>}
         </div>
       </section>
@@ -582,7 +618,7 @@ export function DispatcherPerformance({
                 ))}
               </dl>
               <p className="px-5 pb-5 text-xs text-zinc-500">
-                Coverage follows the date and order-source filters. Manual-entry and assignment-event coverage begins with this upgrade; older records remain honest blanks.
+                Coverage follows the date and order-source filters and includes all dispatch times and dispatchers. Manual-entry and assignment-event coverage begins with this upgrade; older records remain honest blanks.
               </p>
             </section>
           </div>
