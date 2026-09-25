@@ -418,7 +418,7 @@ export function DispatcherPerformance({
             className="mt-1 h-4 w-4 shrink-0"
           />
           <span>
-            <span className="block font-semibold">Dispatch took longer than 5 minutes</span>
+            <span className="block font-semibold">Longer than five minutes</span>
             <span id="dispatch-delay-filter-description" className="mt-1 block text-xs text-zinc-400">
               Only orders with more than 5 minutes between creation and first dispatch.
               Combines with your date, dispatcher, and source filters. Changes apply immediately.
@@ -436,7 +436,7 @@ export function DispatcherPerformance({
           </span>
           {overFiveMinutesOnly && (
             <span className="rounded-full bg-red-950 px-3 py-1 font-semibold text-red-200">
-              Dispatch over 5 minutes
+              Longer than five minutes
             </span>
           )}
           {loading && <span className="text-zinc-400">Updating results...</span>}
