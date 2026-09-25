@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE_URL, API_V1_BASE_URL } from "./apiConfig";
+import { LoadPreviousOrder } from "./LoadPreviousOrder";
 import {
   getVerifiedDeliveryPosition,
   needsDeliveryLocationReview,
@@ -857,6 +858,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   const hasCompletedInitialLoadRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const manualEntryStartedAtRef = useRef<Date | null>(null);
+  const customerSearchRequestIdRef = useRef(0);
   const dispatcherPerformanceRequestIdRef = useRef(0);
   const dispatcherPerformanceIdsRef = useRef<string[]>([]);
   const dispatcherPerformanceSourceGroupsRef =
@@ -3447,6 +3449,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setPassword("");
     setActiveTab("LIVE_ORDERS");
     setManualOrderForm(initialManualOrderForm);
+    setSelectedCustomer(null);
+    customerSearchRequestIdRef.current += 1;
     manualEntryStartedAtRef.current = null;
     setEditingOrderId(null);
     setEditOrderForm(null);
@@ -4004,6 +4008,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
   };
 
   const selectCustomerSuggestion = (customer: CustomerSuggestion) => {
+    customerSearchRequestIdRef.current += 1;
     setSelectedCustomer(customer);
     setManualOrderForm((prev) => ({
       ...prev,
@@ -4036,8 +4041,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
    field: "customerName" | "customerPhone",
    value: string
  ) => {
+   const requestId = ++customerSearchRequestIdRef.current;
    handleManualOrderFieldChange(field, value);
    setSelectedCustomer(null);
+   setCustomerSuggestions([]);
    setActiveCustomerSearchField(field);
 
    if (!token || value.trim().length < 3) {
@@ -4058,6 +4065,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
      );
 
      const data = await response.json();
+
+     if (requestId !== customerSearchRequestIdRef.current) return;
 
      if (response.ok) {
        const customers: CustomerSuggestion[] = data.customers || [];
@@ -4114,6 +4123,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
        setCustomerSuggestions([]);
      }
    } catch (error) {
+     if (requestId !== customerSearchRequestIdRef.current) return;
      console.error(error);
      setCustomerSuggestions([]);
    }
@@ -4376,6 +4386,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
       if (response.ok) {
         alert("Manual order created successfully");
         setManualOrderForm(initialManualOrderForm);
+        setSelectedCustomer(null);
+        customerSearchRequestIdRef.current += 1;
         manualEntryStartedAtRef.current = null;
         setCustomerSuggestions([]);
         setItemSuggestions({});
@@ -4403,6 +4415,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
     if (!shouldDiscard) return;
 
     setManualOrderForm(initialManualOrderForm);
+    setSelectedCustomer(null);
+    customerSearchRequestIdRef.current += 1;
     manualEntryStartedAtRef.current = null;
     setCustomerSuggestions([]);
     setItemSuggestions({});
@@ -8464,6 +8478,19 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 <option value="ETRANSFER">E-Transfer</option>
               </select>
             </div>
+
+            {selectedCustomer && token && (
+              <LoadPreviousOrder
+                key={selectedCustomer.id}
+                customerId={selectedCustomer.id}
+                token={token}
+                disabled={manualOrderLoading}
+                onLoad={(fields) => {
+                  setManualOrderForm((prev) => ({ ...prev, ...fields }));
+                  setItemSuggestions({});
+                }}
+              />
+            )}
 
             <div className="mt-6">
               <div className="flex items-center justify-between gap-3 mb-4">
