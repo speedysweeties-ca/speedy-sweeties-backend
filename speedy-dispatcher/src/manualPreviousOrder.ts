@@ -1,6 +1,9 @@
 export type PreviousOrder = {
   id: string;
   orderNumber: number;
+  orderStatus?: string | null;
+  createdAt?: string | null;
+  deliveredAt?: string | null;
   paymentMethod?: string | null;
   items?: { name: string; quantity: number }[];
 };
