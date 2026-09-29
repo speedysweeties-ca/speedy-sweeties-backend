@@ -49,3 +49,31 @@ export const getPreviousOrderFields = (
 
   return fields;
 };
+
+// History arrives newest first. Compare only the shopping basket: payment,
+// dates, prices, notes and item ordering do not make it a different order.
+export const getDistinctPreviousOrders = (
+  orders: PreviousOrder[]
+): PreviousOrder[] => {
+  const selected: PreviousOrder[] = [];
+  const signatures = new Set<string>();
+
+  for (const order of orders) {
+    const fields = getPreviousOrderFields(order);
+    if (!fields) continue;
+
+    const quantities = new Map<string, number>();
+    for (const item of fields.items) {
+      const name = item.itemName.trim().replace(/\s+/g, " ").toLowerCase();
+      quantities.set(name, (quantities.get(name) ?? 0) + Number(item.quantity));
+    }
+    const signature = JSON.stringify([...quantities].sort(([a], [b]) => a.localeCompare(b)));
+    if (signatures.has(signature)) continue;
+
+    signatures.add(signature);
+    selected.push(order);
+    if (selected.length === 2) break;
+  }
+
+  return selected;
+};

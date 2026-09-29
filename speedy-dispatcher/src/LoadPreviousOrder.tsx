@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
 import { API_V1_BASE_URL } from "./apiConfig";
 import {
+  getDistinctPreviousOrders,
   getPreviousOrderFields,
   type PreviousOrder,
   type PreviousOrderFields,
 } from "./manualPreviousOrder";
 
-type HistoryState =
-  | { status: "loading" }
-  | { status: "error" }
-  | { status: "ready"; order: PreviousOrder | null };
+type HistoryState = {
+  status: "loading" | "error" | "ready";
+  orders: PreviousOrder[];
+  hasHistory: boolean;
+};
+
+const emptyHistory: HistoryState = { status: "loading", orders: [], hasHistory: false };
 
 type Props = {
   customerId: string;
@@ -21,36 +25,54 @@ type Props = {
 // The parent keys this component by customer ID so another customer's history
 // cannot remain visible while the next lookup is pending.
 export function LoadPreviousOrder({ customerId, token, disabled, onLoad }: Props) {
-  const [history, setHistory] = useState<HistoryState>({ status: "loading" });
+  const [history, setHistory] = useState<HistoryState>(emptyHistory);
   const [attempt, setAttempt] = useState(0);
-  const [loaded, setLoaded] = useState(false);
+  const [loadedOrderId, setLoadedOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
 
     const fetchHistory = async () => {
       try {
-        const response = await fetch(
-          `${API_V1_BASE_URL}/customers/${encodeURIComponent(customerId)}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            signal: controller.signal,
+        let cursor: string | null = null;
+        let orders: PreviousOrder[] = [];
+        let hasHistory = false;
+        const visitedCursors = new Set<string>();
+
+        while (!controller.signal.aborted) {
+          const query = cursor ? `?ordersCursor=${encodeURIComponent(cursor)}` : "";
+          const response = await fetch(
+            `${API_V1_BASE_URL}/customers/${encodeURIComponent(customerId)}${query}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+              signal: controller.signal,
+            }
+          );
+          const data = await response.json();
+          if (controller.signal.aborted) return;
+          if (
+            !response.ok ||
+            data.customer?.id !== customerId ||
+            !Array.isArray(data.customer.orders)
+          ) {
+            throw new Error("Customer history unavailable");
           }
-        );
-        const data = await response.json();
-        if (
-          !response.ok ||
-          data.customer?.id !== customerId ||
-          !Array.isArray(data.customer.orders)
-        ) {
-          throw new Error("Customer history unavailable");
-        }
-        if (!controller.signal.aborted) {
-          // Customer history is returned newest first by the existing API.
-          setHistory({ status: "ready", order: data.customer.orders[0] ?? null });
+          hasHistory ||= data.customer.orders.length > 0;
+          // Keep the newest instance of each basket across history pages.
+          orders = getDistinctPreviousOrders([...orders, ...data.customer.orders]);
+          cursor = typeof data.nextOrdersCursor === "string" && data.nextOrdersCursor
+            ? data.nextOrdersCursor
+            : null;
+          const needsOlderOrders = orders.length < 2 && cursor !== null;
+          setHistory({ status: needsOlderOrders ? "loading" : "ready", orders, hasHistory });
+          if (!needsOlderOrders) return;
+          if (visitedCursors.has(cursor!)) throw new Error("Order history did not advance");
+          visitedCursors.add(cursor!);
         }
       } catch {
-        if (!controller.signal.aborted) setHistory({ status: "error" });
+        if (!controller.signal.aborted) {
+          setHistory((previous) => ({ ...previous, status: "error" }));
+        }
       }
     };
 
@@ -58,36 +80,61 @@ export function LoadPreviousOrder({ customerId, token, disabled, onLoad }: Props
     return () => controller.abort();
   }, [customerId, token, attempt]);
 
-  if (history.status === "loading") {
-    return <p className="mt-4 text-sm text-zinc-400" role="status">Checking previous order...</p>;
-  }
-
-  if (history.status === "error") {
-    return (
-      <div className="mt-4 text-sm text-zinc-400" role="status">
-        Could not check previous order.{" "}
-        <button
-          type="button"
+  return (
+    <>
+      {history.orders.map((order, index) => (
+        <PreviousOrderCard
+          key={order.id}
+          order={order}
+          different={index === 1}
           disabled={disabled}
-          className="text-white underline disabled:opacity-50"
-          onClick={() => {
-            setHistory({ status: "loading" });
-            setAttempt((value) => value + 1);
+          loaded={loadedOrderId === order.id}
+          onLoad={(fields) => {
+            onLoad(fields);
+            setLoadedOrderId(order.id);
           }}
-        >
-          Try again
-        </button>
-      </div>
-    );
-  }
+        />
+      ))}
+      {history.status === "loading" && (
+        <p className="mt-4 text-sm text-zinc-400" role="status">
+          {history.orders.length ? "Checking for a different previous order..." : "Checking previous orders..."}
+        </p>
+      )}
+      {history.status === "error" && (
+        <div className="mt-4 text-sm text-zinc-400" role="status">
+          {history.orders.length ? "Could not finish checking older orders." : "Could not check previous orders."}{" "}
+          <button
+            type="button"
+            disabled={disabled}
+            className="text-white underline disabled:opacity-50"
+            onClick={() => {
+              setHistory(emptyHistory);
+              setLoadedOrderId(null);
+              setAttempt((value) => value + 1);
+            }}
+          >
+            Try again
+          </button>
+        </div>
+      )}
+      {history.status === "ready" && history.hasHistory && history.orders.length === 0 && (
+        <p className="mt-4 text-sm text-zinc-400" role="status">Previous orders have no usable item details. Please enter the items below.</p>
+      )}
+    </>
+  );
+}
 
-  if (!history.order) return null;
-  const fields = getPreviousOrderFields(history.order);
-  if (!fields) {
-    return <p className="mt-4 text-sm text-zinc-400" role="status">The previous order has no usable item details. Please enter the items below.</p>;
-  }
+function PreviousOrderCard({ order, different, disabled, loaded, onLoad }: {
+  order: PreviousOrder;
+  different: boolean;
+  disabled: boolean;
+  loaded: boolean;
+  onLoad: Props["onLoad"];
+}) {
+  const fields = getPreviousOrderFields(order);
+  if (!fields) return null;
 
-  const { createdAt, deliveredAt, orderStatus } = history.order;
+  const { createdAt, deliveredAt, orderStatus } = order;
   const createdTime = createdAt ? new Date(createdAt).getTime() : NaN;
   const deliveredTime = deliveredAt ? new Date(deliveredAt).getTime() : NaN;
   const hasDeliveryTime = orderStatus !== "CANCELLED" && Number.isFinite(deliveredTime);
@@ -112,20 +159,18 @@ export function LoadPreviousOrder({ customerId, token, disabled, onLoad }: Props
     : null;
 
   return (
-    <div className="mt-6 rounded-xl border border-zinc-700 bg-zinc-800/50 p-4">
+    <section aria-label={different ? "Different previous order" : "Previous order"} className="mt-6 rounded-xl border border-zinc-700 bg-zinc-800/50 p-4">
+      {different && <h3 className="mb-3 font-semibold text-zinc-100">Different previous order</h3>}
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           disabled={disabled}
           className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition font-semibold disabled:opacity-50"
-          onClick={() => {
-            onLoad(fields);
-            setLoaded(true);
-          }}
+          onClick={() => onLoad(fields)}
         >
-          Load Previous Order
+          {different ? "Load Different Previous Order" : "Load Previous Order"}
         </button>
-        <span className="text-sm text-zinc-400">Order #{history.order.orderNumber}</span>
+        <span className="text-sm text-zinc-400">Order #{order.orderNumber}</span>
       </div>
       <div className="mt-3 space-y-1 text-sm text-zinc-300">
         <p><span className="font-semibold text-zinc-100">Delivered:</span> {deliveredLabel}</p>
@@ -133,7 +178,7 @@ export function LoadPreviousOrder({ customerId, token, disabled, onLoad }: Props
           <p><span className="font-semibold text-zinc-100">Delivery time:</span> {deliveryMinutes === null ? "Not available" : `${deliveryMinutes} min`}</p>
         )}
       </div>
-      <ul aria-label="Previous order items" className="mt-3 space-y-1 text-sm text-zinc-100">
+      <ul aria-label={different ? "Different previous order items" : "Previous order items"} className="mt-3 space-y-1 text-sm text-zinc-100">
         {fields.items.map((item, index) => (
           <li key={index} className="break-words">
             <span className="font-semibold">{item.quantity} ×</span> {item.itemName}
@@ -141,6 +186,6 @@ export function LoadPreviousOrder({ customerId, token, disabled, onLoad }: Props
         ))}
       </ul>
       {loaded && <p className="mt-2 text-sm text-green-400" role="status">Previous order loaded. Review the details before creating the order.</p>}
-    </div>
+    </section>
   );
 }

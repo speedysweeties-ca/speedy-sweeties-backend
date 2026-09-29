@@ -489,15 +489,27 @@ export const getCustomerByIdController = async (
   res: Response
 ): Promise<void> => {
   const { id } = req.params;
+  const ordersCursor = req.query.ordersCursor;
+  if (
+    ordersCursor !== undefined &&
+    (typeof ordersCursor !== "string" || !ordersCursor.trim() || ordersCursor.length > 200)
+  ) {
+    res.status(400).json({ success: false, message: "Invalid order history cursor" });
+    return;
+  }
+  const historyPageSize = 20;
 
   const customer = await prisma.customer.findUnique({
     where: { id },
     include: {
       orders: {
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 20,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        ...(typeof ordersCursor === "string"
+          ? { cursor: { id: ordersCursor }, skip: 1 }
+          : {}),
+        // One extra row lets the dispatcher continue past repeated orders
+        // without changing the existing 20-order customer history response.
+        take: historyPageSize + 1,
         select: {
           id: true,
           orderNumber: true,
@@ -530,7 +542,10 @@ export const getCustomerByIdController = async (
 
   res.status(200).json({
     success: true,
-    customer,
+    customer: { ...customer, orders: customer.orders.slice(0, historyPageSize) },
+    nextOrdersCursor: customer.orders.length > historyPageSize
+      ? customer.orders[historyPageSize - 1].id
+      : null,
   });
 };
 
