@@ -46,6 +46,11 @@ export const env = {
   CORS_ORIGIN,
 
   OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
+  OPENAI_DISPATCHER_HELP_MODEL:
+    process.env.OPENAI_DISPATCHER_HELP_MODEL ?? process.env.OPENAI_ORDER_DRAFT_MODEL ?? "gpt-5.6-luna",
+  OPENAI_DISPATCHER_HELP_TIMEOUT_MS: Math.min(
+    30_000, Math.max(1_000, numberEnv("OPENAI_DISPATCHER_HELP_TIMEOUT_MS", 20_000))
+  ),
   OPENAI_ORDER_DRAFT_MODEL:
     process.env.OPENAI_ORDER_DRAFT_MODEL ?? "gpt-5.6-luna",
   OPENAI_ORDER_DRAFT_TIMEOUT_MS: Math.min(
