@@ -7499,13 +7499,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
             <div className="flex flex-wrap gap-3">
               <button
-                onClick={() => setActiveTab("HELP")}
-                aria-pressed={activeTab === "HELP"}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === "HELP" ? "bg-red-600 hover:bg-red-700" : "bg-zinc-800 hover:bg-zinc-700"}`}
-              >
-                How do I…?
-              </button>
-              <button
                 onClick={() => setActiveTab("LIVE_ORDERS")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "LIVE_ORDERS"
@@ -7726,6 +7719,14 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 }`}
               >
                 QR Code Tracking
+              </button>
+
+              <button
+                onClick={() => setActiveTab("HELP")}
+                aria-pressed={activeTab === "HELP"}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === "HELP" ? "bg-red-600 hover:bg-red-700" : "bg-zinc-800 hover:bg-zinc-700"}`}
+              >
+                How do I…?
               </button>
 
               <button
