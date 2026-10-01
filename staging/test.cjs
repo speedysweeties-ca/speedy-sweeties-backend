@@ -5,6 +5,7 @@ const {assertStaging,DATABASE_ID}=require('./guard.cjs');
 const {isolatedDatabaseUrl,STAGING_SCHEMA}=require('./schema.cjs');
 const {createApp,submissionSchema,syntheticBody}=require('./app.cjs');
 const catalog=require('./catalog.json');
+const {createWorkflow,assertAccounts,accounts,PASSWORD_DISABLED,WORKFLOW}=require('./workflow.cjs');
 const safe={NODE_ENV:'test',SPEEDY_ORDERING_MODE:'isolated-staging',AUTO_DISPATCH_ENABLED:'false',FIREBASE_SERVICE_ACCOUNT_JSON:'{}',STAGING_API_KEY:'s'.repeat(40),JWT_SECRET:'j'.repeat(40),DATABASE_URL:`postgresql://speedy_ordering_staging_db_user:test@${DATABASE_ID}/speedy_ordering_staging_db`};
 test('schema preparation targets only the new namespace in the pinned test database',()=>{const url=new URL(isolatedDatabaseUrl(safe));assert.equal(url.hostname,DATABASE_ID);assert.equal(url.pathname,'/speedy_ordering_staging_db');assert.equal(url.searchParams.get('schema'),STAGING_SCHEMA);assert.equal(new URL(safe.DATABASE_URL).searchParams.has('schema'),false);assert.throws(()=>isolatedDatabaseUrl({...safe,DATABASE_URL:'postgresql://user:pass@production/live'}));});
 test('guard rejects production databases, dispatch, provider credentials and wrong runtime',()=>{assert.equal(assertStaging(safe),true);for(const changes of [{NODE_ENV:'production'},{AUTO_DISPATCH_ENABLED:'true'},{GOOGLE_GEOCODING_API_KEY:'key'},{RESEND_API_KEY:'key'},{FIREBASE_SERVICE_ACCOUNT_JSON:'{"project_id":"live"}'},{DATABASE_URL:'postgresql://user:pass@dpg-d7m33g2qqhas73f58hrg-a/speedy_sweeties_db'},{DATABASE_URL:safe.DATABASE_URL+'?schema=production'},{STAGING_API_KEY:'short'}])assert.throws(()=>assertStaging({...safe,...changes}));});
@@ -47,4 +48,63 @@ test('duplicate concurrent simulation steps are idempotent and cannot move a lat
  assert.equal((await call(path,{action:'dispatch'})).status,409);
  assert.equal(orders.get(created.body.order_id).dispatchedAt,first);
  assert.equal((await call('/orders/'+key)).body.status,'ACCEPTED');
+}));
+
+function workflowFixture({throwAfterWrite=false}={}) {
+ const users=accounts.map(a=>({...a,passwordHash:PASSWORD_DISABLED,driverFcmToken:null,latitude:null,longitude:null}));
+ const key=randomUUID(),records=new Map(),calls=[];
+ const order={id:randomUUID(),orderStatus:'PLACED',utmContent:key,utmSource:'chatgpt',utmMedium:'isolated-staging',customerName:'CHATGPT STAGING TEST — DO NOT DELIVER',email:'ordering-test@example.invalid',phone:'5195550100',addressLine1:'1 Synthetic Test Street',fcmToken:null,assignedDriverId:null,items:[{itemCatalogId:catalog[0].id,quantity:2}]};
+ const prisma={user:{findMany:async()=>users,update:async({where,data})=>Object.assign(users.find(u=>u.id===where.id),data)},systemSetting:{async create({data}){if(records.has(data.key))throw Object.assign(new Error(),{code:'P2002'});records.set(data.key,data);},async delete({where}){records.delete(where.key);}},order:{findUnique:async()=>order}};
+ const done=(req,res,kind,status)=>{calls.push({kind,req});order.orderStatus=status;if(throwAfterWrite)throw new Error('lost controller result');res.status(200).json({success:true});};
+ const workflow=createWorkflow({prisma,
+   assignDriver:async(req,res)=>{assert.equal(req.user.role,'DISPATCHER');order.assignedDriverId=req.body.driverId;done(req,res,'assignment','DISPATCHED');},
+   driverAction:async(req,res)=>{assert.equal(req.user.userId,order.assignedDriverId);done(req,res,'driver',req.body.action);},
+   saveReceipt:async(req,res)=>{assert.equal(req.user.role,'DRIVER');done(req,res,'receipt','OUT_FOR_DELIVERY');},
+   cancelOrder:async(req,res)=>done(req,res,'cancellation','CANCELLED')});
+ return {users,key,records,calls,order,prisma,run:body=>workflow(key,order.id,body),workflow};
+}
+test('workflow calls assignment, driver and receipt controllers with only fixed test identities and amounts',async()=>{
+ const f=workflowFixture();
+ for(const action of ['dispatch','accept','out_for_delivery','deliver'])assert.equal((await f.run({action})).code,200);
+ assert.deepEqual(f.calls.map(c=>c.kind),['assignment','driver','receipt','driver']);
+ assert.equal(f.calls[0].req.user.userId,'staging-dispatcher-1');
+ assert.equal(f.calls[2].req.body.grandTotal,4.5);
+ assert.match(f.calls[2].req.body.notes,/SYNTHETIC TEST/);
+ assert.equal(f.order.orderStatus,'DELIVERED');assert.equal(f.records.size,0);
+ assert.equal((await f.run({action:'deliver'})).code,200);assert.equal(f.calls.length,4);
+ assert.equal((await f.run({action:'dispatch'})).code,409);assert.equal(f.calls.length,4);
+});
+test('workflow rejects stage skips, client-selected identity or receipt data, and non-synthetic orders',async()=>{
+ const f=workflowFixture();
+ assert.equal((await f.run({action:'deliver'})).code,409);
+ await assert.rejects(f.run({action:'dispatch',driverId:'real-driver'}));
+ await assert.rejects(f.run({action:'out_for_delivery',grandTotal:1}));
+ for(const [field,value] of [['phone','5559991234'],['email','real@example.com'],['fcmToken','token'],['assignedDriverId','someone-else'],['utmContent',randomUUID()]]){
+  const original=f.order[field];f.order[field]=value;assert.equal((await f.run({action:'dispatch'})).code,404);f.order[field]=original;
+ }
+ f.order.items[0].itemCatalogId=randomUUID();assert.equal((await f.run({action:'dispatch'})).code,404);
+ assert.equal(f.calls.length,0);assert.equal(f.records.size,0);
+});
+test('staging rejects extra staff, changed roles, credentials, notification tokens and real location',async()=>{
+ const f=workflowFixture();await assertAccounts(f.prisma);
+ for(const [field,value] of [['role','ADMIN'],['email','real@example.com'],['passwordHash','valid-hash'],['driverFcmToken','token'],['latitude',43]]){
+  const original=f.users[0][field];f.users[0][field]=value;await assert.rejects(assertAccounts(f.prisma));f.users[0][field]=original;
+ }
+ f.users.push({...f.users[0],id:'extra'});await assert.rejects(f.run({action:'dispatch'}));assert.equal(f.calls.length,0);
+});
+test('concurrent workflow clicks run a controller at most once',async()=>{
+ const f=workflowFixture();const results=await Promise.all([f.run({action:'dispatch'}),f.run({action:'dispatch'})]);
+ assert.ok(results.some(r=>r.code===200));assert.equal(f.calls.length,1);
+ assert.equal((await f.run({action:'dispatch'})).code,200);assert.equal(f.calls.length,1);
+});
+test('an uncertain controller write retains a durable claim and cannot be replayed',async()=>{
+ const f=workflowFixture({throwAfterWrite:true});await assert.rejects(f.run({action:'dispatch'}));
+ assert.equal(f.records.size,1);assert.equal(f.order.orderStatus,'DISPATCHED');
+ assert.equal((await f.run({action:'dispatch'})).code,409);assert.equal((await f.run({action:'accept'})).code,409);
+ assert.equal(f.calls.length,1);
+});
+test('legacy simulator cannot change a controller-workflow order',async()=>fixture(async({call,records})=>{
+ const key=randomUUID();await call('/orders',{request_key:key,items:[{product_id:catalog[0].id,quantity:1}]});
+ const record=records.get('chatgpt-staging:'+key);record.value=JSON.stringify({...JSON.parse(record.value),workflow:WORKFLOW});
+ assert.equal((await call('/orders/'+key+'/simulate',{action:'dispatch'})).status,409);
 }));
