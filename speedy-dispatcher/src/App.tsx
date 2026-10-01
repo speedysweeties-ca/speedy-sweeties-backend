@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { API_BASE_URL, API_V1_BASE_URL } from "./apiConfig";
+import { API_BASE_URL, API_V1_BASE_URL, ISOLATED_STAGING } from "./apiConfig";
 import { DispatcherHelp } from "./DispatcherHelp";
 import { LoadPreviousOrder } from "./LoadPreviousOrder";
 import {
@@ -709,7 +709,7 @@ const initialPickupLocationForm: PickupLocationForm = {
 };
 
 function App() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(ISOLATED_STAGING ? "dispatcher@example.invalid" : "");
   const [password, setPassword] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [dashboardLoading, setDashboardLoading] = useState(false);
@@ -1029,7 +1029,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   }, [driverStats]);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("token");
+    const savedToken = localStorage.getItem(ISOLATED_STAGING ? "staging-dispatcher-token" : "token");
 
     if (savedToken) {
       setToken(savedToken);
@@ -1649,6 +1649,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   }, [activeTab, drivers, orders, nowMs]);
 
   const playNewOrderSound = () => {
+    if (ISOLATED_STAGING) return;
     try {
       const AudioCtx =
         window.AudioContext ||
@@ -3402,7 +3403,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem("token", data.token);
+        localStorage.setItem(ISOLATED_STAGING ? "staging-dispatcher-token" : "token", data.token);
         setToken(data.token);
         await fetchCurrentUser(data.token);
         await fetchOrders(data.token, true);
@@ -3421,7 +3422,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem(ISOLATED_STAGING ? "staging-dispatcher-token" : "token");
     setToken(null);
     setCurrentUser(null);
     setOrders([]);
@@ -7452,7 +7453,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
         <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-2xl">
           <h1 className="text-3xl font-bold mb-2 text-center">Dispatcher Login</h1>
           <p className="text-zinc-400 text-center mb-6">
-            Sign in to manage live delivery orders.
+            {ISOLATED_STAGING ? "ISOLATED STAGING — synthetic orders only. Use temporary credentials from your private test page." : "Sign in to manage live delivery orders."}
           </p>
 
           <div className="space-y-4">
@@ -7493,7 +7494,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             <div>
               <h1 className="text-3xl font-bold">Dispatcher Dashboard</h1>
               <p className="text-zinc-400 text-sm mt-1">
-                Manage incoming orders and delivery status.
+                {ISOLATED_STAGING ? "ISOLATED STAGING — no real delivery, payment, GPS or notifications. Receipt amounts are fictional." : "Manage incoming orders and delivery status."}
               </p>
             </div>
 
@@ -7510,6 +7511,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                hidden={ISOLATED_STAGING}
                 onClick={() => setActiveTab("CREATE_MANUAL_ORDER")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "CREATE_MANUAL_ORDER"
@@ -7532,6 +7534,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                hidden={ISOLATED_STAGING}
                 onClick={() => setActiveTab("CATALOG")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "CATALOG"
@@ -7543,6 +7546,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                hidden={ISOLATED_STAGING}
                 onClick={() => setActiveTab("CUSTOMERS")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "CUSTOMERS"
@@ -7561,6 +7565,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                hidden={ISOLATED_STAGING}
                 onClick={() => setActiveTab("DRIVER_LOCATION")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "DRIVER_LOCATION"
@@ -7572,6 +7577,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                hidden={ISOLATED_STAGING}
                 onClick={() => setActiveTab("DISPATCHER_CHECKLIST")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "DISPATCHER_CHECKLIST"
@@ -7599,6 +7605,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                hidden={ISOLATED_STAGING}
                 onClick={() => setActiveTab("CUSTOMER_RETENTION")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "CUSTOMER_RETENTION"
@@ -7610,6 +7617,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                hidden={ISOLATED_STAGING}
                 onClick={() => setActiveTab("DRIVER_STATS")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "DRIVER_STATS"
@@ -7639,6 +7647,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               )}
 
               <button
+                hidden={ISOLATED_STAGING}
                 onClick={() => setActiveTab("PICKUP_LOCATIONS")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "PICKUP_LOCATIONS"
@@ -7711,6 +7720,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                hidden={ISOLATED_STAGING}
                 onClick={() => setActiveTab("QR_TRACKING")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "QR_TRACKING"
@@ -7722,6 +7732,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                hidden={ISOLATED_STAGING}
                 onClick={() => setActiveTab("HELP")}
                 aria-pressed={activeTab === "HELP"}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === "HELP" ? "bg-red-600 hover:bg-red-700" : "bg-zinc-800 hover:bg-zinc-700"}`}
@@ -7776,7 +7787,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
               <button
                 onClick={() => void toggleAutoDispatch()}
-                disabled={autoDispatchLoading || autoDispatchUpdating || autoDispatchEnabled === null}
+                disabled={ISOLATED_STAGING || autoDispatchLoading || autoDispatchUpdating || autoDispatchEnabled === null}
                 className={`px-4 py-2 rounded-lg font-semibold transition disabled:opacity-50 ${
                   autoDispatchEnabled === true
                     ? "bg-red-600 hover:bg-red-700"
@@ -7818,7 +7829,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               <button
                 onClick={() => void toggleGoogleLiveTraffic()}
                 disabled={
-                  googleLiveTrafficLoading ||
+                  ISOLATED_STAGING || googleLiveTrafficLoading ||
                   googleLiveTrafficUpdating ||
                   googleLiveTrafficEnabled === null
                 }
@@ -7839,7 +7850,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
         </div>
       </div>
 
-      {showDriverPanel && (
+      {showDriverPanel && !ISOLATED_STAGING && (
         <div className="max-w-7xl mx-auto px-6 mt-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
             <h2 className="text-xl font-bold mb-4">Online Drivers</h2>
@@ -8095,6 +8106,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
                         <button
                           type="button"
+                          hidden={ISOLATED_STAGING}
                           disabled={
                             updatingOrderId === order.id ||
                             order.orderStatus === "DELIVERED" ||
@@ -8684,3 +8696,4 @@ const handleSaveEditedOrder = async (orderId: string) => {
 }
 
 export default App;
+

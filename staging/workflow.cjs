@@ -1,6 +1,7 @@
 // Test-only adapter around the unchanged application controllers. No login API.
 const { z } = require('zod');
 const catalog = require('./catalog.json');
+const {permittedPassword}=require('./staff-access.cjs');
 const WORKFLOW = 'controller-test-v1';
 const PASSWORD_DISABLED = '!STAGING_LOGIN_DISABLED!';
 const accounts = [
@@ -14,8 +15,9 @@ async function assertAccounts(prisma, allowMissing=false) {
   const users = await prisma.user.findMany();
   if ((!allowMissing && users.length!==accounts.length) || users.some(user=>{
     const expected=accounts.find(a=>a.id===user.id);
-    return !expected || Object.entries(expected).some(([key,value])=>user[key]!==value) || user.passwordHash!==PASSWORD_DISABLED || user.driverFcmToken!==null || user.latitude!==null || user.longitude!==null;
+    return !expected || Object.entries(expected).some(([key,value])=>user[key]!==value) || user.driverFcmToken!==null || user.latitude!==null || user.longitude!==null;
   })) throw new Error('Only the fixed synthetic staff identities are allowed in staging');
+  for(const user of users)if(!await permittedPassword(prisma,user,PASSWORD_DISABLED))throw new Error('Unrecognized staging staff credential');
 }
 async function prepareAccounts(prisma) {
   await assertAccounts(prisma,true);

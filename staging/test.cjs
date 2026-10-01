@@ -1,4 +1,5 @@
 const test=require('node:test');
+require('./staff.test.cjs');
 const assert=require('node:assert/strict');
 const {randomUUID}=require('node:crypto');
 const {assertStaging,DATABASE_ID}=require('./guard.cjs');
