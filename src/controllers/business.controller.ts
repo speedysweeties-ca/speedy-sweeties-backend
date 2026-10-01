@@ -55,7 +55,7 @@ function getFallbackStatus(): BusinessStatus {
     source: "fallback",
     isOpen: true,
     label: "Open Now",
-    estimatedDelivery: "10–45 minutes",
+    estimatedDelivery: "15–45 minutes",
     message: "Business status is using fallback settings.",
     nextOpenText: null
   };
@@ -287,7 +287,7 @@ export async function getCurrentBusinessStatus(): Promise<BusinessStatus> {
       businessName: place.displayName?.text ?? "Speedy Sweeties",
       isOpen: openNow,
       label: openNow ? "Open Now" : "Closed Now",
-      estimatedDelivery: openNow ? "10–45 minutes" : null,
+      estimatedDelivery: openNow ? "15–45 minutes" : null,
       message: openNow
         ? "Speedy Sweeties is currently open for delivery."
         : "Speedy Sweeties is currently closed.",
