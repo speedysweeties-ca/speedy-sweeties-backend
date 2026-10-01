@@ -7558,6 +7558,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                hidden={ISOLATED_STAGING}
                 onClick={() => setShowDriverPanel((prev) => !prev)}
                 className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition font-semibold"
               >
@@ -8696,4 +8697,3 @@ const handleSaveEditedOrder = async (orderId: string) => {
 }
 
 export default App;
-
