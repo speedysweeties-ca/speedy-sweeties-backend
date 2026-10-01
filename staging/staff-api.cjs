@@ -8,7 +8,7 @@ function createStaffApi({prisma,access,requireAuth,requireRole,controllers}){
   router.post('/auth/login',rateLimit({windowMs:10*60*1000,limit:30,standardHeaders:true,legacyHeaders:false}),access.login);
   router.use(requireAuth,access.session);
   const valid=(schema)=>(req,_res,next)=>{req.body=schema.parse(req.body);next();};
-  const empty=z.object({}).strict();
+  const empty=z.object({}).strict().default({});
   const wrapOrder=controller=>async(req,res)=>{
     const id=z.string().uuid().parse(req.params.id);
     await assertAccounts(prisma);

@@ -32,6 +32,9 @@ test('staff routes enforce roles and reject GPS, push tokens, arbitrary accounts
   assert.equal(await call('/orders','GET',null,'DRIVER'),403);assert.equal(await call('/driver/orders','GET',null,'DISPATCHER'),403);
   for(const body of [{latitude:43,longitude:-80},{driverFcmToken:'real-token'},{appState:'FOREGROUND',locationTimestampMs:1}])assert.equal(await call('/driver/heartbeat','POST',body),400);
   assert.equal(await call('/driver/heartbeat','POST',{appState:'FOREGROUND'}),200);assert.equal(writes,1);
+  assert.equal(await call('/driver/offline','POST',null),200);
+  assert.equal(await call('/driver/online','POST',null),200);
+  assert.equal(await call('/driver/offline','POST',{latitude:43}),400);
   assert.equal(await call('/auth/register','POST',{email:'someone@example.com'}),404);
   assert.equal(await call('/orders/123/assign-driver','PATCH',{driverId:'real-driver'},'DISPATCHER'),400);
  }finally{await new Promise(r=>server.close(r));}
