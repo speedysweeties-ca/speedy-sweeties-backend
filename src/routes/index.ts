@@ -11,6 +11,7 @@ import dispatcherChecklistRoutes from "./dispatcherChecklist.routes";
 import pickupLocationRoutes from "./pickupLocation.routes";
 import routingPreviewRoutes from "./routingPreview.routes";
 import aiOrderDraftRoutes from "./aiOrderDraft.routes";
+import dispatcherHelpRoutes from "./dispatcherHelp.routes";
 
 const router = Router();
 
@@ -33,5 +34,6 @@ router.use("/dispatcher-checklist", dispatcherChecklistRoutes);
 router.use("/pickup-locations", pickupLocationRoutes);
 router.use("/routing-preview", routingPreviewRoutes);
 router.use("/ai", aiOrderDraftRoutes);
+router.use("/dispatcher-help", dispatcherHelpRoutes);
 
 export default router;

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE_URL, API_V1_BASE_URL } from "./apiConfig";
+import { DispatcherHelp } from "./DispatcherHelp";
 import { LoadPreviousOrder } from "./LoadPreviousOrder";
 import {
   getVerifiedDeliveryPosition,
@@ -198,6 +199,7 @@ type Order = {
 };
 
 type ActiveTab =
+  | "HELP"
   | "LIVE_ORDERS"
   | "GROWTH_COMMAND_CENTRE"
   | "CREATE_MANUAL_ORDER"
@@ -870,6 +872,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   }, [manualOrderForm]);
 
   const autoRefreshPaused =
+    activeTab === "HELP" ||
     activeTab === "CREATE_MANUAL_ORDER" ||
     activeTab === "GROWTH_COMMAND_CENTRE" ||
     activeTab === "DRIVER_LOCATION" ||
@@ -7496,6 +7499,13 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
             <div className="flex flex-wrap gap-3">
               <button
+                onClick={() => setActiveTab("HELP")}
+                aria-pressed={activeTab === "HELP"}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === "HELP" ? "bg-red-600 hover:bg-red-700" : "bg-zinc-800 hover:bg-zinc-700"}`}
+              >
+                How do I…?
+              </button>
+              <button
                 onClick={() => setActiveTab("LIVE_ORDERS")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "LIVE_ORDERS"
@@ -7960,6 +7970,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
         </div>
       )}
 
+      <div hidden={activeTab !== "HELP"} className="max-w-7xl mx-auto px-6 py-6">
+        <DispatcherHelp key={token} token={token} onNavigate={setActiveTab}
+          onSessionExpired={handleLogout} />
+      </div>
       <div key={activeTab} className="max-w-7xl mx-auto px-6 py-6">
         {activeTab === "LIVE_ORDERS" ? (
           dashboardLoading && orders.length === 0 ? (
@@ -8293,7 +8307,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             onPresetDays={applyDispatcherPerformanceDatePreset}
             onRefresh={() => token && void fetchDispatcherPerformance(token, true)}
           />
-        ) : activeTab === "CATALOG" ? (
+        ) : activeTab === "HELP" ? null : activeTab === "CATALOG" ? (
           renderCatalogAdmin()
         ) : activeTab === "PICKUP_LOCATIONS" ? (
           renderPickupLocations()
