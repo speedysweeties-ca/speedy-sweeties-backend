@@ -1,4 +1,5 @@
 require('./guard.cjs').assertStaging();
+require('./schema.cjs').prepareSchema();
 // No external HTTP providers in this isolated service. Do not start src/server.ts jobs.
 global.fetch = async () => { throw new Error('External provider requests disabled in staging'); };
 const { prisma } = require('../dist/lib/prisma.js');

@@ -10,11 +10,15 @@ The connected Render tools cannot retrieve the new connection string or create a
 
 ## Isolation
 
-The startup guard runs before migrations and imports. It accepts only the new staging database ID/name/user, NODE_ENV=test, an empty Firebase service account, disabled auto-dispatch, and no provider API keys. It rejects a local .env file. The service imports the existing order controller, not the regular server or its background jobs. Firebase uses the existing test stub; external fetch calls are disabled. No driver or staff accounts are permitted. Only `/health`, `/catalog`, `/orders`, and `/orders/:request_key` are mounted. Data endpoints need a bearer key; no public production order/auth/notification endpoints are mounted.
+The startup guard runs before migrations and imports. It accepts only the new staging database ID/name/user, NODE_ENV=test, an empty Firebase service account, disabled auto-dispatch, and no provider API keys. It rejects a local .env file. The service imports the existing order controller, not the regular server or its background jobs. Firebase uses the existing test stub; external fetch calls are disabled. No driver or staff accounts are permitted. Only health, catalogue, test-order submission/status and an authenticated aggregate verification route are mounted. Data endpoints need a bearer key; no public production order/auth/notification endpoints are mounted.
 
 The four item IDs/names are an explicit convenience snapshot read on 2026-10-01. Classification alone is insufficient: the production CONVENIENCE category also contains restricted items. No free-form item names, notes, address or contact fields are accepted. The server constructs a clearly synthetic customer and address. No customers, drivers, tokens or credentials are copied from production.
 
 The real backend needs numeric amount fields but its catalogue has no price/inventory fields and no authoritative fee quote endpoint was found. Zeroes in synthetic requests are **unknown-price placeholders**, never a free offer. The API exposes `pricing_verified:false` and no quoted total. Business hours and geocoding are not verified in staging.
+
+## Fresh database schema repair
+
+The first Render deployment passed all builds/tests and applied all 36 historical migrations, then failed because the historical migration chain does not reconstruct the current Prisma model (first observed missing field: ItemCatalog.source). The staging bootstrap now prepares the canonical Prisma schema in `ordering_staging_v1`, a fresh namespace within the same pinned staging database, before loading the controller. The existing public schema is left intact. No reset, force flag, or accept-data-loss option is used. Production migrations and production services are unchanged. The shared key protects `/verification/:request_key`, which reports aggregate test-only database assertions without customer values or credentials.
 
 ## Request safety
 
