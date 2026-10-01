@@ -1,0 +1,43 @@
+# Isolated ordering test only. Apply from branch chatgpt-ordering-staging.
+services:
+  - type: web
+    name: speedy-ordering-staging
+    runtime: node
+    plan: free
+    region: ohio
+    branch: chatgpt-ordering-staging
+    autoDeployTrigger: 'off'
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build && node --test staging/test.cjs
+    startCommand: node staging/guard.cjs && npx prisma migrate deploy && node staging/server.cjs
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: test
+      - key: SPEEDY_ORDERING_MODE
+        value: isolated-staging
+      - key: DATABASE_URL
+        fromDatabase:
+          name: speedy-ordering-staging-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: STAGING_API_KEY
+        generateValue: true
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        value: '{}'
+      - key: AUTO_DISPATCH_ENABLED
+        value: 'false'
+      - key: CORS_ORIGIN
+        value: https://speedy-sweeties-ordering-prototype.speedysweeties.chatgpt.site
+      - key: AI_PRODUCT_WEB_LOOKUP_ENABLED
+        value: 'false'
+      - key: GOOGLE_PLACES_API_KEY
+        value: ''
+      - key: GOOGLE_GEOCODING_API_KEY
+        value: ''
+      - key: GOOGLE_ROUTES_API_KEY
+        value: ''
+      - key: OPENAI_API_KEY
+        value: ''
+      - key: RESEND_API_KEY
+        value: ''
