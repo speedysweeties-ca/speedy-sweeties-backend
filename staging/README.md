@@ -29,3 +29,13 @@ The first Render deployment passed all builds/tests and applied all 36 historica
 ## Verification and remaining checks
 
 Run `npx prisma generate && npm run build && node --test staging/test.cjs`. Tests cover guards, allowed input, authentication, concurrency, retries, token filtering and uncertain results using a test database adapter. They do not prove a deployed PostgreSQL/controller round trip. After Blueprint deployment: verify health, configure private Site environment variables, submit a synthetic checkout, verify exactly one database row, read status and check no assigned driver or FCM token. Keep the public/live release disabled.
+
+## Simulator and published reference rates (2026-10-01)
+
+`POST /orders/:request_key/simulate` takes only an `action` from dispatch, accept, out_for_delivery, deliver, cancel. The checkout's UUID request key is required, not the backend Order.id. The route requires the shared staging key and a complete reservation; it validates exact synthetic contact/attribution fields and no real assigned driver. A transaction locks that one order before updating the status and any fictional driver record. Repeated requests for the same current target are idempotent; skipped stages and backward transitions conflict. The fictional driver is a SystemSetting record; there are still zero User accounts. `/verification` distinguishes actual assigned drivers (zero) from synthetic driver assignments.
+
+This is a status simulator around persisted staging orders. It does not call the production assignment/driver/receipt controllers and does not verify their permissions, push notifications, receipt rules or driver app integration. Those require a separate integration milestone before live use.
+
+`/catalog` includes `published_rates` from `published-rates.json`, a dated snapshot of the public website. `delivery_fee` and `total` remain null because no order-specific quote was computed. The published figures must not be treated as confirmed stock, item prices, a final amount due, or payment authorization.
+
+Nine backend tests pass, including concurrency, strict simulator input and isolation rejection. Earlier hosted test #3 reached DELIVERED via direct backend requests; website-specific reference wiring is tested separately in the private Site.

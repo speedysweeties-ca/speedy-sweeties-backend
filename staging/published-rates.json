@@ -1,0 +1,16 @@
+{
+  "source_url": "https://www.speedysweeties.ca/",
+  "checked_on": "2026-10-01",
+  "currency": "CAD",
+  "scope": "Published reference rates only; not an order quote. Prices are listed as subject to HST.",
+  "guelph_delivery": 10.64,
+  "outside_city_additional_min": 2,
+  "outside_city_additional_max": 9,
+  "extra_stop": 3.54,
+  "debit_at_door_surcharge": 0,
+  "visa_mastercard_surcharge": 5,
+  "order_total": null,
+  "item_prices_available": false,
+  "stock_verified": false,
+  "payment_collection_enabled": false
+}
