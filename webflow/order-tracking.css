@@ -1,0 +1,31 @@
+#track-my-order { box-sizing:border-box; width:100%; max-width:1140px; margin:24px 0; padding:28px; border:2px solid #c51926; border-radius:16px; background:#fff; color:#242424; text-align:left; font-family:inherit; position:relative; z-index:1; scroll-margin-top:120px; }
+#track-my-order[hidden], #track-my-order [hidden], #speedy-track-shortcut[hidden] { display:none!important; }
+#track-my-order * { box-sizing:border-box; }
+#track-my-order h2 { margin:0 0 8px; font-size:28px; line-height:1.2; color:#a8111b; }
+#track-my-order p { margin:8px 0; font-size:16px; line-height:1.5; }
+#track-my-order .ss-track-order { font-weight:700; }
+#track-my-order .ss-track-steps { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; padding:0; margin:24px 0; list-style:none; }
+#track-my-order .ss-track-step { padding:12px 8px; border-top:4px solid #dedede; color:#626262; font-size:15px; line-height:1.4; }
+#track-my-order .ss-track-step strong { display:block; }
+#track-my-order .ss-track-step span { display:block; font-size:12px; margin-top:4px; }
+#track-my-order .ss-track-step[data-state="complete"] { border-color:#c51926; color:#242424; }
+#track-my-order .ss-track-step[data-state="current"] { border-color:#c51926; background:#fff1f2; color:#a8111b; border-radius:0 0 8px 8px; }
+#track-my-order .ss-track-controls { display:flex; flex-wrap:wrap; gap:10px; margin:20px 0 12px; }
+#track-my-order button, #track-my-order .ss-track-call { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:10px 16px; border:1px solid #c51926; border-radius:8px; background:#fff; color:#a8111b; font:inherit; font-size:15px; font-weight:700; line-height:1.4; cursor:pointer; text-decoration:none; }
+#track-my-order button[data-action="refresh"] { background:#c51926; color:#fff; }
+#track-my-order button:disabled { cursor:wait; opacity:.65; }
+#track-my-order button:focus-visible, #track-my-order a:focus-visible, #track-my-order select:focus-visible, #track-my-order input:focus-visible, #speedy-track-shortcut:focus-visible { outline:3px solid #242424; outline-offset:3px; }
+#track-my-order .ss-track-meta { font-size:13px; color:#595959; }
+#track-my-order .ss-track-error { padding:12px; background:#fff3df; color:#65400b; border-radius:8px; }
+#track-my-order label { display:block; margin:12px 0 5px; font-size:14px; font-weight:700; }
+#track-my-order select, #track-my-order input { display:block; width:100%; min-height:44px; padding:10px; border:1px solid #8a8a8a; border-radius:6px; background:#fff; color:#242424; font:inherit; }
+#track-my-order .ss-track-forget { border:0; padding:8px 0; font-size:13px; text-decoration:underline; font-weight:400; }
+#speedy-track-shortcut { position:fixed; right:16px; bottom:20px; bottom:calc(20px + env(safe-area-inset-bottom)); z-index:999; display:block; padding:13px 18px; min-height:44px; border:2px solid #fff; border-radius:30px; background:#c51926; color:#fff; box-shadow:0 3px 15px #0003; font:700 15px/1.4 Arial,sans-serif; text-decoration:none; }
+@media(max-width:640px) {
+  #track-my-order { padding:20px 16px; }
+  #track-my-order h2 { font-size:24px; }
+  #track-my-order .ss-track-steps { grid-template-columns:1fr; gap:8px; margin:18px 0; }
+  #track-my-order .ss-track-step { border-top:0; border-left:4px solid #dedede; padding:8px 12px; }
+  #track-my-order .ss-track-step[data-state="current"] { border-radius:0 8px 8px 0; }
+  #track-my-order .ss-track-controls > * { flex:1 1 140px; }
+}

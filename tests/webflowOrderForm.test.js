@@ -50,3 +50,14 @@ test("Webflow order payload keeps access details separate from street address", 
     /addressLine1:[^\n]+(?:Unit-Number|Buzz-Code)/
   );
 });
+
+test("Webflow uses the published native unit field without losing older markup support", () => {
+  const values = {
+    "Apartment-Unit-Number": { value: " 4B " },
+    "Unit-Number": { value: "old hidden value" },
+    "Buzz-Code": { value: " 123 " }
+  };
+  assert.deepEqual(buildAddressAccessFields({ getElementById: id => values[id] }), {
+    unitNumber: "4B", buzzCode: "123"
+  });
+});

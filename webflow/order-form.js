@@ -12,7 +12,7 @@
 
   const buildAddressAccessFields = (documentRef) => ({
     unitNumber: normalizeOptionalAddressField(
-      documentRef.getElementById("Unit-Number")?.value
+      (documentRef.getElementById("Apartment-Unit-Number") || documentRef.getElementById("Unit-Number"))?.value
     ),
     buzzCode: normalizeOptionalAddressField(
       documentRef.getElementById("Buzz-Code")?.value
@@ -54,7 +54,8 @@
 
     const backendFormHosts = new Set([
       "speedy-sweeties.webflow.io",
-      "www.speedysweeties.ca"
+      "www.speedysweeties.ca",
+      "speedysweeties.ca"
     ]);
     if (!backendFormHosts.has(window.location.hostname)) return;
 
@@ -90,6 +91,8 @@
     };
 
     const ensureAddressAccessFields = () => {
+      // The live Webflow form already has native optional address fields.
+      if (document.getElementById("Apartment-Unit-Number")) return;
       const addressInput = document.getElementById("Address");
       const addressWrapper = addressInput ? addressInput.closest("div") : null;
       if (!addressInput || !addressWrapper) return;
@@ -346,6 +349,9 @@
 
           form.style.display = "none";
           if (successPanel) successPanel.style.display = "block";
+          document.dispatchEvent(new CustomEvent("speedy:order-created", {
+            detail: { trackingToken: result.trackingToken, order: result.order }
+          }));
         } catch (error) {
           showError(
             error instanceof Error

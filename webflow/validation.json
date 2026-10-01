@@ -1,0 +1,38 @@
+{
+  "publishedOn": "2026-10-01T18:47:00Z",
+  "urls": [
+    {
+      "url": "https://www.speedysweeties.ca/",
+      "status": 200,
+      "codeMatches": {
+        "head": true,
+        "footer": true
+      }
+    },
+    {
+      "url": "https://speedy-sweeties.webflow.io/",
+      "status": 200,
+      "codeMatches": {
+        "head": true,
+        "footer": true
+      }
+    },
+    {
+      "url": "https://speedysweeties.ca/",
+      "verificationError": "HTTP Error 502: Bad Gateway"
+    }
+  ],
+  "sha256": {
+    "head": "a17aa89585fec0d92dab93e6cb5ea075ea72084b728701e4099b3a01804c3c00",
+    "footer": "6062c12f1d41da2d0a918595ae98cf932999bbf91246b895676d88a375979ff2"
+  },
+  "automatedChecksPassed": 19,
+  "browserWidthsPassed": [
+    1440,
+    390,
+    320
+  ],
+  "productionOrdersCreated": 0,
+  "backendChanges": false,
+  "githubPush": "Blocked by automatic approval review; explicit repository publication approval required."
+}
