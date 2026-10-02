@@ -2,27 +2,30 @@ const express = require('express');
 const { z } = require('zod');
 const { createHash, timingSafeEqual } = require('node:crypto');
 const catalog = require('./catalog.json');
+const {customerSchema,customerBody,verifiedCustomer}=require('./customer-checkout.cjs');
 const publishedRates = require('./published-rates.json');
 const { WORKFLOW, assertAccounts } = require('./workflow.cjs');
 const fingerprint = value => createHash('sha256').update(value).digest('hex');
 const itemSchema = z.object({product_id:z.enum(catalog.map(p => p.id)), quantity:z.number().int().min(1).max(20)}).strict();
-const submissionSchema = z.object({request_key:z.string().uuid(),items:z.array(itemSchema).min(1).max(4)}).strict().superRefine((v,ctx) => {
+const submissionSchema = z.object({request_key:z.string().uuid(),items:z.array(itemSchema).min(1).max(4),customer:customerSchema.optional()}).strict().superRefine((v,ctx) => {
   if (new Set(v.items.map(i=>i.product_id)).size !== v.items.length || v.items.reduce((n,i)=>n+i.quantity,0)>40) ctx.addIssue({code:'custom',message:'Invalid cart'});
 });
-const select = {id:true,orderNumber:true,orderStatus:true,assignedDriverId:true,createdAt:true,utmSource:true,utmMedium:true,utmContent:true,customerName:true,email:true};
+const select = {id:true,orderNumber:true,orderStatus:true,assignedDriverId:true,createdAt:true,utmSource:true,utmMedium:true,utmContent:true,customerName:true,email:true,phone:true,addressLine1:true,unitNumber:true,buzzCode:true,city:true,province:true,paymentMethod:true,additionalNotes:true};
 const transitions = {PLACED:['DISPATCHED','CANCELLED'],DISPATCHED:['ACCEPTED','CANCELLED'],ACCEPTED:['OUT_FOR_DELIVERY','CANCELLED'],OUT_FOR_DELIVERY:['DELIVERED','CANCELLED'],DELIVERED:[],CANCELLED:[]};
 const actionStatus = {dispatch:'DISPATCHED',accept:'ACCEPTED',out_for_delivery:'OUT_FOR_DELIVERY',deliver:'DELIVERED',cancel:'CANCELLED'};
 async function driverState(prisma, orderId) { const row=await prisma.systemSetting.findUnique({where:{key:'chatgpt-staging-driver:'+orderId}}); return row?JSON.parse(row.value):null; }
 async function publicOrder(prisma, order) {
   const reservation=await prisma.systemSetting.findUnique({where:{key:'chatgpt-staging:'+order.utmContent}});
-  const workflow=reservation && JSON.parse(reservation.value).workflow===WORKFLOW?WORKFLOW:'status-simulation';
+  const saved=reservation?JSON.parse(reservation.value):null;
+  const workflow=saved?.workflow===WORKFLOW?WORKFLOW:'status-simulation';
+  const customer=verifiedCustomer(order,saved?.customer);
   const driver=order.assignedDriverId==='staging-driver-1'?{id:'staging-driver-1',name:'Synthetic Driver',role:'DRIVER'}:await driverState(prisma,order.id);
   const receipt=workflow===WORKFLOW?await prisma.digitalReceipt.findUnique({where:{orderId:order.id}}):null;
   const action=workflow===WORKFLOW?await prisma.systemSetting.findUnique({where:{key:'chatgpt-staging-action:'+order.id}}):null;
-  return {environment:'isolated-staging',order_id:order.id,order_number:order.orderNumber,status:order.orderStatus,workflow,action_pending:!!action,assigned_driver:!!driver || order.assignedDriverId !== null,synthetic_driver:driver?{id:driver.id,name:driver.name,role:driver.role}:null,receipt:receipt?{receipt_number:receipt.receiptNumber,item_total:Number(receipt.itemTotal),delivery_charge:Number(receipt.deliveryCharge),tax_or_fees:Number(receipt.taxOrFees),grand_total:Number(receipt.grandTotal),currency:'CAD',test_only:true}:null,created_at:order.createdAt,real_delivery:false,pricing_verified:false};
+  return {environment:'isolated-staging',...(customer?{customer_checkout:customer}:{}),order_id:order.id,order_number:order.orderNumber,status:order.orderStatus,workflow,action_pending:!!action,assigned_driver:!!driver || order.assignedDriverId !== null,synthetic_driver:driver?{id:driver.id,name:driver.name,role:driver.role}:null,receipt:receipt?{receipt_number:receipt.receiptNumber,item_total:Number(receipt.itemTotal),delivery_charge:Number(receipt.deliveryCharge),tax_or_fees:Number(receipt.taxOrFees),grand_total:Number(receipt.grandTotal),currency:'CAD',test_only:true}:null,created_at:order.createdAt,real_delivery:false,pricing_verified:false};
 }
-function syntheticBody(items, requestKey) {
-  return {customerName:'CHATGPT STAGING TEST — DO NOT DELIVER',customerPhone:'5195550100',customerEmail:'ordering-test@example.invalid',addressLine1:'1 Synthetic Test Street',city:'Guelph',province:'Ontario',items:items.map(i=>({name:catalog.find(p=>p.id===i.product_id).name,quantity:i.quantity,unitPrice:0,totalPrice:0})),subtotal:0,deliveryFee:0,tax:0,tip:0,discount:0,total:0,paymentMethod:'CASH',orderSource:'UNKNOWN',utmSource:'chatgpt',utmMedium:'isolated-staging',utmCampaign:'ordering-prototype',utmContent:requestKey,notes:'SYNTHETIC TEST ONLY. No delivery or payment. Zero amount fields are placeholders: prices and fees are unverified.'};
+function syntheticBody(items, requestKey, customer) {
+  return {customerName:'CHATGPT STAGING TEST — DO NOT DELIVER',customerPhone:'5195550100',customerEmail:'ordering-test@example.invalid',addressLine1:'1 Synthetic Test Street',city:'Guelph',province:'Ontario',items:items.map(i=>({name:catalog.find(p=>p.id===i.product_id).name,quantity:i.quantity,unitPrice:0,totalPrice:0})),subtotal:0,deliveryFee:0,tax:0,tip:0,discount:0,total:0,paymentMethod:'CASH',...(customer?customerBody(customer):{}),orderSource:'UNKNOWN',utmSource:'chatgpt',utmMedium:'isolated-staging',utmCampaign:'ordering-prototype',utmContent:requestKey,notes:'SYNTHETIC TEST ONLY. No delivery or payment. Zero amount fields are placeholders: prices and fees are unverified.'};
 }
 function createApp({prisma, createOrder, validateOrder, apiKey, workflow, staffApi, issueAccess}) {
   const app=express(); app.disable('x-powered-by');
@@ -49,26 +52,26 @@ function createApp({prisma, createOrder, validateOrder, apiKey, workflow, staffA
       statuses:orders.map(o=>o.orderStatus),all_customers_synthetic:orders.every(o=>o.customerName==='CHATGPT STAGING TEST — DO NOT DELIVER'&&o.email==='ordering-test@example.invalid'),
       all_items_allowlisted:orders.every(o=>o.items.every(i=>catalog.some(p=>p.id===i.itemCatalogId)))});
   }catch(e){next(e);}});
-  app.get('/catalog',(_req,res)=>res.json({environment:'isolated-staging',workflow:workflow?WORKFLOW:'status-simulation',catalogue_snapshot_date:'2026-10-01',items:catalog,pricing_verified:false,stock_checked:false,delivery_fee:null,total:null,published_rates:publishedRates}));
+  app.get('/catalog',(_req,res)=>res.json({environment:'isolated-staging',workflow:workflow?WORKFLOW:'status-simulation',catalogue_snapshot_date:'2026-10-01',customer_checkout_enabled:true,items:catalog,pricing_verified:false,stock_checked:false,delivery_fee:null,total:null,published_rates:publishedRates}));
   app.get('/orders/:key',async(req,res,next)=>{try {const key=z.string().uuid().parse(req.params.key);const record=await prisma.systemSetting.findUnique({where:{key:'chatgpt-staging:'+key}});if(!record)return res.status(404).json({error:'Test request not found'});const data=JSON.parse(record.value);if(data.state!=='complete')return res.status(409).json({error:'Submission requires reconciliation; do not create a new request',state:data.state});const order=await prisma.order.findUnique({where:{id:data.orderId},select});if(!order)return res.status(404).json({error:'Test order not found'});res.json(await publicOrder(prisma,order));}catch(e){next(e);}});
   app.post('/orders',async(req,res,next)=>{try {
-    const data=submissionSchema.parse(req.body);data.items.sort((a,b)=>a.product_id.localeCompare(b.product_id));const hash=fingerprint(JSON.stringify(data.items));const key='chatgpt-staging:'+data.request_key;
+    const data=submissionSchema.parse(req.body);data.items.sort((a,b)=>a.product_id.localeCompare(b.product_id));const hash=fingerprint(JSON.stringify(data.customer?{items:data.items,customer:data.customer}:data.items));const key='chatgpt-staging:'+data.request_key;
     if(workflow)await assertAccounts(prisma);
     // Reserve before the real controller writes. Never re-submit an uncertain attempt.
-    try {await prisma.systemSetting.create({data:{key,value:JSON.stringify({state:'pending',hash})}});} catch(e) {
+    try {await prisma.systemSetting.create({data:{key,value:JSON.stringify({state:'pending',hash,...(data.customer?{customer:data.customer}:{})})}});} catch(e) {
       if(e.code!=='P2002')throw e;
       const previous=JSON.parse((await prisma.systemSetting.findUnique({where:{key}})).value);
-      if(previous.hash!==hash)return res.status(409).json({error:'Request key belongs to a different cart'});
+      if(previous.hash!==hash)return res.status(409).json({error:'Request key belongs to different order details'});
       if(previous.state!=='complete')return res.status(409).json({error:'Submission pending or uncertain; do not create a new request'});
       const order=await prisma.order.findUnique({where:{id:previous.orderId},select});if(!order)return res.status(409).json({error:'Stored submission requires reconciliation'});
       return res.json(await publicOrder(prisma,order));
     }
     let status=200,payload;
-    const body=validateOrder({body:syntheticBody(data.items,data.request_key)}).body;
+    const body=validateOrder({body:syntheticBody(data.items,data.request_key,data.customer)}).body;
     await createOrder({body,headers:{}},{status(code){status=code;return this;},json(value){payload=value;return this;}});
     if(status!==201 || !payload?.order?.id)throw new Error('Backend did not confirm creation');
-    await prisma.systemSetting.update({where:{key},data:{value:JSON.stringify({state:'complete',hash,orderId:payload.order.id,...(workflow?{workflow:WORKFLOW}:{})})}});
-    res.status(201).json(await publicOrder(prisma,payload.order));
+    await prisma.systemSetting.update({where:{key},data:{value:JSON.stringify({state:'complete',hash,orderId:payload.order.id,...(data.customer?{customer:data.customer}:{}),...(workflow?{workflow:WORKFLOW}:{})})}});
+    res.status(201).json(await publicOrder(prisma,await prisma.order.findUnique({where:{id:payload.order.id},select})));
   } catch(e){next(e);}});
   app.post('/orders/:key/workflow',async(req,res,next)=>{try {
     const key=z.string().uuid().parse(req.params.key);
@@ -112,7 +115,7 @@ function createApp({prisma, createOrder, validateOrder, apiKey, workflow, staffA
     res.status(result.code).json(result.body||{error:result.error});
   }catch(e){next(e);}});
   app.use((_req,res)=>res.status(404).json({error:'Unknown staging endpoint'}));
-  app.use((err,_req,res,_next)=>{if(err instanceof z.ZodError)return res.status(400).json({error:'Only the four allowlisted products and quantities are accepted. No personal details or notes.'});console.error('Staging request failed',err.name);res.status(503).json({error:'Staging submission could not be confirmed. Keep the same request key; do not create another order.'});});
+  app.use((err,_req,res,_next)=>{if(err instanceof z.ZodError)return res.status(400).json({error:'Use the four allowlisted products, valid quantities and the exact sample customer details. Real contact details and arbitrary notes are blocked.'});console.error('Staging request failed',err.name);res.status(503).json({error:'Staging submission could not be confirmed. Keep the same request key; do not create another order.'});});
   return app;
 }
 module.exports={createApp,submissionSchema,syntheticBody};

@@ -6,6 +6,7 @@ const {assertStaging,DATABASE_ID}=require('./guard.cjs');
 const {isolatedDatabaseUrl,STAGING_SCHEMA}=require('./schema.cjs');
 const {createApp,submissionSchema,syntheticBody}=require('./app.cjs');
 const catalog=require('./catalog.json');
+const {sampleDelivery}=require('./customer-checkout.cjs');
 const {createWorkflow,assertAccounts,accounts,PASSWORD_DISABLED,WORKFLOW}=require('./workflow.cjs');
 const safe={NODE_ENV:'test',SPEEDY_ORDERING_MODE:'isolated-staging',AUTO_DISPATCH_ENABLED:'false',FIREBASE_SERVICE_ACCOUNT_JSON:'{}',STAGING_API_KEY:'s'.repeat(40),JWT_SECRET:'j'.repeat(40),DATABASE_URL:`postgresql://speedy_ordering_staging_db_user:test@${DATABASE_ID}/speedy_ordering_staging_db`};
 test('schema preparation targets only the new namespace in the pinned test database',()=>{const url=new URL(isolatedDatabaseUrl(safe));assert.equal(url.hostname,DATABASE_ID);assert.equal(url.pathname,'/speedy_ordering_staging_db');assert.equal(url.searchParams.get('schema'),STAGING_SCHEMA);assert.equal(new URL(safe.DATABASE_URL).searchParams.has('schema'),false);assert.throws(()=>isolatedDatabaseUrl({...safe,DATABASE_URL:'postgresql://user:pass@production/live'}));});
@@ -17,7 +18,7 @@ async function fixture(fn,{fail=false}={}){
  // Serial transaction adapter with rollback for the simulator's atomic writes.
  let queue=Promise.resolve();
  prisma.$transaction=fn=>{const work=queue.then(async()=>{const recordSnapshot=new Map(records),orderSnapshot=new Map(orders);try{return await fn(prisma);}catch(e){records.clear();orders.clear();for(const [k,v] of recordSnapshot)records.set(k,v);for(const [k,v] of orderSnapshot)orders.set(k,v);throw e;}});queue=work.catch(()=>{});return work;};
- const app=createApp({prisma,apiKey:safe.STAGING_API_KEY,validateOrder:x=>x,async createOrder(req,res){calls++;assert.equal(req.body.customerEmail,'ordering-test@example.invalid');if(fail)throw new Error('ambiguous network result');const order={id:randomUUID(),orderNumber:1,orderStatus:'PLACED',assignedDriverId:null,createdAt:new Date().toISOString(),utmSource:'chatgpt',utmMedium:'isolated-staging',utmContent:req.body.utmContent,customerName:'CHATGPT STAGING TEST — DO NOT DELIVER',email:'ordering-test@example.invalid'};orders.set(order.id,order);res.status(201).json({order,trackingToken:'must-not-leak',loyaltyAccessToken:'must-not-leak'});}});
+ const app=createApp({prisma,apiKey:safe.STAGING_API_KEY,validateOrder:x=>x,async createOrder(req,res){calls++;assert.equal(req.body.customerEmail,'ordering-test@example.invalid');if(fail)throw new Error('ambiguous network result');const order={id:randomUUID(),orderNumber:1,orderStatus:'PLACED',assignedDriverId:null,createdAt:new Date().toISOString(),utmSource:'chatgpt',utmMedium:'isolated-staging',utmContent:req.body.utmContent,customerName:'CHATGPT STAGING TEST — DO NOT DELIVER',email:req.body.customerEmail,phone:req.body.customerPhone,addressLine1:req.body.addressLine1,unitNumber:req.body.unitNumber,buzzCode:req.body.buzzCode,city:req.body.city,province:req.body.province,paymentMethod:req.body.paymentMethod,additionalNotes:req.body.deliveryInstructions};orders.set(order.id,order);res.status(201).json({order,trackingToken:'must-not-leak',loyaltyAccessToken:'must-not-leak'});}});
  const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const url=`http://127.0.0.1:${server.address().port}`;
  async function call(path,body,key=safe.STAGING_API_KEY){const r=await fetch(url+path,{method:body?'POST':'GET',headers:{authorization:'Bearer '+key,'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,body:await r.json()};}
  try{await fn({call,calls:()=>calls,records,orders});}finally{await new Promise(r=>server.close(r));}
@@ -108,4 +109,20 @@ test('legacy simulator cannot change a controller-workflow order',async()=>fixtu
  const key=randomUUID();await call('/orders',{request_key:key,items:[{product_id:catalog[0].id,quantity:1}]});
  const record=records.get('chatgpt-staging:'+key);record.value=JSON.stringify({...JSON.parse(record.value),workflow:WORKFLOW});
  assert.equal((await call('/orders/'+key+'/simulate',{action:'dispatch'})).status,409);
+}));
+
+
+test('customer review reaches the order controller, is read back from storage, and changes cannot reuse the request key',async()=>fixture(async({call,calls,orders})=>{
+ const input={request_key:randomUUID(),items:[{product_id:catalog[0].id,quantity:2}],customer:{delivery:{...sampleDelivery,unit:'TEST-101',buzz_code:'TEST-123',delivery_instructions:'Test delivery instructions'},payment_method:'DEBIT'}};
+ assert.equal((await call('/catalog')).body.customer_checkout_enabled,true);
+ const created=await call('/orders',input);assert.equal(created.status,201);assert.deepEqual(created.body.customer_checkout,input.customer);
+ assert.equal((await call('/orders/'+input.request_key)).body.customer_checkout.payment_method,'DEBIT');
+ assert.equal((await call('/orders',{...input,customer:{...input.customer,payment_method:'VISA'}})).status,409);
+ assert.equal((await call('/orders',input)).status,200);assert.equal(calls(),1);
+ orders.get(created.body.order_id).buzzCode='WRONG';assert.equal((await call('/orders/'+input.request_key)).status,503);
+}));
+test('real customer details and extra fields are rejected before reservation or order creation',async()=>fixture(async({call,calls,records})=>{
+ const base={request_key:randomUUID(),items:[{product_id:catalog[0].id,quantity:1}],customer:{delivery:sampleDelivery,payment_method:'CASH'}};
+ for(const change of [{name:'Real Customer'},{phone:'5195550123'},{email:'real@example.com'},{address_line_1:'A real address'},{delivery_instructions:'Also buy beer'},{city:'Toronto'}])assert.equal((await call('/orders',{...base,customer:{...base.customer,delivery:{...sampleDelivery,...change}}})).status,400);
+ assert.equal((await call('/orders',{...base,customer:{...base.customer,card_number:'1234'}})).status,400);assert.equal(calls(),0);assert.equal(records.size,0);
 }));
