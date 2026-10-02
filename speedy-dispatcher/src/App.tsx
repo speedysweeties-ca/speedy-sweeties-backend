@@ -4,6 +4,8 @@ import { DispatcherHelp } from "./DispatcherHelp";
 import { LoadPreviousOrder } from "./LoadPreviousOrder";
 import { useIncomingOrderAlarm } from "./useIncomingOrderAlarm";
 import { IncomingOrderAlarmControls, IncomingOrderAlarmPopup } from "./IncomingOrderAlarm";
+import { useBndOrderAlerts } from "./useBndOrderAlerts";
+import { BndOrderAlertControls, BndOrderAlertPopup } from "./BndOrderAlerts";
 import {
   getVerifiedDeliveryPosition,
   needsDeliveryLocationReview,
@@ -738,6 +740,7 @@ function App() {
 
   const [token, setToken] = useState<string | null>(null);
   const orderAlarm = useIncomingOrderAlarm(Boolean(token));
+  const bndAlarm = useBndOrderAlerts(token);
   const [ordersRefreshError, setOrdersRefreshError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUserProfile | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -7755,6 +7758,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <IncomingOrderAlarmControls alarm={orderAlarm} />
+              <BndOrderAlertControls alarm={bndAlarm} />
 
               <span
                 className={`inline-flex items-center rounded-full border px-3 py-1 font-semibold ${
@@ -7810,10 +7814,13 @@ const handleSaveEditedOrder = async (orderId: string) => {
           {ordersRefreshError} Incoming-order alerts may be delayed until the connection recovers.
         </p>
       )}
-      <IncomingOrderAlarmPopup alarm={orderAlarm} onViewOrders={() => {
-        setActiveTab("LIVE_ORDERS");
-        if (token) void fetchOrders(token, false);
-      }} />
+      <div className="fixed bottom-4 right-4 z-[100] flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md flex-col gap-3 overflow-y-auto">
+        <IncomingOrderAlarmPopup alarm={orderAlarm} onViewOrders={() => {
+          setActiveTab("LIVE_ORDERS");
+          if (token) void fetchOrders(token, false);
+        }} />
+        <BndOrderAlertPopup alarm={bndAlarm} />
+      </div>
 
       {showDriverPanel && (
         <div className="max-w-7xl mx-auto px-6 mt-4">

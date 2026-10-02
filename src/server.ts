@@ -7,6 +7,7 @@ import { runPickupLocationDryRun } from "./services/pickupLocationDryRun.service
 import { runPickupLocationApply } from "./services/pickupLocationApply.service";
 import { startPickupLocationHoursMonitor } from "./services/pickupLocationHours.service";
 import { repairUnresolvedPickupLocationPlaceIds } from "./services/pickupLocationPlaceIdRepair.service";
+import { startBndOrderMonitor } from "./services/bndOrderMonitor.service";
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -14,6 +15,7 @@ let server: Server | undefined;
 let isShuttingDown = false;
 let stopUndispatchedOrderAlertMonitor: (() => void) | undefined;
 let stopPickupLocationHoursMonitor: (() => void) | undefined;
+let stopBndOrderMonitor: (() => void) | undefined;
 
 async function shutdown(signal: string): Promise<void> {
   if (isShuttingDown) {
@@ -25,6 +27,7 @@ async function shutdown(signal: string): Promise<void> {
 
   stopUndispatchedOrderAlertMonitor?.();
   stopPickupLocationHoursMonitor?.();
+  stopBndOrderMonitor?.();
 
   const forceExitTimeout = setTimeout(() => {
     console.error("Graceful shutdown timed out. Forcing process exit.");
@@ -74,6 +77,7 @@ async function startServer(): Promise<void> {
 
     stopUndispatchedOrderAlertMonitor = startUndispatchedOrderAlertMonitor();
     stopPickupLocationHoursMonitor = startPickupLocationHoursMonitor();
+    stopBndOrderMonitor = startBndOrderMonitor();
 
     const runDryRun = process.env.PICKUP_LOCATION_DRY_RUN_ON_START === "true";
     const runApply = process.env.PICKUP_LOCATION_APPLY_ON_START === "true";

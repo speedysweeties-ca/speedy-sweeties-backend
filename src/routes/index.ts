@@ -13,6 +13,7 @@ import routingPreviewRoutes from "./routingPreview.routes";
 import aiOrderDraftRoutes from "./aiOrderDraft.routes";
 import dispatcherHelpRoutes from "./dispatcherHelp.routes";
 import chatgptOrderingRoutes from "./chatgptOrdering.routes";
+import bndAlertsRoutes from "./bndAlerts.routes";
 
 const router = Router();
 
@@ -37,5 +38,6 @@ router.use("/pickup-locations", pickupLocationRoutes);
 router.use("/routing-preview", routingPreviewRoutes);
 router.use("/ai", aiOrderDraftRoutes);
 router.use("/dispatcher-help", dispatcherHelpRoutes);
+router.use("/bnd-alerts", bndAlertsRoutes);
 
 export default router;
