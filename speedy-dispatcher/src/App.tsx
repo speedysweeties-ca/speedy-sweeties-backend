@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE_URL, API_V1_BASE_URL } from "./apiConfig";
 import { DispatcherHelp } from "./DispatcherHelp";
 import { LoadPreviousOrder } from "./LoadPreviousOrder";
+import { useIncomingOrderAlarm } from "./useIncomingOrderAlarm";
+import { IncomingOrderAlarmControls, IncomingOrderAlarmPopup } from "./IncomingOrderAlarm";
 import {
   getVerifiedDeliveryPosition,
   needsDeliveryLocationReview,
@@ -163,6 +165,8 @@ type DriverStat = {
 type Order = {
   id: string;
   orderNumber: number;
+  orderSource?: string | null;
+  createdByUserId?: string | null;
   customerName: string;
   addressLine1: string;
   unitNumber?: string | null;
@@ -733,6 +737,8 @@ function App() {
   const [completingChecklistItemId, setCompletingChecklistItemId] = useState<string | null>(null);
 
   const [token, setToken] = useState<string | null>(null);
+  const orderAlarm = useIncomingOrderAlarm(Boolean(token));
+  const [ordersRefreshError, setOrdersRefreshError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUserProfile | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [deliveredOrders, setDeliveredOrders] = useState<Order[]>([]);
@@ -841,7 +847,6 @@ function App() {
     Record<number, ItemSuggestion[]>
   >({});
 
-  const [newOrderIds, setNewOrderIds] = useState<string[]>([]);
   const [customerSuggestions, setCustomerSuggestions] = useState<CustomerSuggestion[]>(
     []
   );
@@ -856,9 +861,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     Record<number, ItemSuggestion[]>
   >({});
 
-  const knownOrderIdsRef = useRef<Set<string>>(new Set());
-  const hasCompletedInitialLoadRef = useRef(false);
-  const audioContextRef = useRef<AudioContext | null>(null);
   const manualEntryStartedAtRef = useRef<Date | null>(null);
   const customerSearchRequestIdRef = useRef(0);
   const dispatcherPerformanceRequestIdRef = useRef(0);
@@ -1053,25 +1055,25 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
   useEffect(() => {
     if (!token) return;
-    if (autoRefreshPaused) return;
 
-    const intervalId = window.setInterval(() => {
-      void fetchOrders(token, false);
-      void fetchDrivers(token);
-
-    }, 5000);
+    const refresh = () => {
+      // Monitor incoming orders even while form/map refresh is paused. The
+      // background check must not replace drafts, selections, or map state.
+      void fetchOrders(token, false, !autoRefreshPaused, true);
+      if (!autoRefreshPaused) void fetchDrivers(token);
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    refresh();
+    const intervalId = window.setInterval(refresh, 5000);
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [
-    token,
-    autoRefreshPaused,
-    activeTab,
-    statsStartDate,
-    statsEndDate,
-    statsDriverIds,
-  ]);
+  }, [token, autoRefreshPaused]);
 
   useEffect(() => {
     if (!token) return;
@@ -1161,17 +1163,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     void fetchDriverManagement(token, true);
   }, [token, showDriverPanel]);
 
-  useEffect(() => {
-    if (newOrderIds.length === 0) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setNewOrderIds([]);
-    }, 12000);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [newOrderIds]);
 
   const mapRef = useRef<HTMLDivElement | null>(null);
   const manualAddressInputRef = useRef<HTMLInputElement | null>(null);
@@ -1185,6 +1176,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   const orderGeocodingFailedRef = useRef<Set<string>>(new Set());
   const orderInfoWindowRef = useRef<any>(null);
   const ordersRequestSequenceRef = useRef(0);
+  const ordersInFlightRef = useRef(0);
 
   useEffect(() => {
     if (activeTab !== "CREATE_MANUAL_ORDER") return;
@@ -1279,17 +1271,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     };
   }, [editingOrderId]);
 
-  useEffect(() => {
-    if (newOrderIds.length === 0) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setNewOrderIds([]);
-    }, 12000);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [newOrderIds]);
 
 
   useEffect(() => {
@@ -1647,46 +1628,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       );
     });
   }, [activeTab, drivers, orders, nowMs]);
-
-  const playNewOrderSound = () => {
-    try {
-      const AudioCtx =
-        window.AudioContext ||
-        (window as typeof window & { webkitAudioContext?: typeof AudioContext })
-          .webkitAudioContext;
-
-      if (!AudioCtx) return;
-
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioCtx();
-      }
-
-      const ctx = audioContextRef.current;
-
-      if (ctx.state === "suspended") {
-        void ctx.resume();
-      }
-
-      const oscillator = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
-      oscillator.frequency.setValueAtTime(988, ctx.currentTime + 0.12);
-
-      gainNode.gain.setValueAtTime(0.001, ctx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.02);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-
-      oscillator.connect(gainNode);
-      gainNode.connect(ctx.destination);
-
-      oscillator.start(ctx.currentTime);
-      oscillator.stop(ctx.currentTime + 0.36);
-    } catch (error) {
-      console.error("Failed to play new order sound:", error);
-    }
-  };
 
   const formatDateTime = (value?: string | null) => {
     if (!value) return "—";
@@ -3318,8 +3259,18 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     }
   };
 
-  const fetchOrders = async (authToken: string, showLoader = true) => {
+  const fetchOrders = async (
+    authToken: string,
+    showLoader = true,
+    updateDashboard = true,
+    background = false
+  ) => {
+    // A slow request must finish instead of being superseded by every timer tick.
+    if (background && ordersInFlightRef.current > 0) return;
+    ordersInFlightRef.current += 1;
     const requestSequence = ++ordersRequestSequenceRef.current;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 15000);
 
     try {
       if (showLoader) {
@@ -3327,6 +3278,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       }
 
       const response = await fetch(`${API_V1_BASE_URL}/orders`, {
+        signal: controller.signal,
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
@@ -3337,31 +3289,38 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       if (requestSequence !== ordersRequestSequenceRef.current) return;
 
       if (response.ok) {
-        const fetchedOrders: Order[] = data.orders || [];
-        const fetchedIds = fetchedOrders.map((order) => order.id);
-
-        if (!hasCompletedInitialLoadRef.current) {
-          knownOrderIdsRef.current = new Set(fetchedIds);
-          hasCompletedInitialLoadRef.current = true;
-        } else {
-          const freshOrderIds = fetchedIds.filter(
-            (id) => !knownOrderIdsRef.current.has(id)
-          );
-
-          if (freshOrderIds.length > 0) {
-            setNewOrderIds((prev) => Array.from(new Set([...freshOrderIds, ...prev])));
-            playNewOrderSound();
+        if (!Array.isArray(data.orders)) throw new Error("Invalid order response");
+        const fetchedOrders: Order[] = [...data.orders];
+        // The API paginates active orders in batches of 100. Observe a complete
+        // snapshot so an order moving between pages is never a false arrival.
+        for (let page = 2; page <= (data.totalPages || 1); page += 1) {
+          const nextResponse = await fetch(`${API_V1_BASE_URL}/orders?page=${page}`, {
+            signal: controller.signal,
+            headers: { Authorization: `Bearer ${authToken}` },
+          });
+          const nextData = await nextResponse.json();
+          if (requestSequence !== ordersRequestSequenceRef.current) return;
+          if (!nextResponse.ok || !Array.isArray(nextData.orders)) {
+            throw new Error("Incomplete order response");
           }
-
-          knownOrderIdsRef.current = new Set(fetchedIds);
+          fetchedOrders.push(...nextData.orders);
         }
+        const uniqueOrders = Array.from(
+          new Map(fetchedOrders.map(order => [order.id, order])).values()
+        ).sort((a, b) =>
+          Number(b.priority === "HIGH") - Number(a.priority === "HIGH") ||
+          new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+        );
+        orderAlarm.receiveOrders(uniqueOrders);
+        setOrdersRefreshError(null);
+        if (!updateDashboard) return;
 
-        setOrders(fetchedOrders);
+        setOrders(uniqueOrders);
 
         setDriverSelections((prev) => {
           const nextSelections = { ...prev };
 
-          for (const order of fetchedOrders) {
+          for (const order of uniqueOrders) {
             if (!nextSelections[order.id]) {
               nextSelections[order.id] = order.assignedDriver?.id || "";
             }
@@ -3370,14 +3329,19 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
           return nextSelections;
         });
       } else {
-        alert(getApiErrorMessage(data, "Failed to load orders"));
+        const message = getApiErrorMessage(data, "Failed to load orders");
+        setOrdersRefreshError(message);
+        if (showLoader) alert(message);
       }
     } catch (error) {
       if (requestSequence !== ordersRequestSequenceRef.current) return;
 
       console.error(error);
-      alert("Server error while loading orders");
+      setOrdersRefreshError("Order checks are interrupted. Check your connection; retrying automatically.");
+      if (showLoader) alert("Server error while loading orders");
     } finally {
+      window.clearTimeout(timeoutId);
+      ordersInFlightRef.current -= 1;
       if (showLoader) {
         setDashboardLoading(false);
       }
@@ -3421,6 +3385,9 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   };
 
   const handleLogout = () => {
+    ordersRequestSequenceRef.current += 1;
+    orderAlarm.reset();
+    setOrdersRefreshError(null);
     localStorage.removeItem("token");
     setToken(null);
     setCurrentUser(null);
@@ -3458,7 +3425,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setEditingOrderId(null);
     setEditOrderForm(null);
     setEditItemSuggestions({});
-    setNewOrderIds([]);
     setCustomerSuggestions([]);
     setItemSuggestions({});
     setCatalogItems([]);
@@ -3504,8 +3470,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       isComplete: false,
     });
     setCompletingChecklistItemId(null);
-    knownOrderIdsRef.current = new Set();
-    hasCompletedInitialLoadRef.current = false;
   };
 
 const updateOrderStatus = async (
@@ -7746,7 +7710,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 </p>
               ) : autoRefreshPaused ? (
                 <p className="text-amber-300">
-                  Auto-refresh is paused on this page to prevent the screen from jumping or resetting.
+                  Page refresh is paused while you work. Incoming orders are still checked every 5 seconds.
                 </p>
               ) : (
                 <p className="text-green-300">
@@ -7789,6 +7753,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   ? "Turn Auto Dispatch Off"
                   : "Turn Auto Dispatch On"}
               </button>
+
+              <IncomingOrderAlarmControls alarm={orderAlarm} />
 
               <span
                 className={`inline-flex items-center rounded-full border px-3 py-1 font-semibold ${
@@ -7838,6 +7804,16 @@ const handleSaveEditedOrder = async (orderId: string) => {
           </div>
         </div>
       </div>
+
+      {ordersRefreshError && (
+        <p role="status" className="mx-auto mt-4 max-w-7xl rounded-xl border border-amber-500 bg-amber-950 p-4 text-amber-100">
+          {ordersRefreshError} Incoming-order alerts may be delayed until the connection recovers.
+        </p>
+      )}
+      <IncomingOrderAlarmPopup alarm={orderAlarm} onViewOrders={() => {
+        setActiveTab("LIVE_ORDERS");
+        if (token) void fetchOrders(token, false);
+      }} />
 
       {showDriverPanel && (
         <div className="max-w-7xl mx-auto px-6 mt-4">
@@ -7988,7 +7964,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {orders.map((order) => {
-                const isNewOrder = newOrderIds.includes(order.id);
+                const isNewOrder = orderAlarm.pending.some(pending => pending.id === order.id);
                 const isHighPriority = order.priority === "HIGH";
 
                 const now = nowMs;
