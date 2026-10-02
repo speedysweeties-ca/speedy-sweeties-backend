@@ -5,7 +5,8 @@ const { prisma } = require("../dist/lib/prisma.js");
 const deliveryGeocodingService = require("../dist/services/deliveryGeocoding.service.js");
 const businessController = require("../dist/controllers/business.controller.js");
 const {
-  createOrderController
+  createOrderController,
+  createChatGPTOrderController
 } = require("../dist/controllers/order.controller.js");
 const {
   updateCustomerController
@@ -561,4 +562,16 @@ test("customer profile edits reject overlong access details", async (t) => {
 
   assert.equal(response.statusCode, 400);
   assert.equal(updateCalled, false);
+});
+
+test('ChatGPT order mapping callback runs inside the real create transaction and failure rolls back the order',async t=>{
+ const db=installOrderCreationDatabase(t);
+ replaceForTest(t,businessController,'isBusinessConfirmedClosed',async()=>false);
+ replaceForTest(t,deliveryGeocodingService,'geocodeDeliveryAddress',async()=>needsReviewLocation);
+ let seen;
+ await assert.rejects(createChatGPTOrderController({body:firstOrderBody},responseRecorder(),async(tx,id)=>{seen=await tx.order.findUniqueOrThrow({where:{id}});throw new Error('mapping write failed');}),/mapping write failed/);
+ assert.equal(seen.customerName,firstOrderBody.customerName);assert.equal(db.database.orders.length,0,'an order must not commit without its owner/reference mapping');
+ const res=responseRecorder();let mapped;
+ await createChatGPTOrderController({body:firstOrderBody},res,async(tx,id)=>{mapped=(await tx.order.findUniqueOrThrow({where:{id}})).id;});
+ assert.equal(res.statusCode,201);assert.equal(db.database.orders.length,1);assert.equal(mapped,res.body.order.id);
 });

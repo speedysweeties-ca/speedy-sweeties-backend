@@ -12,6 +12,7 @@ import pickupLocationRoutes from "./pickupLocation.routes";
 import routingPreviewRoutes from "./routingPreview.routes";
 import aiOrderDraftRoutes from "./aiOrderDraft.routes";
 import dispatcherHelpRoutes from "./dispatcherHelp.routes";
+import chatgptOrderingRoutes from "./chatgptOrdering.routes";
 
 const router = Router();
 
@@ -23,6 +24,7 @@ router.get("/health", (_req, res) => {
 });
 
 router.use("/orders", orderRoutes);
+router.use("/chatgpt", chatgptOrderingRoutes);
 router.use("/auth", authRoutes);
 router.use("/customers", customerRoutes);
 router.use("/items", itemRoutes);
