@@ -40,7 +40,7 @@ export function IncomingOrderAlarmPopup({ alarm, onViewOrders }: { alarm: Alarm;
   const testOnly = alarm.testing && alarm.pending.length === 0;
   return (
     <aside aria-label="Incoming order notification"
-      className="fixed bottom-4 right-4 z-[100] w-[calc(100%-2rem)] max-w-md rounded-2xl border-2 border-red-300 bg-red-950 p-5 text-white shadow-2xl">
+      className="w-full shrink-0 rounded-2xl border-2 border-red-300 bg-red-950 p-5 text-white shadow-2xl">
       <div role="alert" aria-atomic="true">
         <p className="text-xs font-bold uppercase tracking-wider text-red-200">Speedy Sweeties dispatcher</p>
         <h2 className="mt-1 text-2xl font-bold">
