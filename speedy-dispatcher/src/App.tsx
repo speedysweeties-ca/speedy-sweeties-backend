@@ -6,6 +6,7 @@ import { useIncomingOrderAlarm } from "./useIncomingOrderAlarm";
 import { IncomingOrderAlarmControls, IncomingOrderAlarmPopup } from "./IncomingOrderAlarm";
 import { useBndOrderAlerts } from "./useBndOrderAlerts";
 import { BndOrderAlertControls, BndOrderAlertPopup } from "./BndOrderAlerts";
+import { DispatchToggleControl } from "./DispatchToggleControl";
 import {
   getVerifiedDeliveryPosition,
   needsDeliveryLocationReview,
@@ -7705,7 +7706,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             </div>
           </div>
 
-          <div className="text-sm flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-4 text-sm">
             <div>
               {activeTab === "DRIVER_LOCATION" ? (
                 <p className="text-green-300">
@@ -7722,88 +7723,23 @@ const handleSaveEditedOrder = async (orderId: string) => {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <span
-                className={`inline-flex items-center rounded-full border px-3 py-1 font-semibold ${
-                  autoDispatchEnabled === true
-                    ? "bg-green-500/20 text-green-200 border-green-400/40"
-                    : autoDispatchEnabled === false
-                    ? "bg-red-500/20 text-red-200 border-red-400/40"
-                    : "bg-zinc-800 text-zinc-300 border-zinc-700"
-                }`}
-              >
-                Auto Dispatch: {autoDispatchLoading && autoDispatchEnabled === null
-                  ? "Loading..."
-                  : autoDispatchEnabled === true
-                  ? "ON"
-                  : autoDispatchEnabled === false
-                  ? "OFF"
-                  : "Unknown"}
-              </span>
-
-              <button
-                onClick={() => void toggleAutoDispatch()}
-                disabled={autoDispatchLoading || autoDispatchUpdating || autoDispatchEnabled === null}
-                className={`px-4 py-2 rounded-lg font-semibold transition disabled:opacity-50 ${
-                  autoDispatchEnabled === true
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-green-600 hover:bg-green-700"
-                }`}
-              >
-                {autoDispatchUpdating
-                  ? "Saving..."
-                  : autoDispatchEnabled === true
-                  ? "Turn Auto Dispatch Off"
-                  : "Turn Auto Dispatch On"}
-              </button>
+            <div className="grid items-start gap-x-8 gap-y-5 md:grid-cols-2">
+              <DispatchToggleControl label="Auto Dispatch" enabled={autoDispatchEnabled}
+                loading={autoDispatchLoading} saving={autoDispatchUpdating}
+                onToggle={() => void toggleAutoDispatch()} />
 
               <IncomingOrderAlarmControls alarm={orderAlarm} />
               <BndOrderAlertControls alarm={bndAlarm} />
 
-              <span
-                className={`inline-flex items-center rounded-full border px-3 py-1 font-semibold ${
-                  googleLiveTrafficEnabled === true
-                    ? "bg-green-500/20 text-green-200 border-green-400/40"
-                    : googleLiveTrafficEnabled === false
-                    ? "bg-sky-500/20 text-sky-200 border-sky-400/40"
-                    : "bg-zinc-800 text-zinc-300 border-zinc-700"
-                }`}
+              <DispatchToggleControl label="Live Traffic" enabled={googleLiveTrafficEnabled}
+                loading={googleLiveTrafficLoading} saving={googleLiveTrafficUpdating}
+                onToggle={() => void toggleGoogleLiveTraffic()}
                 title={
                   googleLiveTrafficEnabled === false
                     ? "No new Google Routes requests; uses free coordinate estimates"
                     : "Uses Google's live traffic-aware route calculations"
                 }
-              >
-                Google Live Traffic: {
-                  googleLiveTrafficLoading && googleLiveTrafficEnabled === null
-                    ? "Loading..."
-                    : googleLiveTrafficEnabled === true
-                    ? "ON"
-                    : googleLiveTrafficEnabled === false
-                    ? "OFF"
-                    : "Unknown"
-                }
-              </span>
-
-              <button
-                onClick={() => void toggleGoogleLiveTraffic()}
-                disabled={
-                  googleLiveTrafficLoading ||
-                  googleLiveTrafficUpdating ||
-                  googleLiveTrafficEnabled === null
-                }
-                className={`px-4 py-2 rounded-lg font-semibold transition disabled:opacity-50 ${
-                  googleLiveTrafficEnabled === true
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-green-600 hover:bg-green-700"
-                }`}
-              >
-                {googleLiveTrafficUpdating
-                  ? "Saving..."
-                  : googleLiveTrafficEnabled === true
-                  ? "Turn Live Traffic Off"
-                  : "Turn Live Traffic On"}
-              </button>
+              />
             </div>
           </div>
         </div>

@@ -1,37 +1,29 @@
 import { incomingOrderSourceLabel } from "./incomingOrderAlarm";
 import type { useIncomingOrderAlarm } from "./useIncomingOrderAlarm";
+import { DispatchToggleControl } from "./DispatchToggleControl";
 
 type Alarm = ReturnType<typeof useIncomingOrderAlarm>;
 
 export function IncomingOrderAlarmControls({ alarm }: { alarm: Alarm }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-600 p-2">
-      <button type="button" role="switch" aria-checked={alarm.enabled}
-        aria-label="Incoming order alarm" onClick={alarm.toggle}
-        className={`rounded-lg px-4 py-2 font-semibold ${alarm.enabled
-          ? "bg-green-600 hover:bg-green-700" : "bg-zinc-700 hover:bg-zinc-600"}`}>
-        Alarm: {alarm.enabled ? "ON" : "OFF"}
-      </button>
-      {alarm.enabled && (
-        <>
+    <DispatchToggleControl label="Alarm" switchLabel="Incoming order alarm"
+      enabled={alarm.enabled} onToggle={alarm.toggle}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span>{alarm.enabled
+          ? alarm.audioReady ? "Sound ready · This browser" : "Sound needs enabling."
+          : "Incoming-order alerts are off on this browser."}</span>
+        {alarm.enabled && <>
+          {!alarm.audioReady && <button type="button" onClick={alarm.enableSound}
+            className="py-1 font-semibold underline underline-offset-4 hover:text-white">
+            Enable Sound
+          </button>}
           <button type="button" onClick={alarm.test}
-            className="rounded-lg border border-zinc-500 px-3 py-2 hover:bg-zinc-700">
+            className="py-1 font-semibold underline underline-offset-4 hover:text-white">
             Test Alarm
           </button>
-          {!alarm.audioReady && (
-            <button type="button" onClick={alarm.enableSound}
-              className="rounded-lg bg-amber-300 px-3 py-2 font-semibold text-zinc-950">
-              Enable Sound
-            </button>
-          )}
-        </>
-      )}
-      <p className="w-full text-xs text-zinc-300">
-        {alarm.enabled
-          ? alarm.audioReady ? "Sound ready · This browser" : "Click Enable Sound to activate audio."
-          : "Incoming-order alerts are off on this browser."}
-      </p>
-    </div>
+        </>}
+      </div>
+    </DispatchToggleControl>
   );
 }
 

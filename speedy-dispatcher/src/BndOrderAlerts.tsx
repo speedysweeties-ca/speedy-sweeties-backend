@@ -1,4 +1,5 @@
 import type { useBndOrderAlerts } from "./useBndOrderAlerts";
+import { DispatchToggleControl } from "./DispatchToggleControl";
 
 type Alarm = ReturnType<typeof useBndOrderAlerts>;
 
@@ -11,20 +12,17 @@ export function BndOrderAlertControls({ alarm }: { alarm: Alarm }) {
   else if (alarm.snapshot?.state === "unconfigured") status = "B&D login has not been set up.";
   else if (alarm.snapshot?.state === "connected") status = `B&D connected · ${alarm.pending.length} waiting`;
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-600 p-2">
-      <button type="button" role="switch" aria-label="B&D alerts" aria-checked={alarm.enabled}
-        onClick={alarm.toggle}
-        className={`rounded-lg px-4 py-2 font-semibold ${alarm.enabled
-          ? "bg-amber-300 text-zinc-950 hover:bg-amber-200" : "bg-zinc-700 hover:bg-zinc-600"}`}>
-        B&D Alerts: {alarm.enabled ? "ON" : "OFF"}
-      </button>
-      {alarm.enabled && !alarm.audioReady && (
-        <button type="button" onClick={alarm.enableSound}
-          className="rounded-lg border border-amber-400 px-3 py-2 hover:bg-zinc-700">Enable B&D Sound</button>
-      )}
-      <p role="status" className={`w-full text-xs ${alarm.unavailable ? "text-amber-200" : "text-zinc-300"}`}>{status}</p>
-      {!alarm.enabled && <p className="w-full text-xs text-zinc-300">B&D pop-ups and sound are off on this browser.</p>}
-    </div>
+    <DispatchToggleControl label="B&D Alerts" switchLabel="B&D alerts"
+      enabled={alarm.enabled} onToggle={alarm.toggle}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <p role="status" className={alarm.unavailable ? "text-amber-200" : undefined}>{status}</p>
+        {alarm.enabled && !alarm.audioReady && (
+          <button type="button" onClick={alarm.enableSound}
+            className="py-1 font-semibold underline underline-offset-4 hover:text-white">Enable B&D Sound</button>
+        )}
+      </div>
+      {!alarm.enabled && <p className="mt-1">B&D pop-ups and sound are off on this browser.</p>}
+    </DispatchToggleControl>
   );
 }
 
