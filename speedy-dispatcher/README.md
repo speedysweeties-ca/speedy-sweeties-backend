@@ -4,6 +4,35 @@ Internal web application for live order dispatch, driver management, routing,
 pickup locations, catalog operations, customer retention, and operational
 checklists.
 
+## Incoming-order alarm
+
+- **Alarm: ON/OFF** sits beside Auto Dispatch. It defaults to ON and remembers
+  the preference in this browser's local storage; it does not change Auto Dispatch.
+- Use **Enable Sound** or **Test Alarm** after opening the dispatcher to activate
+  browser audio. The test creates only a local notification, never an order.
+- After the first successful order load establishes a quiet baseline, new
+  customer orders trigger a persistent red notification and a three-tone chime.
+  Sound repeats every 10 seconds until **Acknowledge**, Alarm OFF, logout, or all
+  alerted orders leave the active list. **View Orders** opens Live Orders without
+  acknowledging or assigning an order. Multiple arrivals share one notification.
+- Android, iOS, website, and unknown/future customer sources are included.
+  The current ChatGPT gateway is included through `UNKNOWN`; it is labelled
+  **Customer order** because that source is not exclusive to ChatGPT.
+  `DISPATCHER_MANUAL` and orders with `createdByUserId` are excluded, regardless
+  of which dispatcher created them. Auto-assigned customer orders still alert.
+- Order checks continue every five seconds across dispatcher tabs, even while
+  page refresh is paused for editing. Background checks do not overwrite forms
+  or driver selections. Failed checks show an inline connection warning and
+  retry automatically. Returning to the browser tab also triggers a check.
+- Acknowledged orders and orders observed while OFF do not replay when refreshed
+  or re-enabled. The initial active list after a reload is also a quiet baseline.
+- Keep the dispatcher open, the device awake, and the tab/speakers unmuted.
+  Browser throttling, sleep, a closed tab, or loss of connectivity can delay or
+  prevent alarms. This is a page alarm, not an operating-system push service.
+
+No backend/schema changes, migrations, new dependencies, or environment
+variables are required for the alarm.
+
 ## Local development
 
 1. Install dependencies with `npm ci`.
