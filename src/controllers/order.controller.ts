@@ -556,6 +556,7 @@ type CreateOrderOptions = {
   acceptRecurringDriverNotes: boolean;
   orderSourceOverride?: OrderSource;
   createdByUserId?: string;
+  onOrderCreated?: (tx: Prisma.TransactionClient, orderId: string) => Promise<void>;
 };
 
 const normalizeAttributionValue = (
@@ -820,6 +821,8 @@ const createOrder = async (
       include: orderInclude
     });
 
+    if (options.onOrderCreated) await options.onOrderCreated(tx, createdOrder.id);
+
     return {
       order,
       trackingToken: trackingCredential.token,
@@ -880,6 +883,19 @@ export const createOrderController = async (
   await createOrder(req, res, {
     bypassBusinessHours: false,
     acceptRecurringDriverNotes: false
+  });
+};
+
+// Internal gateway entry point. The callback never comes from request data.
+export const createChatGPTOrderController = async (
+  req: Request,
+  res: Response,
+  onOrderCreated: (tx: Prisma.TransactionClient, orderId: string) => Promise<void>
+): Promise<void> => {
+  await createOrder(req, res, {
+    bypassBusinessHours: false,
+    acceptRecurringDriverNotes: false,
+    onOrderCreated
   });
 };
 
