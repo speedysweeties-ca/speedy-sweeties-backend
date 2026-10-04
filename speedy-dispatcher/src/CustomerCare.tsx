@@ -10,8 +10,7 @@ type HelpRequest = {
 type Queue = { requests: HelpRequest[]; total: number; openTotal: number; pageSize: number };
 const date = (value: string) => new Date(value).toLocaleString("en-CA", { timeZone: "America/Toronto" });
 
-export function CustomerCare({ token }: { token: string }) {
-  const [expanded, setExpanded] = useState(false);
+export function CustomerCare({ token, onOpenCountChange }: { token: string; onOpenCountChange: (count: number | null) => void }) {
   const [status, setStatus] = useState<"OPEN" | "HANDLED">("OPEN");
   const [page, setPage] = useState(1);
   const [queue, setQueue] = useState<Queue | null>(null);
@@ -31,14 +30,14 @@ export function CustomerCare({ token }: { token: string }) {
         });
         if (!response.ok) throw new Error("Customer follow-ups could not refresh. Check your connection or sign in again.");
         const body = await response.json();
-        if (active) { setQueue(body); setError(""); }
+        if (active) { setQueue(body); setError(""); onOpenCountChange(body.openTotal); }
       } catch (err) {
-        if (active) setError(err instanceof Error ? err.message : "Could not load customer follow-ups.");
+        if (active) { setError(err instanceof Error ? err.message : "Could not load customer follow-ups."); onOpenCountChange(null); }
       } finally { if (active) timer = setTimeout(poll, 15000); }
     }
     void poll();
     return () => { active = false; controller.abort(); clearTimeout(timer); };
-  }, [token, status, page, refresh]);
+  }, [token, status, page, refresh, onOpenCountChange]);
 
   async function handle(id: string) {
     if (!(notes[id]?.trim().length >= 3)) return;
@@ -54,14 +53,13 @@ export function CustomerCare({ token }: { token: string }) {
     finally { setSaving(null); }
   }
 
-  return <section className={`mx-auto my-4 max-w-7xl rounded-xl border p-4 ${queue?.openTotal ? "border-amber-500 bg-amber-950/50" : "border-zinc-700 bg-zinc-900"}`} aria-label="Customer follow-ups">
+  return <section className={`rounded-xl border p-4 ${queue?.openTotal ? "border-amber-500 bg-amber-950/50" : "border-zinc-700 bg-zinc-900"}`} aria-label="Customer follow-ups">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div role="status"><h2 className="font-bold">Customer follow-ups {queue ? `(${queue.openTotal} waiting)` : ""}</h2>
         <p className="text-sm text-zinc-300">{queue?.openTotal ? "Customers have asked for help with completed deliveries." : "Delivery support requests appear here. Checked every 15 seconds."}</p></div>
-      <button type="button" aria-expanded={expanded} onClick={() => setExpanded(value => !value)} className="rounded-lg bg-zinc-700 px-4 py-2 font-semibold hover:bg-zinc-600">{expanded ? "Close follow-ups" : "View follow-ups"}</button>
     </div>
     {error && <p role="alert" className="mt-3 text-amber-200">{error} Any requests shown may be out of date.</p>}
-    {expanded && <div className="mt-4 space-y-4">
+    <div className="mt-4 space-y-4">
       <div className="flex gap-3">
         <label>Show <select value={status} onChange={event => { setStatus(event.target.value as "OPEN" | "HANDLED"); setPage(1); setQueue(null); }} className="ml-2 rounded-lg bg-zinc-800 p-2"><option value="OPEN">Waiting for follow-up</option><option value="HANDLED">Handled</option></select></label>
         <button type="button" onClick={() => setRefresh(value => value + 1)} className="rounded-lg bg-zinc-700 px-3">Refresh</button>
@@ -78,7 +76,7 @@ export function CustomerCare({ token }: { token: string }) {
         </form> : <div className="text-sm text-emerald-200"><p>Handled {request.handledAt ? date(request.handledAt) : ""}{request.handledBy ? ` by ${[request.handledBy.firstName, request.handledBy.lastName].filter(Boolean).join(" ") || "staff"}` : ""}</p><p className="whitespace-pre-wrap">{request.resolutionNote}</p></div>}
       </article>)}
       {queue && queue.total > queue.pageSize && <div className="flex items-center gap-4"><button disabled={page === 1} onClick={() => { setPage(value => value - 1); setQueue(null); }} className="disabled:opacity-40">Previous</button><span>Page {page} of {Math.ceil(queue.total / queue.pageSize)}</span><button disabled={page * queue.pageSize >= queue.total} onClick={() => { setPage(value => value + 1); setQueue(null); }} className="disabled:opacity-40">Next</button></div>}
-    </div>}
+    </div>
   </section>;
 }
 
