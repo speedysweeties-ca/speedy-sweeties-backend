@@ -1,6 +1,6 @@
 export type HelpRole = "ADMIN" | "DISPATCHER";
 export type HelpDestination = "CUSTOMERS" | "LIVE_ORDERS" | "CREATE_MANUAL_ORDER" |
-  "DELIVERED_HISTORY" | "DISPATCHER_CHECKLIST" | "DRIVER_LOCATION" | "DISPATCHER_PERFORMANCE";
+  "DELIVERED_HISTORY" | "DISPATCHER_CHECKLIST" | "DRIVER_LOCATION" | "DISPATCHER_PERFORMANCE" | "DRIVERS";
 
 export interface HelpArticle {
   id: string;
@@ -15,6 +15,12 @@ export interface HelpArticle {
 // Reviewed against main 3bec1b0. Update these guides alongside workflow changes.
 // Only add business policies after the business owner has confirmed them.
 export const dispatcherHelpKnowledge: HelpArticle[] = [
+  {
+    id: "staff-accounts", title: "Create, edit, reset or deactivate a staff account",
+    reviewedAt: "2026-10-04", roles: ["ADMIN"], destination: "DRIVERS",
+    evidence: ["speedy-dispatcher/src/StaffManagement.tsx", "src/controllers/staff.controller.ts", "speedy-dispatcher/src/StaffPasswordPage.tsx"],
+    content: "Open Show more, then Staff (previously Drivers). Create Staff Profile adds a driver or dispatcher using first name, last name, email, role, password and confirmation. The Staff directory filters Everyone, Drivers or Dispatchers, account status, and name/email search. Edit profile changes names, email or role; changing email or role signs them out. Reset password sets a temporary password and signs them out. Share that password privately and the Staff password page link shown below the directory: https://speedy-dispatcher.onrender.com/?staff-password=1. Drivers open this page on their phone, enter email and temporary password, choose their own password, then return to the driver app. Dispatchers can also use the password-change prompt at login. Deactivate and confirm disables access and signs them out; Reactivate restores sign-in but keeps dispatch visibility as it was. Past delivery and performance records are preserved. Drivers with unfinished deliveries must finish or have those orders reassigned in Live Orders before an access change. Administrator accounts are read-only in the directory. Never ask the user to give the help assistant any password."
+  },
   {
     id: "customer-profile", title: "Change a customer's saved profile or address",
     reviewedAt: "2026-09-30", roles: ["ADMIN", "DISPATCHER"], destination: "CUSTOMERS",

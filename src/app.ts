@@ -97,6 +97,7 @@ app.get("/q/lighter/stats", qrStatisticsRateLimiter, async (_req, res, next) => 
 });
 
 app.use("/api/v1/auth/login", loginRateLimiter);
+app.use("/api/v1/auth/change-password", loginRateLimiter);
 app.use("/api/v1", routes);
 
 app.use(notFound);

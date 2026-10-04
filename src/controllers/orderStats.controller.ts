@@ -48,8 +48,7 @@ export const getOrderStatsController = async (
 
   const drivers = await prisma.user.findMany({
     where: {
-      role: UserRole.DRIVER,
-      isActive: true
+      OR: [{ role: UserRole.DRIVER }, { assignedOrders: { some: {} } }]
     },
     orderBy: {
       createdAt: "asc"

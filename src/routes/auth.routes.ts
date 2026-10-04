@@ -9,7 +9,7 @@ import {
   getMyProfileController,
   updateMyProfileController
 } from "../controllers/auth.controller";
-import { getAllDriversWithStatsController } from "../controllers/driverList.controller";
+import { getAllDriversWithStatsController, getHistoricalDriversController } from "../controllers/driverList.controller";
 import {
   setDriverOnlineController,
   setDriverOfflineController,
@@ -22,8 +22,18 @@ import {
 } from "../controllers/adminDriver.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 import { requireRole } from "../middleware/role.middleware";
+import { listStaff, updateStaffProfile, updateStaffStatus, resetStaffPassword, changeStaffPassword } from "../controllers/staff.controller";
+import { staffProfileSchema, staffStatusSchema, staffResetSchema, passwordChangeSchema } from "../validators/staff.validator";
 
 const router = Router();
+
+router.get("/staff", requireAuth, requireRole([UserRole.ADMIN]), asyncHandler(listStaff));
+router.get("/drivers/history", requireAuth, requireRole([UserRole.ADMIN, UserRole.DISPATCHER]), asyncHandler(getHistoricalDriversController));
+router.patch("/staff/:id", requireAuth, requireRole([UserRole.ADMIN]), validateRequest(staffProfileSchema), asyncHandler(updateStaffProfile));
+router.patch("/staff/:id/status", requireAuth, requireRole([UserRole.ADMIN]), validateRequest(staffStatusSchema), asyncHandler(updateStaffStatus));
+router.post("/staff/:id/reset-password", requireAuth, requireRole([UserRole.ADMIN]), validateRequest(staffResetSchema), asyncHandler(resetStaffPassword));
+// A short-lived, single-use password-change credential is required; it cannot access other staff APIs.
+router.post("/change-password", validateRequest(passwordChangeSchema), asyncHandler(changeStaffPassword));
 
 router.post(
   "/register",

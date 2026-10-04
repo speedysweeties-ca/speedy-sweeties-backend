@@ -78,10 +78,13 @@ export const updateDriverDispatchVisibilityController = async (
     where: { id },
     data: isVisibleInDispatch
       ? {
-          isVisibleInDispatch: true
+          isVisibleInDispatch: true,
+          staffRevision: { increment: 1 }
         }
       : {
           isVisibleInDispatch: false,
+          authVersion: { increment: 1 },
+          staffRevision: { increment: 1 },
           isOnline: false,
           lastSeenAt: now,
           forceLogoutAt: now
@@ -128,6 +131,8 @@ export const forceLogoutDriverController = async (
     where: { id },
     data: {
       isOnline: false,
+      authVersion: { increment: 1 },
+      staffRevision: { increment: 1 },
       lastSeenAt: new Date(),
       forceLogoutAt: new Date()
     }

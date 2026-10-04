@@ -127,7 +127,11 @@ export const getDispatcherPerformanceController = async (
   const [dispatchers, orders, events] = await Promise.all([
     prisma.user.findMany({
       where: {
-        role: { in: [UserRole.ADMIN, UserRole.DISPATCHER] }
+        OR: [
+          { role: { in: [UserRole.ADMIN, UserRole.DISPATCHER] } },
+          { dispatchedOrders: { some: {} } },
+          { dispatchEvents: { some: {} } }
+        ]
       },
       select: {
         id: true,

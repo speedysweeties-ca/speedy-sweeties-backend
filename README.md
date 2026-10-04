@@ -105,3 +105,17 @@ The default local health check is:
 ```text
 GET http://localhost:4000/api/v1/health
 ```
+
+
+## Staff account management
+
+Administrators open **Show more → Staff** (formerly Drivers) for a unified directory, name/email/role edits, temporary password resets, and deactivate/reactivate controls. Existing driver visibility and force-logout controls remain available. Administrator accounts cannot be edited or disabled from this page.
+
+- Reset passwords are temporary. Staff open `https://speedy-dispatcher.onrender.com/?staff-password=1`, sign in with their email and temporary password, choose their own, then return to the driver app or dispatcher login. The dispatcher login also presents the mandatory-change screen. The existing native driver apps do not need an update: their login error directs staff to this page.
+- Password-change credentials expire after ten minutes, cannot authorize normal API calls, and become unusable after a password/access change. Passwords and change credentials are not saved in browser storage. Resetting an account does not send email or SMS.
+- Deactivation rejects login and existing sessions. Reactivation requires a new sign-in. Editing email or role also revokes sessions. Existing accounts retain their passwords and sessions during deployment.
+- Drivers must finish or have unfinished deliveries reassigned before deactivation, password reset, or email/role changes. Account changes and new manual/automatic assignments share a database row lock.
+- No staff record is deleted. Historical driver filters and dispatcher performance include former/inactive staff. `staffRevision` detects competing account edits without conflicting with routine driver heartbeats.
+- Deploy migration `20261004205000_staff_account_management` before starting the new backend. It adds defaulted columns only. Render's existing pre-deploy migration command applies it.
+
+Administrator endpoints: `GET /api/v1/auth/staff`, `PATCH /api/v1/auth/staff/:id`, `PATCH /api/v1/auth/staff/:id/status`, and `POST /api/v1/auth/staff/:id/reset-password`. `POST /api/v1/auth/change-password` accepts only the scoped password-change credential issued after password verification. Staff history options use `GET /api/v1/auth/drivers/history`.
