@@ -212,6 +212,7 @@ type ActiveTab =
   | "GROWTH_COMMAND_CENTRE"
   | "CREATE_MANUAL_ORDER"
   | "DRIVER_LOCATION"
+  | "DRIVERS"
   | "DELIVERED_HISTORY"
   | "CUSTOMER_RETENTION"
   | "DRIVER_STATS"
@@ -842,7 +843,6 @@ function App() {
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("LIVE_ORDERS");
   const [customerFollowUpCount, setCustomerFollowUpCount] = useState<number | null>(null);
-  const [showDriverPanel, setShowDriverPanel] = useState(false);
   const [showMoreControls, setShowMoreControls] = useState(false);
 
   const [manualOrderForm, setManualOrderForm] = useState<ManualOrderForm>(
@@ -1167,10 +1167,11 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   }, [activeTab, token]);
 
   useEffect(() => {
-    if (!token || !showDriverPanel) return;
+    if (!token || activeTab !== "DRIVERS") return;
 
+    void fetchDrivers(token);
     void fetchDriverManagement(token, true);
-  }, [token, showDriverPanel]);
+  }, [token, activeTab]);
 
 
   const mapRef = useRef<HTMLDivElement | null>(null);
@@ -3424,7 +3425,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     dispatcherPerformanceRequestIdRef.current += 1;
     setDispatcherPerformanceStartDate(defaultDispatcherPerformanceStartDate);
     setDispatcherPerformanceEndDate(defaultDispatcherPerformanceEndDate);
-    setShowDriverPanel(false);
     setShowMoreControls(false);
     setEmail("");
     setPassword("");
@@ -7421,6 +7421,142 @@ const handleSaveEditedOrder = async (orderId: string) => {
     );
   };
 
+  const renderDriversPage = () => (
+    <section aria-label="Drivers" className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">Drivers</h2>
+        <p className="mt-1 text-zinc-400">View online drivers and manage who appears in dispatch.</p>
+      </div>
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+        <h3 className="text-xl font-bold mb-4">Online Drivers</h3>
+
+        {drivers.filter((driver) => driver.isOnline).length === 0 ? (
+          <p className="text-zinc-400">No drivers currently online</p>
+        ) : (
+          <div className="space-y-3">
+            {drivers
+              .filter((driver) => driver.isOnline)
+              .map((driver) => (
+                <div
+                  key={driver.id}
+                  className="flex items-center justify-between bg-zinc-800 p-4 rounded-xl border border-zinc-700"
+                >
+                  <div>
+                    <p className="font-semibold">{getDriverDisplayName(driver)}</p>
+                    <p className="text-zinc-400 text-sm">
+                      Active Orders: {driver.activeOrderCount}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => void forceLogoutDriver(driver.id)}
+                    className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition font-semibold"
+                  >
+                    Force Logout
+                  </button>
+                </div>
+            ))}
+          </div>
+        )}
+
+        <div className="border-t border-zinc-700 mt-6 pt-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-bold">Driver Management</h3>
+              <p className="text-zinc-400 text-sm mt-1">
+                Select the drivers who should appear throughout the live dispatch system.
+                Hidden drivers keep their historical orders, receipts, and statistics.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => token && void fetchDriverManagement(token, true)}
+              disabled={driverManagementLoading}
+              className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold whitespace-nowrap"
+            >
+              {driverManagementLoading ? "Refreshing..." : "Refresh Drivers"}
+            </button>
+          </div>
+
+          {driverManagementLoading && managedDrivers.length === 0 ? (
+            <p className="text-zinc-400">Loading all drivers...</p>
+          ) : managedDrivers.length === 0 ? (
+            <p className="text-zinc-400">No driver accounts found.</p>
+          ) : (
+            <div className="space-y-3">
+              {managedDrivers.map((driver) => {
+                const isUpdating = updatingDriverVisibilityId === driver.id;
+
+                return (
+                  <label
+                    key={driver.id}
+                    className={`flex items-center justify-between gap-4 bg-zinc-800 p-4 rounded-xl border transition ${
+                      driver.isVisibleInDispatch
+                        ? "border-green-700/70"
+                        : "border-zinc-700 opacity-75"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold">
+                          {getDriverDisplayName(driver)}
+                        </p>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-bold ${
+                            driver.isVisibleInDispatch
+                              ? "bg-green-900 text-green-200"
+                              : "bg-zinc-700 text-zinc-300"
+                          }`}
+                        >
+                          {driver.isVisibleInDispatch
+                            ? "Visible in Dispatch"
+                            : "Hidden from Dispatch"}
+                        </span>
+                        {driver.isOnline && driver.isVisibleInDispatch ? (
+                          <span className="px-2 py-1 rounded-full text-xs font-bold bg-blue-900 text-blue-200">
+                            Online
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <p className="text-zinc-400 text-sm break-all mt-1">
+                        {driver.email}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-sm text-zinc-300">
+                        {isUpdating
+                          ? "Saving..."
+                          : driver.isVisibleInDispatch
+                          ? "Shown"
+                          : "Hidden"}
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={driver.isVisibleInDispatch}
+                        disabled={isUpdating}
+                        onChange={(event) =>
+                          void updateDriverDispatchVisibility(
+                            driver,
+                            event.target.checked
+                          )
+                        }
+                        className="h-6 w-6 accent-green-600 cursor-pointer disabled:cursor-wait"
+                        aria-label={`Show ${getDriverDisplayName(driver)} in dispatch`}
+                      />
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+
   if (!token) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-white px-4">
@@ -7532,7 +7668,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   void fetchAutoDispatchSetting(token, true);
                   void fetchGoogleLiveTrafficSetting(token, true);
 
-                  if (showDriverPanel) {
+                  if (activeTab === "DRIVERS") {
                     void fetchDriverManagement(token, true);
                   }
 
@@ -7665,8 +7801,13 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 </button>
 
                 <button
-                  onClick={() => setShowDriverPanel((prev) => !prev)}
-                  className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition font-semibold"
+                  onClick={() => setActiveTab("DRIVERS")}
+                  aria-pressed={activeTab === "DRIVERS"}
+                  className={`px-4 py-2 rounded-lg font-semibold transition ${
+                    activeTab === "DRIVERS"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-zinc-800 hover:bg-zinc-700"
+                  }`}
                 >
                   Drivers
                 </button>
@@ -7796,138 +7937,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
         }} />
         <BndOrderAlertPopup alarm={bndAlarm} />
       </div>
-
-      {showDriverPanel && (
-        <div className="max-w-7xl mx-auto px-6 mt-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-            <h2 className="text-xl font-bold mb-4">Online Drivers</h2>
-
-            {drivers.filter((driver) => driver.isOnline).length === 0 ? (
-              <p className="text-zinc-400">No drivers currently online</p>
-            ) : (
-              <div className="space-y-3">
-                {drivers
-                  .filter((driver) => driver.isOnline)
-                  .map((driver) => (
-                    <div
-                      key={driver.id}
-                      className="flex items-center justify-between bg-zinc-800 p-4 rounded-xl border border-zinc-700"
-                    >
-                      <div>
-                        <p className="font-semibold">{getDriverDisplayName(driver)}</p>
-                        <p className="text-zinc-400 text-sm">
-                          Active Orders: {driver.activeOrderCount}
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={() => void forceLogoutDriver(driver.id)}
-                        className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition font-semibold"
-                      >
-                        Force Logout
-                      </button>
-                    </div>
-                ))}
-              </div>
-            )}
-
-            <div className="border-t border-zinc-700 mt-6 pt-6">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-4">
-                <div>
-                  <h2 className="text-xl font-bold">Driver Management</h2>
-                  <p className="text-zinc-400 text-sm mt-1">
-                    Select the drivers who should appear throughout the live dispatch system.
-                    Hidden drivers keep their historical orders, receipts, and statistics.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => token && void fetchDriverManagement(token, true)}
-                  disabled={driverManagementLoading}
-                  className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold whitespace-nowrap"
-                >
-                  {driverManagementLoading ? "Refreshing..." : "Refresh Drivers"}
-                </button>
-              </div>
-
-              {driverManagementLoading && managedDrivers.length === 0 ? (
-                <p className="text-zinc-400">Loading all drivers...</p>
-              ) : managedDrivers.length === 0 ? (
-                <p className="text-zinc-400">No driver accounts found.</p>
-              ) : (
-                <div className="space-y-3">
-                  {managedDrivers.map((driver) => {
-                    const isUpdating = updatingDriverVisibilityId === driver.id;
-
-                    return (
-                      <label
-                        key={driver.id}
-                        className={`flex items-center justify-between gap-4 bg-zinc-800 p-4 rounded-xl border transition ${
-                          driver.isVisibleInDispatch
-                            ? "border-green-700/70"
-                            : "border-zinc-700 opacity-75"
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-semibold">
-                              {getDriverDisplayName(driver)}
-                            </p>
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs font-bold ${
-                                driver.isVisibleInDispatch
-                                  ? "bg-green-900 text-green-200"
-                                  : "bg-zinc-700 text-zinc-300"
-                              }`}
-                            >
-                              {driver.isVisibleInDispatch
-                                ? "Visible in Dispatch"
-                                : "Hidden from Dispatch"}
-                            </span>
-                            {driver.isOnline && driver.isVisibleInDispatch ? (
-                              <span className="px-2 py-1 rounded-full text-xs font-bold bg-blue-900 text-blue-200">
-                                Online
-                              </span>
-                            ) : null}
-                          </div>
-
-                          <p className="text-zinc-400 text-sm break-all mt-1">
-                            {driver.email}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-sm text-zinc-300">
-                            {isUpdating
-                              ? "Saving..."
-                              : driver.isVisibleInDispatch
-                              ? "Shown"
-                              : "Hidden"}
-                          </span>
-                          <input
-                            type="checkbox"
-                            checked={driver.isVisibleInDispatch}
-                            disabled={isUpdating}
-                            onChange={(event) =>
-                              void updateDriverDispatchVisibility(
-                                driver,
-                                event.target.checked
-                              )
-                            }
-                            className="h-6 w-6 accent-green-600 cursor-pointer disabled:cursor-wait"
-                            aria-label={`Show ${getDriverDisplayName(driver)} in dispatch`}
-                          />
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       <div hidden={activeTab !== "HELP"} className="max-w-7xl mx-auto px-6 py-6">
         <DispatcherHelp key={token} token={token} onNavigate={setActiveTab}
@@ -8251,6 +8260,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
           renderDeliveredHistory()
         ) : activeTab === "CUSTOMER_RETENTION" ? (
           renderCustomerRetention()
+        ) : activeTab === "DRIVERS" ? (
+          renderDriversPage()
         ) : activeTab === "DRIVER_STATS" ? (
           renderDriverStats()
         ) : activeTab === "DISPATCHER_PERFORMANCE" ? (
