@@ -8,6 +8,7 @@ import { useBndOrderAlerts } from "./useBndOrderAlerts";
 import { BndOrderAlertControls, BndOrderAlertPopup } from "./BndOrderAlerts";
 import { DispatchToggleControl } from "./DispatchToggleControl";
 import { CustomerCare, CheckInResults } from "./CustomerCare";
+import { CreateStaffProfile } from "./CreateStaffProfile";
 import {
   getVerifiedDeliveryPosition,
   needsDeliveryLocationReview,
@@ -7427,6 +7428,14 @@ const handleSaveEditedOrder = async (orderId: string) => {
         <h2 className="text-2xl font-bold">Drivers</h2>
         <p className="mt-1 text-zinc-400">View online drivers and manage who appears in dispatch.</p>
       </div>
+      {token && currentUser?.role === "ADMIN" && (
+        <CreateStaffProfile key={token} token={token} onCreated={role => {
+          if (role === "DRIVER") {
+            void fetchDriverManagement(token, false);
+            void fetchDrivers(token);
+          }
+        }} />
+      )}
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
         <h3 className="text-xl font-bold mb-4">Online Drivers</h3>
 
@@ -7945,6 +7954,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
       <div hidden={activeTab !== "CUSTOMER_FOLLOW_UPS"} className="max-w-7xl mx-auto px-6 py-6">
         <CustomerCare key={token} token={token} onOpenCountChange={setCustomerFollowUpCount} />
       </div>
+      <div hidden={activeTab !== "DRIVERS"} className="max-w-7xl mx-auto px-6 py-6">
+        {renderDriversPage()}
+      </div>
       <div key={activeTab} className="max-w-7xl mx-auto px-6 py-6">
         {activeTab === "LIVE_ORDERS" ? (
           dashboardLoading && orders.length === 0 ? (
@@ -8260,8 +8272,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
           renderDeliveredHistory()
         ) : activeTab === "CUSTOMER_RETENTION" ? (
           renderCustomerRetention()
-        ) : activeTab === "DRIVERS" ? (
-          renderDriversPage()
         ) : activeTab === "DRIVER_STATS" ? (
           renderDriverStats()
         ) : activeTab === "DISPATCHER_PERFORMANCE" ? (
@@ -8285,7 +8295,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             onPresetDays={applyDispatcherPerformanceDatePreset}
             onRefresh={() => token && void fetchDispatcherPerformance(token, true)}
           />
-        ) : activeTab === "HELP" || activeTab === "CUSTOMER_FOLLOW_UPS" ? null : activeTab === "CATALOG" ? (
+        ) : activeTab === "HELP" || activeTab === "CUSTOMER_FOLLOW_UPS" || activeTab === "DRIVERS" ? null : activeTab === "CATALOG" ? (
           renderCatalogAdmin()
         ) : activeTab === "PICKUP_LOCATIONS" ? (
           renderPickupLocations()
