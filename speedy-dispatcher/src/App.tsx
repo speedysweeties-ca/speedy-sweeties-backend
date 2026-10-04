@@ -843,6 +843,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("LIVE_ORDERS");
   const [customerFollowUpCount, setCustomerFollowUpCount] = useState<number | null>(null);
   const [showDriverPanel, setShowDriverPanel] = useState(false);
+  const [showMoreControls, setShowMoreControls] = useState(false);
 
   const [manualOrderForm, setManualOrderForm] = useState<ManualOrderForm>(
     initialManualOrderForm
@@ -3424,6 +3425,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setDispatcherPerformanceStartDate(defaultDispatcherPerformanceStartDate);
     setDispatcherPerformanceEndDate(defaultDispatcherPerformanceEndDate);
     setShowDriverPanel(false);
+    setShowMoreControls(false);
     setEmail("");
     setPassword("");
     setActiveTab("LIVE_ORDERS");
@@ -7470,7 +7472,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <nav aria-label="Daily dispatcher actions" className="flex flex-wrap gap-3">
               <button
                 onClick={() => setActiveTab("LIVE_ORDERS")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
@@ -7494,39 +7496,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
-                onClick={() => setActiveTab("DELIVERED_HISTORY")}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  activeTab === "DELIVERED_HISTORY"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-zinc-800 hover:bg-zinc-700"
-                }`}
-              >
-                Delivered History
-              </button>
-
-              <button
-                onClick={() => setActiveTab("CATALOG")}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  activeTab === "CATALOG"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-zinc-800 hover:bg-zinc-700"
-                }`}
-              >
-                Catalog
-              </button>
-
-              <button
-                onClick={() => setActiveTab("CUSTOMERS")}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  activeTab === "CUSTOMERS"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-zinc-800 hover:bg-zinc-700"
-                }`}
-              >
-                Customers
-              </button>
-
-              <button
                 onClick={() => setActiveTab("CUSTOMER_FOLLOW_UPS")}
                 aria-pressed={activeTab === "CUSTOMER_FOLLOW_UPS"}
                 aria-label={`Customer Follow-ups${customerFollowUpCount ? ` ${customerFollowUpCount} waiting` : ""}`}
@@ -7545,13 +7514,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
-                onClick={() => setShowDriverPanel((prev) => !prev)}
-                className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition font-semibold"
-              >
-                Drivers
-              </button>
-
-              <button
                 onClick={() => setActiveTab("DRIVER_LOCATION")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
                   activeTab === "DRIVER_LOCATION"
@@ -7560,84 +7522,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 }`}
               >
                 Driver Location
-              </button>
-
-              <button
-                onClick={() => setActiveTab("DISPATCHER_CHECKLIST")}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  activeTab === "DISPATCHER_CHECKLIST"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-zinc-800 hover:bg-zinc-700"
-                }`}
-              >
-                Daily Responsibilities
-              </button>
-
-              <button
-                onClick={() => {
-                  setActiveTab("GROWTH_COMMAND_CENTRE");
-                  if (token) {
-                    void fetchGrowthDashboard(token, true);
-                  }
-                }}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  activeTab === "GROWTH_COMMAND_CENTRE"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-zinc-800 hover:bg-zinc-700"
-                }`}
-              >
-                Growth
-              </button>
-
-              <button
-                onClick={() => setActiveTab("CUSTOMER_RETENTION")}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  activeTab === "CUSTOMER_RETENTION"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-zinc-800 hover:bg-zinc-700"
-                }`}
-              >
-                Customer Retention
-              </button>
-
-              <button
-                onClick={() => setActiveTab("DRIVER_STATS")}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  activeTab === "DRIVER_STATS"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-zinc-800 hover:bg-zinc-700"
-                }`}
-              >
-                Driver Stats
-              </button>
-
-              {currentUser?.role === "ADMIN" && (
-                <button
-                  onClick={() => {
-                    setActiveTab("DISPATCHER_PERFORMANCE");
-                    if (token) {
-                      void fetchDispatcherPerformance(token, true);
-                    }
-                  }}
-                  className={`px-4 py-2 rounded-lg font-semibold transition ${
-                    activeTab === "DISPATCHER_PERFORMANCE"
-                      ? "bg-red-600 hover:bg-red-700"
-                      : "bg-zinc-800 hover:bg-zinc-700"
-                  }`}
-                >
-                  Dispatcher Performance
-                </button>
-              )}
-
-              <button
-                onClick={() => setActiveTab("PICKUP_LOCATIONS")}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  activeTab === "PICKUP_LOCATIONS"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-zinc-800 hover:bg-zinc-700"
-                }`}
-              >
-                Pickup Locations
               </button>
 
               <button
@@ -7702,17 +7586,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
-                onClick={() => setActiveTab("QR_TRACKING")}
-                className={`px-4 py-2 rounded-lg font-semibold transition ${
-                  activeTab === "QR_TRACKING"
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-zinc-800 hover:bg-zinc-700"
-                }`}
-              >
-                QR Code Tracking
-              </button>
-
-              <button
                 onClick={() => setActiveTab("HELP")}
                 aria-pressed={activeTab === "HELP"}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === "HELP" ? "bg-red-600 hover:bg-red-700" : "bg-zinc-800 hover:bg-zinc-700"}`}
@@ -7726,7 +7599,17 @@ const handleSaveEditedOrder = async (orderId: string) => {
               >
                 Logout
               </button>
-            </div>
+
+              <button
+                type="button"
+                onClick={() => setShowMoreControls(value => !value)}
+                aria-expanded={showMoreControls}
+                aria-controls="dispatcher-more-controls"
+                className="px-4 py-2 rounded-lg border border-zinc-600 bg-zinc-800 hover:bg-zinc-700 transition font-semibold"
+              >
+                {showMoreControls ? "Hide more" : "Show more"}
+              </button>
+            </nav>
           </div>
 
           <div className="space-y-4 text-sm">
@@ -7746,23 +7629,156 @@ const handleSaveEditedOrder = async (orderId: string) => {
               )}
             </div>
 
-            <div className="grid items-start gap-x-8 gap-y-5 md:grid-cols-2">
-              <DispatchToggleControl label="Auto Dispatch" enabled={autoDispatchEnabled}
-                loading={autoDispatchLoading} saving={autoDispatchUpdating}
-                onToggle={() => void toggleAutoDispatch()} />
+            <div id="dispatcher-more-controls" hidden={!showMoreControls} className="space-y-5 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+              <nav aria-label="More dispatcher pages" className="flex flex-wrap gap-3 text-base">
+                <button
+                  onClick={() => setActiveTab("DELIVERED_HISTORY")}
+                  className={`px-4 py-2 rounded-lg font-semibold transition ${
+                    activeTab === "DELIVERED_HISTORY"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-zinc-800 hover:bg-zinc-700"
+                  }`}
+                >
+                  Delivered History
+                </button>
 
-              <IncomingOrderAlarmControls alarm={orderAlarm} />
-              <BndOrderAlertControls alarm={bndAlarm} />
+                <button
+                  onClick={() => setActiveTab("CATALOG")}
+                  className={`px-4 py-2 rounded-lg font-semibold transition ${
+                    activeTab === "CATALOG"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-zinc-800 hover:bg-zinc-700"
+                  }`}
+                >
+                  Catalog
+                </button>
 
-              <DispatchToggleControl label="Live Traffic" enabled={googleLiveTrafficEnabled}
-                loading={googleLiveTrafficLoading} saving={googleLiveTrafficUpdating}
-                onToggle={() => void toggleGoogleLiveTraffic()}
-                title={
-                  googleLiveTrafficEnabled === false
-                    ? "No new Google Routes requests; uses free coordinate estimates"
-                    : "Uses Google's live traffic-aware route calculations"
-                }
-              />
+                <button
+                  onClick={() => setActiveTab("CUSTOMERS")}
+                  className={`px-4 py-2 rounded-lg font-semibold transition ${
+                    activeTab === "CUSTOMERS"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-zinc-800 hover:bg-zinc-700"
+                  }`}
+                >
+                  Customers
+                </button>
+
+                <button
+                  onClick={() => setShowDriverPanel((prev) => !prev)}
+                  className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition font-semibold"
+                >
+                  Drivers
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("DISPATCHER_CHECKLIST")}
+                  className={`px-4 py-2 rounded-lg font-semibold transition ${
+                    activeTab === "DISPATCHER_CHECKLIST"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-zinc-800 hover:bg-zinc-700"
+                  }`}
+                >
+                  Daily Responsibilities
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab("GROWTH_COMMAND_CENTRE");
+                    if (token) {
+                      void fetchGrowthDashboard(token, true);
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-lg font-semibold transition ${
+                    activeTab === "GROWTH_COMMAND_CENTRE"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-zinc-800 hover:bg-zinc-700"
+                  }`}
+                >
+                  Growth
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("CUSTOMER_RETENTION")}
+                  className={`px-4 py-2 rounded-lg font-semibold transition ${
+                    activeTab === "CUSTOMER_RETENTION"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-zinc-800 hover:bg-zinc-700"
+                  }`}
+                >
+                  Customer Retention
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("DRIVER_STATS")}
+                  className={`px-4 py-2 rounded-lg font-semibold transition ${
+                    activeTab === "DRIVER_STATS"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-zinc-800 hover:bg-zinc-700"
+                  }`}
+                >
+                  Driver Stats
+                </button>
+
+                {currentUser?.role === "ADMIN" && (
+                  <button
+                    onClick={() => {
+                      setActiveTab("DISPATCHER_PERFORMANCE");
+                      if (token) {
+                        void fetchDispatcherPerformance(token, true);
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-lg font-semibold transition ${
+                      activeTab === "DISPATCHER_PERFORMANCE"
+                        ? "bg-red-600 hover:bg-red-700"
+                        : "bg-zinc-800 hover:bg-zinc-700"
+                    }`}
+                  >
+                    Dispatcher Performance
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setActiveTab("PICKUP_LOCATIONS")}
+                  className={`px-4 py-2 rounded-lg font-semibold transition ${
+                    activeTab === "PICKUP_LOCATIONS"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-zinc-800 hover:bg-zinc-700"
+                  }`}
+                >
+                  Pickup Locations
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("QR_TRACKING")}
+                  className={`px-4 py-2 rounded-lg font-semibold transition ${
+                    activeTab === "QR_TRACKING"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-zinc-800 hover:bg-zinc-700"
+                  }`}
+                >
+                  QR Code Tracking
+                </button>
+              </nav>
+
+              <div className="grid items-start gap-x-8 gap-y-5 md:grid-cols-2">
+                <DispatchToggleControl label="Auto Dispatch" enabled={autoDispatchEnabled}
+                  loading={autoDispatchLoading} saving={autoDispatchUpdating}
+                  onToggle={() => void toggleAutoDispatch()} />
+
+                <IncomingOrderAlarmControls alarm={orderAlarm} />
+                <BndOrderAlertControls alarm={bndAlarm} />
+
+                <DispatchToggleControl label="Live Traffic" enabled={googleLiveTrafficEnabled}
+                  loading={googleLiveTrafficLoading} saving={googleLiveTrafficUpdating}
+                  onToggle={() => void toggleGoogleLiveTraffic()}
+                  title={
+                    googleLiveTrafficEnabled === false
+                      ? "No new Google Routes requests; uses free coordinate estimates"
+                      : "Uses Google's live traffic-aware route calculations"
+                  }
+                />
+              </div>
             </div>
           </div>
         </div>
