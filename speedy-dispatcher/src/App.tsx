@@ -219,6 +219,7 @@ type ActiveTab =
   | "CATALOG"
   | "PICKUP_LOCATIONS"
   | "CUSTOMERS"
+  | "CUSTOMER_FOLLOW_UPS"
   | "QR_TRACKING"
   | "DISPATCHER_CHECKLIST";
 
@@ -840,6 +841,7 @@ function App() {
 
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("LIVE_ORDERS");
+  const [customerFollowUpCount, setCustomerFollowUpCount] = useState<number | null>(null);
   const [showDriverPanel, setShowDriverPanel] = useState(false);
 
   const [manualOrderForm, setManualOrderForm] = useState<ManualOrderForm>(
@@ -880,6 +882,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
   const autoRefreshPaused =
     activeTab === "HELP" ||
+    activeTab === "CUSTOMER_FOLLOW_UPS" ||
     activeTab === "CREATE_MANUAL_ORDER" ||
     activeTab === "GROWTH_COMMAND_CENTRE" ||
     activeTab === "DRIVER_LOCATION" ||
@@ -3395,6 +3398,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setOrdersRefreshError(null);
     localStorage.removeItem("token");
     setToken(null);
+    setCustomerFollowUpCount(null);
     setCurrentUser(null);
     setOrders([]);
     setDeliveredOrders([]);
@@ -7523,6 +7527,24 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
+                onClick={() => setActiveTab("CUSTOMER_FOLLOW_UPS")}
+                aria-pressed={activeTab === "CUSTOMER_FOLLOW_UPS"}
+                aria-label={`Customer Follow-ups${customerFollowUpCount ? ` ${customerFollowUpCount} waiting` : ""}`}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${
+                  activeTab === "CUSTOMER_FOLLOW_UPS"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-zinc-800 hover:bg-zinc-700"
+                }`}
+              >
+                Customer Follow-ups
+                {customerFollowUpCount !== null && customerFollowUpCount > 0 && (
+                  <span className="ml-2 rounded-full bg-amber-400 px-2 py-0.5 text-xs font-bold text-zinc-950">
+                    {customerFollowUpCount} waiting
+                  </span>
+                )}
+              </button>
+
+              <button
                 onClick={() => setShowDriverPanel((prev) => !prev)}
                 className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition font-semibold"
               >
@@ -7746,7 +7768,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
         </div>
       </div>
 
-      <CustomerCare key={token} token={token} />
       {ordersRefreshError && (
         <p role="status" className="mx-auto mt-4 max-w-7xl rounded-xl border border-amber-500 bg-amber-950 p-4 text-amber-100">
           {ordersRefreshError} Incoming-order alerts may be delayed until the connection recovers.
@@ -7895,6 +7916,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
       <div hidden={activeTab !== "HELP"} className="max-w-7xl mx-auto px-6 py-6">
         <DispatcherHelp key={token} token={token} onNavigate={setActiveTab}
           onSessionExpired={handleLogout} />
+      </div>
+      <div hidden={activeTab !== "CUSTOMER_FOLLOW_UPS"} className="max-w-7xl mx-auto px-6 py-6">
+        <CustomerCare key={token} token={token} onOpenCountChange={setCustomerFollowUpCount} />
       </div>
       <div key={activeTab} className="max-w-7xl mx-auto px-6 py-6">
         {activeTab === "LIVE_ORDERS" ? (
@@ -8234,7 +8258,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             onPresetDays={applyDispatcherPerformanceDatePreset}
             onRefresh={() => token && void fetchDispatcherPerformance(token, true)}
           />
-        ) : activeTab === "HELP" ? null : activeTab === "CATALOG" ? (
+        ) : activeTab === "HELP" || activeTab === "CUSTOMER_FOLLOW_UPS" ? null : activeTab === "CATALOG" ? (
           renderCatalogAdmin()
         ) : activeTab === "PICKUP_LOCATIONS" ? (
           renderPickupLocations()
