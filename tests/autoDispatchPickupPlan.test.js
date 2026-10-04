@@ -192,6 +192,10 @@ const installAllocationHarness = (t, options) => {
           ? queryStrings.join(" ").replace(/\s+/g, " ").trim()
           : "";
         rawQueries.push(queryText);
+        if (queryText.includes('FROM "User"')) {
+          const driver = drivers.find(driver => driver.id === queryValues[0]);
+          return driver && driver.isOnline ? [{ id: driver.id }] : [];
+        }
         const orderId = queryValues.find(
           (value) => typeof value === "string" && orderRows.has(value)
         );
@@ -337,7 +341,8 @@ test("unknown items do not block dispatch to the closest driver", async (t) => {
   assert.equal(harness.getDispatchEvents()[0].eventType, "ASSIGNED");
   assert.equal(harness.getDispatchEvents()[0].toDriverId, "driver-b");
   assert.equal(harness.getStopDeleteCount(), 1);
-  assert.equal(harness.getRawQueries().length, 1);
+  assert.equal(harness.getRawQueries().filter(query => query.includes('FROM "Order"')).length, 1);
+  assert.equal(harness.getRawQueries().filter(query => query.includes('FROM "User"') && query.includes('"isActive" = true')).length, 1);
   assert.equal(harness.getRawQueries()[0].includes("pg_advisory"), false);
   assert.equal(shouldNotifyAutoDispatchedDriver(result), true);
 });
@@ -397,7 +402,8 @@ test("concurrent orders can both go to the same closest driver", async (t) => {
   assert.equal(results.every((result) => result.dispatched), true);
   assert.equal(harness.orderRows.get("order-a").assignedDriverId, "driver-b");
   assert.equal(harness.orderRows.get("order-b").assignedDriverId, "driver-b");
-  assert.equal(harness.getRawQueries().length, 2);
+  assert.equal(harness.getRawQueries().filter(query => query.includes('FROM "Order"')).length, 2);
+  assert.equal(harness.getRawQueries().filter(query => query.includes('FROM "User"')).length, 2);
   assert.equal(
     harness.getRawQueries().every((query) => !query.includes("pg_advisory")),
     true

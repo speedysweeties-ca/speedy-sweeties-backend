@@ -15,6 +15,7 @@ import {
   evaluateOrderStatusTransition
 } from "../services/orderStateTransition.service";
 import { recordDispatchEventBestEffort } from "../services/dispatcherPerformanceTracking.service";
+import { lockAssignableDriver } from "../utils/staffAccountLock";
 
 type AssignDriverParams = {
   id: string;
@@ -303,24 +304,29 @@ export const assignDriverToOrderController = async (
     }
   }
 
-  const assignmentUpdate = await prisma.order.updateMany({
-    where: { id, orderStatus: existingOrder.orderStatus },
-    data: {
-      assignedDriverId: driver.id,
-      assignedAt: wasAssignedToDifferentDriver ? now : existingOrder.assignedAt ?? now,
-      ...(shouldMarkDispatched
-        ? {
-            orderStatus: OrderStatus.DISPATCHED,
-              ...buildOrderTransitionTimestampData(
-                existingOrder,
-                OrderStatus.DISPATCHED,
-                now
-              ),
-            ...getFirstDispatchAttribution(existingOrder.dispatchedAt, authUser)
-          }
-        : {}),
-      ...(priority ? { priority } : {})
-    }
+  const assignmentUpdate = await prisma.$transaction(async tx => {
+    // Keep the same order-then-driver lock order used by automatic dispatch.
+    await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${id} FOR UPDATE`;
+    if (!await lockAssignableDriver(tx, driver.id, new Date())) return { count: 0 };
+    return tx.order.updateMany({
+      where: { id, orderStatus: existingOrder.orderStatus },
+      data: {
+        assignedDriverId: driver.id,
+        assignedAt: wasAssignedToDifferentDriver ? now : existingOrder.assignedAt ?? now,
+        ...(shouldMarkDispatched
+          ? {
+              orderStatus: OrderStatus.DISPATCHED,
+                ...buildOrderTransitionTimestampData(
+                  existingOrder,
+                  OrderStatus.DISPATCHED,
+                  now
+                ),
+              ...getFirstDispatchAttribution(existingOrder.dispatchedAt, authUser)
+            }
+          : {}),
+        ...(priority ? { priority } : {})
+      }
+    });
   });
 
   if (assignmentUpdate.count === 0) {
@@ -332,7 +338,7 @@ export const assignDriverToOrderController = async (
       success: false,
       message: isFinalOrder
         ? "Cannot assign a driver to a delivered or cancelled order"
-        : "Order changed before driver assignment could be completed"
+        : "Order or driver availability changed before assignment. Refresh and try again."
     });
     return;
   }

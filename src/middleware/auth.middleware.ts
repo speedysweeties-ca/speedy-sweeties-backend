@@ -39,6 +39,11 @@ export const requireAuth = async (
       return;
     }
 
+    if (user.passwordChangeRequired || (payload.authVersion ?? 0) !== (user.authVersion ?? 0)) {
+      res.status(401).json({ message: "Your sign-in has expired. Please sign in again." });
+      return;
+    }
+
     // 🔥 FORCE LOGOUT CHECK
   if (user.forceLogoutAt) {
   res.status(401).json({

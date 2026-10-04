@@ -7,6 +7,7 @@ export type AuthTokenPayload = {
   userId: string;
   email: string;
   role: UserRole;
+  authVersion?: number;
 };
 
 export type CustomerLoyaltyTokenPayload = {
@@ -34,6 +35,22 @@ export const verifyAuthToken = (token: string): AuthTokenPayload => {
   return jwt.verify(token, getJwtSecret(), {
     algorithms: ["HS256"]
   }) as AuthTokenPayload;
+};
+
+type PasswordChangePayload = { sub: string; scope: "staff-password-change"; authVersion: number };
+const passwordChangeSecret = () => createHmac("sha256", getJwtSecret())
+  .update("speedy-staff-password-change-v1").digest("hex");
+
+export const signPasswordChangeToken = (userId: string, authVersion: number): string =>
+  jwt.sign({ sub: userId, scope: "staff-password-change", authVersion }, passwordChangeSecret(),
+    { algorithm: "HS256", expiresIn: "10m" });
+
+export const verifyPasswordChangeToken = (token: string): PasswordChangePayload => {
+  const payload = jwt.verify(token, passwordChangeSecret(), { algorithms: ["HS256"] }) as PasswordChangePayload;
+  if (payload.scope !== "staff-password-change" || !payload.sub || !Number.isInteger(payload.authVersion)) {
+    throw new Error("Invalid password change token");
+  }
+  return payload;
 };
 
 export const signCustomerLoyaltyToken = (customerId: string): string => {

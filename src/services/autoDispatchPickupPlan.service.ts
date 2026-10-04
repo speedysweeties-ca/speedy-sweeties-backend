@@ -5,6 +5,7 @@ import {
   UserRole
 } from "@prisma/client";
 import { prisma } from "../lib/prisma";
+import { lockAssignableDriver } from "../utils/staffAccountLock";
 import {
   getDriverFreshnessCutoff,
   isDriverLocationFresh
@@ -449,6 +450,10 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
 
         const selected = selectAutoDispatchAllocationCandidate(candidates);
         if (!selected) {
+          return { selected: null, reason: "NO_ROUTEABLE_DRIVERS" };
+        }
+
+        if (!await lockAssignableDriver(tx, selected.driver.id, new Date())) {
           return { selected: null, reason: "NO_ROUTEABLE_DRIVERS" };
         }
 

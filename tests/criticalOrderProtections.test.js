@@ -305,6 +305,8 @@ test("manual assignment rejects an offline driver with a fresh heartbeat", async
 });
 
 test("manual assignment still accepts an online driver with a fresh heartbeat", async (t) => {
+  replaceForTest(t, prisma, "$transaction", async callback => callback(prisma));
+  replaceForTest(t, prisma, "$queryRaw", async () => [{ id: "driver-1" }]);
   replaceForTest(t, prisma.order, "findUnique", async () => existingOrder);
   replaceForTest(t, prisma.user, "findFirst", async () => driver());
 
@@ -344,4 +346,17 @@ test("manual assignment still accepts an online driver with a fresh heartbeat", 
   assert.equal(dispatchEventData.eventType, "ASSIGNED");
   assert.equal(dispatchEventData.actorUserId, "dispatcher-1");
   assert.equal(dispatchEventData.toDriverId, "driver-1");
+});
+
+test("manual assignment stops if a driver loses access after the initial availability check", async t => {
+  replaceForTest(t, prisma.order, "findUnique", async () => existingOrder);
+  replaceForTest(t, prisma.user, "findFirst", async () => driver());
+  replaceForTest(t, prisma, "$transaction", async callback => callback(prisma));
+  replaceForTest(t, prisma, "$queryRaw", async () => []);
+  let wroteOrder = false;
+  replaceForTest(t, prisma.order, "updateMany", async () => { wroteOrder = true; return { count: 1 }; });
+  const response = responseRecorder();
+  await assignDriverToOrderController(assignmentRequest("driver-1"), response);
+  assert.equal(response.statusCode, 409);
+  assert.equal(wroteOrder, false);
 });

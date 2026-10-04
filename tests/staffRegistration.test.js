@@ -36,6 +36,10 @@ test("staff creation enforces administrator access, validates details, and creat
     const user = [...accounts.values()].find(value => value.id === where.id);
     assert(user); Object.assign(user, data); return user;
   });
+  mock("updateMany", async ({ where, data }) => {
+    const user = [...accounts.values()].find(value => value.id === where.id);
+    assert(user); Object.assign(user, data); return { count: 1 };
+  });
 
   const app = express(); app.use(express.json()); app.use("/auth", routes); app.use(errorHandler);
   const server = app.listen(0, "127.0.0.1");

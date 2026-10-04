@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { UserRole } from "@prisma/client";
 import { hashPassword, comparePassword } from "../utils/hash";
-import { signAuthToken } from "../utils/jwt";
+import { signAuthToken, signPasswordChangeToken } from "../utils/jwt";
 import { prisma } from "../lib/prisma";
 
 type RegisterUserBody = {
@@ -15,6 +15,7 @@ type RegisterUserBody = {
 type LoginBody = {
   email: string;
   password: string;
+  passwordChangeOnly?: boolean;
 };
 
 type UpdateMyProfileBody = {
@@ -89,6 +90,11 @@ export const loginController = async (
 ): Promise<void> => {
   const { email, password } = req.body;
 
+  if (typeof email !== "string" || typeof password !== "string" || !email.trim() || !password) {
+    res.status(400).json({ message: "Enter your email and password." });
+    return;
+  }
+
   const normalizedEmail = email.trim().toLowerCase();
 
   const user = await prisma.user.findUnique({
@@ -111,6 +117,20 @@ export const loginController = async (
     return;
   }
 
+  if (!user.isActive) {
+    res.status(403).json({ message: "This staff account is deactivated. Contact your administrator." });
+    return;
+  }
+
+  if (user.passwordChangeRequired || req.body.passwordChangeOnly === true) {
+    res.set("Cache-Control", "no-store").status(403).json({
+      code: "PASSWORD_CHANGE_REQUIRED",
+      message: "Choose your own password at https://speedy-dispatcher.onrender.com/?staff-password=1, then sign in again.",
+      resetToken: signPasswordChangeToken(user.id, user.authVersion ?? 0),
+    });
+    return;
+  }
+
   if (user.role === UserRole.DRIVER && !user.isVisibleInDispatch) {
     res.status(403).json({
       message: "This driver is currently hidden from dispatch. Contact dispatch for access."
@@ -118,28 +138,27 @@ export const loginController = async (
     return;
   }
 
-  let updatedUser = user;
-
-  if (user.role === UserRole.DRIVER) {
-    updatedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        isOnline: true,
-        lastSeenAt: new Date(),
-        forceLogoutAt: null
-      }
-    });
+  // An account change during password verification must not issue a usable old session.
+  const signedIn = await prisma.user.updateMany({
+    where: { id: user.id, isActive: true, authVersion: user.authVersion ?? 0, passwordHash: user.passwordHash, passwordChangeRequired: false },
+    data: { forceLogoutAt: null, ...(user.role === UserRole.DRIVER ? { isOnline: true, lastSeenAt: new Date() } : {}) },
+  });
+  if (signedIn.count !== 1) {
+    res.status(401).json({ message: "Account details changed. Please sign in again." });
+    return;
   }
 
   const token = signAuthToken({
-    userId: updatedUser.id,
-    email: updatedUser.email,
-    role: updatedUser.role
+    userId: user.id,
+    email: user.email,
+    role: user.role,
+    authVersion: user.authVersion ?? 0,
   });
 
-  res.status(200).json({
+  res.set("Cache-Control", "no-store").status(200).json({
     message: "Login successful",
-    token
+    token,
+    role: user.role
   });
 };
 
@@ -206,6 +225,7 @@ export const updateMyProfileController = async (
   const updatedUser = await prisma.user.update({
     where: { id: authUser.userId },
     data: {
+      staffRevision: { increment: 1 },
       ...(firstName !== undefined ? { firstName: firstName || null } : {}),
       ...(lastName !== undefined ? { lastName: lastName || null } : {})
     },

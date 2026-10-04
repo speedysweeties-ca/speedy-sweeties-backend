@@ -3,6 +3,15 @@ import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { isDriverFresh } from "../utils/driverFreshness";
 
+export const getHistoricalDriversController = async (_req: Request, res: Response): Promise<void> => {
+  const drivers = await prisma.user.findMany({
+    where: { OR: [{ role: "DRIVER" }, { assignedOrders: { some: {} } }] },
+    select: { id: true, firstName: true, lastName: true, email: true },
+    orderBy: [{ firstName: "asc" }, { lastName: "asc" }, { email: "asc" }],
+  });
+  res.json({ drivers });
+};
+
 export const getAllDriversWithStatsController = async (
   _req: Request,
   res: Response

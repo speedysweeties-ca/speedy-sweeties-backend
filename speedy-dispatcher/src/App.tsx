@@ -8,6 +8,8 @@ import { useBndOrderAlerts } from "./useBndOrderAlerts";
 import { BndOrderAlertControls, BndOrderAlertPopup } from "./BndOrderAlerts";
 import { DispatchToggleControl } from "./DispatchToggleControl";
 import { CustomerCare, CheckInResults } from "./CustomerCare";
+import { StaffManagement } from "./StaffManagement";
+import { StaffPasswordPage } from "./StaffPasswordPage";
 import { CreateStaffProfile } from "./CreateStaffProfile";
 import {
   getVerifiedDeliveryPosition,
@@ -722,6 +724,9 @@ const initialPickupLocationForm: PickupLocationForm = {
 function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordChangeToken, setPasswordChangeToken] = useState("");
+  const [staffRefreshKey, setStaffRefreshKey] = useState(0);
+  const loginPending = useRef(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [manualOrderLoading, setManualOrderLoading] = useState(false);
@@ -755,6 +760,7 @@ function App() {
   const [dispatcherPerformance, setDispatcherPerformance] =
     useState<DispatcherPerformanceData | null>(null);
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
+  const [historicalDrivers, setHistoricalDrivers] = useState<AssignedDriver[]>([]);
   const [managedDrivers, setManagedDrivers] = useState<DriverManagementItem[]>([]);
   const [driverManagementLoading, setDriverManagementLoading] = useState(false);
   const [updatingDriverVisibilityId, setUpdatingDriverVisibilityId] =
@@ -1174,6 +1180,10 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     void fetchDriverManagement(token, true);
   }, [token, activeTab]);
 
+
+  useEffect(() => {
+    if (token && (activeTab === "DELIVERED_HISTORY" || activeTab === "DRIVER_STATS")) void fetchHistoricalDrivers(token);
+  }, [token, activeTab]);
 
   const mapRef = useRef<HTMLDivElement | null>(null);
   const manualAddressInputRef = useRef<HTMLInputElement | null>(null);
@@ -2316,6 +2326,16 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     }
   };
 
+  const fetchHistoricalDrivers = async (authToken: string) => {
+    try {
+      const response = await fetch(`${API_V1_BASE_URL}/auth/drivers/history`, {
+        headers: { Authorization: `Bearer ${authToken}` }, signal: AbortSignal.timeout(15000),
+      });
+      const data = await response.json();
+      if (response.ok) setHistoricalDrivers(data.drivers || []);
+    } catch { /* A history refresh can retry without interrupting active dispatch. */ }
+  };
+
   const fetchDriverManagement = async (
     authToken: string,
     showLoader = true
@@ -3340,6 +3360,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
           return nextSelections;
         });
       } else {
+        if (response.status === 401) { handleLogout(); return; }
         const message = getApiErrorMessage(data, "Failed to load orders");
         setOrdersRefreshError(message);
         if (showLoader) alert(message);
@@ -3360,6 +3381,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   };
 
   const handleLogin = async () => {
+    if (loginPending.current) return;
+    loginPending.current = true;
     try {
       setLoginLoading(true);
 
@@ -3376,7 +3399,14 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
       const data = await response.json();
 
+      if (data.code === "PASSWORD_CHANGE_REQUIRED" && typeof data.resetToken === "string") {
+        setPassword(""); setPasswordChangeToken(data.resetToken); return;
+      }
+      if (response.ok && data.role === "DRIVER") {
+        setPassword(""); alert("Please sign in using the driver app. To change your password, use the Staff password link below."); return;
+      }
       if (response.ok) {
+        setPassword("");
         localStorage.setItem("token", data.token);
         setToken(data.token);
         await fetchCurrentUser(data.token);
@@ -3391,6 +3421,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       console.error(error);
       alert("Server error during login");
     } finally {
+      loginPending.current = false;
       setLoginLoading(false);
     }
   };
@@ -3399,6 +3430,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     ordersRequestSequenceRef.current += 1;
     orderAlarm.reset();
     setOrdersRefreshError(null);
+    setPassword(""); setPasswordChangeToken("");
     localStorage.removeItem("token");
     setToken(null);
     setCustomerFollowUpCount(null);
@@ -3410,6 +3442,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setDispatcherPerformanceLoading(false);
     setDrivers([]);
     setManagedDrivers([]);
+    setHistoricalDrivers([]);
     setDriverSelections({});
     setHistoryDriverIds([]);
     setHistoryStartDate("");
@@ -3916,6 +3949,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
       const data = await response.json();
 
       if (response.ok) {
+        setStaffRefreshKey(value => value + 1);
         await fetchDrivers(token);
         await fetchDriverManagement(token, false);
         alert("Driver logged out");
@@ -3939,7 +3973,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
   };
 
   const selectAllHistoryDrivers = () => {
-    setHistoryDriverIds(drivers.map((driver) => driver.id));
+    setHistoryDriverIds(historicalDrivers.map((driver) => driver.id));
   };
 
   const clearHistoryDrivers = () => {
@@ -3963,7 +3997,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
   };
 
   const selectAllStatsDrivers = () => {
-    setStatsDriverIds(drivers.map((driver) => driver.id));
+    setStatsDriverIds(historicalDrivers.map((driver) => driver.id));
   };
 
   const clearStatsDrivers = () => {
@@ -6898,11 +6932,11 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 </div>
               </div>
 
-              {drivers.length === 0 ? (
+              {historicalDrivers.length === 0 ? (
                 <p className="text-zinc-400 text-sm">No drivers found.</p>
               ) : (
                 <div className="grid gap-2 md:grid-cols-2">
-                  {drivers.map((driver) => (
+                  {historicalDrivers.map((driver) => (
                     <label
                       key={driver.id}
                       className="flex items-center gap-3 bg-zinc-900 border border-zinc-700 rounded-lg p-3 cursor-pointer hover:border-red-500 transition"
@@ -7253,11 +7287,11 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </div>
             </div>
 
-            {drivers.length === 0 ? (
+            {historicalDrivers.length === 0 ? (
               <p className="text-zinc-400 text-sm">No drivers found.</p>
             ) : (
               <div className="grid gap-2 md:grid-cols-2">
-                {drivers.map((driver) => (
+                {historicalDrivers.map((driver) => (
                   <label
                     key={driver.id}
                     className="flex items-center gap-3 bg-zinc-900 border border-zinc-700 rounded-lg p-3 cursor-pointer hover:border-red-500 transition"
@@ -7423,19 +7457,24 @@ const handleSaveEditedOrder = async (orderId: string) => {
   };
 
   const renderDriversPage = () => (
-    <section aria-label="Drivers" className="space-y-6">
+    <section aria-label="Staff" className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Drivers</h2>
-        <p className="mt-1 text-zinc-400">View online drivers and manage who appears in dispatch.</p>
+        <h2 className="text-2xl font-bold">Staff</h2>
+        <p className="mt-1 text-zinc-400">Manage staff profiles, account access, and driver availability.</p>
       </div>
       {token && currentUser?.role === "ADMIN" && (
         <CreateStaffProfile key={token} token={token} onCreated={role => {
+          setStaffRefreshKey(value => value + 1);
           if (role === "DRIVER") {
             void fetchDriverManagement(token, false);
             void fetchDrivers(token);
           }
         }} />
       )}
+      {token && currentUser?.role === "ADMIN" && <StaffManagement token={token} visible={activeTab === "DRIVERS"} refreshKey={staffRefreshKey}
+        onChanged={() => { void fetchDrivers(token); void fetchDriverManagement(token, false); }}
+        onDriverVisibility={(staff, visible) => updateDriverDispatchVisibility({ ...staff, isOnline: false }, visible)}
+        onDriverLogout={forceLogoutDriver} />}
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
         <h3 className="text-xl font-bold mb-4">Online Drivers</h3>
 
@@ -7468,7 +7507,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
           </div>
         )}
 
-        <div className="border-t border-zinc-700 mt-6 pt-6">
+        {currentUser?.role !== "ADMIN" && <div className="border-t border-zinc-700 mt-6 pt-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-4">
             <div>
               <h3 className="text-xl font-bold">Driver Management</h3>
@@ -7561,10 +7600,14 @@ const handleSaveEditedOrder = async (orderId: string) => {
               })}
             </div>
           )}
-        </div>
+        </div>}
       </div>
     </section>
   );
+
+  if (!token && passwordChangeToken) {
+    return <StaffPasswordPage initialResetToken={passwordChangeToken} onBack={() => setPasswordChangeToken("")} />;
+  }
 
   if (!token) {
     return (
@@ -7599,6 +7642,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             >
               {loginLoading ? "Logging in..." : "Login"}
             </button>
+            <a href="/?staff-password=1" className="block text-center text-sm text-zinc-300 underline">Staff password — drivers and dispatchers</a>
           </div>
         </div>
       </div>
@@ -7678,6 +7722,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   void fetchGoogleLiveTrafficSetting(token, true);
 
                   if (activeTab === "DRIVERS") {
+                    setStaffRefreshKey(value => value + 1);
                     void fetchDriverManagement(token, true);
                   }
 
@@ -7818,7 +7863,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                       : "bg-zinc-800 hover:bg-zinc-700"
                   }`}
                 >
-                  Drivers
+                  Staff
                 </button>
 
                 <button
