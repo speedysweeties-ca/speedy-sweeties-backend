@@ -14,6 +14,7 @@ import aiOrderDraftRoutes from "./aiOrderDraft.routes";
 import dispatcherHelpRoutes from "./dispatcherHelp.routes";
 import chatgptOrderingRoutes from "./chatgptOrdering.routes";
 import bndAlertsRoutes from "./bndAlerts.routes";
+import deliveryCheckInRoutes from "./deliveryCheckIn.routes";
 
 const router = Router();
 
@@ -39,5 +40,6 @@ router.use("/routing-preview", routingPreviewRoutes);
 router.use("/ai", aiOrderDraftRoutes);
 router.use("/dispatcher-help", dispatcherHelpRoutes);
 router.use("/bnd-alerts", bndAlertsRoutes);
+router.use("/check-in", deliveryCheckInRoutes);
 
 export default router;

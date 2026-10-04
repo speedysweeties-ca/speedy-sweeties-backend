@@ -7,6 +7,7 @@ import { IncomingOrderAlarmControls, IncomingOrderAlarmPopup } from "./IncomingO
 import { useBndOrderAlerts } from "./useBndOrderAlerts";
 import { BndOrderAlertControls, BndOrderAlertPopup } from "./BndOrderAlerts";
 import { DispatchToggleControl } from "./DispatchToggleControl";
+import { CustomerCare, CheckInResults } from "./CustomerCare";
 import {
   getVerifiedDeliveryPosition,
   needsDeliveryLocationReview,
@@ -7745,6 +7746,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
         </div>
       </div>
 
+      <CustomerCare key={token} token={token} />
       {ordersRefreshError && (
         <p role="status" className="mx-auto mt-4 max-w-7xl rounded-xl border border-amber-500 bg-amber-950 p-4 text-amber-100">
           {ordersRefreshError} Incoming-order alerts may be delayed until the connection recovers.
@@ -8068,6 +8070,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
             </div>
           )
         ) : activeTab === "GROWTH_COMMAND_CENTRE" ? (
+          <>
+          {currentUser?.role === "ADMIN" && <CheckInResults token={token}
+            startDate={growthDashboard?.range.startDate ?? growthStartDate}
+            endDate={growthDashboard?.range.endDate ?? growthEndDate} />}
           <GrowthCommandCentre
             data={growthDashboard}
             loading={growthDashboardLoading}
@@ -8078,6 +8084,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             onPresetDays={applyGrowthDatePreset}
             onRefresh={() => token && void fetchGrowthDashboard(token, true)}
           />
+          </>
         ) : activeTab === "DRIVER_LOCATION" ? (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl">
             <div className="mb-6">

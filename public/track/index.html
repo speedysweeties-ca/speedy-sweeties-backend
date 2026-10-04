@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Your delivery | Speedy Sweeties</title>
+  <link rel="stylesheet" href="./check-in.css">
+  <script src="./check-in.js" defer></script>
+</head>
+<body>
+  <header><a href="https://www.speedysweeties.ca/">Speedy Sweeties<span>Local delivery. Personal care.</span></a></header>
+  <main>
+    <section class="hero">
+      <p class="eyebrow" id="order-label">YOUR DELIVERY</p>
+      <h1 id="title">Checking your delivery…</h1>
+      <p id="subtitle">Your latest delivery status will appear here.</p>
+      <p id="error" role="alert" hidden></p>
+      <button id="refresh" type="button">Refresh status</button>
+      <a class="text-link" href="tel:5198268097">Call dispatch: 519-826-8097</a>
+    </section>
+    <div id="delivered" hidden>
+      <div class="columns">
+        <section class="card">
+          <p class="eyebrow">ALL WRAPPED UP</p><h2>Your receipt</h2>
+          <p id="receipt-number"></p><div id="receipt"></div>
+        </section>
+        <section class="card">
+          <p class="eyebrow">YOUR APP REWARDS</p><h2>A little closer to a free delivery</h2>
+          <p id="loyalty"></p><progress id="loyalty-progress" max="10" value="0" aria-label="Monthly app delivery progress"></progress>
+          <p id="loyalty-note" class="muted"></p>
+        </section>
+      </div>
+      <section class="card help">
+        <h2>Need help with this delivery?</h2>
+        <p>Tell dispatch what happened so we can follow up with you.</p>
+        <p id="help-status" role="status"></p>
+        <form id="help-form">
+          <label for="help-message">What can we help with?</label>
+          <textarea id="help-message" minlength="5" maxlength="1500" rows="4" required placeholder="For example, an item was missing from my delivery."></textarea>
+          <p class="muted">Please leave out payment card details and other sensitive information.</p>
+          <button id="help-submit" type="submit">Ask dispatch for help</button>
+        </form>
+        <p class="muted">For urgent help, call <a href="tel:5198268097">519-826-8097</a>. Requests are followed up during opening hours.</p>
+      </section>
+      <section class="card share">
+        <p class="eyebrow">KEEP IT LOCAL</p><h2>Tell us how we did. Tell a friend about us.</h2>
+        <p>Your honest feedback helps us improve, and your recommendations help people find Speedy Sweeties.</p>
+        <div class="actions">
+          <a id="review" class="button" target="_blank" rel="noopener noreferrer">Leave a Google review</a>
+          <button id="share" class="secondary" type="button">Share Speedy Sweeties</button>
+        </div>
+        <p id="share-status" role="status"></p>
+        <label id="share-fallback" hidden>Copy this website link<input id="share-url" readonly></label>
+      </section>
+    </div>
+  </main>
+  <footer>Thanks for choosing your local delivery team.</footer>
+</body>
+</html>

@@ -111,6 +111,7 @@ model User {
   dispatchEventsFrom   DispatchEvent[]                 @relation("DispatchEventFromDriver")
   dispatchEventsTo     DispatchEvent[]                 @relation("DispatchEventToDriver")
   checklistCompletions DispatcherChecklistCompletion[] @relation("ChecklistCompletedBy")
+  handledCheckIns      DeliveryHelpRequest[]
 
   @@index([role])
   @@index([isOnline])
@@ -288,6 +289,8 @@ model Order {
   digitalReceipt DigitalReceipt?
   pickupStops    OrderPickupStop[]
   dispatchEvents DispatchEvent[]
+  helpRequest    DeliveryHelpRequest?
+  checkInEvents  DeliveryCheckInEvent[]
 
   @@index([customerId])
   @@index([orderSource])
@@ -306,6 +309,48 @@ model Order {
   @@index([cancelledAt])
   @@index([cancelledFromStatus])
   @@index([geocodeStatus])
+}
+
+enum DeliveryHelpStatus {
+  OPEN
+  HANDLED
+}
+
+enum DeliveryCheckInEventType {
+  VIEWED
+  REVIEW_CLICK
+  SHARE_CLICK
+  SHARE_COMPLETED
+}
+
+model DeliveryHelpRequest {
+  id              String             @id @default(uuid())
+  orderId         String             @unique
+  message         String
+  status          DeliveryHelpStatus @default(OPEN)
+  createdAt       DateTime           @default(now())
+  handledAt       DateTime?
+  handledByUserId String?
+  resolutionNote  String?
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  handledBy User? @relation(fields: [handledByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([createdAt])
+}
+
+model DeliveryCheckInEvent {
+  id        String                   @id @default(uuid())
+  orderId   String
+  type      DeliveryCheckInEventType
+  createdAt DateTime                 @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // Counts distinct deliveries using each action, not reloads or double taps.
+  @@unique([orderId, type])
+  @@index([createdAt, type])
 }
 
 model DispatchEvent {

@@ -1,0 +1,1133 @@
+<script>/*
+ * Speedy Sweeties Webflow order form
+ *
+ * Paste this file into the page-level code immediately before </body>. Keep
+ * this source-controlled copy in sync with the published Webflow custom code.
+ */
+(function () {
+  const normalizeOptionalAddressField = (value) => {
+    const normalized = typeof value === "string" ? value.trim() : "";
+    return normalized || null;
+  };
+
+  const buildAddressAccessFields = (documentRef) => ({
+    unitNumber: normalizeOptionalAddressField(
+      (documentRef.getElementById("Apartment-Unit-Number") || documentRef.getElementById("Unit-Number"))?.value
+    ),
+    buzzCode: normalizeOptionalAddressField(
+      documentRef.getElementById("Buzz-Code")?.value
+    )
+  });
+
+  if (typeof module === "object" && module.exports) {
+    module.exports = {
+      buildAddressAccessFields,
+      normalizeOptionalAddressField
+    };
+    return;
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    const backendFormHosts = new Set([
+      "speedy-sweeties.webflow.io",
+      "www.speedysweeties.ca",
+      "speedysweeties.ca"
+    ]);
+    if (!backendFormHosts.has(window.location.hostname)) return;
+
+    const form = document.getElementById("email-form");
+    if (!form || form.dataset.speedyOrderFormInitialized === "true") return;
+    form.dataset.speedyOrderFormInitialized = "true";
+
+    const createOptionalAddressInput = ({
+      columnClassName,
+      id,
+      label,
+      name,
+      placeholder
+    }) => {
+      const column = document.createElement("div");
+      column.className = columnClassName;
+
+      const inputLabel = document.createElement("label");
+      inputLabel.className = "contact-us-field-label";
+      inputLabel.htmlFor = id;
+      inputLabel.textContent = label;
+
+      const input = document.createElement("input");
+      input.className = "contact-us-text-field w-input";
+      input.id = id;
+      input.name = name;
+      input.dataset.name = label;
+      input.maxLength = 50;
+      input.placeholder = placeholder;
+      input.type = "text";
+
+      column.append(inputLabel, input);
+      return column;
+    };
+
+    const ensureAddressAccessFields = () => {
+      // The live Webflow form already has native optional address fields.
+      if (document.getElementById("Apartment-Unit-Number")) return;
+      const addressInput = document.getElementById("Address");
+      const addressWrapper = addressInput ? addressInput.closest("div") : null;
+      if (!addressInput || !addressWrapper) return;
+
+      const addressLabel = addressWrapper.querySelector(
+        `label[for="${addressInput.id}"]`
+      );
+      if (addressLabel) {
+        addressLabel.innerHTML =
+          'Street Address <span class="text-span-3">*</span>';
+      }
+
+      if (
+        document.getElementById("Unit-Number") ||
+        document.getElementById("Buzz-Code")
+      ) {
+        return;
+      }
+
+      const accessFieldsRow = document.createElement("div");
+      accessFieldsRow.className = "w-layout-hflex form-flex-block";
+      accessFieldsRow.dataset.addressAccessFields = "true";
+
+      accessFieldsRow.append(
+        createOptionalAddressInput({
+          columnClassName: "form-block-column-1",
+          id: "Unit-Number",
+          label: "Apartment / Unit Number (Optional)",
+          name: "Unit-Number",
+          placeholder: "e.g. 4B"
+        }),
+        createOptionalAddressInput({
+          columnClassName: "form-block-column-2",
+          id: "Buzz-Code",
+          label: "Buzz Code (Optional)",
+          name: "Buzz-Code",
+          placeholder: "e.g. 1234"
+        })
+      );
+
+      addressWrapper.insertAdjacentElement("afterend", accessFieldsRow);
+    };
+
+    ensureAddressAccessFields();
+
+    // Keep the optional access fields understandable on touch and desktop.
+    const optionalFieldExamples = {
+      "Apartment-Unit-Number": "e.g. 4B",
+      "Buzz-Code": "e.g. 1234"
+    };
+    for (const [id, placeholder] of Object.entries(optionalFieldExamples)) {
+      const field = document.getElementById(id);
+      if (field) field.setAttribute("placeholder", placeholder);
+    }
+
+    const paymentOptions = [
+      { id: "Payment-Method---Cash", value: "CASH", label: "Cash" },
+      { id: "Payment-Method---Debit", value: "DEBIT", label: "Debit (no fee)" },
+      { id: "Payment-Method---Visa-Mastercard", value: "VISA", label: "Visa (surcharge)" },
+      { id: "Payment-Method---Mastercard", value: "MASTERCARD", label: "Mastercard (surcharge)" }
+    ];
+    const combinedCardInput = document.getElementById(
+      "Payment-Method---Visa-Mastercard"
+    );
+    const combinedWrapper = combinedCardInput?.closest("label");
+    if (combinedWrapper && !document.getElementById("Payment-Method---Mastercard")) {
+      const mastercardWrapper = document.createElement("label");
+      const mastercardInput = document.createElement("input");
+      mastercardInput.id = "Payment-Method---Mastercard";
+      const mastercardLabel = document.createElement("span");
+      mastercardLabel.className = "form-checkbox-label w-form-label";
+      mastercardWrapper.append(mastercardInput, mastercardLabel);
+      combinedWrapper.insertAdjacentElement("afterend", mastercardWrapper);
+    }
+
+    // One native, required radio group also supports normal keyboard navigation.
+    const paymentInputs = paymentOptions.map(({ id, value, label }) => {
+      const input = document.getElementById(id);
+      if (!input) return null;
+      input.type = "radio";
+      input.name = "paymentMethod";
+      input.value = value;
+      input.required = true;
+      input.dataset.name = "Payment method";
+      input.className = "w-radio-input";
+      input.style.cssText = "margin:0;float:none;flex-shrink:0;";
+      const wrapper = input.closest("label");
+      if (wrapper) {
+        wrapper.className = "w-radio";
+        wrapper.htmlFor = id;
+        wrapper.style.cssText = "display:inline-flex;align-items:center;gap:0.4rem;margin:0;max-width:100%;";
+        const text = wrapper.querySelector(".w-form-label");
+        if (text) {
+          text.textContent = label;
+          text.removeAttribute("for");
+        }
+      }
+      return input;
+    }).filter(Boolean);
+    const paymentGroup = paymentInputs[0]?.closest("label")?.parentElement;
+    if (paymentGroup) {
+      paymentGroup.setAttribute("role", "radiogroup");
+      paymentGroup.setAttribute("aria-label", "Payment method");
+      paymentGroup.setAttribute("aria-required", "true");
+      paymentGroup.style.flexWrap = "wrap";
+      paymentGroup.style.gap = "8px 16px";
+      const groupLabel = paymentGroup.previousElementSibling;
+      if (groupLabel?.matches("label")) groupLabel.removeAttribute("for");
+    }
+
+    const paymentMap = {
+      "Payment-Method---Cash": "CASH",
+      "Payment-Method---Debit": "DEBIT",
+      "Payment-Method---Visa-Mastercard": "VISA",
+      "Payment-Method---Mastercard": "MASTERCARD"
+    };
+
+    const parseItems = (rawItems) =>
+      rawItems
+        .split(/[\n,]+/)
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .map((entry) => {
+          const quantityWithX = entry.match(/^(\d{1,3})\s*[x×]\s*(.+)$/i);
+          const quantityWithSpace = entry.match(/^(\d{1,3})\s+(.+)$/);
+
+          if (quantityWithX || quantityWithSpace) {
+            const match = quantityWithX || quantityWithSpace;
+            const quantity = Number(match[1]);
+
+            if (quantity >= 1 && quantity <= 100) {
+              return {
+                name: match[2].trim(),
+                quantity,
+                unitPrice: 0,
+                totalPrice: 0
+              };
+            }
+          }
+
+          return {
+            name: entry,
+            quantity: 1,
+            unitPrice: 0,
+            totalPrice: 0
+          };
+        });
+
+    const formWrapper = form.closest(".w-form");
+    const successPanel = formWrapper
+      ? formWrapper.querySelector(".w-form-done")
+      : null;
+    const errorPanel = formWrapper
+      ? formWrapper.querySelector(".w-form-fail")
+      : null;
+    const errorText = errorPanel ? errorPanel.querySelector("div") : null;
+    const successText = successPanel ? successPanel.querySelector("div") : null;
+    const submitButton = form.querySelector('[type="submit"]');
+
+    // Keep Webflow's existing labels/ARIA while making custom errors perceivable.
+    if (errorPanel) {
+      if (!errorPanel.hasAttribute("role")) errorPanel.setAttribute("role", "alert");
+      if (!errorPanel.hasAttribute("aria-live")) errorPanel.setAttribute("aria-live", "assertive");
+      if (!errorPanel.hasAttribute("aria-atomic")) errorPanel.setAttribute("aria-atomic", "true");
+      if (!errorPanel.hasAttribute("tabindex")) errorPanel.tabIndex = -1;
+    }
+    if (errorText && !errorText.id) errorText.id = "speedy-order-error-message";
+
+    let errorField = null;
+    let previousFieldInvalid = null;
+    let addedErrorDescription = false;
+    const clearError = () => {
+      if (errorField) {
+        if (errorField.getAttribute("aria-invalid") === "true") {
+          if (previousFieldInvalid === null) errorField.removeAttribute("aria-invalid");
+          else errorField.setAttribute("aria-invalid", previousFieldInvalid);
+        }
+        if (addedErrorDescription && errorText) {
+          const descriptions = (errorField.getAttribute("aria-describedby") || "")
+            .split(/\s+/).filter((id) => id && id !== errorText.id);
+          if (descriptions.length) errorField.setAttribute("aria-describedby", descriptions.join(" "));
+          else errorField.removeAttribute("aria-describedby");
+        }
+        errorField = null;
+        addedErrorDescription = false;
+      }
+      if (errorPanel) errorPanel.style.display = "none";
+    };
+
+    const showError = (message, field = null) => {
+      clearError();
+      if (errorText) errorText.textContent = message;
+      if (errorPanel) errorPanel.style.display = "block";
+      if (field) {
+        errorField = field;
+        previousFieldInvalid = field.getAttribute("aria-invalid");
+        field.setAttribute("aria-invalid", "true");
+        if (errorText) {
+          const descriptions = (field.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
+          addedErrorDescription = !descriptions.includes(errorText.id);
+          if (addedErrorDescription) descriptions.push(errorText.id);
+          field.setAttribute("aria-describedby", descriptions.join(" "));
+        }
+      }
+      (field || errorPanel)?.focus();
+    };
+    for (const id of ["Email", "Confirm-Email"]) {
+      document.getElementById(id)?.addEventListener("input", () => {
+        if (errorField) clearError();
+      });
+    }
+
+    // Own only the hours/submission gate. Webflow retains control of the
+    // button's disabled property for its separate Turnstile protection.
+    const statusUrl = "https://speedy-api-lbfe.onrender.com/api/v1/business/status";
+    const closedMessage =
+      "Ordering is currently unavailable while Speedy Sweeties is closed.";
+    let businessState = "checking";
+    let nextOpenText = "";
+    let pendingStatus = null;
+    let submitting = false;
+    let unconfirmedOrder = false;
+    const unconfirmedMessage =
+      "We can't confirm whether your order was received. To avoid a duplicate order, call dispatch at 519-826-8097 before placing it again. Your entered details have been kept.";
+
+    const showUnconfirmedOrder = () => {
+      unconfirmedOrder = true;
+      showError(unconfirmedMessage);
+    };
+
+    // Aborting a POST does not establish that the server did not create an order.
+    // Keep ambiguous outcomes gated until dispatch confirms the order's status.
+    const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+    // These responses are emitted before order creation. Generic 400 database
+    // errors and duplicate-submission 409s can concern an already-created order.
+    const isKnownRejection = (response, result) => {
+      if (!response) return false;
+      if (response.status === 429) return true;
+      if (!isRecord(result) || result.success !== false) return false;
+      if (response.status === 409) return result.message === closedMessage;
+      if (response.status !== 400) return false;
+      return result.code === "INVALID_DELIVERY_ADDRESS" ||
+        (Array.isArray(result.errors) && result.errors.length > 0 &&
+          result.errors.every((error) => isRecord(error) &&
+            typeof error.path === "string" && typeof error.message === "string"));
+    };
+
+    // POST /orders returns success:true and the persisted Prisma Order.
+    // Tracking is optional for acknowledgement; its existing consumer validates it.
+    const orderStatuses = new Set([
+      "PLACED", "DISPATCHED", "ACCEPTED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"
+    ]);
+    const isOrderAcknowledgement = (result) => isRecord(result) && result.success === true &&
+      isRecord(result.order) &&
+      typeof result.order.id === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(result.order.id) &&
+      Number.isSafeInteger(result.order.orderNumber) && result.order.orderNumber > 0 &&
+      orderStatuses.has(result.order.orderStatus);
+
+    const requestOrder = async (payload) => {
+      const controller = new AbortController();
+      let response = null;
+      let timeout;
+      try {
+        const result = await Promise.race([
+          (async () => {
+            response = await fetch("https://speedy-api-lbfe.onrender.com/api/v1/orders", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+              signal: controller.signal
+            });
+            return await response.json();
+          })(),
+          new Promise((_, reject) => {
+            timeout = setTimeout(() => {
+              controller.abort();
+              reject(new Error("Order acknowledgement timed out"));
+            }, 20000);
+          })
+        ]);
+        return { response, result };
+      } catch {
+        // Missing/unreadable bodies are ambiguous except the pre-controller 429.
+        return { response, result: null };
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+
+    const hoursNotice = document.createElement("p");
+    hoursNotice.id = "speedy-order-hours";
+    hoursNotice.setAttribute("role", "status");
+    hoursNotice.setAttribute("aria-live", "polite");
+    hoursNotice.style.cssText =
+      "padding:12px 16px;margin:16px 0;line-height:1.5;font-size:16px;border-radius:6px;";
+
+    const submitGate = document.createElement("fieldset");
+    submitGate.id = "speedy-order-submit-gate";
+    submitGate.style.cssText = "border:0;padding:0;margin:0;min-width:0;width:100%;";
+    if (submitButton) {
+      submitButton.before(hoursNotice, submitGate);
+      submitGate.append(submitButton);
+      const describedBy = submitButton.getAttribute("aria-describedby") || "";
+      submitButton.setAttribute("aria-describedby",
+        (describedBy + " " + hoursNotice.id).trim());
+    } else {
+      form.append(hoursNotice);
+    }
+
+    const renderBusinessState = () => {
+      submitGate.disabled = submitting || unconfirmedOrder || businessState === "checking" ||
+        businessState === "closed";
+      hoursNotice.dataset.state = businessState;
+      hoursNotice.style.background = businessState === "closed" ? "#ffe8e8" : "#edf2fa";
+      hoursNotice.style.color = businessState === "closed" ? "#781d1d" : "#182d4b";
+      let message = "Checking whether we're open for delivery…";
+      if (businessState === "open") message = "We're open for delivery.";
+      if (businessState === "closed") {
+        message = closedMessage + (nextOpenText ? " " + nextOpenText : "");
+      }
+      if (businessState === "unknown") {
+        message = "We can't confirm our hours right now. You can try placing an order or call 519-826-8097.";
+      }
+      hoursNotice.textContent = message;
+    };
+
+    const refreshBusinessStatus = () => {
+      if (pendingStatus) return pendingStatus;
+      pendingStatus = (async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        try {
+          const response = await fetch(statusUrl, {
+            cache: "no-store", credentials: "omit", signal: controller.signal
+          });
+          if (!response.ok) throw new Error("Hours unavailable");
+          const status = await response.json();
+          if (!status || status.success !== true ||
+              typeof status.isOpen !== "boolean") throw new Error("Invalid hours");
+          // Match the backend: a fallback response is not confirmed open or closed.
+          businessState = status.source === "google_places"
+            ? (status.isOpen ? "open" : "closed") : "unknown";
+          nextOpenText = businessState === "closed" && typeof status.nextOpenText === "string"
+            ? status.nextOpenText.trim() : "";
+        } catch {
+          // Keep the backend's existing fallback policy during provider outages.
+          businessState = "unknown";
+          nextOpenText = "";
+        } finally {
+          clearTimeout(timeout);
+          renderBusinessState();
+          pendingStatus = null;
+        }
+        return businessState;
+      })();
+      return pendingStatus;
+    };
+
+    renderBusinessState();
+    refreshBusinessStatus();
+    const refreshVisibleHours = () => {
+      // A background response must not overwrite a closure returned by order POST.
+      if (!document.hidden && !submitting && !unconfirmedOrder && form.style.display !== "none") {
+        refreshBusinessStatus();
+      }
+    };
+    setInterval(refreshVisibleHours, 60000);
+    document.addEventListener("visibilitychange", refreshVisibleHours);
+    window.addEventListener("pageshow", refreshVisibleHours);
+    window.addEventListener("online", refreshVisibleHours);
+
+    form.addEventListener(
+      "submit",
+      async function (event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        if (submitting) return;
+        if (unconfirmedOrder) {
+          showUnconfirmedOrder();
+          return;
+        }
+
+        clearError();
+
+        if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+        }
+
+        const email = document
+          .getElementById("Email")
+          .value.trim()
+          .toLowerCase();
+        const confirmedEmail = document
+          .getElementById("Confirm-Email")
+          .value.trim()
+          .toLowerCase();
+
+        if (email !== confirmedEmail) {
+          showError("The email addresses do not match.", document.getElementById("Confirm-Email"));
+          return;
+        }
+
+        const selectedPayments = paymentInputs.filter((input) => input.checked);
+
+        if (selectedPayments.length !== 1) {
+          showError("Please select one payment method.");
+          return;
+        }
+
+        const items = parseItems(document.getElementById("Items").value);
+
+        if (items.length === 0) {
+          showError("Please enter at least one item.");
+          return;
+        }
+
+        const notes = [];
+        const additionalNotes = document
+          .getElementById("Additional-Notes")
+          .value.trim();
+
+        if (additionalNotes) notes.push(additionalNotes);
+
+        const emptiesInput = document.getElementById("Marketing");
+        if (emptiesInput && emptiesInput.checked) {
+          notes.push("Customer has empties to return.");
+        }
+
+        const payload = {
+          customerName: document.getElementById("Name-5").value.trim(),
+          customerPhone: document.getElementById("Phone").value.trim(),
+          customerEmail: email,
+          addressLine1: document.getElementById("Address").value.trim(),
+          ...buildAddressAccessFields(document),
+          city: document.getElementById("City").value.trim(),
+          province: "Ontario",
+          notes: notes.join("\n"),
+          items,
+          subtotal: 0,
+          deliveryFee: 0,
+          tax: 0,
+          tip: 0,
+          discount: 0,
+          total: 0,
+          paymentMethod: paymentMap[selectedPayments[0].id]
+        };
+
+        const originalButtonText = submitButton ? submitButton.value : "";
+
+        submitting = true;
+        renderBusinessState();
+        if (submitButton) {
+          submitButton.value = "Checking opening hours...";
+        }
+
+        try {
+          // Recheck at submission, including when a tab has stayed open past closing.
+          if (await refreshBusinessStatus() === "closed") return;
+          if (submitButton) submitButton.value = "Submitting order...";
+          const { response, result } = await requestOrder(payload);
+
+          if (isKnownRejection(response, result)) {
+            if (response.status === 409 && result?.message === closedMessage) {
+              businessState = "closed";
+              nextOpenText = "";
+              renderBusinessState();
+            }
+            throw new Error(
+              (typeof result?.message === "string" && result.message.trim()) ||
+                "The order could not be created. Please try again."
+            );
+          }
+
+          if (!response?.ok || !isOrderAcknowledgement(result)) {
+            showUnconfirmedOrder();
+            return;
+          }
+
+          const orderNumber = result.order.orderNumber;
+
+          if (successText) {
+            successText.textContent =
+              "Thank you — order #" +
+              orderNumber +
+              " has been received. We’ll contact you shortly to confirm availability and delivery time. Most deliveries take 15–45 minutes.";
+          }
+
+          form.style.display = "none";
+          if (successPanel) successPanel.style.display = "block";
+          document.dispatchEvent(new CustomEvent("speedy:order-created", {
+            detail: { trackingToken: result.trackingToken, order: result.order }
+          }));
+        } catch (error) {
+          showError(
+            error instanceof Error
+              ? error.message
+              : "The order could not be created. Please try again."
+          );
+        } finally {
+          submitting = false;
+          renderBusinessState();
+          if (submitButton) {
+            submitButton.value = originalButtonText;
+          }
+        }
+      },
+      true
+    );
+  });
+})();
+
+</script>
+
+<script>
+(() => {
+  const productionHosts = ["speedysweeties.ca", "www.speedysweeties.ca"];
+  if (!productionHosts.includes(window.location.hostname)) return;
+
+  const track = (eventName) => {
+    if (typeof window.gtag === "function") {
+      window.gtag("event", eventName);
+    }
+  };
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const form = document.getElementById("email-form");
+    let formStarted = false;
+    let formSubmitted = false;
+    let ageConfirmed = false;
+
+    const trackFormStart = () => {
+      if (!formStarted) {
+        formStarted = true;
+        track("order_request_start");
+      }
+    };
+
+    if (form) {
+      form.addEventListener("focusin", trackFormStart, { once: true });
+      form.addEventListener("input", trackFormStart, { once: true });
+
+      const ageConfirmation = form.querySelector("#Confirm-Age-and-ID");
+      if (ageConfirmation) {
+        ageConfirmation.addEventListener("change", () => {
+          // Records the customer's acknowledgement, not verified age or ID.
+          if (ageConfirmation.checked && !ageConfirmed) {
+            ageConfirmed = true;
+            track("age_confirmation");
+          }
+        });
+      }
+    }
+
+    // Count accepted backend orders, not a visible confirmation panel.
+    document.addEventListener("speedy:order-created", () => {
+      if (!formSubmitted) {
+        formSubmitted = true;
+        track("order_request_submit");
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const target = event.target.closest("a, button, input[type='submit']");
+      if (!target) return;
+
+      const href = (target.getAttribute("href") || "").trim().toLowerCase();
+      const label = (target.textContent || target.value || "").replace(/\s+/g, " ").trim().toLowerCase();
+
+      if (href.startsWith("tel:")) {
+        track("phone_click");
+      } else if (label.includes("order online")) {
+        track("order_online_click");
+      } else if (label === "contact us") {
+        track("contact_us_click");
+      }
+    });
+  });
+})();
+</script>
+
+<!-- Speedy Sweeties website order tracking v1 -->
+<style>
+#track-my-order { box-sizing:border-box; width:100%; max-width:1140px; margin:24px 0; padding:28px; border:2px solid #c51926; border-radius:16px; background:#fff; color:#242424; text-align:left; font-family:inherit; position:relative; z-index:1; scroll-margin-top:120px; }
+#track-my-order[hidden], #track-my-order [hidden], #speedy-track-shortcut[hidden] { display:none!important; }
+#track-my-order * { box-sizing:border-box; }
+#track-my-order h2 { margin:0 0 8px; font-size:28px; line-height:1.2; color:#a8111b; }
+#track-my-order p { margin:8px 0; font-size:16px; line-height:1.5; }
+#track-my-order .ss-track-order { font-weight:700; }
+#track-my-order .ss-track-steps { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; padding:0; margin:24px 0; list-style:none; }
+#track-my-order .ss-track-step { padding:12px 8px; border-top:4px solid #dedede; color:#626262; font-size:15px; line-height:1.4; }
+#track-my-order .ss-track-step strong { display:block; }
+#track-my-order .ss-track-step span { display:block; font-size:12px; margin-top:4px; }
+#track-my-order .ss-track-step[data-state="complete"] { border-color:#c51926; color:#242424; }
+#track-my-order .ss-track-step[data-state="current"] { border-color:#c51926; background:#fff1f2; color:#a8111b; border-radius:0 0 8px 8px; }
+#track-my-order .ss-track-controls { display:flex; flex-wrap:wrap; gap:10px; margin:20px 0 12px; }
+#track-my-order button, #track-my-order .ss-track-call { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:10px 16px; border:1px solid #c51926; border-radius:8px; background:#fff; color:#a8111b; font:inherit; font-size:15px; font-weight:700; line-height:1.4; cursor:pointer; text-decoration:none; }
+#track-my-order button[data-action="refresh"] { background:#c51926; color:#fff; }
+#track-my-order button:disabled { cursor:wait; opacity:.65; }
+#track-my-order button:focus-visible, #track-my-order a:focus-visible, #track-my-order select:focus-visible, #track-my-order input:focus-visible, #speedy-track-shortcut:focus-visible { outline:3px solid #242424; outline-offset:3px; }
+#track-my-order .ss-track-meta { font-size:13px; color:#595959; }
+#track-my-order .ss-track-error { padding:12px; background:#fff3df; color:#65400b; border-radius:8px; }
+#track-my-order label { display:block; margin:12px 0 5px; font-size:14px; font-weight:700; }
+#track-my-order select, #track-my-order input { display:block; width:100%; min-height:44px; padding:10px; border:1px solid #8a8a8a; border-radius:6px; background:#fff; color:#242424; font:inherit; }
+#track-my-order .ss-track-forget { border:0; padding:8px 0; font-size:13px; text-decoration:underline; font-weight:400; }
+#speedy-track-shortcut { position:fixed; right:16px; bottom:20px; bottom:calc(20px + env(safe-area-inset-bottom)); z-index:999; display:block; padding:13px 18px; min-height:44px; border:2px solid #fff; border-radius:30px; background:#c51926; color:#fff; box-shadow:0 3px 15px #0003; font:700 15px/1.4 Arial,sans-serif; text-decoration:none; }
+@media(max-width:640px) {
+  #track-my-order { padding:20px 16px; }
+  #track-my-order h2 { font-size:24px; }
+  #track-my-order .ss-track-steps { grid-template-columns:1fr; gap:8px; margin:18px 0; }
+  #track-my-order .ss-track-step { border-top:0; border-left:4px solid #dedede; padding:8px 12px; }
+  #track-my-order .ss-track-step[data-state="current"] { border-radius:0 8px 8px 0; }
+  #track-my-order .ss-track-controls > * { flex:1 1 140px; }
+}
+</style>
+<script>
+/* Website-only tracking. Uses the existing API; never creates or modifies orders. */
+(() => {
+  "use strict";
+  const hosts = ["www.speedysweeties.ca", "speedysweeties.ca", "speedy-sweeties.webflow.io"];
+  if (!hosts.includes(window.location.hostname)) return;
+  const KEY = "speedy.order-tracking.v1";
+  const LIFETIME = 48 * 60 * 60 * 1000;
+  const API = "https://speedy-api-lbfe.onrender.com/api/v1/orders/track-token/";
+  const stages = [
+    ["PLACED", "Order received", "Your order has reached Speedy Sweeties."],
+    ["DISPATCHED", "Sent to driver", "Awaiting driver acceptance."],
+    ["ACCEPTED", "Driver accepted", "A driver has accepted your delivery."],
+    ["OUT_FOR_DELIVERY", "On the way", "Your items have been picked up and are on the way."],
+    ["DELIVERED", "Delivered", "Your delivery is complete. Thank you for choosing Speedy Sweeties!"]
+  ];
+  const validToken = token => typeof token === "string" && /^[A-Za-z0-9_-]{43}$/.test(token);
+  const numberText = value => typeof value === "number" || typeof value === "string" ? String(value).slice(0, 30) : "";
+
+  function init() {
+    const form = document.getElementById("email-form");
+    const wrapper = form && form.closest(".w-form");
+    if (!wrapper || document.getElementById("track-my-order")) return;
+    let records = [];
+    let current = null;
+    let timer;
+    let expiryTimer;
+    let requestTimeout;
+    let controller;
+    let generation = 0;
+    let busy = false;
+    let stopped = false;
+    let lastData = null;
+    let failures = 0;
+    let storageAvailable = true;
+    let lastStorageRaw = null;
+    let panelIntersecting = false;
+
+    const panel = document.createElement("section");
+    panel.id = "track-my-order";
+    panel.hidden = true;
+    panel.setAttribute("aria-labelledby", "ss-track-title");
+    // Only static markup is assigned as HTML. API values are always textContent.
+    panel.innerHTML = `
+      <h2 id="ss-track-title" tabindex="-1">Track my order</h2>
+      <div data-role="selector" hidden><label for="ss-track-select">Choose an order</label><select id="ss-track-select"></select></div>
+      <p class="ss-track-order" data-role="order"></p>
+      <p data-role="status" role="status" aria-live="polite"></p>
+      <ol class="ss-track-steps" aria-label="Delivery progress" hidden></ol>
+      <p class="ss-track-error" data-role="error" role="status" hidden></p>
+      <p class="ss-track-meta" data-role="updated"></p>
+      <div class="ss-track-controls">
+        <button type="button" data-action="refresh">Refresh status</button>
+        <button type="button" data-action="copy">Copy private tracking link</button>
+        <a class="ss-track-call" href="tel:5198268097">Call dispatch</a>
+      </div>
+      <p class="ss-track-meta" data-role="notice"></p>
+      <p class="ss-track-meta" data-role="copy-status" role="status"></p>
+      <div data-role="link-fallback" hidden><label for="ss-track-link">Copy this private link</label><input id="ss-track-link" type="text" readonly spellcheck="false" autocomplete="off"></div>
+      <button type="button" class="ss-track-forget" data-action="forget">Forget this order on this browser</button>`;
+    wrapper.insertAdjacentElement("beforebegin", panel);
+    const get = role => panel.querySelector(`[data-role="${role}"]`);
+    const button = action => panel.querySelector(`[data-action="${action}"]`);
+    const steps = panel.querySelector("ol");
+    let checkInFrame = null;
+    window.addEventListener("message", event => {
+      if (event.origin !== "https://speedy-api-lbfe.onrender.com" || event.source !== checkInFrame?.contentWindow || event.data?.type !== "speedy:check-in-height") return;
+      const height = Number(event.data.height);
+      if (Number.isFinite(height)) checkInFrame.style.height = Math.min(6000, Math.max(400, height + 10)) + "px";
+    });
+    const select = panel.querySelector("select");
+    for (const [, label] of stages) {
+      const li = document.createElement("li");
+      li.className = "ss-track-step";
+      const title = document.createElement("strong");
+      title.textContent = label;
+      li.append(title, document.createElement("span"));
+      steps.append(li);
+    }
+    const shortcut = document.createElement("a");
+    shortcut.id = "speedy-track-shortcut";
+    shortcut.href = "#track-my-order";
+    shortcut.textContent = "Track my order";
+    shortcut.hidden = true;
+    document.body.append(shortcut);
+    // Keep the shortcut from covering controls while the tracker itself is visible.
+    if (typeof IntersectionObserver === "function") {
+      const observer = new IntersectionObserver(entries => {
+        panelIntersecting = entries[0].isIntersecting;
+        shortcut.hidden = panel.hidden || panelIntersecting;
+      }, { rootMargin: "-100px 0px 0px 0px" });
+      observer.observe(panel);
+    }
+    const updateScrollMargin = () => {
+      const headerHeight = document.querySelector(".w-nav")?.getBoundingClientRect().height || 100;
+      panel.style.scrollMarginTop = Math.ceil(headerHeight + 20) + "px";
+    };
+    window.addEventListener("resize", updateScrollMargin);
+    updateScrollMargin();
+    const focusPanel = () => {
+      updateScrollMargin();
+      panel.scrollIntoView({ block: "start" });
+      panel.querySelector("h2").focus({ preventScroll: true });
+    };
+    shortcut.addEventListener("click", event => { event.preventDefault(); focusPanel(); });
+
+    function live(record, now = Date.now()) {
+      return record && validToken(record.token) && Number.isFinite(record.savedAt) &&
+        record.savedAt <= now && now - record.savedAt < LIFETIME;
+    }
+    function parseRecords(raw) {
+      try {
+        const parsed = JSON.parse(raw || "[]");
+        if (!Array.isArray(parsed)) return [];
+        const seen = new Set();
+        return parsed.filter(record => {
+          if (!live(record) || seen.has(record.token)) return false;
+          seen.add(record.token);
+          return true;
+        }).slice(0, 5).map(record => ({ token: record.token, orderNumber: numberText(record.orderNumber), savedAt: record.savedAt }));
+      } catch { return []; }
+    }
+    function notice() {
+      get("notice").textContent = storageAvailable
+        ? "This browser stores your order’s private tracking link for 48 hours, then removes it while this page is active or on your next visit. Keep your tracking link private."
+        : "This page keeps your order’s private tracking link for up to 48 hours, but your browser cannot save changes to remembered orders. Copy the private tracking link to return to it.";
+    }
+    function save() {
+      try {
+        const stored = window.localStorage.getItem(KEY);
+        lastStorageRaw = stored;
+        const value = records.length ? JSON.stringify(records) : null;
+        // Avoid storage-event ping-pong and delete expired tokens, not just their UI.
+        if (stored !== value) {
+          if (value === null) window.localStorage.removeItem(KEY);
+          else window.localStorage.setItem(KEY, value);
+        }
+        lastStorageRaw = value;
+        storageAvailable = true;
+      }
+      catch { storageAvailable = false; }
+      notice();
+    }
+    function scheduleExpiry() {
+      clearTimeout(expiryTimer);
+      if (records.length) {
+        const deadline = Math.min(...records.map(record => record.savedAt + LIFETIME));
+        expiryTimer = setTimeout(expire, Math.max(0, deadline - Date.now()));
+      }
+    }
+    function expire() {
+      let incoming = records;
+      let readable = false;
+      try {
+        const raw = window.localStorage.getItem(KEY);
+        readable = true;
+        // Reconcile before any retention write: another tab may have changed
+        // storage while this tab was suspended, before its storage event arrived.
+        // If a write failed, retain unsaved memory until storage actually changes.
+        if (storageAvailable || raw !== lastStorageRaw) {
+          incoming = parseRecords(raw);
+          incoming.forEach(record => {
+            const previous = records.find(item => item.token === record.token);
+            if (previous) record.savedAt = Math.min(record.savedAt, previous.savedAt);
+          });
+        }
+        lastStorageRaw = raw;
+      } catch { storageAvailable = false; notice(); }
+      const retained = incoming.filter(record => live(record));
+      const changed = JSON.stringify(retained) !== JSON.stringify(records);
+      records = retained;
+      const selected = current && records.find(record => record.token === current.token);
+      if (readable || changed) save();
+      if ((current && !selected) || (!current && changed && records.length)) {
+        // choose() cancels pending work and scrubs all old order/token DOM.
+        choose(records[0]);
+        return true;
+      }
+      if (selected) current = selected;
+      if (changed) options();
+      scheduleExpiry();
+      return false;
+    }
+    function syncStorage() {
+      expire();
+    }
+    function options() {
+      select.replaceChildren();
+      if (!current && records.length) {
+        const prompt = document.createElement("option");
+        prompt.value = "";
+        prompt.textContent = "Choose a saved order";
+        select.append(prompt);
+      }
+      records.forEach((record, index) => {
+        const option = document.createElement("option");
+        option.value = record.token;
+        option.textContent = record.orderNumber ? "Order #" + record.orderNumber : "Recent order " + (index + 1);
+        select.append(option);
+      });
+      get("selector").hidden = current ? records.length < 2 : !records.length;
+      if (current) select.value = current.token;
+    }
+    function error(message) {
+      get("error").textContent = message;
+      get("error").hidden = !message;
+    }
+    function cancel() {
+      generation++;
+      clearTimeout(timer);
+      clearTimeout(requestTimeout);
+      if (controller) controller.abort();
+      controller = null;
+      busy = false;
+      button("refresh").disabled = false;
+    }
+    function render(data) {
+      const index = stages.findIndex(stage => stage[0] === data.orderStatus);
+      const cancelled = data.orderStatus === "CANCELLED";
+      const delivered = data.orderStatus === "DELIVERED";
+      if (delivered && !checkInFrame) {
+        checkInFrame = document.createElement("iframe");
+        checkInFrame.title = "Sweetie Check-In: receipt, app rewards and delivery support";
+        checkInFrame.src = "https://speedy-api-lbfe.onrender.com/track/?embedded=1#" + current.token;
+        checkInFrame.referrerPolicy = "no-referrer";
+        checkInFrame.allow = "web-share; clipboard-write";
+        checkInFrame.style.cssText = "width:100%;height:1400px;border:0;display:block;margin-top:20px;";
+        panel.append(checkInFrame);
+      }
+      if (index === -1 && !cancelled) throw new Error("Unknown order status");
+      lastData = data;
+      stopped = cancelled || delivered;
+      const num = numberText(data.orderNumber);
+      if (num && current.orderNumber !== num) {
+        current.orderNumber = num;
+        save(); options();
+      }
+      get("order").textContent = current.orderNumber ? "Order #" + current.orderNumber : "Your delivery";
+      get("status").textContent = cancelled ? "Order cancelled. Please call dispatch if you have any questions." : stages[index][1] + " — " + stages[index][2];
+      steps.hidden = cancelled;
+      [...steps.children].forEach((li, i) => {
+        li.dataset.state = i < index || delivered ? "complete" : i === index ? "current" : "pending";
+        li.querySelector("span").textContent = i < index || delivered ? "Complete" : i === index ? "Current step" : "Waiting";
+        if (i === index) li.setAttribute("aria-current", "step");
+        else li.removeAttribute("aria-current");
+      });
+      get("updated").textContent = "Last checked at " + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + (stopped ? "." : ". Updates automatically every 15 seconds while this page is open.");
+      button("refresh").hidden = stopped;
+      error("");
+    }
+    function schedule(delay) {
+      clearTimeout(timer);
+      if (current && !stopped && !document.hidden) timer = setTimeout(refresh, delay);
+    }
+    async function refresh() {
+      // Retention is independent of polling, terminal status, visibility and network.
+      if (expire()) return;
+      if (!current || busy || stopped || document.hidden) return;
+      clearTimeout(timer);
+      if (!navigator.onLine) {
+        error("You appear to be offline. Reconnect to get the latest delivery status.");
+        schedule(30000); return;
+      }
+      const requestGeneration = generation;
+      const token = current.token;
+      busy = true;
+      button("refresh").disabled = true;
+      controller = new AbortController();
+      const requestController = controller;
+      const timeout = requestTimeout = setTimeout(() => requestController.abort(), 12000);
+      const requestIsCurrent = () => {
+        expire();
+        return requestGeneration === generation && current?.token === token;
+      };
+      let delay = 15000;
+      try {
+        const response = await fetch(API + encodeURIComponent(token), { cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer", signal: requestController.signal });
+        if (!requestIsCurrent()) return;
+        if ([401, 403, 404, 410].includes(response.status)) {
+          records = records.filter(record => record.token !== token);
+          save(); choose(records[0]);
+          if (!current) {
+            panel.hidden = false; shortcut.hidden = panelIntersecting;
+            get("status").textContent = "Tracking link unavailable";
+            error("This tracking link has expired or is no longer available. Your order has not been cancelled by this message. Please call dispatch for an update.");
+          }
+          return;
+        }
+        if (response.status === 429) {
+          const retryAfter = Number(response.headers.get("Retry-After"));
+          delay = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(900000, Math.max(60000, retryAfter * 1000)) : 60000;
+          throw new Error("Rate limited");
+        }
+        if (!response.ok) throw new Error("Request failed");
+        const result = await response.json();
+        if (!requestIsCurrent()) return;
+        if (!result.success || !result.data) throw new Error("Invalid response");
+        render(result.data);
+        failures = 0;
+      } catch {
+        if (!requestIsCurrent()) return;
+        failures++;
+        delay = Math.max(delay, Math.min(60000, 15000 * Math.pow(2, Math.min(failures, 2))));
+        if (!lastData) get("status").textContent = "Waiting for a delivery update";
+        error("We cannot refresh your order right now. " + (lastData ? "The status shown is the last confirmed update. " : "") + "We’ll retry automatically, or you can call dispatch.");
+      } finally {
+        clearTimeout(timeout);
+        if (requestIsCurrent()) {
+          busy = false; controller = null;
+          button("refresh").disabled = false;
+          schedule(delay);
+        }
+      }
+    }
+    function choose(record, initialData) {
+      cancel();
+      checkInFrame?.remove(); checkInFrame = null;
+      current = live(record) ? record : null;
+      lastData = null; stopped = false; failures = 0;
+      panel.hidden = !current;
+      shortcut.hidden = !current || panelIntersecting;
+      steps.hidden = true;
+      [...steps.children].forEach(li => {
+        delete li.dataset.state;
+        li.removeAttribute("aria-current");
+        li.querySelector("span").textContent = "";
+      });
+      get("order").textContent = "";
+      get("status").textContent = "";
+      get("updated").textContent = "";
+      get("copy-status").textContent = "";
+      get("link-fallback").hidden = true;
+      get("link-fallback").querySelector("input").value = "";
+      button("refresh").hidden = !current;
+      button("copy").hidden = !current;
+      button("forget").hidden = !current;
+      error(""); options(); notice(); scheduleExpiry();
+      if (!current) return;
+      get("order").textContent = current.orderNumber ? "Order #" + current.orderNumber : "Your delivery";
+      get("status").textContent = "Checking your order…";
+      if (initialData) { try { render(initialData); } catch { /* Tracking GET will resolve the status. */ } }
+      refresh();
+    }
+    function remember(token, orderNumber, initialData) {
+      if (!validToken(token)) return false;
+      const known = records.find(record => record.token === token);
+      expire();
+      if (known && !live(known)) return false;
+      const previous = records.find(record => record.token === token);
+      const savedAt = Math.min(known?.savedAt ?? Date.now(), previous?.savedAt ?? Date.now());
+      const record = { token, orderNumber: numberText(orderNumber) || previous?.orderNumber || known?.orderNumber || "", savedAt };
+      records = [record, ...records.filter(item => item.token !== token)].slice(0, 5);
+      save(); choose(record, initialData); return true;
+    }
+
+    button("refresh").addEventListener("click", refresh);
+    select.addEventListener("change", () => {
+      const token = select.value;
+      if (!expire()) choose(records.find(record => record.token === token));
+    });
+    button("forget").addEventListener("click", () => {
+      if (expire()) return;
+      records = records.filter(record => record.token !== current?.token);
+      save(); choose(records[0]);
+      if (!current) form.querySelector("input")?.focus();
+    });
+    button("copy").addEventListener("click", async () => {
+      if (expire()) return;
+      if (!current) return;
+      const copyGeneration = generation;
+      const token = current.token;
+      const url = window.location.origin + "/#track=" + token;
+      try {
+        await navigator.clipboard.writeText(url);
+        expire();
+        if (generation === copyGeneration && current?.token === token) get("copy-status").textContent = "Private tracking link copied. Anyone with this link can view this order’s status and associated order-tracking information.";
+      } catch {
+        expire();
+        if (generation !== copyGeneration || current?.token !== token) return;
+        get("link-fallback").hidden = false;
+        const input = get("link-fallback").querySelector("input");
+        input.value = url; input.focus(); input.select();
+        get("copy-status").textContent = "Select and copy the link below. Keep it private.";
+      }
+    });
+    document.addEventListener("speedy:order-created", event => {
+      const detail = event.detail || {};
+      if (remember(detail.trackingToken, detail.order?.orderNumber, detail.order)) focusPanel();
+      else {
+        choose(null);
+        panel.hidden = false; shortcut.hidden = panelIntersecting;
+        steps.hidden = true;
+        get("order").textContent = ""; get("updated").textContent = "";
+        get("copy-status").textContent = ""; get("link-fallback").hidden = true;
+        get("status").textContent = "Your order was received.";
+        button("copy").hidden = true; button("refresh").hidden = true; button("forget").hidden = true;
+        error("Online tracking is unavailable for this order. Please call dispatch for an update. Do not submit the order again.");
+        focusPanel();
+      }
+    });
+    const resume = () => { syncStorage(); refresh(); };
+    document.addEventListener("visibilitychange", () => {
+      clearTimeout(timer);
+      expire();
+      if (!document.hidden) resume();
+    });
+    window.addEventListener("online", resume);
+    window.addEventListener("pageshow", resume);
+    window.addEventListener("focus", resume);
+    window.addEventListener("pagehide", cancel);
+    window.addEventListener("storage", event => {
+      if (event.key !== KEY && event.key !== null) return;
+      // Read the latest value: queued storage events can contain stale newValue.
+      if (event.storageArea) {
+        try { if (event.storageArea !== window.localStorage) return; }
+        catch { storageAvailable = false; }
+      }
+      syncStorage();
+    });
+    try { records = parseRecords(window.localStorage.getItem(KEY)); save(); }
+    catch { storageAvailable = false; }
+    function openLink() {
+      const linkedToken = window.speedyTrackingLink;
+      const invalidLink = window.speedyTrackingLinkInvalid;
+      delete window.speedyTrackingLink;
+      delete window.speedyTrackingLinkInvalid;
+      if (linkedToken) { remember(linkedToken); focusPanel(); }
+      else {
+        choose(records[0]);
+        if (invalidLink) {
+          panel.hidden = false;
+          error("This tracking link is invalid. Please use the complete private link or call dispatch.");
+          focusPanel();
+        }
+      }
+    }
+    document.addEventListener("speedy:tracking-link-opened", openLink);
+    openLink();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
