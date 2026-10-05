@@ -514,6 +514,14 @@ model DispatcherChecklistAlertLog {
   @@index([sentAt])
 }
 
+model BndEmailAlert {
+  orderId     String    @id
+  orderNumber String
+  createdAt   DateTime  @default(now())
+  claimedAt   DateTime?
+  sentAt      DateTime?
+}
+
 model SystemSetting {
   key       String   @id
   value     String

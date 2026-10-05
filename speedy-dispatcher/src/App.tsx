@@ -6,6 +6,7 @@ import { useIncomingOrderAlarm } from "./useIncomingOrderAlarm";
 import { IncomingOrderAlarmControls, IncomingOrderAlarmPopup } from "./IncomingOrderAlarm";
 import { useBndOrderAlerts } from "./useBndOrderAlerts";
 import { BndOrderAlertControls, BndOrderAlertPopup } from "./BndOrderAlerts";
+import { BndEmailControls } from "./BndEmailControls";
 import { DispatchToggleControl } from "./DispatchToggleControl";
 import { DispatcherPinboard } from "./DispatcherPinboard";
 import { CustomerCare, CheckInResults } from "./CustomerCare";
@@ -7980,6 +7981,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
                 <IncomingOrderAlarmControls alarm={orderAlarm} />
                 <BndOrderAlertControls alarm={bndAlarm} />
+                {currentUser?.role === "ADMIN" && <BndEmailControls key={token} token={token} />}
 
                 <DispatchToggleControl label="Live Traffic" enabled={googleLiveTrafficEnabled}
                   loading={googleLiveTrafficLoading} saving={googleLiveTrafficUpdating}
