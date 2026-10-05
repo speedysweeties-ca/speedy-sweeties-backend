@@ -7,6 +7,7 @@ import { IncomingOrderAlarmControls, IncomingOrderAlarmPopup } from "./IncomingO
 import { useBndOrderAlerts } from "./useBndOrderAlerts";
 import { BndOrderAlertControls, BndOrderAlertPopup } from "./BndOrderAlerts";
 import { DispatchToggleControl } from "./DispatchToggleControl";
+import { DispatcherPinboard } from "./DispatcherPinboard";
 import { CustomerCare, CheckInResults } from "./CustomerCare";
 import { StaffManagement } from "./StaffManagement";
 import { StaffPasswordPage } from "./StaffPasswordPage";
@@ -224,6 +225,7 @@ type ActiveTab =
   | "PICKUP_LOCATIONS"
   | "CUSTOMERS"
   | "CUSTOMER_FOLLOW_UPS"
+  | "DISPATCHER_PINBOARD"
   | "QR_TRACKING"
   | "DISPATCHER_CHECKLIST";
 
@@ -849,6 +851,8 @@ function App() {
 
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("LIVE_ORDERS");
+  const [pinboardUnreadCount, setPinboardUnreadCount] = useState<number | null>(null);
+  const [pinboardRefreshKey, setPinboardRefreshKey] = useState(0);
   const [customerFollowUpCount, setCustomerFollowUpCount] = useState<number | null>(null);
   const [showMoreControls, setShowMoreControls] = useState(false);
 
@@ -3434,6 +3438,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     localStorage.removeItem("token");
     setToken(null);
     setCustomerFollowUpCount(null);
+    setPinboardUnreadCount(null);
     setCurrentUser(null);
     setOrders([]);
     setDeliveredOrders([]);
@@ -7702,6 +7707,16 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 )}
               </button>
 
+              {(currentUser?.role === "ADMIN" || currentUser?.role === "DISPATCHER") && <button
+                onClick={() => setActiveTab("DISPATCHER_PINBOARD")}
+                aria-pressed={activeTab === "DISPATCHER_PINBOARD"}
+                aria-label={`Dispatcher Pinboard${pinboardUnreadCount ? ` ${pinboardUnreadCount} unread` : ""}`}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === "DISPATCHER_PINBOARD" ? "bg-red-600 hover:bg-red-700" : "bg-zinc-800 hover:bg-zinc-700"}`}
+              >
+                Dispatcher Pinboard
+                {pinboardUnreadCount !== null && pinboardUnreadCount > 0 && <span className="ml-2 rounded-full bg-amber-400 px-2 py-0.5 text-xs font-bold text-zinc-950">{pinboardUnreadCount} unread</span>}
+              </button>}
+
               <button
                 onClick={() => setActiveTab("DRIVER_LOCATION")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
@@ -7720,6 +7735,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   void fetchDrivers(token);
                   void fetchAutoDispatchSetting(token, true);
                   void fetchGoogleLiveTrafficSetting(token, true);
+
+                  setPinboardRefreshKey(value => value + 1);
 
                   if (activeTab === "DRIVERS") {
                     setStaffRefreshKey(value => value + 1);
@@ -7999,6 +8016,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
       <div hidden={activeTab !== "CUSTOMER_FOLLOW_UPS"} className="max-w-7xl mx-auto px-6 py-6">
         <CustomerCare key={token} token={token} onOpenCountChange={setCustomerFollowUpCount} />
       </div>
+      {(currentUser?.role === "ADMIN" || currentUser?.role === "DISPATCHER") && <div hidden={activeTab !== "DISPATCHER_PINBOARD"} className="max-w-7xl mx-auto px-6 py-6">
+        <DispatcherPinboard key={token} token={token} visible={activeTab === "DISPATCHER_PINBOARD"} refreshKey={pinboardRefreshKey} onUnreadCountChange={setPinboardUnreadCount} />
+      </div>}
       <div hidden={activeTab !== "DRIVERS"} className="max-w-7xl mx-auto px-6 py-6">
         {renderDriversPage()}
       </div>
@@ -8340,7 +8360,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             onPresetDays={applyDispatcherPerformanceDatePreset}
             onRefresh={() => token && void fetchDispatcherPerformance(token, true)}
           />
-        ) : activeTab === "HELP" || activeTab === "CUSTOMER_FOLLOW_UPS" || activeTab === "DRIVERS" ? null : activeTab === "CATALOG" ? (
+        ) : activeTab === "HELP" || activeTab === "CUSTOMER_FOLLOW_UPS" || activeTab === "DRIVERS" || activeTab === "DISPATCHER_PINBOARD" ? null : activeTab === "CATALOG" ? (
           renderCatalogAdmin()
         ) : activeTab === "PICKUP_LOCATIONS" ? (
           renderPickupLocations()

@@ -119,3 +119,17 @@ Administrators open **Show more → Staff** (formerly Drivers) for a unified dir
 - Deploy migration `20261004205000_staff_account_management` before starting the new backend. It adds defaulted columns only. Render's existing pre-deploy migration command applies it.
 
 Administrator endpoints: `GET /api/v1/auth/staff`, `PATCH /api/v1/auth/staff/:id`, `PATCH /api/v1/auth/staff/:id/status`, and `POST /api/v1/auth/staff/:id/reset-password`. `POST /api/v1/auth/change-password` accepts only the scoped password-change credential issued after password verification. Staff history options use `GET /api/v1/auth/drivers/history`.
+
+
+## Dispatcher pinboard
+
+The always-visible **Dispatcher Pinboard** button opens a private shared board for ADMIN and DISPATCHER accounts. Drivers and unauthenticated requests cannot read or write notes. It does not send SMS, email, push notifications, or customer messages.
+
+- Post a title and message; **Important — keep at the top** places an active note above routine notes. Authors and Toronto-local timestamps are displayed.
+- **I’ve read this** records an explicit acknowledgement. Opening the page does not mark others' notes read. The author is recorded as having read their own note.
+- The button checks the current user's unread active-note count every 15 seconds. Note lists refresh while the page is visible; draft text stays when switching tabs, and clears after posting or logout.
+- **Resolve note** moves a note into **Resolved notes** with the resolver and timestamp. **Reopen note** restores it. Active notes do not expire between shifts; existing acknowledgements remain on reopened notes.
+- Posting uses a client-generated UUID so retrying the same request cannot create duplicate notes. Status changes use a version guard. No delete or message-edit workflow is included in this initial version.
+- The additive migration `20261005035000_dispatcher_pinboard` creates separate note/read-receipt tables and indexes. Render's pre-deploy migration must finish before the new backend starts. Existing accounts and orders are untouched.
+
+Authenticated endpoints under `/api/v1/dispatcher-pinboard`: `GET /summary`, `GET /notes?status=ACTIVE&page=1`, `POST /notes`, `POST /notes/:id/read`, and `PATCH /notes/:id/status`. Responses use `Cache-Control: no-store`.
