@@ -62,3 +62,43 @@ are never returned to browsers or logged. The staff-only endpoint
 
 To stop upstream monitoring, set `BND_MONITOR_ENABLED=false` and restart. Before
 deployment, rollback is the prior main commit; no database rollback is necessary.
+
+## Admin email notifications
+
+- The **B&D Emails** toggle sits alongside B&D Alerts and is shown only to ADMIN
+  accounts. Both GET and PUT `/api/v1/bnd-alerts/email-settings` also require a
+  currently active admin on the server, including when an old token says ADMIN.
+- It defaults **OFF**. Turning it ON saves a shared system setting and sends to
+  **rstubbings@hotmail.com** only. Dispatchers cannot read/change this setting or
+  change the recipient. Closing Dispatcher or switching off desktop B&D Alerts
+  does not stop emails; use the admin email toggle to stop future sends.
+- The existing B&D monitor's next fresh snapshot is checked for waiting calls.
+  Normal detection remains roughly 60–90 seconds, plus email-provider delivery
+  time. Enabling also emails any currently waiting call that has not been emailed.
+  Calls that arrive and are claimed between B&D polls cannot be detected.
+- One email per B&D order ID contains its number and a reminder to check B&D.
+  No customer details, screenshots, claiming, or Speedy order creation is involved.
+  The email service reuses `RESEND_API_KEY` and `UNDISPATCHED_ALERT_FROM`, with a
+  fixed recipient independent of other email settings. Missing email setup is
+  shown in the admin control and blocks enabling, but never blocks disabling.
+- The additive `20261005160000_bnd_email_alerts` migration creates `BndEmailAlert`
+  receipts. Run `npx prisma migrate deploy` before starting the new backend, then
+  deploy Dispatcher. No new environment variables or dependencies are required.
+- Durable receipts and atomic claims protect repeated checks, restarts, and
+  overlapping processes. Keep receipts to preserve deduplication. Failed sends
+  retry after two minutes while the call is still waiting and monitoring is fresh.
+  A send already in progress when OFF is saved may still arrive.
+- Each retry uses the same Resend idempotency key and stored order number.
+  [Resend retains keys for 24 hours](https://resend.com/docs/dashboard/emails/idempotency-keys),
+  so automatic retries stop 23 hours after the receipt is created. This prevents
+  duplicate delivery after an ambiguous provider timeout beyond that window.
+  Provider acceptance does not establish inbox delivery; check the provider for
+  failures, bounces or expired unconfirmed sends. Errors are logged without raw
+  provider responses or customer data. Email failures do not affect B&D monitoring.
+- Rollback: turn B&D Emails OFF, then revert application code if necessary. The
+  additive receipt table can remain. The original desktop alerts remain independent.
+
+Verification before enabling: backend and dispatcher checks; apply migration;
+confirm admin-only visibility and on/off persistence; then verify one real waiting
+call produces one email and no repeat after a refresh/restart. Offline tests use
+fake emails and never contact B&D or send a real message.

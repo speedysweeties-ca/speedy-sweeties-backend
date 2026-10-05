@@ -8,6 +8,7 @@ import { runPickupLocationApply } from "./services/pickupLocationApply.service";
 import { startPickupLocationHoursMonitor } from "./services/pickupLocationHours.service";
 import { repairUnresolvedPickupLocationPlaceIds } from "./services/pickupLocationPlaceIdRepair.service";
 import { startBndOrderMonitor } from "./services/bndOrderMonitor.service";
+import { startBndEmailAlertMonitor } from "./services/bndEmailAlerts.service";
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -16,6 +17,7 @@ let isShuttingDown = false;
 let stopUndispatchedOrderAlertMonitor: (() => void) | undefined;
 let stopPickupLocationHoursMonitor: (() => void) | undefined;
 let stopBndOrderMonitor: (() => void) | undefined;
+let stopBndEmailAlertMonitor: (() => void) | undefined;
 
 async function shutdown(signal: string): Promise<void> {
   if (isShuttingDown) {
@@ -28,6 +30,7 @@ async function shutdown(signal: string): Promise<void> {
   stopUndispatchedOrderAlertMonitor?.();
   stopPickupLocationHoursMonitor?.();
   stopBndOrderMonitor?.();
+  stopBndEmailAlertMonitor?.();
 
   const forceExitTimeout = setTimeout(() => {
     console.error("Graceful shutdown timed out. Forcing process exit.");
@@ -78,6 +81,7 @@ async function startServer(): Promise<void> {
     stopUndispatchedOrderAlertMonitor = startUndispatchedOrderAlertMonitor();
     stopPickupLocationHoursMonitor = startPickupLocationHoursMonitor();
     stopBndOrderMonitor = startBndOrderMonitor();
+    stopBndEmailAlertMonitor = startBndEmailAlertMonitor();
 
     const runDryRun = process.env.PICKUP_LOCATION_DRY_RUN_ON_START === "true";
     const runApply = process.env.PICKUP_LOCATION_APPLY_ON_START === "true";
