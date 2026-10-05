@@ -1,6 +1,6 @@
 export type HelpRole = "ADMIN" | "DISPATCHER";
 export type HelpDestination = "CUSTOMERS" | "LIVE_ORDERS" | "CREATE_MANUAL_ORDER" |
-  "DELIVERED_HISTORY" | "DISPATCHER_CHECKLIST" | "DRIVER_LOCATION" | "DISPATCHER_PERFORMANCE" | "DRIVERS";
+  "DELIVERED_HISTORY" | "DISPATCHER_CHECKLIST" | "DRIVER_LOCATION" | "DISPATCHER_PERFORMANCE" | "DRIVERS" | "DISPATCHER_PINBOARD";
 
 export interface HelpArticle {
   id: string;
@@ -15,6 +15,12 @@ export interface HelpArticle {
 // Reviewed against main 3bec1b0. Update these guides alongside workflow changes.
 // Only add business policies after the business owner has confirmed them.
 export const dispatcherHelpKnowledge: HelpArticle[] = [
+  {
+    id: "dispatcher-pinboard", title: "Leave notes for the next dispatcher",
+    reviewedAt: "2026-10-05", roles: ["ADMIN", "DISPATCHER"], destination: "DISPATCHER_PINBOARD",
+    evidence: ["speedy-dispatcher/src/DispatcherPinboard.tsx", "src/controllers/dispatcherPinboard.controller.ts"],
+    content: "Open Dispatcher Pinboard in the always-visible top buttons. It is private to dispatchers and administrators. Under Pin a new note, enter a Title and Message, optionally select Important — keep at the top, then click Post note. Important active notes appear first, followed by the newest notes. Each note shows its author and posting time in Guelph local time. Click I’ve read this to acknowledge it; simply opening the board does not mark other people's notes read. Expand Read by to see names and acknowledgement times. The top button shows your unread active notes and checks every 15 seconds. Resolve note asks for confirmation and moves the note into Resolved notes; Reopen note restores it to the active board. Unresolved notes stay across shifts without an expiry. Drafts stay while switching dashboard tabs, but a refresh or logout clears them. Refresh notes reloads the board. The help assistant cannot read or post pinboard notes."
+  },
   {
     id: "staff-accounts", title: "Create, edit, reset or deactivate a staff account",
     reviewedAt: "2026-10-04", roles: ["ADMIN"], destination: "DRIVERS",

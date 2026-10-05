@@ -107,14 +107,17 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  assignedOrders       Order[]                         @relation("DriverOrders")
-  dispatchedOrders     Order[]                         @relation("DispatchedOrders")
-  createdOrders        Order[]                         @relation("CreatedOrders")
-  dispatchEvents       DispatchEvent[]                 @relation("DispatchEventActor")
-  dispatchEventsFrom   DispatchEvent[]                 @relation("DispatchEventFromDriver")
-  dispatchEventsTo     DispatchEvent[]                 @relation("DispatchEventToDriver")
-  checklistCompletions DispatcherChecklistCompletion[] @relation("ChecklistCompletedBy")
-  handledCheckIns      DeliveryHelpRequest[]
+  assignedOrders          Order[]                         @relation("DriverOrders")
+  dispatchedOrders        Order[]                         @relation("DispatchedOrders")
+  createdOrders           Order[]                         @relation("CreatedOrders")
+  dispatchEvents          DispatchEvent[]                 @relation("DispatchEventActor")
+  dispatchEventsFrom      DispatchEvent[]                 @relation("DispatchEventFromDriver")
+  dispatchEventsTo        DispatchEvent[]                 @relation("DispatchEventToDriver")
+  checklistCompletions    DispatcherChecklistCompletion[] @relation("ChecklistCompletedBy")
+  handledCheckIns         DeliveryHelpRequest[]
+  dispatcherNotes         DispatcherNote[]                @relation("DispatcherNoteAuthor")
+  resolvedDispatcherNotes DispatcherNote[]                @relation("DispatcherNoteResolver")
+  dispatcherNoteReads     DispatcherNoteRead[]
 
   @@index([role])
   @@index([isOnline])
@@ -122,6 +125,40 @@ model User {
   @@index([locationRecordedAt])
   @@index([driverAppState])
   @@index([driverAppStateUpdatedAt])
+}
+
+enum DispatcherNoteStatus {
+  ACTIVE
+  RESOLVED
+}
+
+model DispatcherNote {
+  id           String               @id @default(uuid())
+  title        String               @db.VarChar(140)
+  message      String               @db.VarChar(3000)
+  isImportant  Boolean              @default(false)
+  status       DispatcherNoteStatus @default(ACTIVE)
+  version      Int                  @default(0)
+  authorId     String?
+  author       User?                @relation("DispatcherNoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt    DateTime             @default(now())
+  resolvedAt   DateTime?
+  resolvedById String?
+  resolvedBy   User?                @relation("DispatcherNoteResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  reads        DispatcherNoteRead[]
+
+  @@index([status, isImportant, createdAt])
+}
+
+model DispatcherNoteRead {
+  noteId String
+  userId String
+  readAt DateTime       @default(now())
+  note   DispatcherNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, userId])
+  @@index([userId])
 }
 
 model Customer {
