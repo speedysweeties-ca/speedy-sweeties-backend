@@ -645,7 +645,14 @@ const createOrder = async (
   let deliveryLocation: DeliveryLocationData;
 
   try {
-    deliveryLocation = await geocodeDeliveryAddress(deliveryAddress);
+    deliveryLocation = await geocodeDeliveryAddress(deliveryAddress, {
+      requireRooftop: resolvedOrderSource === OrderSource.WEBFLOW
+    });
+    if (resolvedOrderSource === OrderSource.WEBFLOW && deliveryLocation.geocodeStatus !== "VERIFIED") {
+      res.status(503).json({ success: false, code: "ADDRESS_CHECK_UNAVAILABLE",
+        message: "Address checking is temporarily unavailable. Please try again or call 519-826-8097 to order." });
+      return;
+    }
   } catch (error) {
     if (sendDeliveryAddressValidationError(error, res)) return;
     throw error;

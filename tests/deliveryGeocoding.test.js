@@ -92,6 +92,37 @@ test("candidate selection evaluates all results rather than accepting the first"
   assert.equal(selected?.place_id, "verified-place");
 });
 
+test("a different house number cannot be silently accepted in the same city", () => {
+  const differentNumber = result({ address_components: result().address_components.map((component) =>
+    component.types.includes("street_number") ? { ...component, long_name: "100", short_name: "100" } : component) });
+  assert.equal(selectVerifiedGeocodeCandidate([differentNumber], address), null);
+});
+
+test("a different street or direction cannot be silently accepted", () => {
+  for (const name of ["Industry Drive", "Industrial Drive West"]) {
+    const differentStreet = result({ address_components: result().address_components.map((component) =>
+      component.types.includes("route") ? { ...component, long_name: name, short_name: name } : component) });
+    assert.equal(selectVerifiedGeocodeCandidate([differentStreet], address), null);
+  }
+});
+
+test("full and abbreviated street names match without changing house-number suffixes", () => {
+  assert.ok(selectVerifiedGeocodeCandidate([result()], { ...address, addressLine1: "10A Industrial Drive" }));
+  assert.equal(selectVerifiedGeocodeCandidate([result()], { ...address, addressLine1: "10 Industrial Dr" }), null);
+});
+
+test("website verification rejects an interpolated road position", async () => {
+  const interpolated = result({ geometry: { location: { lat: 43.53, lng: -80.22 }, location_type: "RANGE_INTERPOLATED" } });
+  await assert.rejects(geocodeDeliveryAddress(address, {
+    ...serviceOptions({ status: "OK", results: [interpolated] }), requireRooftop: true
+  }), /valid delivery address/);
+});
+
+test("the saved Google address is the returned address rather than a copy of the request", async () => {
+  const location = await geocodeDeliveryAddress(address, serviceOptions({ status: "OK", results: [result()] }));
+  assert.equal(location.geocodedAddress, result().formatted_address);
+});
+
 test("a supplied incorrect postalCode is ignored by geocoding", async () => {
   let requestedUrl = "";
   const location = await geocodeDeliveryAddress(

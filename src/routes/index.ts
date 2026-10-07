@@ -16,6 +16,7 @@ import chatgptOrderingRoutes from "./chatgptOrdering.routes";
 import bndAlertsRoutes from "./bndAlerts.routes";
 import deliveryCheckInRoutes from "./deliveryCheckIn.routes";
 import dispatcherPinboardRoutes from "./dispatcherPinboard.routes";
+import addressRoutes from "./address.routes";
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.get("/health", (_req, res) => {
 });
 
 router.use("/orders", orderRoutes);
+router.use("/addresses", addressRoutes);
 router.use("/chatgpt", chatgptOrderingRoutes);
 router.use("/auth", authRoutes);
 router.use("/customers", customerRoutes);

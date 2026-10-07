@@ -53,6 +53,13 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
+// This small public script enhances the Webflow address field; no key is exposed.
+app.use("/webflow", (_req, res, next) => {
+  res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  res.set("Cache-Control", "public, max-age=300");
+  next();
+}, express.static(path.join(__dirname, "../public/webflow")));
+
 // Standalone customer page, with no analytics or third-party scripts that could read its credential.
 app.use("/track", (_req, res, next) => {
   res.set("Cache-Control", "no-store");

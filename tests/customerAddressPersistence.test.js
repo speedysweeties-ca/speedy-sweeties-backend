@@ -78,6 +78,18 @@ const needsReviewLocation = {
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
+test("website orders stop before database writes when Google cannot verify the address", async (t) => {
+  replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
+  let options;
+  replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async (_address, value) => { options = value; return needsReviewLocation; });
+  replaceForTest(t, prisma, "$transaction", async () => { assert.fail("An unverified website order must not reach the database"); });
+  const response = responseRecorder();
+  await createOrderController({ body: firstOrderBody, headers: { origin: "https://www.speedysweeties.ca" } }, response);
+  assert.equal(options.requireRooftop, true);
+  assert.equal(response.statusCode, 503);
+  assert.equal(response.body.code, "ADDRESS_CHECK_UNAVAILABLE");
+});
+
 const installOrderCreationDatabase = (t, initialCustomer = null) => {
   const originalAutoDispatchSetting = process.env.AUTO_DISPATCH_ENABLED;
   process.env.AUTO_DISPATCH_ENABLED = "false";

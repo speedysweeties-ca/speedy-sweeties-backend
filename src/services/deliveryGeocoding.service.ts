@@ -21,6 +21,7 @@ export type GeocodingServiceOptions = {
   apiKey?: string;
   timeoutMs?: number;
   fetchImplementation?: typeof fetch;
+  requireRooftop?: boolean;
 };
 
 type GoogleAddressComponent = {
@@ -187,6 +188,35 @@ const isProvinceOntario = (result: GoogleGeocodeResult): boolean =>
     getComponent(result, ["administrative_area_level_1"])
   ).some((value) => ["on", "ontario"].includes(value));
 
+// Compare the actual civic components, not just the municipality or map pin.
+// Expand only complete tokens so King St and Kingston St cannot match.
+const streetAliases: Record<string, string> = {
+  st: "street", rd: "road", dr: "drive", ave: "avenue", av: "avenue",
+  blvd: "boulevard", ct: "court", crt: "court", cres: "crescent",
+  ln: "lane", pl: "place", terr: "terrace", ter: "terrace", cir: "circle",
+  hwy: "highway", pkwy: "parkway", trl: "trail",
+  n: "north", s: "south", e: "east", w: "west",
+  ne: "northeast", nw: "northwest", se: "southeast", sw: "southwest"
+};
+
+const normalizeStreet = (value: string): string => normalizeFingerprintText(value)
+  .split(" ").map((part) => streetAliases[part] || part).join(" ");
+
+export const civicAddressMatches = (
+  result: GoogleGeocodeResult,
+  address: DeliveryAddressInput
+): boolean => {
+  const civic = sanitizeAddressLineForGeocoding(address.addressLine1)
+    .replace(/\s*,?\s+(?:unit|apt\.?|apartment|suite)\s+[\w-]+\s*$/i, "");
+  const match = civic.match(/^\s*(\d+[a-z]?(?:\s*1\/2)?)\s+(.+?)\s*$/i);
+  if (!match) return false;
+  const number = normalizeFingerprintText(match[1]);
+  const route = normalizeStreet(match[2]);
+  return componentValues(getComponent(result, ["street_number"])).includes(number) &&
+    componentValues(getComponent(result, ["route"]))
+      .some((value) => normalizeStreet(value) === route);
+};
+
 const hasCivicPrecision = (result: GoogleGeocodeResult): boolean => {
   const resultTypes = result.types || [];
   const locationType = result.geometry?.location_type || "";
@@ -202,7 +232,8 @@ const hasCivicPrecision = (result: GoogleGeocodeResult): boolean => {
 
 export const selectVerifiedGeocodeCandidate = (
   results: GoogleGeocodeResult[],
-  address: DeliveryAddressInput
+  address: DeliveryAddressInput,
+  requireRooftop = false
 ): GoogleGeocodeResult | null => {
   const evaluated = results.flatMap((result): CandidateEvaluation[] => {
     const latitude = result.geometry?.location?.lat;
@@ -214,6 +245,8 @@ export const selectVerifiedGeocodeCandidate = (
     if (!isCountryCanada(result) || !isProvinceOntario(result)) return [];
     if (!municipalityMatches(result, address.city)) return [];
     if (!hasCivicPrecision(result)) return [];
+    if (!civicAddressMatches(result, address)) return [];
+    if (requireRooftop && result.geometry?.location_type !== "ROOFTOP") return [];
 
     const locationType = result.geometry?.location_type || "";
     const resultTypes = result.types || [];
@@ -285,7 +318,7 @@ export const geocodeDeliveryAddress = async (
     if (payload.status !== "OK") return needsReviewLocation(address);
 
     const results = payload.results || [];
-    const selectedResult = selectVerifiedGeocodeCandidate(results, address);
+    const selectedResult = selectVerifiedGeocodeCandidate(results, address, options.requireRooftop);
 
     if (!selectedResult) {
       throw new DeliveryAddressValidationError(
@@ -297,7 +330,7 @@ export const geocodeDeliveryAddress = async (
       deliveryLatitude: selectedResult.geometry?.location?.lat ?? null,
       deliveryLongitude: selectedResult.geometry?.location?.lng ?? null,
       geocodeStatus: DeliveryGeocodeStatus.VERIFIED,
-      geocodedAddress: canonicalAddress,
+      geocodedAddress: selectedResult.formatted_address || canonicalAddress,
       geocodePlaceId: selectedResult.place_id ?? null,
       geocodeAddressFingerprint: fingerprint
     };
