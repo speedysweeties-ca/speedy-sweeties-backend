@@ -9,6 +9,8 @@ import {
   UserRole
 } from "@prisma/client";
 import { messaging } from "../config/firebase";
+import { env } from "../config/env";
+import { validateCivicAddress } from "../services/addressValidation.service";
 import { normalizePickupTypeOrUnknown } from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
 import { signCustomerLoyaltyToken } from "../utils/jwt";
@@ -645,6 +647,15 @@ const createOrder = async (
   let deliveryLocation: DeliveryLocationData;
 
   try {
+    if (resolvedOrderSource === OrderSource.WEBFLOW && env.WEBFLOW_ADDRESS_VALIDATION_ENABLED) {
+      try { await validateCivicAddress(deliveryAddress); }
+      catch (error) {
+        if (sendDeliveryAddressValidationError(error, res)) return;
+        res.status(503).json({ success: false, code: "ADDRESS_CHECK_UNAVAILABLE",
+          message: "Address checking is temporarily unavailable. Please try again or call 519-826-8097 to order." });
+        return;
+      }
+    }
     deliveryLocation = await geocodeDeliveryAddress(deliveryAddress, {
       requireRooftop: resolvedOrderSource === OrderSource.WEBFLOW
     });

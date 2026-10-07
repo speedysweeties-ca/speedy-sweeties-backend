@@ -46,6 +46,10 @@ test("provider errors fail clearly without returning guessed addresses", async (
 test("public verification rejects invalid inputs and provider outages; script can load on Webflow", async t => {
   const app = require("../dist/app.js").default;
   const geo = require("../dist/services/deliveryGeocoding.service.js");
+  const validation = require("../dist/services/addressValidation.service.js");
+  const originalValidation = validation.validateCivicAddress;
+  validation.validateCivicAddress = async () => {};
+  t.after(() => { validation.validateCivicAddress = originalValidation; });
   const original = geo.geocodeDeliveryAddress;
   t.after(() => { geo.geocodeDeliveryAddress = original; });
   const server = app.listen(0, "127.0.0.1");

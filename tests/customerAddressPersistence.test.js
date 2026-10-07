@@ -90,6 +90,22 @@ test("website orders stop before database writes when Google cannot verify the a
   assert.equal(response.body.code, "ADDRESS_CHECK_UNAVAILABLE");
 });
 
+test("enabled website address validation rejects an unconfirmed property before order creation", async (t) => {
+  const { env } = require("../dist/config/env.js");
+  const validation = require("../dist/services/addressValidation.service.js");
+  const enabled = env.WEBFLOW_ADDRESS_VALIDATION_ENABLED;
+  env.WEBFLOW_ADDRESS_VALIDATION_ENABLED = true;
+  t.after(() => { env.WEBFLOW_ADDRESS_VALIDATION_ENABLED = enabled; });
+  replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
+  replaceForTest(t, validation, "validateCivicAddress", async () => { throw new deliveryGeocodingService.DeliveryAddressValidationError("House number unconfirmed"); });
+  replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => assert.fail("Invalid property must stop before geocoding"));
+  replaceForTest(t, prisma, "$transaction", async () => assert.fail("Invalid property must stop before database writes"));
+  const response = responseRecorder();
+  await createOrderController({ body: firstOrderBody, headers: { origin: "https://www.speedysweeties.ca" } }, response);
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.code, "INVALID_DELIVERY_ADDRESS");
+});
+
 const installOrderCreationDatabase = (t, initialCustomer = null) => {
   const originalAutoDispatchSetting = process.env.AUTO_DISPATCH_ENABLED;
   process.env.AUTO_DISPATCH_ENABLED = "false";

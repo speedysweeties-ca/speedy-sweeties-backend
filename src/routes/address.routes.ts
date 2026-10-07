@@ -3,6 +3,7 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { z } from "zod";
 import { getAddressDetails, searchAddresses } from "../services/addressSearch.service";
 import { DeliveryAddressValidationError, geocodeDeliveryAddress } from "../services/deliveryGeocoding.service";
+import { validateCivicAddress } from "../services/addressValidation.service";
 
 const router = Router();
 router.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 180,
@@ -34,6 +35,7 @@ for (const action of ["suggestions", "details", "verify"] as const) {
       } else if (action === "details") {
         res.json({ success: true, address: await getAddressDetails(data.placeId, data.sessionToken) });
       } else {
+        await validateCivicAddress(data);
         const location = await geocodeDeliveryAddress(data, { requireRooftop: true });
         if (location.geocodeStatus !== "VERIFIED") throw new Error("Address check unavailable");
         res.json({ success: true, verified: true });
