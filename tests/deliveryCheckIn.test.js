@@ -31,7 +31,9 @@ test("Webflow release bundle stays within its code limit and contains valid scri
   const footer = fs.readFileSync(path.join(__dirname, "../webflow/site-footer.html"), "utf8");
   assert(footer.length < 50000);
   const scripts = [...footer.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
-  assert.equal(scripts.length, 3);
+  assert.equal(scripts.filter(script => !/\bsrc=/.test(script[0])).length, 3);
+  assert.match(footer, /https:\/\/speedy-api-lbfe.onrender.com\/webflow\/address-autocomplete.js/);
+  assert.doesNotThrow(() => new vm.Script(fs.readFileSync(path.join(__dirname, "../public/webflow/address-autocomplete.js"), "utf8")));
   for (const script of scripts) assert.doesNotThrow(() => new vm.Script(script[1]));
 });
 

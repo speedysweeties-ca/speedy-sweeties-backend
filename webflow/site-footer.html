@@ -1,9 +1,5 @@
-<script>/*
- * Speedy Sweeties Webflow order form
- *
- * Paste this file into the page-level code immediately before </body>. Keep
- * this source-controlled copy in sync with the published Webflow custom code.
- */
+<script src="https://speedy-api-lbfe.onrender.com/webflow/address-autocomplete.js?v=20261007"></script>
+<script>
 (function () {
   const normalizeOptionalAddressField = (value) => {
     const normalized = typeof value === "string" ? value.trim() : "";
@@ -300,15 +296,12 @@
       showError(unconfirmedMessage);
     };
 
-    // Aborting a POST does not establish that the server did not create an order.
-    // Keep ambiguous outcomes gated until dispatch confirms the order's status.
     const isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-    // These responses are emitted before order creation. Generic 400 database
-    // errors and duplicate-submission 409s can concern an already-created order.
     const isKnownRejection = (response, result) => {
       if (!response) return false;
       if (response.status === 429) return true;
       if (!isRecord(result) || result.success !== false) return false;
+      if (response.status === 503) return result.code === "ADDRESS_CHECK_UNAVAILABLE";
       if (response.status === 409) return result.message === closedMessage;
       if (response.status !== 400) return false;
       return result.code === "INVALID_DELIVERY_ADDRESS" ||
@@ -317,8 +310,6 @@
             typeof error.path === "string" && typeof error.message === "string"));
     };
 
-    // POST /orders returns success:true and the persisted Prisma Order.
-    // Tracking is optional for acknowledgement; its existing consumer validates it.
     const orderStatuses = new Set([
       "PLACED", "DISPATCHED", "ACCEPTED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"
     ]);
@@ -529,8 +520,13 @@
         }
 
         try {
+          if (!window.speedyAddress) throw new Error("Address checking is still loading. Please refresh this page or call 519-826-8097.");
+          if (submitButton) submitButton.value = "Checking address...";
+          await window.speedyAddress.verify();
+          if (payload.addressLine1 !== document.getElementById("Address").value.trim() || payload.city !== document.getElementById("City").value.trim()) throw new Error("Your address changed. Please submit again.");
           // Recheck at submission, including when a tab has stayed open past closing.
           if (await refreshBusinessStatus() === "closed") return;
+          if (!window.speedyAddress.matches(payload)) throw new Error("Your address changed. Please select it again.");
           if (submitButton) submitButton.value = "Submitting order...";
           const { response, result } = await requestOrder(payload);
 
@@ -736,6 +732,7 @@
       <div data-role="selector" hidden><label for="ss-track-select">Choose an order</label><select id="ss-track-select"></select></div>
       <p class="ss-track-order" data-role="order"></p>
       <p data-role="status" role="status" aria-live="polite"></p>
+      <p class="ss-track-order" data-role="total" role="status" aria-live="polite" hidden></p>
       <ol class="ss-track-steps" aria-label="Delivery progress" hidden></ol>
       <p class="ss-track-error" data-role="error" role="status" hidden></p>
       <p class="ss-track-meta" data-role="updated"></p>
@@ -927,6 +924,15 @@
       }
       get("order").textContent = current.orderNumber ? "Order #" + current.orderNumber : "Your delivery";
       get("status").textContent = cancelled ? "Order cancelled. Please call dispatch if you have any questions." : stages[index][1] + " — " + stages[index][2];
+      const total = get("total"), amount = data.receiptTotal;
+      const ready = data.orderStatus === "OUT_FOR_DELIVERY" || delivered;
+      const valid = typeof amount === "number" && Number.isFinite(amount) && amount >= 0;
+      total.hidden = cancelled;
+      total.textContent = cancelled ? "" : !ready
+        ? "Total will appear when your order is out for delivery."
+        : valid
+          ? (delivered ? "Final order total: " : "Total to pay at the door: ") + amount.toLocaleString("en-CA", { style: "currency", currency: "CAD" })
+          : "Your final total is being confirmed. Please call dispatch if you need it.";
       steps.hidden = cancelled;
       [...steps.children].forEach((li, i) => {
         li.dataset.state = i < index || delivered ? "complete" : i === index ? "current" : "pending";
@@ -992,7 +998,7 @@
         failures++;
         delay = Math.max(delay, Math.min(60000, 15000 * Math.pow(2, Math.min(failures, 2))));
         if (!lastData) get("status").textContent = "Waiting for a delivery update";
-        error("We cannot refresh your order right now. " + (lastData ? "The status shown is the last confirmed update. " : "") + "We’ll retry automatically, or you can call dispatch.");
+        error("We cannot refresh your order right now. " + (lastData ? "The status and total shown are the last confirmed update. " : "") + "We’ll retry automatically, or you can call dispatch.");
       } finally {
         clearTimeout(timeout);
         if (requestIsCurrent()) {
@@ -1018,6 +1024,7 @@
       get("order").textContent = "";
       get("status").textContent = "";
       get("updated").textContent = "";
+      get("total").textContent = ""; get("total").hidden = true;
       get("copy-status").textContent = "";
       get("link-fallback").hidden = true;
       get("link-fallback").querySelector("input").value = "";
