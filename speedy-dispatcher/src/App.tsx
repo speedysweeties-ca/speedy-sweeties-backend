@@ -11,6 +11,7 @@ import { DispatchToggleControl } from "./DispatchToggleControl";
 import { DispatcherPinboard } from "./DispatcherPinboard";
 import { CustomerCare, CheckInResults } from "./CustomerCare";
 import { StaffManagement } from "./StaffManagement";
+import { LogoutLog } from "./LogoutLog";
 import { DispatcherLogout } from "./DispatcherLogout";
 import { StaffPasswordPage } from "./StaffPasswordPage";
 import { CreateStaffProfile } from "./CreateStaffProfile";
@@ -213,6 +214,7 @@ type Order = {
 };
 
 type ActiveTab =
+  | "LOGOUT_LOG"
   | "HELP"
   | "LIVE_ORDERS"
   | "GROWTH_COMMAND_CENTRE"
@@ -3432,7 +3434,15 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = (reason: "MANUAL_LOGOUT" | "CLIENT_SESSION_REJECTED" = "CLIENT_SESSION_REJECTED") => {
+    // Server-side rejections already carry their verified cause in the log.
+    // Record button logouts before clearing the local session. Never delay logout.
+    if (reason === "MANUAL_LOGOUT" && token) {
+      void fetch(`${API_V1_BASE_URL}/auth/session-log/logout`, {
+        method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }), keepalive: true,
+      }).catch(() => { /* Offline exits cannot be confirmed by the server. */ });
+    }
     ordersRequestSequenceRef.current += 1;
     orderAlarm.reset();
     setOrdersRefreshError(null);
@@ -7805,7 +7815,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </button>
 
               <button
-                onClick={handleLogout}
+                onClick={() => handleLogout("MANUAL_LOGOUT")}
                 className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition font-semibold"
               >
                 Logout
@@ -7842,6 +7852,11 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
             <div id="dispatcher-more-controls" hidden={!showMoreControls} className="space-y-5 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
               <nav aria-label="More dispatcher pages" className="flex flex-wrap gap-3 text-base">
+                {currentUser?.role === "ADMIN" && <button
+                  onClick={() => setActiveTab("LOGOUT_LOG")}
+                  aria-pressed={activeTab === "LOGOUT_LOG"}
+                  className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === "LOGOUT_LOG" ? "bg-red-600 hover:bg-red-700" : "bg-zinc-800 hover:bg-zinc-700"}`}
+                >Logout Log</button>}
                 <button
                   onClick={() => setActiveTab("DELIVERED_HISTORY")}
                   className={`px-4 py-2 rounded-lg font-semibold transition ${
@@ -8027,6 +8042,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
       <div hidden={activeTab !== "DRIVERS"} className="max-w-7xl mx-auto px-6 py-6">
         {renderDriversPage()}
       </div>
+      {activeTab === "LOGOUT_LOG" && currentUser?.role === "ADMIN" && <div className="max-w-7xl mx-auto px-6 py-6"><LogoutLog token={token} /></div>}
       <div key={activeTab} className="max-w-7xl mx-auto px-6 py-6">
         {activeTab === "LIVE_ORDERS" ? (
           dashboardLoading && orders.length === 0 ? (
@@ -8365,7 +8381,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             onPresetDays={applyDispatcherPerformanceDatePreset}
             onRefresh={() => token && void fetchDispatcherPerformance(token, true)}
           />
-        ) : activeTab === "HELP" || activeTab === "CUSTOMER_FOLLOW_UPS" || activeTab === "DRIVERS" || activeTab === "DISPATCHER_PINBOARD" ? null : activeTab === "CATALOG" ? (
+        ) : activeTab === "LOGOUT_LOG" || activeTab === "HELP" || activeTab === "CUSTOMER_FOLLOW_UPS" || activeTab === "DRIVERS" || activeTab === "DISPATCHER_PINBOARD" ? null : activeTab === "CATALOG" ? (
           renderCatalogAdmin()
         ) : activeTab === "PICKUP_LOCATIONS" ? (
           renderPickupLocations()

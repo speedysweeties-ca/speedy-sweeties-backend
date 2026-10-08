@@ -1,4 +1,6 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
+import { listSessionEvents, reportSessionLogout } from "../controllers/staffSessionLog.controller";
 import { UserRole } from "@prisma/client";
 import { asyncHandler } from "../utils/asyncHandler";
 import { validateRequest } from "../middleware/validateRequest";
@@ -26,6 +28,11 @@ import { listStaff, updateStaffProfile, updateStaffStatus, resetStaffPassword, c
 import { staffProfileSchema, staffStatusSchema, staffResetSchema, passwordChangeSchema } from "../validators/staff.validator";
 
 const router = Router();
+
+const logoutReportLimit = rateLimit({ windowMs: 60000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false,
+  keyGenerator: req => (req as any).user.userId, message: { message: "Too many logout reports. Try again shortly." } });
+router.get("/session-log", requireAuth, requireRole([UserRole.ADMIN]), asyncHandler(listSessionEvents));
+router.post("/session-log/logout", requireAuth, requireRole([UserRole.ADMIN, UserRole.DISPATCHER, UserRole.DRIVER]), logoutReportLimit, asyncHandler(reportSessionLogout));
 
 router.get("/staff", requireAuth, requireRole([UserRole.ADMIN]), asyncHandler(listStaff));
 router.patch("/dispatchers/:id/force-logout", requireAuth, requireRole([UserRole.ADMIN]), asyncHandler(forceLogoutDispatcher));

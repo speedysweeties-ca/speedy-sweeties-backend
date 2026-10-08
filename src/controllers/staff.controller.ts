@@ -6,6 +6,7 @@ import { hashPassword, comparePassword } from "../utils/hash";
 import { verifyPasswordChangeToken } from "../utils/jwt";
 import { lockStaffAccount } from "../utils/staffAccountLock";
 import { staffProfileSchema, staffResetSchema, staffStatusSchema, passwordChangeSchema } from "../validators/staff.validator";
+import { recordSessionEvent, sessionActor, SessionReason } from "../services/staffSessionLog.service";
 
 const staffSelect = {
   id: true, firstName: true, lastName: true, email: true, role: true,
@@ -32,6 +33,7 @@ export const forceLogoutDispatcher = async (req: Request, res: Response) => {
     },
   });
   if (result.count !== 1) throw new ApiError(404, "Dispatcher not found.");
+  recordSessionEvent(req, { id: String(req.params.id), role: UserRole.DISPATCHER }, "FORCE_LOGOUT", "ACCESS_REVOKED", sessionActor(req));
   res.set("Cache-Control", "no-store").json({ success: true, message: "Dispatcher has been logged out successfully." });
 };
 
@@ -43,7 +45,7 @@ const changeStaff = async (req: Request, staffRevision: number, change: Change) 
   const actorId = (req as Request & { user: { userId: string } }).user.userId;
   const id = String(req.params.id);
   try {
-    return await prisma.$transaction(async tx => {
+    const changed = await prisma.$transaction(async tx => {
       await lockStaffAccount(tx, id);
       const user = await tx.user.findUnique({ where: { id } });
       if (!user) throw new ApiError(404, "Staff member not found.");
@@ -76,8 +78,14 @@ const changeStaff = async (req: Request, staffRevision: number, change: Change) 
       });
       const result = await tx.user.updateMany({ where: { id, staffRevision: user.staffRevision, role: user.role }, data });
       if (result.count !== 1) throw new ApiError(409, "This profile changed. Cancel this edit, refresh the staff list, then try again.");
-      return tx.user.findUnique({ where: { id }, select: staffSelect });
+      return { user: await tx.user.findUnique({ where: { id }, select: staffSelect }), revokeSessions };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
+    if (changed.revokeSessions && changed.user) {
+      const reason: SessionReason = change.kind === "password" ? "PASSWORD_RESET" : change.kind === "profile" ? "ACCOUNT_DETAILS_CHANGED" :
+        change.isActive ? "ACCOUNT_REACTIVATED" : "ACCOUNT_DEACTIVATED";
+      recordSessionEvent(req, changed.user, reason, "ACCESS_REVOKED", sessionActor(req));
+    }
+    return changed.user;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") throw new ApiError(409, "Another staff account already uses this email address.");
@@ -126,5 +134,6 @@ export const changeStaffPassword = async (req: Request, res: Response) => {
       isOnline: false, forceLogoutAt: null, driverFcmToken: null },
   });
   if (result.count !== 1) throw new ApiError(401, "Password change session expired. Sign in again.");
+  recordSessionEvent(req, user, "PASSWORD_CHANGED", "ACCESS_REVOKED", user);
   res.set("Cache-Control", "no-store").json({ message: "Password changed successfully.", role: user.role });
 };
