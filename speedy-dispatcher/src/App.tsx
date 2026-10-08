@@ -11,6 +11,7 @@ import { DispatchToggleControl } from "./DispatchToggleControl";
 import { DispatcherPinboard } from "./DispatcherPinboard";
 import { CustomerCare, CheckInResults } from "./CustomerCare";
 import { StaffManagement } from "./StaffManagement";
+import { DispatcherLogout } from "./DispatcherLogout";
 import { StaffPasswordPage } from "./StaffPasswordPage";
 import { CreateStaffProfile } from "./CreateStaffProfile";
 import {
@@ -7608,6 +7609,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
           )}
         </div>}
       </div>
+      {token && currentUser?.role === "ADMIN" && <DispatcherLogout key={`dispatcher-logout-${token}`} token={token} visible={activeTab === "DRIVERS"} refreshKey={staffRefreshKey}
+        onChanged={() => setStaffRefreshKey(value => value + 1)} />}
     </section>
   );
 

@@ -18,6 +18,23 @@ export const listStaff = async (_req: Request, res: Response) => {
   res.set("Cache-Control", "no-store").json({ staff });
 };
 
+export const forceLogoutDispatcher = async (req: Request, res: Response) => {
+  const now = new Date();
+  // Check the role in the write itself so a concurrent role change cannot log out an administrator.
+  const result = await prisma.user.updateMany({
+    where: { id: String(req.params.id), role: UserRole.DISPATCHER },
+    data: {
+      isOnline: false,
+      authVersion: { increment: 1 },
+      staffRevision: { increment: 1 },
+      lastSeenAt: now,
+      forceLogoutAt: now,
+    },
+  });
+  if (result.count !== 1) throw new ApiError(404, "Dispatcher not found.");
+  res.set("Cache-Control", "no-store").json({ success: true, message: "Dispatcher has been logged out successfully." });
+};
+
 type Change = { kind: "profile"; body: Prisma.UserUpdateManyMutationInput; role: UserRole; email: string }
   | { kind: "status"; isActive: boolean }
   | { kind: "password"; passwordHash: string };
