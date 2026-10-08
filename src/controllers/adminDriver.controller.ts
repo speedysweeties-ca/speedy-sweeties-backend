@@ -1,6 +1,7 @@
 import { UserRole } from "@prisma/client";
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
+import { recordSessionEvent, sessionActor } from "../services/staffSessionLog.service";
 
 type Params = {
   id: string;
@@ -100,6 +101,8 @@ export const updateDriverDispatchVisibilityController = async (
     }
   });
 
+  if (!isVisibleInDispatch) recordSessionEvent(req, { ...updatedDriver, role: UserRole.DRIVER }, "DRIVER_HIDDEN", "ACCESS_REVOKED", sessionActor(req));
+
   res.status(200).json({
     success: true,
     message: updatedDriver.isVisibleInDispatch
@@ -137,6 +140,8 @@ export const forceLogoutDriverController = async (
       forceLogoutAt: new Date()
     }
   });
+
+  recordSessionEvent(req, driver, "FORCE_LOGOUT", "ACCESS_REVOKED", sessionActor(req));
 
   res.status(200).json({
     success: true,

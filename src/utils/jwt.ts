@@ -37,6 +37,17 @@ export const verifyAuthToken = (token: string): AuthTokenPayload => {
   }) as AuthTokenPayload;
 };
 
+// Attribution only: verify the signature even when expired. Never use this
+// helper to authorize a request or trust an unsigned decoded payload.
+export const verifyExpiredAuthTokenForAudit = (token: string): AuthTokenPayload | null => {
+  try {
+    const payload = jwt.verify(token, getJwtSecret(), { algorithms: ["HS256"], ignoreExpiration: true });
+    if (typeof payload === "string" || typeof payload.userId !== "string" || !payload.userId ||
+      !Object.values(UserRole).includes(payload.role) || typeof payload.exp !== "number" || payload.exp > Date.now() / 1000) return null;
+    return payload as AuthTokenPayload;
+  } catch { return null; }
+};
+
 type PasswordChangePayload = { sub: string; scope: "staff-password-change"; authVersion: number };
 const passwordChangeSecret = () => createHmac("sha256", getJwtSecret())
   .update("speedy-staff-password-change-v1").digest("hex");

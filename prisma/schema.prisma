@@ -74,6 +74,24 @@ enum DispatchEventType {
   UNASSIGNED
 }
 
+model StaffSessionEvent {
+  id         String   @id @default(uuid())
+  eventKey   String   @unique
+  occurredAt DateTime @default(now())
+  userId     String
+  staffName  String?
+  role       UserRole
+  client     String
+  reason     String
+  outcome    String
+  actorId    String?
+  actorName  String?
+
+  @@index([occurredAt, id])
+  @@index([userId, occurredAt])
+  @@index([role, occurredAt])
+}
+
 model User {
   id                     String   @id @default(uuid())
   email                  String   @unique

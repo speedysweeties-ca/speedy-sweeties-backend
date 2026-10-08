@@ -9,6 +9,7 @@ import { startPickupLocationHoursMonitor } from "./services/pickupLocationHours.
 import { repairUnresolvedPickupLocationPlaceIds } from "./services/pickupLocationPlaceIdRepair.service";
 import { startBndOrderMonitor } from "./services/bndOrderMonitor.service";
 import { startBndEmailAlertMonitor } from "./services/bndEmailAlerts.service";
+import { flushSessionEvents, startSessionLogWriter } from "./services/staffSessionLog.service";
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -18,6 +19,7 @@ let stopUndispatchedOrderAlertMonitor: (() => void) | undefined;
 let stopPickupLocationHoursMonitor: (() => void) | undefined;
 let stopBndOrderMonitor: (() => void) | undefined;
 let stopBndEmailAlertMonitor: (() => void) | undefined;
+let stopSessionLogWriter: (() => void) | undefined;
 
 async function shutdown(signal: string): Promise<void> {
   if (isShuttingDown) {
@@ -31,6 +33,7 @@ async function shutdown(signal: string): Promise<void> {
   stopPickupLocationHoursMonitor?.();
   stopBndOrderMonitor?.();
   stopBndEmailAlertMonitor?.();
+  stopSessionLogWriter?.();
 
   const forceExitTimeout = setTimeout(() => {
     console.error("Graceful shutdown timed out. Forcing process exit.");
@@ -51,6 +54,7 @@ async function shutdown(signal: string): Promise<void> {
     console.error("Failed to close HTTP server cleanly", error instanceof Error ? error.name : typeof error);
   } finally {
     try {
+      await flushSessionEvents();
       await prisma.$disconnect();
     } catch (error) {
       exitCode = 1;
@@ -66,6 +70,7 @@ async function startServer(): Promise<void> {
   try {
     await prisma.$connect();
     console.log("Connected to database");
+    stopSessionLogWriter = startSessionLogWriter();
 
     server = app.listen(env.PORT, () => {
       console.log(`Server running on http://localhost:${env.PORT}`);

@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
+import { recordSessionEvent } from "../services/staffSessionLog.service";
 
 type AuthenticatedUser = {
   userId: string;
@@ -197,6 +198,12 @@ export const setDriverOfflineController = async (
     success: true,
     message: "Driver marked offline"
   });
+  const reason = req.body?.logoutReason;
+  if (reason === "MANUAL_LOGOUT" || reason === "INACTIVITY_TIMEOUT" || reason === "CLIENT_SESSION_REJECTED") {
+    recordSessionEvent(req, user, reason, "CLIENT_REPORTED");
+  } else {
+    recordSessionEvent(req, user, "DRIVER_OFFLINE_UNSPECIFIED", "OFFLINE_REPORTED");
+  }
 };
 
 export const heartbeatDriverController = async (
