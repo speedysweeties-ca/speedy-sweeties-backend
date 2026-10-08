@@ -176,4 +176,53 @@ test("staff lifecycle: authorization, profile edits, reset-only credentials, rev
     assert.deepEqual(historicOrder, { id: "delivered-order", assignedDriverId: "driver", orderStatus: "DELIVERED" });
     assert.equal((await call("/me", "GET", undefined, admin)).status, 200);
   });
+
+  await t.test("only admins can force logout dispatchers; other accounts are never targeted", async () => {
+    const path = "/dispatchers/dispatcher/force-logout";
+    const before = { ...accounts.get("dispatcher") };
+    assert.equal((await call(path, "PATCH", undefined, null)).status, 401);
+    assert.equal((await call(path, "PATCH", undefined, token("dispatcher"))).status, 403);
+    // Restore this fixture's driver after its password reset in the preceding test.
+    const driver = accounts.get("driver");
+    driver.passwordChangeRequired = false;
+    assert.equal((await call(path, "PATCH", undefined, token("driver"))).status, 403);
+    assert.deepEqual(accounts.get("dispatcher"), before);
+    for (const id of ["owner", "other-admin", "driver", "missing"]) {
+      const accountBefore = accounts.has(id) ? { ...accounts.get(id) } : undefined;
+      assert.equal((await call(`/dispatchers/${id}/force-logout`, "PATCH")).status, 404);
+      assert.deepEqual(accounts.get(id), accountBefore);
+    }
+  });
+
+  await t.test("dispatcher logout revokes all existing sessions and allows normal fresh login without reviving old tokens", async () => {
+    const first = await login("dispatcher", "My-own-fixture-password");
+    const second = await login("dispatcher", "My-own-fixture-password");
+    assert.equal(first.status, 200); assert.equal(second.status, 200);
+    const before = { ...accounts.get("dispatcher") };
+    // JWTs issued in the same second can be identical; represent an earlier device's session too.
+    second.body.token = signAuthToken({ userId: before.id, role: before.role, email: before.email,
+      authVersion: before.authVersion, iat: Math.floor(Date.now() / 1000) - 60 });
+    assert.notEqual(first.body.token, second.body.token);
+    assert.equal((await call("/me", "GET", undefined, second.body.token)).status, 200);
+    const result = await call("/dispatchers/dispatcher/force-logout", "PATCH");
+    assert.equal(result.status, 200); assert.equal(result.body.success, true);
+    const after = accounts.get("dispatcher");
+    assert.equal(after.authVersion, before.authVersion + 1);
+    assert.equal(after.staffRevision, before.staffRevision + 1);
+    assert.equal(after.isOnline, false); assert(after.forceLogoutAt instanceof Date);
+    for (const field of ["isActive", "passwordHash", "passwordChangeRequired", "role", "email", "isVisibleInDispatch"]) {
+      assert.equal(after[field], before[field]);
+    }
+    for (const old of [first.body.token, second.body.token]) {
+      assert.equal((await call("/me", "GET", undefined, old)).status, 401);
+    }
+    const fresh = await login("dispatcher", "My-own-fixture-password");
+    assert.equal(fresh.status, 200); assert.equal(after.forceLogoutAt, null);
+    assert.equal((await call("/me", "GET", undefined, fresh.body.token)).status, 200);
+    for (const old of [first.body.token, second.body.token]) {
+      assert.equal((await call("/me", "GET", undefined, old)).status, 401);
+    }
+    assert.equal((await call("/me", "GET", undefined, admin)).status, 200);
+    assert.deepEqual(historicOrder, { id: "delivered-order", assignedDriverId: "driver", orderStatus: "DELIVERED" });
+  });
 });

@@ -22,12 +22,13 @@ import {
 } from "../controllers/adminDriver.controller";
 import { requireAuth } from "../middleware/auth.middleware";
 import { requireRole } from "../middleware/role.middleware";
-import { listStaff, updateStaffProfile, updateStaffStatus, resetStaffPassword, changeStaffPassword } from "../controllers/staff.controller";
+import { listStaff, updateStaffProfile, updateStaffStatus, resetStaffPassword, changeStaffPassword, forceLogoutDispatcher } from "../controllers/staff.controller";
 import { staffProfileSchema, staffStatusSchema, staffResetSchema, passwordChangeSchema } from "../validators/staff.validator";
 
 const router = Router();
 
 router.get("/staff", requireAuth, requireRole([UserRole.ADMIN]), asyncHandler(listStaff));
+router.patch("/dispatchers/:id/force-logout", requireAuth, requireRole([UserRole.ADMIN]), asyncHandler(forceLogoutDispatcher));
 router.get("/drivers/history", requireAuth, requireRole([UserRole.ADMIN, UserRole.DISPATCHER]), asyncHandler(getHistoricalDriversController));
 router.patch("/staff/:id", requireAuth, requireRole([UserRole.ADMIN]), validateRequest(staffProfileSchema), asyncHandler(updateStaffProfile));
 router.patch("/staff/:id/status", requireAuth, requireRole([UserRole.ADMIN]), validateRequest(staffStatusSchema), asyncHandler(updateStaffStatus));
