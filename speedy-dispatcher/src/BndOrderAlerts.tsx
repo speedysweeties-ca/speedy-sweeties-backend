@@ -21,7 +21,7 @@ export function BndOrderAlertControls({ alarm }: { alarm: Alarm }) {
             className="py-1 font-semibold underline underline-offset-4 hover:text-white">Enable B&D Sound</button>
         )}
       </div>
-      {!alarm.enabled && <p className="mt-1">B&D pop-ups and sound are off on this browser.</p>}
+      {!alarm.enabled && <p className="mt-1">B&D pop-ups and sound are off for this session. They turn on again at the next login.</p>}
     </DispatchToggleControl>
   );
 }
@@ -48,11 +48,6 @@ export function BndOrderAlertPopup({ alarm }: { alarm: Alarm }) {
       </p>}
       {!alarm.audioReady && <button type="button" onClick={alarm.enableSound}
         className="mt-3 rounded-lg bg-amber-300 px-4 py-2 font-bold text-zinc-950">Enable B&D Sound</button>}
-      <button type="button" onClick={alarm.toggle}
-        className="mt-3 block rounded-lg border border-amber-300 px-4 py-2 font-semibold hover:bg-amber-900">
-        Turn B&D Alerts Off
-      </button>
-      <p className="mt-1 text-xs text-amber-100">Off applies to this browser only.</p>
     </aside>
   );
 }

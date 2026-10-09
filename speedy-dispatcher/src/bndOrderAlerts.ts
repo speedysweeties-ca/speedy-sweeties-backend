@@ -1,4 +1,3 @@
-export const BND_ALERT_STORAGE_KEY = "speedy-bnd-alerts-enabled";
 export const BND_ALERT_REPEAT_MS = 10_000;
 export const BND_STATUS_POLL_MS = 10_000;
 export type BndStatus = {
@@ -16,6 +15,7 @@ export type BndAlertState = {
   connectionFailed: boolean;
 };
 type Action =
+  | { type: "session"; token: string | null }
   | { type: "snapshot"; token: string; snapshot: BndStatus }
   | { type: "failed"; token: string }
   | { type: "enabled"; enabled: boolean };
@@ -25,6 +25,8 @@ export function createBndAlertState(enabled = true): BndAlertState {
 }
 
 export function bndAlertReducer(state: BndAlertState, action: Action): BndAlertState {
+  if (action.type === "session") return state.token === action.token
+    ? state : { ...createBndAlertState(), token: action.token };
   if (action.type === "enabled") return { ...state, enabled: action.enabled };
   if (action.type === "failed") return {
     ...state, token: action.token, connectionFailed: true,
