@@ -2,17 +2,12 @@ import { useCallback, useEffect, useReducer, useState } from "react";
 import { API_V1_BASE_URL } from "./apiConfig";
 import { OrderAlarmAudio } from "./orderAlarmAudio";
 import {
-  BND_ALERT_REPEAT_MS, BND_ALERT_STORAGE_KEY, BND_STATUS_POLL_MS,
+  BND_ALERT_REPEAT_MS, BND_STATUS_POLL_MS,
   bndAlertReducer, createBndAlertState, getBndAlertView, parseBndStatus,
 } from "./bndOrderAlerts";
 
-function loadState() {
-  try { return createBndAlertState(localStorage.getItem(BND_ALERT_STORAGE_KEY) !== "false"); }
-  catch { return createBndAlertState(); }
-}
-
 export function useBndOrderAlerts(token: string | null) {
-  const [state, dispatch] = useReducer(bndAlertReducer, undefined, loadState);
+  const [state, dispatch] = useReducer(bndAlertReducer, undefined, createBndAlertState);
   const [audio] = useState(() => new OrderAlarmAudio());
   const [audioReady, setAudioReady] = useState(false);
   const [now, setNow] = useState(Date.now);
@@ -21,9 +16,9 @@ export function useBndOrderAlerts(token: string | null) {
   const enableSound = useCallback(() => { void audio.unlock(setAudioReady); }, [audio]);
 
   useEffect(() => {
-    try { localStorage.setItem(BND_ALERT_STORAGE_KEY, String(state.enabled)); }
-    catch { /* Storage can be blocked; the switch still works for this visit. */ }
-  }, [state.enabled]);
+    // A new dispatcher session always starts with alerts on.
+    dispatch({ type: "session", token });
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
