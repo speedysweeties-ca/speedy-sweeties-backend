@@ -490,7 +490,7 @@ const createEmptyManualOrderItem = (): ManualOrderItem => ({
 });
 
 const createDefaultManualOrderItem = (): ManualOrderItem => ({
-  itemName: "Flyer",
+  itemName: "Remind customer: stores are closed on Monday for Thanksgiving.",
   quantity: "1",
 });
 
