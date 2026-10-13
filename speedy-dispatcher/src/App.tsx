@@ -489,11 +489,6 @@ const createEmptyManualOrderItem = (): ManualOrderItem => ({
   quantity: "1",
 });
 
-const createDefaultManualOrderItem = (): ManualOrderItem => ({
-  itemName: "Remind customer: stores are closed on Monday for Thanksgiving.",
-  quantity: "1",
-});
-
 const getApiErrorMessage = (data: any, fallbackMessage: string) => {
   if (!data) return fallbackMessage;
 
@@ -711,7 +706,7 @@ const initialManualOrderForm: ManualOrderForm = {
   province: "ON",
   paymentMethod: "CASH",
   additionalNotes: "",
-  items: [createDefaultManualOrderItem()],
+  items: [createEmptyManualOrderItem()],
 };
 
 const initialPickupLocationForm: PickupLocationForm = {
