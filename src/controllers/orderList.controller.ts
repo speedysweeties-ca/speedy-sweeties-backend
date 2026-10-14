@@ -49,7 +49,21 @@ export const listAllOrdersController = async (
       : undefined;
 
   const page =
-    typeof req.query.page === "string" ? parseInt(req.query.page, 10) : 1;
+    req.query.page === undefined ? 1 : typeof req.query.page === "string" ? Number(req.query.page) : NaN;
+
+  const rawCustomerSearch = req.query.customerSearch;
+  if (
+    rawCustomerSearch !== undefined &&
+    (typeof rawCustomerSearch !== "string" || rawCustomerSearch.trim().length > 200)
+  ) {
+    res.status(400).json({ success: false, message: "Customer search must be text of 200 characters or fewer." });
+    return;
+  }
+  const customerSearch = typeof rawCustomerSearch === "string" ? rawCustomerSearch.trim() : "";
+  if (customerSearch.length === 1 || !Number.isSafeInteger(page) || page < 1) {
+    res.status(400).json({ success: false, message: "Use at least 2 characters to search and a valid page number." });
+    return;
+  }
 
   const limit = 100;
   const skip = (page - 1) * limit;
@@ -57,7 +71,40 @@ export const listAllOrdersController = async (
   const whereClause: Prisma.OrderWhereInput = {};
 
   if (driverId) {
-    whereClause.assignedDriverId = driverId;
+    const driverIds = driverId.split(",").map((id) => id.trim()).filter(Boolean);
+    if (driverIds.length) whereClause.assignedDriverId = { in: driverIds };
+  }
+
+  if (customerSearch) {
+    // Match order snapshots as well as the current customer profile. Old orders
+    // without a linked customer must remain searchable after an address change.
+    const contains = {
+      contains: customerSearch.replace(/[\\%_]/g, "\\$&"),
+      mode: "insensitive" as const
+    };
+    whereClause.OR = [
+      { customerName: contains },
+      { addressLine1: contains },
+      { phone: contains },
+      { customer: { fullName: contains } }
+    ];
+
+    if (/^[+\d\s().-]+$/.test(customerSearch)) {
+      let digits = customerSearch.replace(/\D/g, "");
+      if (digits.length === 11 && digits.startsWith("1")) digits = digits.slice(1);
+      if (digits.length >= 3) {
+        // Historical order phone snapshots can contain arbitrary punctuation.
+        // Bind the digits as a SQL parameter; never interpolate search text.
+        const phoneMatches = await prisma.$queryRaw<{ id: string }[]>`
+          SELECT "id" FROM "Order"
+          WHERE regexp_replace("phone", '[^0-9]', '', 'g') LIKE ${`%${digits}%`}
+        `;
+        whereClause.OR.push(
+          { id: { in: phoneMatches.map((order) => order.id) } },
+          { customer: { normalizedPhone: { contains: digits } } }
+        );
+      }
+    }
   }
 
   if (status === "CANCELLED") {
@@ -92,9 +139,7 @@ export const listAllOrdersController = async (
   const [orders, totalCount] = await Promise.all([
     prisma.order.findMany({
       where: whereClause,
-      orderBy: {
-        createdAt: "desc"
-      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       skip,
       take: limit,
       include: {
