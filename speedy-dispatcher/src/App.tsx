@@ -828,6 +828,11 @@ function App() {
   const [historyDriverIds, setHistoryDriverIds] = useState<string[]>([]);
   const [historyStartDate, setHistoryStartDate] = useState("");
   const [historyEndDate, setHistoryEndDate] = useState("");
+  const [historySearchInput, setHistorySearchInput] = useState("");
+  const [historyCustomerSearch, setHistoryCustomerSearch] = useState("");
+  const [historyTotalCount, setHistoryTotalCount] = useState(0);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const historyRequestSequence = useRef(0);
 
   const [historyPage, setHistoryPage] = useState(1);
   const [historyTotalPages, setHistoryTotalPages] = useState(1);
@@ -1114,9 +1119,10 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     if (!token) return;
     if (activeTab !== "DELIVERED_HISTORY") return;
 
-    void fetchDeliveredOrders(token, true);
+    void fetchDeliveredOrders(token);
     void fetchDrivers(token);
- }, [activeTab, token, historyPage, historyStartDate, historyEndDate, historyDriverIds]);
+    return () => { historyRequestSequence.current += 1; };
+ }, [activeTab, token, historyPage, historyStartDate, historyEndDate, historyDriverIds, historyCustomerSearch]);
 
   useEffect(() => {
     if (!token) return;
@@ -3208,15 +3214,18 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     }
   };
 
-  const fetchDeliveredOrders = async (authToken: string, showLoader = true) => {
+  const fetchDeliveredOrders = async (authToken: string) => {
+    const requestSequence = ++historyRequestSequence.current;
+    setHistoryLoading(true);
+    setHistoryError(null);
     try {
-      if (showLoader) {
-        setHistoryLoading(true);
-      }
-
       const buildHistoryUrl = (status: "DELIVERED" | "CANCELLED") => {
         let url = `${API_V1_BASE_URL}/orders?status=${status}&page=${historyPage}`;
         const params = new URLSearchParams();
+
+        if (historyCustomerSearch) {
+          params.append("customerSearch", historyCustomerSearch);
+        }
 
         if (historyStartDate) {
           params.append("startDate", historyStartDate);
@@ -3252,14 +3261,15 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
       const deliveredData = await deliveredResponse.json();
       const cancelledData = await cancelledResponse.json();
+      if (requestSequence !== historyRequestSequence.current) return;
 
       if (!deliveredResponse.ok) {
-        alert(getApiErrorMessage(deliveredData, "Failed to load delivered orders"));
+        setHistoryError(getApiErrorMessage(deliveredData, "Failed to load delivered orders"));
         return;
       }
 
       if (!cancelledResponse.ok) {
-        alert(getApiErrorMessage(cancelledData, "Failed to load cancelled orders"));
+        setHistoryError(getApiErrorMessage(cancelledData, "Failed to load cancelled orders"));
         return;
       }
 
@@ -3280,14 +3290,16 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       });
 
       setDeliveredOrders(combinedOrders);
+      setHistoryTotalCount((deliveredData.totalCount || 0) + (cancelledData.totalCount || 0));
       setHistoryTotalPages(
         Math.max(deliveredData.totalPages || 1, cancelledData.totalPages || 1)
       );
     } catch (error) {
+      if (requestSequence !== historyRequestSequence.current) return;
       console.error(error);
-      alert("Server error while loading order history");
+      setHistoryError("Could not load order history. Please try Refresh History.");
     } finally {
-      if (showLoader) {
+      if (requestSequence === historyRequestSequence.current) {
         setHistoryLoading(false);
       }
     }
@@ -3459,6 +3471,14 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     setHistoryDriverIds([]);
     setHistoryStartDate("");
     setHistoryEndDate("");
+    setHistorySearchInput("");
+    setHistoryCustomerSearch("");
+    setHistoryTotalCount(0);
+    setHistoryTotalPages(1);
+    setHistoryPage(1);
+    setHistoryError(null);
+    setHistoryLoading(false);
+    historyRequestSequence.current += 1;
     setStatsDriverIds([]);
     setStatsStartDate("");
     setStatsEndDate("");
@@ -3561,7 +3581,7 @@ const updateOrderStatus = async (
       await fetchDrivers(token);
 
       if (activeTab === "DELIVERED_HISTORY") {
-        await fetchDeliveredOrders(token, false);
+        await fetchDeliveredOrders(token);
       }
     } else {
       alert(getApiErrorMessage(data, "Failed to update order"));
@@ -3975,6 +3995,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
   };
 
   const toggleHistoryDriver = (driverId: string) => {
+    setHistoryPage(1);
     setHistoryDriverIds((prev) => {
       if (prev.includes(driverId)) {
         return prev.filter((id) => id !== driverId);
@@ -3985,14 +4006,19 @@ const handleSaveEditedOrder = async (orderId: string) => {
   };
 
   const selectAllHistoryDrivers = () => {
+    setHistoryPage(1);
     setHistoryDriverIds(historicalDrivers.map((driver) => driver.id));
   };
 
   const clearHistoryDrivers = () => {
+    setHistoryPage(1);
     setHistoryDriverIds([]);
   };
 
   const clearHistoryFilters = () => {
+    setHistorySearchInput("");
+    setHistoryCustomerSearch("");
+    setHistoryPage(1);
     setHistoryDriverIds([]);
     setHistoryStartDate("");
     setHistoryEndDate("");
@@ -6903,22 +6929,72 @@ const handleSaveEditedOrder = async (orderId: string) => {
             <div>
               <h2 className="text-2xl font-bold">Order History</h2>
               <p className="text-zinc-400 mt-1">
-                Search delivered and cancelled orders by driver and date.
+                Find a customer's delivered and cancelled orders by name, phone number, or address.
               </p>
-              <p className="text-zinc-500 text-sm mt-2">
-                Showing {filteredDeliveredOrders.length} of{" "}
-                {deliveredOrders.length} history orders.
+              <p className="text-zinc-400 text-sm mt-2" aria-live="polite">
+                {historyLoading ? "Searching order history..." : historyError ? "Order history unavailable." :
+                  `Showing ${filteredDeliveredOrders.length} of ${historyTotalCount} matching orders.`}
+                {historyCustomerSearch && <> Search: <strong>{historyCustomerSearch}</strong>.</>}
               </p>
             </div>
 
             <button
-              onClick={() => token && void fetchDeliveredOrders(token, true)}
+              onClick={() => token && void fetchDeliveredOrders(token)}
               disabled={historyLoading}
               className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
             >
               {historyLoading ? "Refreshing..." : "Refresh History"}
             </button>
           </div>
+
+          <form
+            className="mt-6"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const search = historySearchInput.trim();
+              if (search.length === 1) return;
+              setHistoryPage(1);
+              setHistoryCustomerSearch(search);
+              if (search === historyCustomerSearch && historyPage === 1 && token) {
+                void fetchDeliveredOrders(token);
+              }
+            }}
+          >
+            <label htmlFor="history-customer-search" className="block font-semibold mb-2">
+              Search Customer
+            </label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                id="history-customer-search"
+                type="search"
+                value={historySearchInput}
+                onChange={(event) => setHistorySearchInput(event.target.value)}
+                minLength={2}
+                maxLength={200}
+                placeholder="Customer name, phone number, or street address"
+                aria-describedby="history-search-help"
+                className="min-w-0 flex-1 p-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
+              />
+              <button type="submit" className="px-5 py-3 rounded-lg bg-red-600 hover:bg-red-700 font-semibold">
+                Search
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setHistorySearchInput("");
+                  setHistoryCustomerSearch("");
+                  setHistoryPage(1);
+                }}
+                className="px-4 py-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 font-semibold"
+              >
+                Clear Search
+              </button>
+            </div>
+            <p id="history-search-help" className="text-zinc-400 text-sm mt-2">
+              Enter at least 2 characters and press Search. Searches all saved history with the driver and date filters below.
+              Leave those filters clear to see all dates and drivers. Each result shows the assigned driver.
+            </p>
+          </form>
 
           <div className="grid gap-4 lg:grid-cols-3 mt-6">
             <div className="bg-zinc-800/70 border border-zinc-700 rounded-xl p-4 lg:col-span-2">
@@ -6983,7 +7059,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   <input
                     type="date"
                     value={historyStartDate}
-                    onChange={(e) => setHistoryStartDate(e.target.value)}
+                    onChange={(e) => { setHistoryStartDate(e.target.value); setHistoryPage(1); }}
                     className="w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
                   />
                 </div>
@@ -6995,7 +7071,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   <input
                     type="date"
                     value={historyEndDate}
-                    onChange={(e) => setHistoryEndDate(e.target.value)}
+                    onChange={(e) => { setHistoryEndDate(e.target.value); setHistoryPage(1); }}
                     className="w-full p-3 rounded-lg bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
                   />
                 </div>
@@ -7012,13 +7088,17 @@ const handleSaveEditedOrder = async (orderId: string) => {
           </div>
         </div>
 
-        {historyLoading && deliveredOrders.length === 0 ? (
+        {historyLoading ? (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-zinc-300">
             Loading order history...
           </div>
+        ) : historyError ? (
+          <div role="alert" className="bg-red-950 border border-red-800 rounded-2xl p-6 text-red-200">
+            {historyError}
+          </div>
         ) : filteredDeliveredOrders.length === 0 ? (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-zinc-300">
-            No delivered or cancelled orders match these filters.
+            No delivered or cancelled orders match. Try another name, phone number, or address, or clear the driver and date filters.
           </div>
         ) : (
 
@@ -7753,7 +7833,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   }
 
                   if (activeTab === "DELIVERED_HISTORY") {
-                    void fetchDeliveredOrders(token, true);
+                    void fetchDeliveredOrders(token);
                   }
 
                   if (activeTab === "CUSTOMER_RETENTION") {
