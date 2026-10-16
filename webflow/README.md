@@ -12,6 +12,24 @@ sequence and reconcile any later Webflow edits before publishing.
 The older `order-form.js` below is a historical reference; do not replace the
 current live site footer with that file.
 
+## Browser autofill
+
+The live footer loads `public/webflow/address-autocomplete.js` from the API host.
+That script also enables browser autofill for the name, phone, email, street,
+unit, and city fields and adds a short tip above the form. It does not read the
+device's contacts or save a new customer profile. The browser decides whether to
+offer saved details; email confirmation and buzz code remain separate.
+
+Saved or typed addresses use the existing strict `/addresses/verify` check at
+submission, without requiring a Google suggestion click first. Invalid addresses,
+provider failures, and edits during verification still block submission. Google
+suggestions remain available for customers typing an address.
+
+Deploy this public script through the existing API service. The live script URL
+stays the same, so no Webflow footer replacement or full-site publish is needed.
+The asset's existing cache lifetime is five minutes. Verify the live form after
+deployment; actual saved-profile suggestions also depend on each device's settings.
+
 ## Historical order-form reference
 
 `order-form.js` is the older page-level custom code retained for reference.
