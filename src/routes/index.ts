@@ -16,6 +16,7 @@ import chatgptOrderingRoutes from "./chatgptOrdering.routes";
 import bndAlertsRoutes from "./bndAlerts.routes";
 import deliveryCheckInRoutes from "./deliveryCheckIn.routes";
 import dispatcherPinboardRoutes from "./dispatcherPinboard.routes";
+import dispatcherStandardsRoutes from "./dispatcherStandards.routes";
 import addressRoutes from "./address.routes";
 
 const router = Router();
@@ -45,5 +46,6 @@ router.use("/dispatcher-help", dispatcherHelpRoutes);
 router.use("/bnd-alerts", bndAlertsRoutes);
 router.use("/check-in", deliveryCheckInRoutes);
 router.use("/dispatcher-pinboard", dispatcherPinboardRoutes);
+router.use("/dispatcher-standards", dispatcherStandardsRoutes);
 
 export default router;

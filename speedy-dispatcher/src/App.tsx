@@ -9,6 +9,7 @@ import { BndOrderAlertControls, BndOrderAlertPopup } from "./BndOrderAlerts";
 import { BndEmailControls } from "./BndEmailControls";
 import { DispatchToggleControl } from "./DispatchToggleControl";
 import { DispatcherPinboard } from "./DispatcherPinboard";
+import { DispatcherStandards } from "./DispatcherStandards";
 import { CustomerCare, CheckInResults } from "./CustomerCare";
 import { StaffManagement } from "./StaffManagement";
 import { LogoutLog } from "./LogoutLog";
@@ -230,6 +231,7 @@ type ActiveTab =
   | "CUSTOMERS"
   | "CUSTOMER_FOLLOW_UPS"
   | "DISPATCHER_PINBOARD"
+  | "DISPATCHER_STANDARDS"
   | "QR_TRACKING"
   | "DISPATCHER_CHECKLIST";
 
@@ -858,6 +860,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("LIVE_ORDERS");
   const [pinboardUnreadCount, setPinboardUnreadCount] = useState<number | null>(null);
   const [pinboardRefreshKey, setPinboardRefreshKey] = useState(0);
+  const [standardsRefreshKey, setStandardsRefreshKey] = useState(0);
   const [customerFollowUpCount, setCustomerFollowUpCount] = useState<number | null>(null);
   const [showMoreControls, setShowMoreControls] = useState(false);
 
@@ -7819,6 +7822,12 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 {pinboardUnreadCount !== null && pinboardUnreadCount > 0 && <span className="ml-2 rounded-full bg-amber-400 px-2 py-0.5 text-xs font-bold text-zinc-950">{pinboardUnreadCount} unread</span>}
               </button>}
 
+              {(currentUser?.role === "ADMIN" || currentUser?.role === "DISPATCHER") && <button
+                onClick={() => setActiveTab("DISPATCHER_STANDARDS")}
+                aria-pressed={activeTab === "DISPATCHER_STANDARDS"}
+                className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === "DISPATCHER_STANDARDS" ? "bg-red-600 hover:bg-red-700" : "bg-zinc-800 hover:bg-zinc-700"}`}
+              >Dispatcher Standards</button>}
+
               <button
                 onClick={() => setActiveTab("DRIVER_LOCATION")}
                 className={`px-4 py-2 rounded-lg font-semibold transition ${
@@ -7839,6 +7848,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   void fetchGoogleLiveTrafficSetting(token, true);
 
                   setPinboardRefreshKey(value => value + 1);
+                  setStandardsRefreshKey(value => value + 1);
 
                   if (activeTab === "DRIVERS") {
                     setStaffRefreshKey(value => value + 1);
@@ -8126,6 +8136,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
       </div>
       {(currentUser?.role === "ADMIN" || currentUser?.role === "DISPATCHER") && <div hidden={activeTab !== "DISPATCHER_PINBOARD"} className="max-w-7xl mx-auto px-6 py-6">
         <DispatcherPinboard key={token} token={token} visible={activeTab === "DISPATCHER_PINBOARD"} refreshKey={pinboardRefreshKey} onUnreadCountChange={setPinboardUnreadCount} />
+      </div>}
+      {(currentUser?.role === "ADMIN" || currentUser?.role === "DISPATCHER") && <div hidden={activeTab !== "DISPATCHER_STANDARDS"} className="max-w-7xl mx-auto px-6 py-6">
+        <DispatcherStandards key={token} token={token} visible={activeTab === "DISPATCHER_STANDARDS"} refreshKey={standardsRefreshKey} />
       </div>}
       <div hidden={activeTab !== "DRIVERS"} className="max-w-7xl mx-auto px-6 py-6">
         {renderDriversPage()}
@@ -8469,7 +8482,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             onPresetDays={applyDispatcherPerformanceDatePreset}
             onRefresh={() => token && void fetchDispatcherPerformance(token, true)}
           />
-        ) : activeTab === "LOGOUT_LOG" || activeTab === "HELP" || activeTab === "CUSTOMER_FOLLOW_UPS" || activeTab === "DRIVERS" || activeTab === "DISPATCHER_PINBOARD" ? null : activeTab === "CATALOG" ? (
+        ) : activeTab === "LOGOUT_LOG" || activeTab === "HELP" || activeTab === "CUSTOMER_FOLLOW_UPS" || activeTab === "DRIVERS" || activeTab === "DISPATCHER_PINBOARD" || activeTab === "DISPATCHER_STANDARDS" ? null : activeTab === "CATALOG" ? (
           renderCatalogAdmin()
         ) : activeTab === "PICKUP_LOCATIONS" ? (
           renderPickupLocations()
