@@ -117,8 +117,9 @@ export function DispatcherStandards({ token, visible, refreshKey }: { token: str
     {board?.canEdit && <p className="text-sm text-zinc-400">Only administrators can add or edit entries. Dispatchers see published entries. Drafts and archived entries are private to administrators.</p>}
     {feeDrafts && <aside className="rounded-xl border border-amber-700 bg-amber-950/40 p-4 text-sm text-amber-100">
       <p className="font-semibold">Review proposed fees before publishing</p>
-      <p className="mt-2">Ontario prohibits wage deductions for faulty work, even with written authorization. Have the proposed fees reviewed by an Ontario employment lawyer before publishing or applying them.</p>
-      <a href="https://www.ontario.ca/document/your-guide-employment-standards-act-0/payment-wages" target="_blank" rel="noreferrer" className="mt-2 inline-block underline">Ontario guidance on wage deductions</a>
+      <p className="mt-2">For independent contractors, confirm that any fee is supported by an enforceable contractor agreement. Posting a standard here does not establish agreement to a new fee. Have an Ontario lawyer review the terms before applying them.</p>
+      <p className="mt-2">Worker status depends on the actual working arrangement. If a dispatcher is legally an employee, Ontario's restrictions on wage deductions still apply.</p>
+      <a href="https://www.ontario.ca/document/your-guide-employment-standards-act-0/employee-status" target="_blank" rel="noreferrer" className="mt-2 inline-block underline">Ontario guidance on employee and contractor status</a>
     </aside>}
     {loadError && <p role="alert" className="rounded-xl border border-amber-700 p-4 text-amber-200">{loadError}{board ? " Showing the last loaded entries; they may be out of date." : ""}</p>}
     {notice && <p role="status" className="rounded-xl border border-emerald-800 p-4 text-emerald-200">{notice}</p>}
