@@ -16,7 +16,7 @@ async function main() {
       { name: "Corona 12 Pack", normalizedName: "corona 12 pack" },
       { name: "Grey Goose 375ml", normalizedName: "grey goose 375ml" },
       { name: "Grey Goose 750ml", normalizedName: "grey goose 750ml" }
-    ]
+    ].map((item) => ({ ...item, createdByName: "System (seed)" }))
   });
 
   console.log("Seeded items");

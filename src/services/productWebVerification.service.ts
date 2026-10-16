@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { CUSTOMER_CATALOG_CREATOR } from "../utils/catalogCreator";
 import { z } from "zod";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
@@ -748,7 +749,8 @@ export const persistWebVerifiedCatalogItem = async (
 
   try {
     return await prisma.itemCatalog.create({
-      data: verifiedItem,
+      // This lookup is initiated by the public customer AI order-draft flow.
+      data: { ...verifiedItem, ...CUSTOMER_CATALOG_CREATOR },
       select: catalogSummarySelect
     });
   } catch (error) {
