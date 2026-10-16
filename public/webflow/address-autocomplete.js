@@ -8,6 +8,7 @@
     if (!input || !city || !form || window.speedyAddress) return;
     const unit = document.getElementById("Apartment-Unit-Number") || document.getElementById("Unit-Number");
     const buzz = document.getElementById("Buzz-Code");
+    const hintColor = window.getComputedStyle(form.querySelector('label[for="Address"]') || form).color;
 
     // Let the customer's browser offer their saved details, including on a first visit.
     // Keep the street and apartment separate so autofill doesn't duplicate the unit.
@@ -26,7 +27,8 @@
     if (!document.getElementById("speedy-autofill-help")) {
       const tip = document.createElement("p");
       tip.id = "speedy-autofill-help";
-      tip.style.cssText = "font-size:14px;line-height:1.5;margin:0 0 16px;color:#333;";
+      tip.style.cssText = "font-size:14px;line-height:1.5;margin:0 0 16px;";
+      tip.style.color = hintColor;
       tip.textContent = "Save time: tap a field and choose your saved details if your phone or browser offers them. Check your delivery address before sending.";
       form.prepend(tip);
       const name = document.getElementById("Name-5");
@@ -38,7 +40,8 @@
     const helper = document.createElement("p");
     helper.id = "speedy-address-help";
     helper.setAttribute("role", "status");
-    helper.style.cssText = "font-size:14px;line-height:1.5;margin:4px 0 10px;color:#333;";
+    helper.style.cssText = "font-size:14px;line-height:1.5;margin:4px 0 10px;";
+    helper.style.color = hintColor;
     const addressHint = "Use your saved address, or start typing your house number and street and choose an address below.";
     helper.textContent = addressHint;
     const box = document.createElement("div");
@@ -70,7 +73,8 @@
     const key = () => input.value.trim() + "|" + city.value.trim();
     const message = (text, invalid = false) => {
       helper.textContent = text;
-      helper.style.color = invalid ? "#a31515" : "#333";
+      // Match the existing label contrast, including the live site's dark form.
+      helper.style.fontWeight = invalid ? "600" : "";
       if (invalid) input.setAttribute("aria-invalid", "true");
       else input.removeAttribute("aria-invalid");
     };

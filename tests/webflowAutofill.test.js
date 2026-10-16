@@ -22,6 +22,7 @@ function browser(fetchResponse = async () => ({ success: true, verified: true })
     prepend(child) { this.children.unshift(child); elements.set(child.id, child); }
     after(...children) { children.forEach(child => elements.set(child.id, child)); }
     replaceChildren() { this.children = []; }
+    querySelector() { return null; }
     addEventListener(name, handler) { (this.listeners[name] ||= []).push(handler); }
     fire(name) { for (const handler of this.listeners[name] || []) handler({}); }
     focus() { this.focused = true; }
@@ -32,7 +33,7 @@ function browser(fetchResponse = async () => ({ success: true, verified: true })
   elements.get("City").value = "Guelph";
   const context = vm.createContext({
     document: { readyState: "complete", getElementById: id => elements.get(id), createElement: () => new Element() },
-    window: {}, crypto: { randomUUID }, AbortController,
+    window: { getComputedStyle: () => ({ color: "rgb(230, 230, 230)" }) }, crypto: { randomUUID }, AbortController,
     setTimeout: (callback, delay) => { timers.set(++nextTimer, { callback, delay }); return nextTimer; },
     clearTimeout: id => timers.delete(id),
     fetch: async (url, init) => {
@@ -56,6 +57,7 @@ test("first-visit form supports saved contact details without reading or sending
     "Confirm-Email": "off", "Buzz-Code": "off"
   })) assert.equal(b.get(id).getAttribute("autocomplete"), token);
   assert.match(b.get("speedy-autofill-help").textContent, /saved details/);
+  assert.equal(b.get("speedy-autofill-help").style.color, "rgb(230, 230, 230)");
   assert.match(b.get("Name-5").getAttribute("aria-describedby"), /speedy-autofill-help/);
   assert.equal(b.requests.length, 0);
   b.rerun();
