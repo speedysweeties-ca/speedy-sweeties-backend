@@ -1,6 +1,6 @@
 export type HelpRole = "ADMIN" | "DISPATCHER";
 export type HelpDestination = "CUSTOMERS" | "LIVE_ORDERS" | "CREATE_MANUAL_ORDER" |
-  "DELIVERED_HISTORY" | "DISPATCHER_CHECKLIST" | "DRIVER_LOCATION" | "DISPATCHER_PERFORMANCE" | "DRIVERS" | "DISPATCHER_PINBOARD";
+  "DELIVERED_HISTORY" | "DISPATCHER_CHECKLIST" | "DRIVER_LOCATION" | "DISPATCHER_PERFORMANCE" | "DRIVERS" | "DISPATCHER_PINBOARD" | "DISPATCHER_STANDARDS";
 
 export interface HelpArticle {
   id: string;
@@ -15,6 +15,12 @@ export interface HelpArticle {
 // Reviewed against main 3bec1b0. Update these guides alongside workflow changes.
 // Only add business policies after the business owner has confirmed them.
 export const dispatcherHelpKnowledge: HelpArticle[] = [
+  {
+    id: "dispatcher-standards", title: "Read and manage dispatcher standards",
+    reviewedAt: "2026-10-16", roles: ["ADMIN", "DISPATCHER"], destination: "DISPATCHER_STANDARDS",
+    evidence: ["speedy-dispatcher/src/DispatcherStandards.tsx", "src/routes/dispatcherStandards.routes.ts"],
+    content: "Open Dispatcher Standards in the top buttons to read published expectations and consequences. Only administrators can add or edit entries. Administrators use Add entry to save a draft, then Edit and Visibility to publish, return to draft, or archive an entry. Drafts and archived entries are private to administrators. Entries persist across devices and sign-ins. The two starter fee proposals begin as private drafts; do not assume they have been published or remain unchanged. The help assistant cannot read the current entries, publish policy, determine legal enforceability, or charge any fees. Do not invent or quote consequences; direct staff to the published entries. Refresh standards reloads the saved entries. Unsaved editor text survives switching dashboard tabs but is cleared on refresh or logout."
+  },
   {
     id: "dispatcher-pinboard", title: "Leave notes for the next dispatcher",
     reviewedAt: "2026-10-05", roles: ["ADMIN", "DISPATCHER"], destination: "DISPATCHER_PINBOARD",

@@ -3,6 +3,7 @@ export const helpDestinations = {
   DELIVERED_HISTORY: "Delivered History", DISPATCHER_CHECKLIST: "Daily Responsibilities",
   DRIVER_LOCATION: "Driver Location", DISPATCHER_PERFORMANCE: "Dispatcher Performance",
   DRIVERS: "Staff", DISPATCHER_PINBOARD: "Dispatcher Pinboard",
+  DISPATCHER_STANDARDS: "Dispatcher Standards",
 } as const;
 export type HelpDestination = keyof typeof helpDestinations;
 export type HelpTurn = { role: "user" | "assistant"; content: string };
