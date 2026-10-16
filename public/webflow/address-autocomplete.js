@@ -1,4 +1,4 @@
-/* Google address suggestions for the existing Webflow order form. */
+/* Browser autofill and Google address checking for the Webflow order form. */
 (() => {
   const API = "https://speedy-api-lbfe.onrender.com/api/v1/addresses/";
   function init() {
@@ -8,6 +8,30 @@
     if (!input || !city || !form || window.speedyAddress) return;
     const unit = document.getElementById("Apartment-Unit-Number") || document.getElementById("Unit-Number");
     const buzz = document.getElementById("Buzz-Code");
+
+    // Let the customer's browser offer their saved details, including on a first visit.
+    // Keep the street and apartment separate so autofill doesn't duplicate the unit.
+    form.autocomplete = "on";
+    const autofillFields = {
+      "Name-5": "name", Address: "address-line1", City: "address-level2",
+      "Apartment-Unit-Number": "address-line2", "Unit-Number": "address-line2",
+      Email: "email", Phone: "tel"
+    };
+    for (const [id, token] of Object.entries(autofillFields)) {
+      document.getElementById(id)?.setAttribute("autocomplete", token);
+    }
+    // Confirmation and access codes still require the customer's attention.
+    document.getElementById("Confirm-Email")?.setAttribute("autocomplete", "off");
+    buzz?.setAttribute("autocomplete", "off");
+    if (!document.getElementById("speedy-autofill-help")) {
+      const tip = document.createElement("p");
+      tip.id = "speedy-autofill-help";
+      tip.style.cssText = "font-size:14px;line-height:1.5;margin:0 0 16px;color:#333;";
+      tip.textContent = "Save time: tap a field and choose your saved details if your phone or browser offers them. Check your delivery address before sending.";
+      form.prepend(tip);
+      const name = document.getElementById("Name-5");
+      if (name) name.setAttribute("aria-describedby", [name.getAttribute("aria-describedby"), tip.id].filter(Boolean).join(" "));
+    }
     let timer, generation = 0, active = -1, suggestions = [], selected = null;
     let controller = null, session = crypto.randomUUID(), sessionStarted = Date.now();
 
@@ -15,7 +39,8 @@
     helper.id = "speedy-address-help";
     helper.setAttribute("role", "status");
     helper.style.cssText = "font-size:14px;line-height:1.5;margin:4px 0 10px;color:#333;";
-    helper.textContent = "Start typing your house number and street, then choose your address below.";
+    const addressHint = "Use your saved address, or start typing your house number and street and choose an address below.";
+    helper.textContent = addressHint;
     const box = document.createElement("div");
     box.hidden = true;
     box.style.cssText = "background:white;color:#222;border:1px solid #777;border-radius:5px;margin-bottom:12px;overflow:hidden;";
@@ -35,7 +60,6 @@
     input.setAttribute("aria-controls", list.id);
     input.setAttribute("aria-expanded", "false");
     input.setAttribute("aria-describedby", [input.getAttribute("aria-describedby"), helper.id].filter(Boolean).join(" "));
-    input.autocomplete = "off";
 
     const close = () => {
       box.hidden = true; active = -1;
@@ -135,7 +159,7 @@
       const changedSelection = selected !== null;
       cancel(); selected = null; close();
       if (changedSelection) { if (unit) unit.value = ""; if (buzz) buzz.value = ""; }
-      message("Start typing your house number and street, then choose your address below.");
+      message(addressHint);
       timer = setTimeout(search, 300);
     });
     input.addEventListener("keydown", event => {
@@ -159,18 +183,27 @@
     window.speedyAddress = {
       matches(address) { return selected === key() && selected === address.addressLine1.trim() + "|" + address.city.trim(); },
       async verify() {
+        // Autofill may not emit input/change events. Read the current fields and
+        // use the same strict server check, without requiring a suggestion click.
+        cancel(); close(); selected = null;
+        const version = generation;
         const snapshot = key();
-        if (!selected || selected !== snapshot) {
+        if (!input.value.trim() || !city.value.trim()) {
           input.focus();
-          throw new Error("Please choose your full street address from the Google suggestions. If it isn't listed, call 519-826-8097.");
+          throw new Error("Please enter your full street address and city, or choose an address from the suggestions.");
         }
         message("Checking your delivery address…");
         try {
           const data = await request("verify", { addressLine1: input.value.trim(), city: city.value.trim(), province: "Ontario" });
-          if (!data.verified || key() !== snapshot || selected !== snapshot) throw new Error("Your address changed. Please select it again.");
+          if (version !== generation || key() !== snapshot) throw new Error("Your address changed. Please submit again to check it.");
+          if (data.verified !== true) throw new Error("We couldn't confirm your address. Please choose your full address from the suggestions, or call 519-826-8097.");
+          selected = snapshot;
           message("Delivery address checked.");
           return true;
-        } catch (error) { message(error.message, true); input.focus(); throw error; }
+        } catch (error) {
+          if (version === generation) { message(error.message, true); input.focus(); }
+          throw error;
+        }
       }
     };
   }
