@@ -34,6 +34,11 @@ import {
   sendCustomerLoyaltyNotification
 } from "../services/loyalty.service";
 import { getFirstDispatchAttribution } from "../utils/dispatchAttribution";
+import {
+  CatalogCreator,
+  CUSTOMER_CATALOG_CREATOR,
+  getRequestStaffCatalogCreator
+} from "../utils/catalogCreator";
 import { resolveOrderSourceAttribution } from "../utils/orderSourceAttribution";
 import {
   autoDispatchCreatedOrderWithPickupPlan,
@@ -554,6 +559,7 @@ export const updateGoogleLiveTrafficSettingsController = async (
 type CreateOrderOptions = {
   bypassBusinessHours: boolean;
   acceptRecurringDriverNotes: boolean;
+  catalogCreator: CatalogCreator;
   orderSourceOverride?: OrderSource;
   createdByUserId?: string;
   onOrderCreated?: (tx: Prisma.TransactionClient, orderId: string) => Promise<void>;
@@ -802,7 +808,8 @@ const createOrder = async (
         catalogItem = await tx.itemCatalog.create({
           data: {
             name: cleanedItemName,
-            normalizedName: normalizedItemName
+            normalizedName: normalizedItemName,
+            ...options.catalogCreator
           }
         });
       }
@@ -889,7 +896,8 @@ export const createOrderController = async (
 ): Promise<void> => {
   await createOrder(req, res, {
     bypassBusinessHours: false,
-    acceptRecurringDriverNotes: false
+    acceptRecurringDriverNotes: false,
+    catalogCreator: CUSTOMER_CATALOG_CREATOR
   });
 };
 
@@ -902,6 +910,7 @@ export const createChatGPTOrderController = async (
   await createOrder(req, res, {
     bypassBusinessHours: false,
     acceptRecurringDriverNotes: false,
+    catalogCreator: CUSTOMER_CATALOG_CREATOR,
     onOrderCreated
   });
 };
@@ -917,6 +926,7 @@ export const createManualOrderController = async (
   await createOrder(req, res, {
     bypassBusinessHours: true,
     acceptRecurringDriverNotes: true,
+    catalogCreator: getRequestStaffCatalogCreator(req),
     orderSourceOverride: OrderSource.DISPATCHER_MANUAL,
     createdByUserId: authUser?.userId
   });
@@ -1091,7 +1101,8 @@ export const updateOrderDetailsController = async (
         catalogItem = await tx.itemCatalog.create({
           data: {
             name: item.name.trim(),
-            normalizedName: normalizedItemName
+            normalizedName: normalizedItemName,
+            ...getRequestStaffCatalogCreator(req)
           }
         });
       }

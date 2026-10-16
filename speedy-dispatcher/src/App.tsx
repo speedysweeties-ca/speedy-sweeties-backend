@@ -307,6 +307,7 @@ type CatalogItem = {
   pickupType?: string | null;
   isActive: boolean;
   popularityScore: number;
+  createdByName?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -5035,6 +5036,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 Search, edit, and deactivate learned catalog items.
               </p>
               <p className="text-zinc-500 text-sm mt-2">
+                Created by shows who first added the item. Older entries without a creator record show Unknown.
+              </p>
+              <p className="text-zinc-500 text-sm mt-2">
                 {catalogTotalItems === 0
                   ? "Showing 0 catalog items."
                   : `Showing ${(catalogPage - 1) * catalogPageSize + 1}-${Math.min(
@@ -5153,7 +5157,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
         ) : (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1250px] text-sm">
+              <table className="w-full min-w-[1400px] text-sm">
                 <thead className="bg-zinc-800 text-zinc-300">
                   <tr>
                     <th className="text-left p-3">Item</th>
@@ -5162,6 +5166,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                     <th className="text-left p-3">Size</th>
                     <th className="text-left p-3">Category</th>
                     <th className="text-left p-3">Source</th>
+                    <th className="text-left p-3">Created by</th>
                     <th className="text-left p-3">Status</th>
                     <th className="text-left p-3">Popularity</th>
                     <th className="text-left p-3">Actions</th>
@@ -5248,6 +5253,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                 }
                                 className="w-full p-2 rounded-lg bg-zinc-950 border border-zinc-700 text-white focus:outline-none focus:border-red-500"
                               />
+                            </td>
+
+                            <td className="p-2 align-top text-zinc-300">
+                              {item.createdByName || "Unknown"}
                             </td>
 
                             <td className="p-2 align-top">
@@ -5341,6 +5350,10 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
                             <td className="p-2 align-top text-zinc-300">
                               {item.source || "—"}
+                            </td>
+
+                            <td className="p-2 align-top text-zinc-300">
+                              {item.createdByName || "Unknown"}
                             </td>
 
                             <td className="p-2 align-top">

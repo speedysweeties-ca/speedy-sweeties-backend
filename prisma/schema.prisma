@@ -265,6 +265,9 @@ model ItemCatalog {
   popularityScore    Int       @default(0)
   webVerificationUrl String?   @unique
   webVerifiedAt      DateTime?
+  // Immutable audit snapshots; retain the ID/name even if a staff account is deleted.
+  createdByUserId    String?
+  createdByName      String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
