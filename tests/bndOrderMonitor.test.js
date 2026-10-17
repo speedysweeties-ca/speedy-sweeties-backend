@@ -5,8 +5,8 @@ const { createBndMonitor, parseBndOrders, BND_POLL_MS } = require("../dist/integ
 const row = (id, claimed = false) => ({ id, number_id: 468000 + id, is_en_route: claimed,
   order_account: { phone: "private-customer-phone" }, order_address: { address1: "private-address" } });
 const json = (value, status = 200, headers = {}) => new Response(JSON.stringify(value), { status, headers });
-function fixture(handlers = []) {
-  let time = Date.parse("2026-10-02T20:00:00Z");
+function fixture(handlers = [], start = "2026-10-02T20:00:00Z") {
+  let time = Date.parse(start);
   const requests = [];
   const monitor = createBndMonitor({ enabled: true, email: "shared@example.invalid", password: "test-secret",
     now: () => time, fetchImpl: async (url, init) => {
@@ -127,16 +127,76 @@ test("overlapping checks share one in-flight request; late cache becomes unavail
 
 test("slow requests are bounded and shutdown aborts an in-flight request", async () => {
   const monitor = createBndMonitor({ enabled: true, email: "user", password: "secret", requestTimeoutMs: 5,
+    now: () => Date.parse("2026-10-17T16:00:00Z"),
     fetchImpl: async (_url, { signal }) => new Promise((_resolve, reject) => {
       signal.addEventListener("abort", () => reject(new Error("private-network-error")), { once: true });
     }) });
   await monitor.check(); assert.equal(monitor.getStatus().errorCode, "connection");
   let aborted = false;
   const stopping = createBndMonitor({ enabled: true, email: "user", password: "secret",
+    now: () => Date.parse("2026-10-17T16:00:00Z"),
     fetchImpl: async (_url, { signal }) => new Promise((_resolve, reject) => {
       signal.addEventListener("abort", () => { aborted = true; reject(new Error("stopped")); }, { once: true });
     }) });
   const check = stopping.check(); stopping.stop(); await check;
   assert.equal(aborted, true);
   assert.equal(stopping.getStatus().lastSuccessAt, null);
+});
+
+test("9 p.m. pauses upstream traffic, retains the queue, and resumes at 10 a.m.", async () => {
+  const { monitor, requests, advance } = fixture([
+    json({ token: "session" }), json([row(1)]), json([]),
+  ], "2026-10-18T00:59:00Z");
+  await monitor.check(); assert.equal(requests.length, 2);
+  assert.equal(monitor.getStatus().nextCheckAt, "2026-10-18T14:00:00.000Z");
+  advance();
+  assert.equal(monitor.getStatus().state, "paused");
+  await monitor.check();
+  advance(13 * 60 * 60_000 - 1); await monitor.check();
+  assert.equal(requests.length, 2);
+  assert.equal(monitor.getStatus().pendingOrders.length, 1);
+  advance(1); await monitor.check();
+  assert.equal(requests.length, 3);
+  assert.equal(monitor.getStatus().state, "connected");
+  assert.equal(monitor.getStatus().pendingOrders.length, 0);
+});
+
+test("an overnight server start sleeps and automatically checks at opening", async t => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: Date.parse("2026-10-18T01:00:00Z") });
+  const requests = [];
+  const monitor = createBndMonitor({ enabled: true, email: "user", password: "secret",
+    fetchImpl: async url => { requests.push(url); return json(url.endsWith("login") ? { token: "session" } : []); } });
+  t.after(() => monitor.stop());
+  monitor.start();
+  await new Promise(setImmediate);
+  assert.equal(monitor.getStatus().state, "paused");
+  t.mock.timers.tick(13 * 60 * 60_000 - 1);
+  await new Promise(setImmediate);
+  assert.equal(requests.length, 0);
+  t.mock.timers.tick(1);
+  await new Promise(setImmediate);
+  assert.equal(requests.length, 2);
+  assert.equal(monitor.getStatus().state, "connected");
+});
+
+test("login completing at closing does not start an order request", async () => {
+  let advance;
+  const h = fixture([() => { advance(1000); return json({ token: "session" }); }], "2026-10-18T00:59:59Z");
+  advance = h.advance;
+  await h.monitor.check();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.monitor.getStatus().state, "paused");
+  assert.equal(h.monitor.getStatus().errorCode, null);
+});
+
+test("overnight pause still honors an upstream retry deadline after opening", async () => {
+  const h = fixture([json({ token: "session" }), json({}, 429, { "retry-after": "50400" }), json([])], "2026-10-18T00:59:00Z");
+  await h.monitor.check(); h.advance(); await h.monitor.check();
+  assert.equal(h.monitor.getStatus().state, "paused");
+  assert.equal(h.monitor.getStatus().nextCheckAt, "2026-10-18T14:59:00.000Z");
+  h.advance(13 * 60 * 60_000); await h.monitor.check();
+  assert.equal(h.requests.length, 2);
+  assert.equal(h.monitor.getStatus().state, "error");
+  h.advance(59 * 60_000); await h.monitor.check();
+  assert.equal(h.requests.length, 3);
 });

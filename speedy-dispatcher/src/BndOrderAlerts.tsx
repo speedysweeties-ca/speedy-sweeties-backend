@@ -5,7 +5,8 @@ type Alarm = ReturnType<typeof useBndOrderAlerts>;
 
 export function BndOrderAlertControls({ alarm }: { alarm: Alarm }) {
   let status = "Checking B&D monitoring…";
-  if (alarm.unavailable) status = alarm.snapshot?.errorCode === "authentication"
+  if (alarm.paused) status = "B&D checks paused overnight · 10 a.m.–9 p.m. Toronto time";
+  else if (alarm.unavailable) status = alarm.snapshot?.errorCode === "authentication"
     ? "B&D login needs attention. Monitoring is interrupted."
     : "B&D monitoring interrupted. Waiting-call status may be out of date.";
   else if (alarm.snapshot?.state === "disabled") status = "B&D monitoring has not been enabled.";
@@ -16,6 +17,9 @@ export function BndOrderAlertControls({ alarm }: { alarm: Alarm }) {
       enabled={alarm.enabled} onToggle={alarm.toggle}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <p role="status" className={alarm.unavailable ? "text-amber-200" : undefined}>{status}</p>
+        {alarm.paused && alarm.pending.length > 0 && <p>
+          {alarm.pending.length} last-known waiting {alarm.pending.length === 1 ? "call" : "calls"}. Check B&D directly if needed.
+        </p>}
         {alarm.enabled && !alarm.audioReady && (
           <button type="button" onClick={alarm.enableSound}
             className="py-1 font-semibold underline underline-offset-4 hover:text-white">Enable B&D Sound</button>

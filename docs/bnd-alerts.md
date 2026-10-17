@@ -18,12 +18,27 @@ longer in that list. This does not prove a screenshot was sent to a driver.
   account-scoped order list, normally once per 60 seconds after each check.
 - Each browser reads the backend's cached status every 10 seconds; extra tabs
   do not increase B&D requests within one backend process.
+- Both checks run **10 a.m. to 9 p.m. daily, America/Toronto**. At 9 p.m. the
+  backend stops B&D login/list requests and each updated browser stops status
+  requests. Local timers resume at 10 a.m., including across daylight-saving
+  changes. Server restarts and browser refreshes overnight remain paused.
+- Dispatcher shows the overnight pause and retains any last-known waiting calls
+  without repeating alarms overnight. A fresh daytime check resumes reminders.
+  The email monitor also skips its database/provider work while paused. Existing
+  upstream retry deadlines are still respected if they extend past reopening.
+- Admin email settings load once when the control mounts and remain editable
+  overnight; their recurring 30-second background refresh also pauses overnight.
+- The backend schedule in `src/integrations/bnd/schedule.ts` is mirrored in
+  `speedy-dispatcher/src/bndSchedule.ts` for Render's isolated frontend build.
+  A test enforces parity. No cron service, environment changes, or migrations are needed.
+  Refresh existing dispatcher tabs after deployment to pick up the browser pause.
 - Existing unclaimed calls also alert on initial load, refresh and server restart.
 - The pop-up stays visible and sound repeats every 10 seconds until a successful
   B&D refresh clears the call. There is no Acknowledge action that could hide a
   still-unclaimed call. Allow roughly 60–90 seconds for normal detection/clearing.
-- B&D Alerts ON/OFF is a per-browser preference for pop-ups/sound. The server
-  keeps checking while the browser switch is off. Re-enabling resumes reminders.
+- B&D Alerts ON/OFF controls pop-ups/sound for the current session and resets ON
+  at login. The server keeps checking during monitoring hours while the browser
+  switch is off. Re-enabling resumes reminders during those hours.
 - Browsers require a user interaction to enable audio. Keep Dispatcher open on
   an awake dispatch computer. Sleeping/closed browsers cannot provide alarms.
 - Failures retain last-known waiting calls and visibly mark monitoring interrupted.

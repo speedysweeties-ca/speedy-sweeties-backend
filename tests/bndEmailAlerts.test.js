@@ -37,7 +37,7 @@ test("B&D email stays off until enabled and sends once across polls, restarts an
 });
 
 test("failed/stale/disabled B&D status never emails cached orders", async () => {
-  for (const state of ["error", "disabled", "unconfigured", "checking"]) {
+  for (const state of ["error", "disabled", "unconfigured", "checking", "paused"]) {
     const h = harness(); h.setStatus({ state });
     await createBndEmailProcessor(h.options).check(); assert.deepEqual(h.sent, []);
   }
@@ -45,6 +45,14 @@ test("failed/stale/disabled B&D status never emails cached orders", async () => 
     const h = harness(); h.setStatus({ lastSuccessAt });
     await createBndEmailProcessor(h.options).check(); assert.deepEqual(h.sent, []);
   }
+});
+
+test("paused monitoring skips email settings database reads", async () => {
+  const h = harness(); h.setStatus({ state: "paused" });
+  let reads = 0;
+  h.options.store.enabled = async () => { reads++; return true; };
+  await createBndEmailProcessor(h.options).check();
+  assert.equal(reads, 0); assert.deepEqual(h.sent, []);
 });
 
 test("rechecks the switch and waiting status after acquiring a claim", async () => {
