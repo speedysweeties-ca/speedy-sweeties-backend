@@ -120,6 +120,8 @@ export function createBndEmailProcessor(options: {
     if (running || stopped) return;
     running = true;
     try {
+      // A paused/empty/stale monitor needs no database or email-provider work.
+      if (!freshOrders().length) return;
       if (!(await options.store.enabled())) return;
       let attempted = 0;
       for (const order of freshOrders()) {

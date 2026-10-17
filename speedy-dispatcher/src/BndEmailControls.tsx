@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { API_V1_BASE_URL } from "./apiConfig";
 import { DispatchToggleControl } from "./DispatchToggleControl";
+import { getBndSchedule } from "./bndSchedule.ts";
 
 type Settings = { enabled: boolean; recipient: string; configured: boolean };
 
@@ -26,8 +27,12 @@ export function BndEmailControls({ token }: { token: string }) {
     let active = true;
     const versionCounter = requestVersion;
     const controller = new AbortController();
+    let initialRead = true;
     const refresh = async () => {
       if (saveInFlight.current) return;
+      // Keep the settings usable after hours, without repeating background reads.
+      if (!initialRead && !getBndSchedule().open) return;
+      initialRead = false;
       const version = ++versionCounter.current;
       try {
         const response = await fetch(endpoint, {
@@ -84,7 +89,7 @@ export function BndEmailControls({ token }: { token: string }) {
     loading={(!settings && !error) || Boolean(settings && !settings.configured && !settings.enabled)}
     onToggle={() => void toggle()}>
     <p>Send to {settings?.recipient ?? "rstubbings@hotmail.com"}.</p>
-    <p className="mt-1">One email per waiting order. Works while Dispatcher is closed.</p>
+    <p className="mt-1">One email per waiting order during B&D checks, 10 a.m.–9 p.m. Toronto time. Works while Dispatcher is closed.</p>
     {settings && !settings.configured && <p role="status" className="mt-1 text-amber-200">Email setup needs attention.</p>}
     {error && <p role="alert" className="mt-1 text-amber-200">{error}</p>}
   </DispatchToggleControl>;

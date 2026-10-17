@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useReducer, useState } from "react";
 import { API_V1_BASE_URL } from "./apiConfig";
 import { OrderAlarmAudio } from "./orderAlarmAudio";
+import { createBndStatusPolling } from "./bndStatusPolling";
 import {
-  BND_ALERT_REPEAT_MS, BND_STATUS_POLL_MS,
-  bndAlertReducer, createBndAlertState, getBndAlertView, parseBndStatus,
+  BND_ALERT_REPEAT_MS,
+  bndAlertReducer, createBndAlertState, getBndAlertView,
 } from "./bndOrderAlerts";
 
 export function useBndOrderAlerts(token: string | null) {
@@ -22,41 +23,16 @@ export function useBndOrderAlerts(token: string | null) {
 
   useEffect(() => {
     if (!token) return;
-    let disposed = false;
-    let running = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let controller: AbortController | undefined;
-    const poll = async () => {
-      if (disposed || running) return;
-      running = true;
-      clearTimeout(timer);
-      controller = new AbortController();
-      const timeout = setTimeout(() => controller?.abort(), 10_000);
-      try {
-        const response = await fetch(`${API_V1_BASE_URL}/bnd-alerts/status`, {
-          headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: controller.signal,
-        });
-        if (!response.ok) throw new Error("B&D status unavailable");
-        const snapshot = parseBndStatus(await response.json());
-        if (!disposed) dispatch({ type: "snapshot", token, snapshot });
-      } catch {
-        if (!disposed) dispatch({ type: "failed", token });
-      } finally {
-        clearTimeout(timeout);
-        running = false;
-        if (!disposed) {
-          setNow(Date.now());
-          timer = setTimeout(() => void poll(), BND_STATUS_POLL_MS);
-        }
-      }
-    };
-    const resume = () => { if (!document.hidden) void poll(); };
-    void poll();
+    const polling = createBndStatusPolling({
+      url: `${API_V1_BASE_URL}/bnd-alerts/status`, token,
+      onSnapshot: snapshot => dispatch({ type: "snapshot", token, snapshot }),
+      onFailure: () => dispatch({ type: "failed", token }), onTick: setNow,
+    });
+    const resume = () => { if (!document.hidden) void polling.poll(); };
+    void polling.poll();
     document.addEventListener("visibilitychange", resume);
     return () => {
-      disposed = true;
-      controller?.abort();
-      clearTimeout(timer);
+      polling.stop();
       document.removeEventListener("visibilitychange", resume);
     };
   }, [token]);

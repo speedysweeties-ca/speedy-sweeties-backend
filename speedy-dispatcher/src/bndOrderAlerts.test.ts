@@ -68,3 +68,19 @@ test("invalid status replies are rejected so the fetch path retains its previous
     assert.throws(() => parseBndStatus(bad));
   }
 });
+
+test("overnight pause retains last-known calls without an alarm or connection warning", () => {
+  const state = bndAlertReducer(receive(), { type: "failed", token: "staff" });
+  const view = getBndAlertView(state, "staff", Date.parse("2026-10-03T01:00:00Z"));
+  assert.equal(view.paused, true); assert.equal(view.unavailable, false);
+  assert.equal(view.alerting, false); assert.equal(view.pending.length, 1);
+  assert.equal(parseBndStatus({ ...snapshot(), state: "paused" }).state, "paused");
+});
+
+test("opening waits for a fresh queue before repeating yesterday's alarm", () => {
+  const morning = Date.parse("2026-10-03T14:00:00Z");
+  const state = receive();
+  assert.equal(getBndAlertView(state, "staff", morning).alerting, false);
+  const fresh = { ...snapshot(), lastSuccessAt: new Date(morning).toISOString() };
+  assert.equal(getBndAlertView(receive(fresh), "staff", morning).alerting, true);
+});

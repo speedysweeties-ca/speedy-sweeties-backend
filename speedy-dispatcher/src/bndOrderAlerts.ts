@@ -1,7 +1,9 @@
+import { getBndSchedule } from "./bndSchedule.ts";
+
 export const BND_ALERT_REPEAT_MS = 10_000;
 export const BND_STATUS_POLL_MS = 10_000;
 export type BndStatus = {
-  state: "disabled" | "unconfigured" | "checking" | "connected" | "error";
+  state: "disabled" | "unconfigured" | "checking" | "connected" | "error" | "paused";
   pendingOrders: { id: string; number: string }[];
   lastSuccessAt: string | null;
   lastCheckedAt: string | null;
@@ -38,7 +40,7 @@ export function bndAlertReducer(state: BndAlertState, action: Action): BndAlertS
 export function parseBndStatus(value: unknown): BndStatus {
   if (!value || typeof value !== "object") throw new Error("Invalid B&D status");
   const s = value as Record<string, unknown>;
-  if (!["disabled", "unconfigured", "checking", "connected", "error"].includes(String(s.state)) ||
+  if (!["disabled", "unconfigured", "checking", "connected", "error", "paused"].includes(String(s.state)) ||
       !Array.isArray(s.pendingOrders) || s.pendingOrders.length > 10_000 ||
       (s.errorCode !== null && !["authentication", "connection", "response", "rate_limited"].includes(String(s.errorCode)))) {
     throw new Error("Invalid B&D status");
@@ -65,13 +67,16 @@ export function parseBndStatus(value: unknown): BndStatus {
 
 export function getBndAlertView(state: BndAlertState, token: string | null, now = Date.now()) {
   const snapshot = token && state.token === token ? state.snapshot : null;
-  const unavailable = Boolean(token && state.token === token && state.connectionFailed) ||
+  const paused = !getBndSchedule(now).open || snapshot?.state === "paused";
+  const unavailable = !paused && (Boolean(token && state.token === token && state.connectionFailed) ||
     snapshot?.state === "error" || Boolean(snapshot?.state === "connected" && snapshot.lastSuccessAt &&
-      now - Date.parse(snapshot.lastSuccessAt) > 120_000);
+      now - Date.parse(snapshot.lastSuccessAt) > 120_000));
   const monitoring = Boolean(snapshot && !["disabled", "unconfigured"].includes(snapshot.state));
   const pending = monitoring ? snapshot!.pendingOrders : [];
+  const checkedToday = Boolean(snapshot?.lastSuccessAt &&
+    getBndSchedule(Date.parse(snapshot.lastSuccessAt)).nextChangeAt > now);
   return {
-    snapshot, unavailable, pending,
-    alerting: Boolean(token && state.enabled && pending.length),
+    snapshot, unavailable, pending, paused,
+    alerting: Boolean(token && state.enabled && !paused && checkedToday && pending.length),
   };
 }

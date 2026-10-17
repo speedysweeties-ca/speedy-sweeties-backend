@@ -1,3 +1,5 @@
+import { getBndSchedule, nextBndCheckAt } from "./schedule";
+
 // BDD Dispatcher 1.0.0 uses these two endpoints. Never open order details:
 // its details screen sends a PATCH that claims the order.
 const LOGIN_URL = "https://api.bddeliveries.ca/api/account/login";
@@ -10,7 +12,7 @@ const MAX_RETRY_MS = 15 * 60_000;
 type ErrorCode = "authentication" | "connection" | "response" | "rate_limited";
 export type BndPendingOrder = { id: string; number: string };
 export type BndStatus = {
-  state: "disabled" | "unconfigured" | "checking" | "connected" | "error";
+  state: "disabled" | "unconfigured" | "checking" | "connected" | "error" | "paused";
   pendingOrders: BndPendingOrder[];
   lastCheckedAt: string | null;
   lastSuccessAt: string | null;
@@ -31,6 +33,8 @@ class MonitorError extends Error {
     super(code); // Never retain upstream error text, responses or credentials.
   }
 }
+
+class MonitoringPaused extends Error {}
 
 function identifier(value: unknown): string {
   if (typeof value === "number" && (!Number.isSafeInteger(value) || value < 0)) {
@@ -101,10 +105,18 @@ export function createBndMonitor(options: Options) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let controller: AbortController | undefined;
 
+  function pause() {
+    status = { ...status, state: "paused",
+      nextCheckAt: new Date(nextBndCheckAt(Math.max(now(), notBefore))).toISOString() };
+  }
+
   async function request(url: string, init: RequestInit) {
     if (stopped) throw new MonitorError("connection");
+    const schedule = getBndSchedule(now());
+    if (!schedule.open) throw new MonitoringPaused();
     controller = new AbortController();
-    const timeout = setTimeout(() => controller?.abort(), options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller?.abort(), Math.min(
+      options.requestTimeoutMs ?? REQUEST_TIMEOUT_MS, schedule.nextChangeAt - now()));
     try {
       const response = await fetchImpl(url, { ...init, redirect: "error", signal: controller.signal });
       if (!response.ok) {
@@ -143,7 +155,10 @@ export function createBndMonitor(options: Options) {
   }
 
   async function check() {
-    if (stopped || inFlight || !options.enabled || !configured || now() < notBefore) return;
+    if (stopped || inFlight || !options.enabled || !configured) return;
+    if (!getBndSchedule(now()).open) { pause(); return; }
+    if (status.state === "paused") status = { ...status, state: status.errorCode ? "error" : "checking" };
+    if (now() < notBefore) return;
     inFlight = true;
     status.lastCheckedAt = new Date(now()).toISOString();
     try {
@@ -159,14 +174,16 @@ export function createBndMonitor(options: Options) {
         pendingOrders = await readOrders();
       }
       if (stopped) return;
+      if (!getBndSchedule(now()).open) { pause(); return; }
       failures = 0;
       notBefore = now() + BND_POLL_MS;
       status = {
         state: "connected", pendingOrders, lastCheckedAt: status.lastCheckedAt,
-        lastSuccessAt: new Date(now()).toISOString(), nextCheckAt: new Date(notBefore).toISOString(), errorCode: null,
+        lastSuccessAt: new Date(now()).toISOString(), nextCheckAt: new Date(nextBndCheckAt(notBefore)).toISOString(), errorCode: null,
       };
     } catch (error) {
       if (stopped) return;
+      if (error instanceof MonitoringPaused || !getBndSchedule(now()).open) { pause(); return; }
       const safeError = error instanceof MonitorError ? error : new MonitorError("connection");
       if (safeError.code === "authentication") token = null;
       failures = Math.min(failures + 1, 5);
@@ -174,7 +191,7 @@ export function createBndMonitor(options: Options) {
       const delay = Math.max(backoff, safeError.retryMs, safeError.code === "authentication" ? MAX_RETRY_MS : 0);
       notBefore = now() + delay;
       // Retain last-known waiting calls on failure. An outage is never an empty queue.
-      status = { ...status, state: "error", errorCode: safeError.code, nextCheckAt: new Date(notBefore).toISOString() };
+      status = { ...status, state: "error", errorCode: safeError.code, nextCheckAt: new Date(nextBndCheckAt(notBefore)).toISOString() };
     } finally { inFlight = false; }
   }
 
@@ -192,7 +209,11 @@ export function createBndMonitor(options: Options) {
     const tick = async () => {
       await check();
       if (!stopped) {
-        timer = setTimeout(() => void tick(), Math.max(BND_POLL_MS, notBefore - now()));
+        const schedule = getBndSchedule(now());
+        const delay = schedule.open
+          ? Math.min(schedule.nextChangeAt - now(), Math.max(BND_POLL_MS, notBefore - now()))
+          : schedule.nextChangeAt - now();
+        timer = setTimeout(() => void tick(), Math.max(1, delay));
         timer.unref();
       }
     };
@@ -201,6 +222,10 @@ export function createBndMonitor(options: Options) {
   }
 
   function getStatus(): BndStatus {
+    if (options.enabled && configured && !getBndSchedule(now()).open) {
+      return { ...status, state: "paused", pendingOrders: status.pendingOrders.map(order => ({ ...order })),
+        nextCheckAt: new Date(nextBndCheckAt(Math.max(now(), notBefore))).toISOString() };
+    }
     const stale = status.state === "connected" && status.lastSuccessAt &&
       now() - Date.parse(status.lastSuccessAt) > 2 * BND_POLL_MS;
     return {
