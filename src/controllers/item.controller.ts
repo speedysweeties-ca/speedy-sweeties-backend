@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { parsePickupType } from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
+import { selectableCatalogWhere } from "../utils/catalogVisibility";
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
@@ -37,7 +38,7 @@ export const searchItemsController = async (
 
   const items = await prisma.itemCatalog.findMany({
     where: {
-      isActive: true,
+      ...selectableCatalogWhere(),
       OR: [
         {
           normalizedName: {

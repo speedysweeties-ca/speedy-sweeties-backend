@@ -6,10 +6,11 @@ const {createChatGPTOrderingRouter}=require('../dist/integrations/chatgpt/gatewa
 const {PRODUCTS,POLICY_VERSION,submissionSchema}=require('../dist/integrations/chatgpt/contract.js');
 const key='synthetic-test-secret-not-a-production-key';
 const owner='a'.repeat(64),other='b'.repeat(64);
+const categorized=rows=>rows.map(p=>({isActive:true,pickupType:'CONVENIENCE',...p}));
 const input=()=>({request_key:randomUUID(),cart:{items:[{product_id:PRODUCTS[0].id,quantity:2}]},customer:{delivery:{name:'Synthetic Customer',phone:'5195550100',email:'checkout@example.invalid',address_line_1:'1 Synthetic Test Street',unit:'101',buzz_code:'123',city:'Guelph',province:'Ontario',delivery_instructions:'Ring the doorbell'},payment_method:'DEBIT'},confirmation:{review_token:randomUUID(),policy_version:POLICY_VERSION,confirmed_at:new Date().toISOString(),confirmed:true,consent_to_share:true,accept_pay_at_door:true,accept_unknown_total:true,real_order_acknowledged:true}});
 async function fixture(fn){
- const records=new Map(),orders=new Map(),bodies=[];let calls=0,enabled=true,business={source:'google_places',isOpen:true},mode='normal',catalogue=PRODUCTS,policyVersion=POLICY_VERSION;
- const db={systemSetting:{async findUnique({where}){return records.get(where.key)||null;},async create({data}){if(records.has(data.key))throw Object.assign(new Error('duplicate'),{code:'P2002'});records.set(data.key,data);return data;},async update({where,data}){records.set(where.key,{key:where.key,...data});}},itemCatalog:{findMany:async()=>catalogue},order:{findUnique:async({where})=>orders.get(where.id)||null}};
+ const records=new Map(),orders=new Map(),bodies=[];let calls=0,enabled=true,business={source:'google_places',isOpen:true},mode='normal',catalogue=categorized(PRODUCTS),policyVersion=POLICY_VERSION;
+ const db={systemSetting:{async findUnique({where}){return records.get(where.key)||null;},async create({data}){if(records.has(data.key))throw Object.assign(new Error('duplicate'),{code:'P2002'});records.set(data.key,data);return data;},async update({where,data}){records.set(where.key,{key:where.key,...data});}},itemCatalog:{findMany:async({where})=>catalogue.filter(p=>where.id.in.includes(p.id)&&(where.isActive===undefined||p.isActive===where.isActive)&&(!where.pickupType||where.pickupType.in.includes(p.pickupType)))},order:{findUnique:async({where})=>orders.get(where.id)||null}};
  const router=createChatGPTOrderingRouter({db,config:()=>({enabled,apiKey:key,policyVersion}),businessStatus:async()=>business,async createOrder(req,res,onCreated){
   calls++;bodies.push(req.body);if(mode==='throw-before')throw new Error('unknown before transaction');if(mode==='reject'){res.status(400).json({message:'invalid address'});return;}
   const o={id:randomUUID(),orderNumber:42,orderStatus:'PLACED',assignedDriverId:null,createdAt:new Date(),utmSource:req.body.utmSource,utmMedium:req.body.utmMedium,utmContent:req.body.utmContent,digitalReceipt:null,customerName:req.body.customerName,phone:req.body.customerPhone,email:req.body.customerEmail};
@@ -18,7 +19,7 @@ async function fixture(fn){
  }});
  const app=express();app.use(express.json({limit:'16kb'}));app.use('/api/v1/chatgpt',router);const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
  async function call(path,body,{secret=key,customer=owner}={}){const r=await fetch(`http://127.0.0.1:${server.address().port}/api/v1/chatgpt`+path,{method:body?'POST':'GET',headers:{authorization:'Bearer '+secret,'x-speedy-customer':customer,'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,body:await r.json()};}
- try{await fn({call,records,orders,bodies,calls:()=>calls,disable:()=>{enabled=false;},hours:v=>{business=v;},setMode:v=>{mode=v;},catalogue:v=>{catalogue=v;},policy:v=>{policyVersion=v;}});}finally{await new Promise(r=>server.close(r));}
+ try{await fn({call,records,orders,bodies,calls:()=>calls,disable:()=>{enabled=false;},hours:v=>{business=v;},setMode:v=>{mode=v;},catalogue:v=>{catalogue=categorized(v);},policy:v=>{policyVersion=v;}});}finally{await new Promise(r=>server.close(r));}
 }
 test('gateway requires the dedicated key, customer identity, activation and reviewed policy',async()=>fixture(async f=>{
  const d=input();assert.equal((await f.call('/orders',d,{secret:'wrong'})).status,401);assert.equal((await f.call('/orders',d,{customer:''})).status,401);
@@ -42,3 +43,21 @@ test('concurrent requests create once; ownership, payload and status stay bound 
 test('failure after commit remains recoverable and does not replay dispatch',async()=>fixture(async f=>{const d=input();f.setMode('throw-after');const r=await f.call('/orders',d);assert.equal(r.status,200);assert.equal(r.body.state,'submitted');assert.equal((await f.call('/orders/'+d.request_key)).body.order_id,r.body.order_id);await f.call('/orders',d);assert.equal(f.calls(),1);}));
 test('uncertain precommit attempts keep their reservation and cannot create another order',async()=>fixture(async f=>{const d=input();f.setMode('throw-before');assert.equal((await f.call('/orders',d)).body.code,'SUBMISSION_UNCERTAIN');assert.equal((await f.call('/orders',d)).body.state,'pending');assert.equal((await f.call('/orders/'+d.request_key)).body.state,'pending');assert.equal(f.calls(),1);}));
 test('a controller rejection is recorded and never retried automatically',async()=>fixture(async f=>{const d=input();f.setMode('reject');assert.equal((await f.call('/orders',d)).body.code,'ORDER_REJECTED');assert.equal((await f.call('/orders/'+d.request_key)).body.state,'rejected');assert.equal((await f.call('/orders',d)).body.state,'rejected');assert.equal(f.calls(),1);}));
+
+for (const hidden of [{pickupType:'UNKNOWN'}, {pickupType:''}, {pickupType:'OTHER'}, {isActive:false}]) {
+ test(`gateway hides unavailable catalog items and rejects stale selections: ${JSON.stringify(hidden)}`,async()=>fixture(async f=>{
+  f.catalogue(PRODUCTS.map((p,i)=>i===0?{...p,...hidden}:p));
+  const availability=(await f.call('/availability')).body;
+  assert.equal(availability.accepting_orders,false);
+  assert.equal(availability.items.some(p=>p.id===PRODUCTS[0].id),false);
+  assert.equal(availability.items.length,PRODUCTS.length-1);
+  assert.equal((await f.call('/orders',input())).body.code,'CATALOGUE_CHANGED');
+  assert.equal(f.calls(),0);assert.equal(f.records.size,0);
+  f.catalogue(PRODUCTS);
+  assert.equal((await f.call('/availability')).body.accepting_orders,true);
+  assert.equal((await f.call('/orders',input())).status,201);
+ }));
+}
+test('disabled gateway does not advertise an unchecked static catalog',async()=>fixture(async f=>{
+ f.disable();assert.deepEqual((await f.call('/availability')).body.items,[]);
+}));

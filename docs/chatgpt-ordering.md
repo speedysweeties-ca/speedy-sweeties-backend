@@ -14,7 +14,7 @@ Policy `guelph-pay-at-door-2026-10-01-v1` discloses store prices, delivery C$10.
 
 All routes are under `/api/v1/chatgpt` and require a dedicated server-only Bearer key (at least 32 characters) plus `X-Speedy-Customer`, a 64-character hexadecimal pseudonym derived by the Site from its authenticated owner identity. Do not expose the key to customers or accept a user-supplied owner header in the Site.
 
-- `GET /availability`: policy, allowlisted items and readiness. Ordering requires the explicit enable flag and matching policy version, exact live catalogue identity/name matches, and verified Google Places hours reporting open. The ordinary backend's open fallback is deliberately insufficient for this gateway. Stock remains unverified.
+- `GET /availability`: policy, allowlisted items and readiness. Ordering requires the explicit enable flag and matching policy version, exact live catalogue identity/name matches for active items with a supported pickup category, and verified Google Places hours reporting open. The ordinary backend's open fallback is deliberately insufficient for this gateway. Stock remains unverified.
 - `POST /orders`: strict reviewed payload, UUID request key and consent. This calls the existing public order controller with normal validation/dispatch behavior after the gateway checks.
 - `GET /orders/:request_key`: owner-scoped status and receipt total. No contact fields, tracking/loyalty credentials or driver location are returned. Status remains readable when the backend enable flag is false if the key is retained.
 
