@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
+import { selectableCatalogWhere } from "../utils/catalogVisibility";
 import {
   AiConversationTurn,
   createAiOrderDraft
@@ -19,9 +20,7 @@ export const createAiOrderDraftController = async (
   res: Response
 ) => {
   const catalogItems = await prisma.itemCatalog.findMany({
-    where: {
-      isActive: true
-    },
+    where: selectableCatalogWhere(),
     select: {
       id: true,
       name: true,

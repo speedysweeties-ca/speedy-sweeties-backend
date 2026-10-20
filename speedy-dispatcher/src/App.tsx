@@ -5038,6 +5038,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
               <p className="text-zinc-400 mt-1">
                 Search, edit, and deactivate learned catalog items.
               </p>
+              <p className="text-zinc-400 text-sm mt-2">
+                Items with Pickup Type UNKNOWN stay here for categorizing and are hidden from order searches and AI catalog suggestions. Choose a pickup type and keep the item active to make it appear.
+              </p>
               <p className="text-zinc-500 text-sm mt-2">
                 Created by shows who first added the item. Older entries without a creator record show Unknown.
               </p>

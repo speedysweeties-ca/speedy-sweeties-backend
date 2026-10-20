@@ -3,6 +3,7 @@ import { CurrentCart, orderEditSchema, ORDER_EDIT_INSTRUCTIONS, applyOrderEdit }
 import { env } from "../config/env";
 import { ApiError } from "../utils/ApiError";
 import { verifyAndPersistRequestedProducts } from "./productWebVerification.service";
+import { isRoutablePickupType } from "../constants/pickupTypes";
 
 export type AiConversationRole = "user" | "assistant";
 
@@ -872,6 +873,7 @@ export const createAiOrderDraft = async ({
   catalogItems,
   currentCart
 }: AiOrderDraftRequest) => {
+  catalogItems = catalogItems.filter((item) => isRoutablePickupType(item.pickupType));
   const sizeQuestion =
     ambiguous26erQuestion(transcript, catalogItems) ??
     ambiguousJoinedCountSizeQuestion(transcript, catalogItems);
@@ -900,7 +902,10 @@ export const createAiOrderDraft = async ({
 
   return buildOrderDraftResponse(
     modelDraft,
-    [...catalogItems, ...webVerifiedCatalogItems],
+    // A previously verified URL can still refer to an item awaiting categorization.
+    [...catalogItems, ...webVerifiedCatalogItems].filter((item) =>
+      isRoutablePickupType(item.pickupType)
+    ),
     explicitAdditionalNotes
   );
 };

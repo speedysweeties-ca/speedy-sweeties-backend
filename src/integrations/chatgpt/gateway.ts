@@ -5,6 +5,7 @@ import {z} from "zod";
 import type {Prisma,PrismaClient} from "@prisma/client";
 import {createOrderSchema} from "../../validators/order.validator";
 import {POLICY,POLICY_VERSION,PRODUCTS,submissionSchema,orderBody} from "./contract";
+import {selectableCatalogWhere} from "../../utils/catalogVisibility";
 
 type Config={enabled:boolean;apiKey:string;policyVersion:string};
 type Business={source:string;isOpen:boolean;nextOpenText?:string|null};
@@ -27,7 +28,7 @@ export function createChatGPTOrderingRouter(deps:Dependencies){
  });
  // One service key serves many customers; limit each trusted, pseudonymous customer.
  router.use(rateLimit({windowMs:60000,limit:60,standardHeaders:"draft-8",legacyHeaders:false,keyGenerator:(_req,res)=>res.locals.customerKey,message:{code:"RATE_LIMIT",message:"Please wait before checking again."}}));
- async function catalogueReady(){const rows=await deps.db.itemCatalog.findMany({where:{id:{in:PRODUCTS.map(p=>p.id)}},select:{id:true,name:true}});return rows.length===PRODUCTS.length&&PRODUCTS.every(p=>rows.some(r=>r.id===p.id&&r.name===p.name));}
+ async function availableCatalogue(){const rows=await deps.db.itemCatalog.findMany({where:{...selectableCatalogWhere(),id:{in:PRODUCTS.map(p=>p.id)}},select:{id:true,name:true}});return PRODUCTS.filter(p=>rows.some(r=>r.id===p.id&&r.name===p.name));}
  async function read(key:string,owner:string){const row=await deps.db.systemSetting.findUnique({where:{key:prefix+key}});if(!row)return null;const saved=JSON.parse(row.value) as RecordValue;return saved.owner===owner?saved:null;}
  async function result(key:string,saved:RecordValue){
   if(saved.state!=="complete"||!saved.orderId)return {environment:"production",request_key:key,state:saved.state,status:null as string|null,real_delivery:true,pricing_verified:false,final_total:null as number|null};
@@ -37,10 +38,11 @@ export function createChatGPTOrderingRouter(deps:Dependencies){
   return {environment:"production",request_key:key,state:"submitted",order_id:order.id,order_number:order.orderNumber,status:order.orderStatus,assigned_driver:!!order.assignedDriverId,created_at:order.createdAt,real_delivery:true,pricing_verified:total!==null,final_total:total,receipt_number:order.digitalReceipt?.receiptNumber??null,currency:"CAD"};
  }
  router.get("/availability",async(_req,res,next)=>{try{
-  const config=deps.config();if(!config.enabled||config.policyVersion!==POLICY_VERSION)return void res.json({environment:"production",enabled:false,accepting_orders:false,reason:"ORDERING_DISABLED",policy:POLICY,items:PRODUCTS});
-  const [business,catalogue]=await Promise.all([deps.businessStatus(),catalogueReady()]);
+  const config=deps.config();if(!config.enabled||config.policyVersion!==POLICY_VERSION)return void res.json({environment:"production",enabled:false,accepting_orders:false,reason:"ORDERING_DISABLED",policy:POLICY,items:[]});
+  const [business,items]=await Promise.all([deps.businessStatus(),availableCatalogue()]);
+  const catalogue=items.length===PRODUCTS.length;
   const verified=business.source==="google_places";
-  res.json({environment:"production",enabled:true,accepting_orders:verified&&business.isOpen&&catalogue,reason:!catalogue?"CATALOGUE_CHANGED":!verified?"HOURS_UNVERIFIED":!business.isOpen?"CLOSED":null,hours_verified:verified,open:verified?business.isOpen:null,next_open_text:business.nextOpenText??null,stock_checked:false,policy:POLICY,items:PRODUCTS});
+  res.json({environment:"production",enabled:true,accepting_orders:verified&&business.isOpen&&catalogue,reason:!catalogue?"CATALOGUE_CHANGED":!verified?"HOURS_UNVERIFIED":!business.isOpen?"CLOSED":null,hours_verified:verified,open:verified?business.isOpen:null,next_open_text:business.nextOpenText??null,stock_checked:false,policy:POLICY,items});
  }catch(e){next(e);}});
  router.get("/orders/:key",async(req,res,next)=>{try{const key=z.string().uuid().parse(req.params.key),saved=await read(key,res.locals.customerKey);if(!saved)return void res.status(404).json({code:"NOT_FOUND",message:"Order not found."});res.json(await result(key,saved));}catch(e){next(e);}});
  router.post("/orders",rateLimit({windowMs:15*60000,limit:10,standardHeaders:"draft-8",legacyHeaders:false,keyGenerator:(_req,res)=>res.locals.customerKey,message:{code:"RATE_LIMIT",message:"Too many order attempts. Check your saved order."}}),async(req,res,next)=>{try{
@@ -51,8 +53,8 @@ export function createChatGPTOrderingRouter(deps:Dependencies){
   if(previous){if(previous.hash!==hash)return void res.status(409).json({code:"DETAILS_CHANGED",message:"This reference belongs to different confirmed details."});return void res.json(await result(data.request_key,previous));}
   const config=deps.config();if(!config.enabled||config.policyVersion!==POLICY_VERSION)return void res.status(503).json({code:"ORDERING_DISABLED",message:"New ChatGPT orders are paused."});
   const confirmed=Date.parse(data.confirmation.confirmed_at);if(confirmed>Date.now()+60000||confirmed<Date.now()-30*60000)return void res.status(409).json({code:"REVIEW_EXPIRED",message:"Please review and confirm this order again."});
-  const [business,catalogue]=await Promise.all([deps.businessStatus(),catalogueReady()]);
-  if(!catalogue)return void res.status(409).json({code:"CATALOGUE_CHANGED",message:"The catalogue changed. No order was submitted."});
+  const [business,items]=await Promise.all([deps.businessStatus(),availableCatalogue()]);
+  if(items.length!==PRODUCTS.length)return void res.status(409).json({code:"CATALOGUE_CHANGED",message:"The catalogue changed. No order was submitted."});
   if(business.source!=="google_places"||!business.isOpen)return void res.status(409).json({code:business.source!=="google_places"?"HOURS_UNVERIFIED":"CLOSED",message:"Speedy Sweeties is not confirmed open. No order was submitted."});
   const saved:RecordValue={owner,hash,state:"pending",createdAt:new Date().toISOString(),confirmation:data.confirmation};
   try{await deps.db.systemSetting.create({data:{key,value:JSON.stringify(saved)}});}catch(e){if((e as {code?:string}).code!=="P2002")throw e;const concurrent=await read(data.request_key,owner);if(!concurrent)return void res.status(404).json({code:"NOT_FOUND",message:"Order not found."});if(concurrent.hash!==hash)return void res.status(409).json({code:"DETAILS_CHANGED",message:"Order details changed."});return void res.json(await result(data.request_key,concurrent));}
