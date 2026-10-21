@@ -1,3 +1,4 @@
+import { dispatchWaitingMilliseconds, type EditPause } from "./dispatchTiming.ts";
 export const ORDER_ALARM_STORAGE_KEY = "speedy-dispatcher-order-alarm-enabled";
 export const ORDER_ALARM_REPEAT_MS = 10_000;
 export const UNACCEPTED_ORDER_WARNING_MS = 5 * 60_000;
@@ -11,6 +12,9 @@ export type AlarmOrder = {
   createdByUserId?: string | null;
   createdAt?: string | null;
   acceptedAt?: string | null;
+  dispatchedAt?: string | null;
+  firstDispatchedAt?: string | null;
+  dispatchEditPauses?: EditPause[];
 };
 
 export type OrderAlarmState = {
@@ -36,11 +40,11 @@ export const createOrderAlarmState = (enabled = true): OrderAlarmState => ({
 const isWaitingForAcceptance = (order: AlarmOrder) =>
   !order.acceptedAt && ["PLACED", "DISPATCHED"].includes(order.orderStatus);
 
-// Keep the card warning and sound on the same clock, measured from creation.
+// Card and sound share the clock, excluding verified pre-dispatch editing.
 export const isUnacceptedOrderLate = (order: AlarmOrder, nowMs: number) => {
   const createdMs = order.createdAt ? Date.parse(order.createdAt) : NaN;
   return isWaitingForAcceptance(order) && Number.isFinite(createdMs) &&
-    nowMs - createdMs >= UNACCEPTED_ORDER_WARNING_MS;
+    dispatchWaitingMilliseconds(order, nowMs) >= UNACCEPTED_ORDER_WARNING_MS;
 };
 
 export const isIncomingCustomerOrder = (order: AlarmOrder) =>

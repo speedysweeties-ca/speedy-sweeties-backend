@@ -10,9 +10,21 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: speedy_sweeties_ci
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d speedy_sweeties_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       NODE_ENV: test
-      # CI-only values. No database command in this workflow connects to this URL.
+      # CI-only database; production credentials are never used.
       DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/speedy_sweeties_ci?schema=public
       JWT_SECRET: ci-only-secret
       # Firebase is replaced with a non-network stub when NODE_ENV=test.
@@ -45,6 +57,11 @@ jobs:
 
       - name: Test all backend services
         run: npm test
+
+      - name: Validate edit pauses against isolated PostgreSQL
+        run: |
+          npx prisma migrate deploy
+          CHECK_EDIT_PAUSE_DATABASE=1 node --test tests/orderEditPause.database.test.js
 
       - name: Install dispatcher dependencies
         working-directory: speedy-dispatcher

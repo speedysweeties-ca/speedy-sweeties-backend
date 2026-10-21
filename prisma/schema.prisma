@@ -346,12 +346,13 @@ model Order {
   dispatchedBy   User?     @relation("DispatchedOrders", fields: [dispatchedByUserId], references: [id], onDelete: SetNull)
   createdBy      User?     @relation("CreatedOrders", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
-  items          OrderItem[]
-  digitalReceipt DigitalReceipt?
-  pickupStops    OrderPickupStop[]
-  dispatchEvents DispatchEvent[]
-  helpRequest    DeliveryHelpRequest?
-  checkInEvents  DeliveryCheckInEvent[]
+  items              OrderItem[]
+  digitalReceipt     DigitalReceipt?
+  pickupStops        OrderPickupStop[]
+  dispatchEvents     DispatchEvent[]
+  dispatchEditPauses OrderEditPause[]
+  helpRequest        DeliveryHelpRequest?
+  checkInEvents      DeliveryCheckInEvent[]
 
   @@index([customerId])
   @@index([orderSource])
@@ -622,4 +623,17 @@ model OrderPickupStop {
   @@index([pickupLocationId])
   @@index([plannedForDriverId])
   @@index([sequence])
+}
+
+// Server-timed editor leases; audit history is retained for performance reports.
+model OrderEditPause {
+  id          String   @id
+  orderId     String
+  actorUserId String
+  startedAt   DateTime @default(now())
+  expiresAt   DateTime
+  endedAt     DateTime?
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, startedAt])
 }

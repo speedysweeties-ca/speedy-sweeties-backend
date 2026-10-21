@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useOrderEditPause, type EditTimingSnapshot } from "./useOrderEditPause";
+import { dispatchWaitingMilliseconds, isDispatchTimerPaused, type EditPause } from "./dispatchTiming";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE_URL, API_V1_BASE_URL } from "./apiConfig";
 import { DispatcherHelp } from "./DispatcherHelp";
 import { LoadPreviousOrder } from "./LoadPreviousOrder";
@@ -199,7 +201,10 @@ type Order = {
   dispatchedBy?: DispatcherIdentity | null;
   dispatchSource?: DispatchSource | null;
   createdAt?: string;
-  dispatchedAt?: string;
+  dispatchedAt?: string | null;
+  firstDispatchedAt?: string | null;
+  dispatchEditPauses?: EditPause[];
+  dispatchTimingAsOf?: string;
   acceptedAt?: string;
   outForDeliveryAt?: string;
   deliveredAt?: string;
@@ -871,6 +876,22 @@ function App() {
 
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [editOrderForm, setEditOrderForm] = useState<EditOrderForm | null>(null);
+  const receiveEditTiming = useCallback((snapshot: EditTimingSnapshot) => {
+    setOrders(current => current.map(order => {
+      if (order.id !== snapshot.orderId ||
+          (order.dispatchTimingAsOf && order.dispatchTimingAsOf > snapshot.serverNow)) return order;
+      return { ...order, dispatchEditPauses: snapshot.dispatchEditPauses,
+        firstDispatchedAt: snapshot.firstDispatchedAt, dispatchedAt: snapshot.dispatchedAt,
+        dispatchTimingAsOf: snapshot.serverNow };
+    }));
+  }, []);
+  const editPauseProblem = useOrderEditPause(token, editingOrderId,
+    activeTab === "LIVE_ORDERS", receiveEditTiming);
+  const receiveAlarmOrders = orderAlarm.receiveOrders;
+  useEffect(() => {
+    if (orders.length) receiveAlarmOrders(orders);
+  }, [orders, receiveAlarmOrders]);
+
   const [editItemSuggestions, setEditItemSuggestions] = useState<
     Record<number, ItemSuggestion[]>
   >({});
@@ -6631,6 +6652,14 @@ const handleSaveEditedOrder = async (orderId: string) => {
       <div className="bg-zinc-800/80 border border-red-500 rounded-xl p-3 space-y-4 text-sm">
         <div>
           <p className="text-red-300 font-bold">Editing Order #{order.orderNumber}</p>
+          {!order.firstDispatchedAt && !order.dispatchedAt && (
+            <p className="text-amber-300 text-xs mt-1" role="status">
+              {isDispatchTimerPaused(order, nowMs)
+                ? `Dispatch timer paused — ${formatMinutes(Math.floor(dispatchWaitingMilliseconds(order, nowMs) / 60000))} counted`
+                : "Confirming dispatch timer pause…"}
+            </p>
+          )}
+          {editPauseProblem && <p className="text-red-300 text-xs mt-1" role="alert">{editPauseProblem}</p>}
           <p className="text-zinc-400 text-xs mt-1">
             Save changes to update the order for the dispatcher and driver app.
           </p>
@@ -6930,9 +6959,12 @@ const handleSaveEditedOrder = async (orderId: string) => {
          </div>
 
          <div>
-           Order Time:{" "}
+           {!order.firstDispatchedAt && !order.dispatchedAt ? "Dispatch Wait:" : "Order Time:"}{" "}
            <span className="text-amber-300 font-semibold">
-             {formatOrderAge(order.createdAt)}
+             {!order.firstDispatchedAt && !order.dispatchedAt
+               ? formatMinutes(Math.floor(dispatchWaitingMilliseconds(order, nowMs) / 60000))
+               : formatOrderAge(order.createdAt)}
+             {isDispatchTimerPaused(order, nowMs) && " · paused for editing"}
            </span>
          </div>
        </div>

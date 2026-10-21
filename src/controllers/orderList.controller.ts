@@ -1,3 +1,4 @@
+import { editPauseSelect } from "../services/orderEditPause.service";
 import { OrderPriority, OrderStatus, Prisma } from "@prisma/client";
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
@@ -144,6 +145,12 @@ export const listAllOrdersController = async (
       take: limit,
       include: {
         items: true,
+        dispatchEditPauses: { select: editPauseSelect },
+        dispatchEvents: {
+          where: { eventType: "ASSIGNED" },
+          orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
+          take: 1, select: { occurredAt: true }
+        },
         digitalReceipt: true,
         customer: {
           select: {
@@ -179,6 +186,8 @@ export const listAllOrdersController = async (
 
   const ordersWithNotes = sortedOrders.map((order) => ({
     ...order,
+    firstDispatchedAt: order.dispatchEvents[0]?.occurredAt ?? order.dispatchedAt,
+    dispatchTimingAsOf: new Date().toISOString(),
     dispatcherNotes: order.customer?.dispatcherNotes || null
   }));
 

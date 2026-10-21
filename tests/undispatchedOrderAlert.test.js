@@ -133,3 +133,18 @@ test("uses a restricted Resend request with an order-specific idempotency key", 
   assert.match(body.text, /at least 5 minutes/);
   assert.doesNotMatch(body.text, /customer|address|phone/i);
 });
+
+test("editing time delays the overdue email, including a pause begun after selection", async () => {
+  const currentOrder = {
+    id: "edit-paused", orderNumber: 126, createdAt: new Date("2026-09-05T18:20:00Z"),
+    orderStatus: OrderStatus.PLACED, dispatchedAt: null,
+    dispatchEditPauses: [{ startedAt: new Date("2026-09-05T18:22:00Z"),
+      expiresAt: new Date("2026-09-05T18:35:00Z"), endedAt: null }]
+  };
+  const { store, calls } = createStore(currentOrder);
+  let sent = 0;
+  await processUndispatchedOrderAlerts({ store, now: new Date("2026-09-05T18:30:00Z"),
+    sendAlert: async () => { sent++; return { id: "should-not-send" }; } });
+  assert.equal(sent, 0);
+  assert.deepEqual(calls.released, ["edit-paused"]);
+});

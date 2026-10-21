@@ -1,3 +1,5 @@
+import { dispatchWaitingMilliseconds, type DispatchEditPause } from "./dispatchTiming";
+import { editPauseSelect } from "./orderEditPause.service";
 import { OrderStatus } from "@prisma/client";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
@@ -15,11 +17,13 @@ type AlertCandidate = {
 };
 
 type ClaimedOrder = AlertCandidate & {
+  dispatchEditPauses?: DispatchEditPause[];
   orderStatus: OrderStatus;
   dispatchedAt: Date | null;
 };
 
 type FindCandidateOptions = {
+  now: Date;
   cutoff: Date;
   earliestCreatedAt: Date;
   staleClaimBefore: Date;
@@ -73,34 +77,20 @@ const getErrorMessage = (value: unknown): string => {
 };
 
 const prismaAlertStore: UndispatchedOrderAlertStore = {
-  findCandidates: async ({
-    cutoff,
-    earliestCreatedAt,
-    staleClaimBefore,
-    limit
-  }) =>
-    prisma.order.findMany({
-      where: {
-        orderStatus: OrderStatus.PLACED,
-        dispatchedAt: null,
-        createdAt: {
-          gte: earliestCreatedAt,
-          lte: cutoff
-        },
-        undispatchedAlertSentAt: null,
-        OR: [
-          { undispatchedAlertClaimedAt: null },
-          { undispatchedAlertClaimedAt: { lte: staleClaimBefore } }
-        ]
-      },
-      select: {
-        id: true,
-        orderNumber: true,
-        createdAt: true
-      },
-      orderBy: { createdAt: "asc" },
-      take: limit
-    }),
+  findCandidates: async ({ now, cutoff, earliestCreatedAt, staleClaimBefore, limit }) =>
+    prisma.$queryRaw<AlertCandidate[]>`
+      SELECT o.id, o."orderNumber", o."createdAt"
+      FROM "Order" o
+      WHERE o."orderStatus" = 'PLACED' AND o."dispatchedAt" IS NULL
+        AND o."createdAt" >= ${earliestCreatedAt} AND o."createdAt" <= ${cutoff}
+        AND o."undispatchedAlertSentAt" IS NULL
+        AND (o."undispatchedAlertClaimedAt" IS NULL OR o."undispatchedAlertClaimedAt" <= ${staleClaimBefore})
+        AND ((${now.toISOString()}::timestamptz AT TIME ZONE 'UTC') - o."createdAt"
+          - dispatch_edit_pause_duration(o.id, o."createdAt", (${now.toISOString()}::timestamptz AT TIME ZONE 'UTC')))
+          >= ${now.getTime() - cutoff.getTime()} * INTERVAL '1 millisecond'
+      ORDER BY o."createdAt", o.id
+      LIMIT ${limit}
+    `,
 
   claim: async (orderId, claimTime, staleClaimBefore) => {
     const result = await prisma.order.updateMany({
@@ -128,7 +118,8 @@ const prismaAlertStore: UndispatchedOrderAlertStore = {
         orderNumber: true,
         createdAt: true,
         orderStatus: true,
-        dispatchedAt: true
+        dispatchedAt: true,
+        dispatchEditPauses: { select: editPauseSelect }
       }
     }),
 
@@ -231,6 +222,7 @@ export const processUndispatchedOrderAlerts = async ({
   );
   const staleClaimBefore = new Date(now.getTime() - 10 * MINUTE_MS);
   const candidates = await store.findCandidates({
+    now,
     cutoff,
     earliestCreatedAt,
     staleClaimBefore,
@@ -255,10 +247,14 @@ export const processUndispatchedOrderAlerts = async ({
         continue;
       }
 
-      const waitingMinutes = Math.max(
-        normalizedAlertMinutes,
-        Math.floor((now.getTime() - currentOrder.createdAt.getTime()) / MINUTE_MS)
+      const waitingMs = dispatchWaitingMilliseconds(
+        currentOrder.createdAt, now, currentOrder.dispatchEditPauses
       );
+      if (waitingMs < normalizedAlertMinutes * MINUTE_MS) {
+        await store.release(candidate.id, claimTime);
+        continue;
+      }
+      const waitingMinutes = Math.floor(waitingMs / MINUTE_MS);
 
       const providerResult = await sendAlert(currentOrder, waitingMinutes);
       const markedSent = await store.markSent(candidate.id, claimTime, new Date());
