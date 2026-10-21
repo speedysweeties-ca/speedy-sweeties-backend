@@ -39,7 +39,7 @@ export async function updateOrderEditPause(input: Input, now = new Date(), db = 
       if (session && !session.endedAt) {
         session = await tx.orderEditPause.update({
           where: { id: session.id },
-          data: { endedAt: new Date(Math.min(now.getTime(), session.expiresAt.getTime())) }
+          data: { endedAt: new Date(Math.max(session.startedAt.getTime(), Math.min(now.getTime(), session.expiresAt.getTime()))) }
         });
       } else if (!session && input.action === "stop") {
         // A stop can beat its start over the network. Leave a zero-duration
@@ -57,7 +57,7 @@ export async function updateOrderEditPause(input: Input, now = new Date(), db = 
       } });
     } else if (!session.endedAt && session.expiresAt > now) {
       session = await tx.orderEditPause.update({ where: { id: session.id }, data: {
-        expiresAt: new Date(now.getTime() + EDIT_PAUSE_LEASE_MS)
+        expiresAt: new Date(Math.max(session.expiresAt.getTime(), now.getTime() + EDIT_PAUSE_LEASE_MS))
       } });
     } else if (!session.endedAt || input.action === "heartbeat") {
       // Expired time stays expired. The browser must create a new interval.

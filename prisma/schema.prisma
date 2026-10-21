@@ -627,13 +627,13 @@ model OrderPickupStop {
 
 // Server-timed editor leases; audit history is retained for performance reports.
 model OrderEditPause {
-  id          String   @id
+  id          String    @id
   orderId     String
   actorUserId String
-  startedAt   DateTime @default(now())
+  startedAt   DateTime  @default(now())
   expiresAt   DateTime
   endedAt     DateTime?
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId, startedAt])
 }
