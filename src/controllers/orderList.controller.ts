@@ -186,7 +186,7 @@ export const listAllOrdersController = async (
 
   const ordersWithNotes = sortedOrders.map((order) => ({
     ...order,
-    firstDispatchedAt: order.dispatchEvents[0]?.occurredAt ?? order.dispatchedAt,
+    firstDispatchedAt: order.dispatchEvents?.[0]?.occurredAt ?? order.dispatchedAt,
     dispatchTimingAsOf: new Date().toISOString(),
     dispatcherNotes: order.customer?.dispatcherNotes || null
   }));
