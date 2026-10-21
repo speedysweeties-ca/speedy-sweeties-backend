@@ -1,3 +1,4 @@
+import { editPauseSelect } from "../services/orderEditPause.service";
 import { UserRole } from "@prisma/client";
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
@@ -158,6 +159,7 @@ export const getDispatcherPerformanceController = async (
         manualEntryStartedAt: true,
         createdByUserId: true,
         dispatchedAt: true,
+        dispatchEditPauses: { select: editPauseSelect },
         dispatchedByUserId: true,
         deliveredAt: true,
         cancelledAt: true

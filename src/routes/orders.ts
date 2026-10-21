@@ -1,3 +1,4 @@
+import { orderEditPauseController } from "../controllers/orderEditPause.controller";
 import { Router } from "express";
 import { UserRole } from "@prisma/client";
 import { asyncHandler } from "../utils/asyncHandler";
@@ -48,6 +49,13 @@ import {
 } from "../controllers/receipt.controller";
 
 const router = Router();
+
+router.post(
+  "/:id/edit-pause",
+  requireAuth,
+  requireRole([UserRole.ADMIN, UserRole.DISPATCHER]),
+  asyncHandler(orderEditPauseController)
+);
 
 // ✅ PUBLIC — customers create orders
 router.post(

@@ -1,3 +1,4 @@
+import { dispatchWaitingMilliseconds, type DispatchEditPause } from "./dispatchTiming";
 import {
   DispatchEventType,
   DispatchSource,
@@ -31,6 +32,7 @@ export type DispatcherPerformanceOrder = {
   manualEntryStartedAt: Date | null;
   createdByUserId: string | null;
   dispatchedAt: Date | null;
+  dispatchEditPauses?: DispatchEditPause[];
   dispatchedByUserId: string | null;
   deliveredAt: Date | null;
   cancelledAt: Date | null;
@@ -126,11 +128,16 @@ export const getDispatcherPerformanceSourceGroup = (
   return "UNKNOWN";
 };
 
+const dispatchMinutesForOrder = (order: DispatcherPerformanceOrder): number | null => {
+  if (minutesBetween(order.createdAt, order.dispatchedAt) === null) return null;
+  return dispatchWaitingMilliseconds(order.createdAt, order.dispatchedAt!, order.dispatchEditPauses) / 60_000;
+};
+
 const buildDurationBreakdown = (
   orders: DispatcherPerformanceOrder[]
 ): DurationBreakdown => {
   const dispatchMinutes = orders.flatMap((order) => {
-    const minutes = minutesBetween(order.createdAt, order.dispatchedAt);
+    const minutes = dispatchMinutesForOrder(order);
     return minutes === null ? [] : [minutes];
   });
 
@@ -236,7 +243,7 @@ export const buildDispatcherPerformance = (input: {
     events: sourceFilteredEvents
   }).filter((order) => {
     if (!input.overFiveMinutesOnly) return true;
-    const minutes = minutesBetween(order.createdAt, order.dispatchedAt);
+    const minutes = dispatchMinutesForOrder(order);
     return minutes !== null && minutes > 5;
   });
   // Use immutable first-dispatch timing before filtering related entry work and
@@ -367,7 +374,7 @@ export const buildDispatcherPerformance = (input: {
         averageManualEntryMinutes: average(accumulator.manualEntryMinutes),
         ordersDispatched: dispatchDurations.totalOrders,
         dispatchTimeSamples: accumulator.dispatchedOrders.filter(
-          (order) => minutesBetween(order.createdAt, order.dispatchedAt) !== null
+          (order) => dispatchMinutesForOrder(order) !== null
         ).length,
         averageDispatchMinutes: dispatchDurations.averageDispatchMinutes,
         medianDispatchMinutes: dispatchDurations.medianDispatchMinutes,
@@ -411,7 +418,7 @@ export const buildDispatcherPerformance = (input: {
 
   const orderDetails = selectedDispatchedOrders
     .map((order) => {
-      const dispatchMinutes = minutesBetween(order.createdAt, order.dispatchedAt);
+      const dispatchMinutes = dispatchMinutesForOrder(order);
 
       return {
         orderId: order.id,
@@ -467,7 +474,7 @@ export const buildDispatcherPerformance = (input: {
       averageManualEntryMinutes: average(manualEntryMinutes),
       ordersDispatched: dispatchSummary.totalOrders,
       dispatchTimeSamples: selectedDispatchedOrders.filter(
-        (order) => minutesBetween(order.createdAt, order.dispatchedAt) !== null
+        (order) => dispatchMinutesForOrder(order) !== null
       ).length,
       averageDispatchMinutes: dispatchSummary.averageDispatchMinutes,
       medianDispatchMinutes: dispatchSummary.medianDispatchMinutes,

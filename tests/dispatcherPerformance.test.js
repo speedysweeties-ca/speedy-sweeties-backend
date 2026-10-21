@@ -500,3 +500,21 @@ test("performance endpoint applies the delay filter from POST bodies and GET que
     }
   }
 });
+
+test("five-minute report excludes editing, merges tabs, and never credits edits after first dispatch", () => {
+  const pauses = [
+    { startedAt: at("2026-09-10T16:02:00Z"), expiresAt: at("2026-09-10T16:06:00Z"), endedAt: at("2026-09-10T16:06:00Z") },
+    { startedAt: at("2026-09-10T16:04:00Z"), expiresAt: at("2026-09-10T16:08:00Z"), endedAt: at("2026-09-10T16:08:00Z") },
+    { startedAt: at("2026-09-10T16:20:00Z"), expiresAt: at("2026-09-10T16:30:00Z"), endedAt: at("2026-09-10T16:30:00Z") }
+  ];
+  const orders = [order({ id: "paused", orderNumber: 1, dispatchedAt: at("2026-09-10T16:25:00Z"), dispatchEditPauses: pauses })];
+  const event = { orderId: "paused", eventType: DispatchEventType.ASSIGNED, dispatchSource: DispatchSource.MANUAL,
+    actorUserId: "dispatcher-1", occurredAt: at("2026-09-10T16:11:00Z") };
+  const result = buildDispatcherPerformance({ dispatchers, orders, events: [event] });
+  assert.equal(result.orders[0].dispatchMinutes, 5);
+  assert.equal(result.orders[0].withinFiveMinutes, true);
+  assert.equal(result.orders[0].totalDeliveryMinutes, 30);
+  assert.equal(buildDispatcherPerformance({ dispatchers, orders, events: [event], overFiveMinutesOnly: true }).summary.ordersDispatched, 0);
+  event.occurredAt = at("2026-09-10T16:11:00.001Z");
+  assert.equal(buildDispatcherPerformance({ dispatchers, orders, events: [event], overFiveMinutesOnly: true }).summary.ordersDispatched, 1);
+});
