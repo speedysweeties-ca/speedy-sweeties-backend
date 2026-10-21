@@ -6,12 +6,12 @@ type Alarm = ReturnType<typeof useIncomingOrderAlarm>;
 
 export function IncomingOrderAlarmControls({ alarm }: { alarm: Alarm }) {
   return (
-    <DispatchToggleControl label="Alarm" switchLabel="Incoming order alarm"
+    <DispatchToggleControl label="Alarm" switchLabel="New order and overdue acceptance alarms"
       enabled={alarm.enabled} onToggle={alarm.toggle}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span>{alarm.enabled
           ? alarm.audioReady ? "Sound ready · This browser" : "Sound needs enabling."
-          : "Incoming-order alerts are off on this browser."}</span>
+          : "Order sounds and pop-ups are off on this browser."}</span>
         {alarm.enabled && <>
           {!alarm.audioReady && <button type="button" onClick={alarm.enableSound}
             className="py-1 font-semibold underline underline-offset-4 hover:text-white">
@@ -23,7 +23,37 @@ export function IncomingOrderAlarmControls({ alarm }: { alarm: Alarm }) {
           </button>
         </>}
       </div>
+      <p className="mt-1">New orders + calls not accepted after 5 minutes.</p>
     </DispatchToggleControl>
+  );
+}
+
+export function UnacceptedOrderAlarmPopup({ alarm, onViewOrders }: { alarm: Alarm; onViewOrders: () => void }) {
+  if (!alarm.overdueAlerting) return null;
+  return (
+    <aside aria-label="Driver acceptance overdue"
+      className="w-full shrink-0 rounded-2xl border-2 border-yellow-300 bg-yellow-950 p-5 text-white shadow-2xl">
+      <div role="alert" aria-atomic="true">
+        <h2 className="text-2xl font-bold">Driver has not accepted — 5+ minutes</h2>
+        <ul className="mt-3 max-h-40 space-y-1 overflow-y-auto font-semibold">
+          {alarm.overdue.map(order => <li key={order.id}>Order #{order.orderNumber}</li>)}
+        </ul>
+      </div>
+      <p className="mt-3 text-sm text-yellow-100">
+        Contact the driver or assign another driver. Sound repeats every 30 seconds
+        while a call is still waiting for acceptance. It stops when accepted or cancelled.
+      </p>
+      <div className="mt-4 flex flex-wrap gap-3">
+        {!alarm.audioReady && <button type="button" onClick={alarm.enableSound}
+          className="rounded-lg bg-yellow-300 px-4 py-2 font-bold text-zinc-950">
+          Enable Sound
+        </button>}
+        <button type="button" onClick={onViewOrders}
+          className="rounded-lg bg-white px-4 py-2 font-bold text-yellow-950 hover:bg-yellow-100">
+          View Orders
+        </button>
+      </div>
+    </aside>
   );
 }
 

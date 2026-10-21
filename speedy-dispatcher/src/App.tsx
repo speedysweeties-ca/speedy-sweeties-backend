@@ -3,7 +3,8 @@ import { API_BASE_URL, API_V1_BASE_URL } from "./apiConfig";
 import { DispatcherHelp } from "./DispatcherHelp";
 import { LoadPreviousOrder } from "./LoadPreviousOrder";
 import { useIncomingOrderAlarm } from "./useIncomingOrderAlarm";
-import { IncomingOrderAlarmControls, IncomingOrderAlarmPopup } from "./IncomingOrderAlarm";
+import { IncomingOrderAlarmControls, IncomingOrderAlarmPopup, UnacceptedOrderAlarmPopup } from "./IncomingOrderAlarm";
+import { isUnacceptedOrderLate } from "./incomingOrderAlarm";
 import { useBndOrderAlerts } from "./useBndOrderAlerts";
 import { BndOrderAlertControls, BndOrderAlertPopup } from "./BndOrderAlerts";
 import { BndEmailControls } from "./BndEmailControls";
@@ -753,7 +754,8 @@ function App() {
   const [completingChecklistItemId, setCompletingChecklistItemId] = useState<string | null>(null);
 
   const [token, setToken] = useState<string | null>(null);
-  const orderAlarm = useIncomingOrderAlarm(Boolean(token));
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const orderAlarm = useIncomingOrderAlarm(Boolean(token), nowMs);
   const bndAlarm = useBndOrderAlerts(token);
   const [ordersRefreshError, setOrdersRefreshError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUserProfile | null>(null);
@@ -769,7 +771,6 @@ function App() {
   const [driverManagementLoading, setDriverManagementLoading] = useState(false);
   const [updatingDriverVisibilityId, setUpdatingDriverVisibilityId] =
     useState<string | null>(null);
-  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
   const [catalogSearch, setCatalogSearch] = useState("");
@@ -1074,7 +1075,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       setNowMs(Date.now());
-    }, 30000);
+    }, 5000);
 
     return () => {
       window.clearInterval(intervalId);
@@ -8119,11 +8120,15 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
       {ordersRefreshError && (
         <p role="status" className="mx-auto mt-4 max-w-7xl rounded-xl border border-amber-500 bg-amber-950 p-4 text-amber-100">
-          {ordersRefreshError} Incoming-order alerts may be delayed until the connection recovers.
+          {ordersRefreshError} Order alerts use the last successful check until the connection recovers.
         </p>
       )}
       <div className="fixed bottom-4 right-4 z-[100] flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md flex-col gap-3 overflow-y-auto">
         <IncomingOrderAlarmPopup alarm={orderAlarm} onViewOrders={() => {
+          setActiveTab("LIVE_ORDERS");
+          if (token) void fetchOrders(token, false);
+        }} />
+        <UnacceptedOrderAlarmPopup alarm={orderAlarm} onViewOrders={() => {
           setActiveTab("LIVE_ORDERS");
           if (token) void fetchOrders(token, false);
         }} />
@@ -8169,10 +8174,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                   ? new Date(order.createdAt).getTime()
                   : 0;
 
-                const isUnacceptedLate =
-                  order.orderStatus === "PLACED" &&
-                  createdTime > 0 &&
-                  now - createdTime > 5 * 60 * 1000;
+                const isUnacceptedLate = isUnacceptedOrderLate(order, now);
 
                 const isDeliveryLate =
                   order.orderStatus !== "DELIVERED" &&

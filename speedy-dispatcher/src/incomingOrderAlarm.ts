@@ -1,5 +1,7 @@
 export const ORDER_ALARM_STORAGE_KEY = "speedy-dispatcher-order-alarm-enabled";
 export const ORDER_ALARM_REPEAT_MS = 10_000;
+export const UNACCEPTED_ORDER_WARNING_MS = 5 * 60_000;
+export const UNACCEPTED_ORDER_REPEAT_MS = 30_000;
 
 export type AlarmOrder = {
   id: string;
@@ -7,6 +9,8 @@ export type AlarmOrder = {
   orderStatus: string;
   orderSource?: string | null;
   createdByUserId?: string | null;
+  createdAt?: string | null;
+  acceptedAt?: string | null;
 };
 
 export type OrderAlarmState = {
@@ -14,6 +18,7 @@ export type OrderAlarmState = {
   initialized: boolean;
   seen: Set<string>;
   pending: AlarmOrder[];
+  waitingForAcceptance: AlarmOrder[];
   testing: boolean;
 };
 
@@ -25,8 +30,18 @@ export type OrderAlarmAction =
   | { type: "reset" };
 
 export const createOrderAlarmState = (enabled = true): OrderAlarmState => ({
-  enabled, initialized: false, seen: new Set(), pending: [], testing: false,
+  enabled, initialized: false, seen: new Set(), pending: [], waitingForAcceptance: [], testing: false,
 });
+
+const isWaitingForAcceptance = (order: AlarmOrder) =>
+  !order.acceptedAt && ["PLACED", "DISPATCHED"].includes(order.orderStatus);
+
+// Keep the card warning and sound on the same clock, measured from creation.
+export const isUnacceptedOrderLate = (order: AlarmOrder, nowMs: number) => {
+  const createdMs = order.createdAt ? Date.parse(order.createdAt) : NaN;
+  return isWaitingForAcceptance(order) && Number.isFinite(createdMs) &&
+    nowMs - createdMs >= UNACCEPTED_ORDER_WARNING_MS;
+};
 
 export const isIncomingCustomerOrder = (order: AlarmOrder) =>
   order.orderSource !== "DISPATCHER_MANUAL" && !order.createdByUserId &&
@@ -68,7 +83,10 @@ export function orderAlarmReducer(state: OrderAlarmState, action: OrderAlarmActi
         }
       }
       // First successful snapshot is a baseline, not a new batch of orders.
-      return { ...state, initialized: true, seen, pending };
+      const waitingForAcceptance = Array.from(new Map(
+        action.orders.filter(isWaitingForAcceptance).map(order => [order.id, order])
+      ).values());
+      return { ...state, initialized: true, seen, pending, waitingForAcceptance };
     }
   }
 }
