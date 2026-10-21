@@ -26,7 +26,7 @@ the raw dispatch interval before its strict `> INTERVAL '5 minutes'` comparison.
 Keep the existing reporting dates and first-assignment attribution.
 
 Deployment: apply the additive migration before running the updated backend.
-Deploy the backend before the dispatcher frontend. A temporarily old backend
+The dispatcher handles the rolling backend/frontend deployment: a temporarily old backend
 returns an error to the editor's new endpoint, which displays the pause warning
 without preventing editing. Verify the migration and update the weekly task's
 query before reporting the feature live.
@@ -35,3 +35,8 @@ Verification covers overlapping sessions, expired leases, stop/start reordering,
 actor ownership, exact-five-minute boundaries, first-assignment clipping, and
 unchanged delivery time. CI runs the migration and real session mutations on an
 isolated PostgreSQL service, never the production database.
+
+The CI database uses a pre-feature baseline built from the checked-in schema,
+then applies this feature's migration verbatim. Historical migrations alone do
+not recreate all existing production columns (including Order.dispatchedAt), so
+this test does not claim to repair or certify that older migration history.

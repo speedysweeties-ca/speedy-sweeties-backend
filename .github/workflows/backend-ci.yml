@@ -60,7 +60,7 @@ jobs:
 
       - name: Validate edit pauses against isolated PostgreSQL
         run: |
-          npx prisma migrate deploy
+          node tests/prepareEditPauseDatabase.cjs
           CHECK_EDIT_PAUSE_DATABASE=1 node --test tests/orderEditPause.database.test.js
 
       - name: Install dispatcher dependencies
