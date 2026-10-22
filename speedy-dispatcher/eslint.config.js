@@ -8,6 +8,12 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores(['dist']),
   {
+    files: ['server.mjs', 'tests/*.test.mjs'],
+    extends: [js.configs.recommended],
+    languageOptions: { ecmaVersion: 'latest', globals: globals.node },
+    rules: { 'no-unused-vars': ['error', { argsIgnorePattern: '^_' }] },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     extends: [
       js.configs.recommended,
