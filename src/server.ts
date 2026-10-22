@@ -1,3 +1,4 @@
+import { stopDriverAssignmentNotifications } from "./services/driverAssignmentNotification.service";
 import { Server } from "node:http";
 import app from "./app";
 import { env } from "./config/env";
@@ -29,6 +30,7 @@ async function shutdown(signal: string): Promise<void> {
   isShuttingDown = true;
   console.log(`${signal} received. Starting graceful shutdown.`);
 
+  stopDriverAssignmentNotifications();
   stopUndispatchedOrderAlertMonitor?.();
   stopPickupLocationHoursMonitor?.();
   stopBndOrderMonitor?.();

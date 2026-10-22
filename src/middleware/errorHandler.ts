@@ -4,10 +4,11 @@ import { StatusCodes } from "http-status-codes";
 import { ZodError } from "zod";
 import { ApiError } from "../utils/ApiError";
 import { env } from "../config/env";
+import { logServerError } from "./requestDiagnostics";
 
 export function errorHandler(
   error: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
@@ -37,6 +38,7 @@ export function errorHandler(
     message = env.NODE_ENV === "development" ? error.message : "Internal server error";
   }
 
+  if (statusCode >= 500) logServerError(error, req, res);
   res.status(statusCode).json({
     success: false,
     message,

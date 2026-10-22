@@ -10,6 +10,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { loginRateLimiter } from "./middleware/loginRateLimiter";
 import { qrStatisticsRateLimiter } from "./middleware/qrStatisticsRateLimiter";
 import { prisma } from "./lib/prisma";
+import { requestDiagnostics, safeRouteTemplate } from "./middleware/requestDiagnostics";
 
 // 🔥 ADD THIS LINE (initializes Firebase Admin)
 import "./config/firebase";
@@ -24,6 +25,7 @@ const allowedCorsOrigins = env.CORS_ORIGIN.split(",")
   .filter(Boolean);
 const allowAllCorsOrigins = allowedCorsOrigins.includes("*");
 
+app.use(requestDiagnostics);
 app.use(
   cors({
     origin(origin, callback) {
@@ -43,10 +45,12 @@ app.use(
 
 app.use(helmet());
 // Do not log request URLs in production: token-based tracking URLs contain credentials.
+morgan.token("route-template", req => safeRouteTemplate(req as express.Request));
+morgan.token("request-id", (_req, res) => (res as express.Response).locals.requestId);
 app.use(
   morgan(
     env.NODE_ENV === "production"
-      ? ":method :status :res[content-length] :response-time ms"
+      ? ":request-id :method :route-template :status :res[content-length] :response-time ms"
       : "dev"
   )
 );

@@ -6,7 +6,7 @@ import {
   OrderPriority
 } from "@prisma/client";
 import { Request, Response } from "express";
-import { messaging } from "../config/firebase";
+import { sendDriverAssignmentNotification } from "../services/driverAssignmentNotification.service";
 import { prisma } from "../lib/prisma";
 import { getFirstDispatchAttribution } from "../utils/dispatchAttribution";
 import { isDriverFresh } from "../utils/driverFreshness";
@@ -35,41 +35,6 @@ const shouldSendDriverPush = (driver: {
   if (!driver.driverFcmToken) return false;
 
   return driver.driverAppState !== "FOREGROUND";
-};
-
-const sendDriverAssignedOrderPush = async (
-  driverFcmToken: string,
-  orderNumber: number,
-  customerName: string,
-  addressLine1: string,
-  city?: string | null
-): Promise<void> => {
-  const address = [addressLine1, city].filter(Boolean).join(", ");
-
-  try {
-    await messaging.send({
-      token: driverFcmToken,
-      notification: {
-        title: "New Speedy Sweeties Order",
-        body: `Order #${orderNumber} assigned to you. ${customerName} - ${address}`
-      },
-      data: {
-        type: "DRIVER_ORDER_ASSIGNED",
-        orderNumber: String(orderNumber)
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "speedy_sweeties_driver_orders",
-          sound: "default"
-        }
-      }
-    });
-
-    console.log("Driver assigned order push sent");
-  } catch (error) {
-    console.error("Failed to send driver assigned order push:", error instanceof Error ? error.name : typeof error);
-  }
 };
 
 export const assignDriverToOrderController = async (
@@ -377,13 +342,15 @@ export const assignDriverToOrderController = async (
     shouldSendDriverPush(driver) &&
     driver.driverFcmToken
   ) {
-    await sendDriverAssignedOrderPush(
-      driver.driverFcmToken,
-      updatedOrder.orderNumber,
-      updatedOrder.customerName,
-      updatedOrder.addressLine1,
-      updatedOrder.city
-    );
+    await sendDriverAssignmentNotification({
+      orderId: updatedOrder.id,
+      driverId: driver.id,
+      token: driver.driverFcmToken,
+      orderNumber: updatedOrder.orderNumber,
+      customerName: updatedOrder.customerName,
+      addressLine1: updatedOrder.addressLine1,
+      city: updatedOrder.city
+    });
   }
 
   res.status(200).json({

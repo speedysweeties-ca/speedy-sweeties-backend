@@ -9,6 +9,7 @@ import {
   UserRole
 } from "@prisma/client";
 import { messaging } from "../config/firebase";
+import { sendDriverAssignmentNotification } from "../services/driverAssignmentNotification.service";
 import { normalizePickupTypeOrUnknown } from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
 import { signCustomerLoyaltyToken } from "../utils/jwt";
@@ -310,44 +311,6 @@ const receiptTotalToCurrencyText = (value: unknown): string | null => {
   }
 
   return `$${numberValue.toFixed(2)}`;
-};
-
-const sendDriverAssignedOrderPush = async (
-  driverFcmToken: string,
-  orderNumber: number,
-  customerName: string,
-  addressLine1: string,
-  city?: string | null,
-  pickupSummary?: string | null
-): Promise<void> => {
-  const address = [addressLine1, city].filter(Boolean).join(", ");
-
-  try {
-    await messaging.send({
-      token: driverFcmToken,
-      notification: {
-        title: "New Speedy Sweeties Order",
-        body: pickupSummary
-          ? `Order #${orderNumber} assigned. Pickup: ${pickupSummary}. ${customerName} - ${address}`
-          : `Order #${orderNumber} assigned to you. ${customerName} - ${address}`
-      },
-      data: {
-        type: "DRIVER_ORDER_ASSIGNED",
-        orderNumber: String(orderNumber)
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "speedy_sweeties_driver_orders",
-          sound: "default"
-        }
-      }
-    });
-
-    console.log("Driver assigned order push sent");
-  } catch (error) {
-    console.error("Failed to send driver assigned order push:", error instanceof Error ? error.name : typeof error);
-  }
 };
 
 const sendCustomerOutForDeliveryNotification = async (
@@ -868,15 +831,17 @@ const createOrder = async (
     ...orderResponse
   } = order;
 
-  if (shouldNotifyAutoDispatchedDriver(autoDispatchResult)) {
-    await sendDriverAssignedOrderPush(
-      autoDispatchResult.driverFcmToken,
-      autoDispatchResult.orderNumber,
-      autoDispatchResult.customerName,
-      autoDispatchResult.addressLine1,
-      autoDispatchResult.city,
-      autoDispatchResult.pickupSummary
-    );
+  if (shouldNotifyAutoDispatchedDriver(autoDispatchResult) && autoDispatchResult.driverId) {
+    await sendDriverAssignmentNotification({
+      orderId: order.id,
+      driverId: autoDispatchResult.driverId,
+      token: autoDispatchResult.driverFcmToken,
+      orderNumber: autoDispatchResult.orderNumber,
+      customerName: autoDispatchResult.customerName,
+      addressLine1: autoDispatchResult.addressLine1,
+      city: autoDispatchResult.city,
+      pickupSummary: autoDispatchResult.pickupSummary
+    });
   }
 
   await sendCustomerLoyaltyNotification(appFcmToken, loyaltyResult);
