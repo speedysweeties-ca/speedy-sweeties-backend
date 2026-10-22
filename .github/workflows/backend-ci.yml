@@ -43,6 +43,9 @@ jobs:
       - name: Install backend dependencies
         run: npm ci
 
+      - name: Check backend runtime dependency advisories
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Check Prisma formatting
         run: npx prisma format --check
 
@@ -67,6 +70,10 @@ jobs:
       - name: Install dispatcher dependencies
         working-directory: speedy-dispatcher
         run: npm ci
+
+      - name: Check dispatcher runtime dependency advisories
+        working-directory: speedy-dispatcher
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Check dispatcher
         working-directory: speedy-dispatcher
