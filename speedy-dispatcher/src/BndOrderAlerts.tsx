@@ -1,3 +1,4 @@
+import { bndHoursLabel } from "./bndSchedule";
 import type { useBndOrderAlerts } from "./useBndOrderAlerts";
 import { DispatchToggleControl } from "./DispatchToggleControl";
 
@@ -5,7 +6,7 @@ type Alarm = ReturnType<typeof useBndOrderAlerts>;
 
 export function BndOrderAlertControls({ alarm }: { alarm: Alarm }) {
   let status = "Checking B&D monitoring…";
-  if (alarm.paused) status = "B&D checks paused overnight · 10 a.m.–9 p.m. Toronto time";
+  if (alarm.paused) status = `B&D checks paused · ${bndHoursLabel()}`;
   else if (alarm.unavailable) status = alarm.snapshot?.errorCode === "authentication"
     ? "B&D login needs attention. Monitoring is interrupted."
     : "B&D monitoring interrupted. Waiting-call status may be out of date.";
@@ -17,6 +18,7 @@ export function BndOrderAlertControls({ alarm }: { alarm: Alarm }) {
       enabled={alarm.enabled} onToggle={alarm.toggle}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <p role="status" className={alarm.unavailable ? "text-amber-200" : undefined}>{status}</p>
+        {!alarm.paused && <p>{bndHoursLabel()}</p>}
         {alarm.paused && alarm.pending.length > 0 && <p>
           {alarm.pending.length} last-known waiting {alarm.pending.length === 1 ? "call" : "calls"}. Check B&D directly if needed.
         </p>}

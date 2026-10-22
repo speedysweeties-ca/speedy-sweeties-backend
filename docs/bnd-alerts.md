@@ -38,7 +38,11 @@ and only uses overdue/opening observations before the cutoff. Unconfirmed openin
 times must say **Not confirmed**, not **Still waiting**. The confirmed waiting
 duration is a lower bound, not the exact time to open. Use
 `docs/bnd-weekly-coverage.sql` to disclose incomplete history and daytime gaps over
-120 seconds. No checks is unavailable history, never proof of zero late orders.
+120 seconds during expected opening hours. Daily published hours are saved in
+`SystemSetting` under `bndHours:YYYY-MM-DD`. A published closed day expects no checks.
+Dates before this rollout retain the legacy 10am–9pm window. Cached/fallback
+hours must be disclosed; no checks during an expected opening window is unavailable
+history, never proof of zero late orders.
 Keep this section separate from dispatcher-attributed Speedy performance.
 
 The first weekly email will have partial history from rollout onward. Render
@@ -69,10 +73,23 @@ longer in that list. This does not prove a screenshot was sent to a driver.
   Error backoff and B&D Retry-After limits override the faster schedule.
 - Each browser reads the backend's cached status every 10 seconds; extra tabs
   do not increase B&D requests within one backend process.
-- Both checks run **10 a.m. to 9 p.m. daily, America/Toronto**. At 9 p.m. the
-  backend stops B&D login/list requests and each updated browser stops status
-  requests. Local timers resume at 10 a.m., including across daylight-saving
-  changes. Server restarts and browser refreshes overnight remain paused.
+- Both checks follow the public hours feed used by https://www.bddeliveries.ca/:
+  `GET https://api.bddeliveries.ca/api/hours`. The backend fetches this small,
+  unauthenticated JSON at startup, Toronto midnight, and that day's opening.
+  Daily `today_hours` / `closed_all_day` overrides regular weekday hours, including
+  published holiday closures. Unexpected changes after opening are picked up on
+  the next scheduled refresh or restart, not continuously.
+- Verified regular hours on October 22, 2026: Mon–Wed 9:30am–8pm, Thu–Sat
+  9:30am–9pm, Sunday 11:30am–5pm, Toronto time. Both the 60-second idle checks
+  and 10-second waiting checks stop at closing. Local timers handle DST.
+- The last validated calendar is persisted in `SystemSetting.bndBusinessHoursCache`.
+  A feed failure retains those hours (or the verified regular hours on first use),
+  labels them as saved hours in Dispatcher, logs a warning, and retries in 15 minutes.
+  An old daily holiday override never carries into another date.
+- Browsers read the small authenticated `/api/v1/bnd-alerts/hours` cache on load
+  and when it is due for refresh; this endpoint never contacts B&D. The full
+  calendar is not added to the frequent status response. Status and admin-settings
+  polling pauses outside the daily window; no backend order requests run overnight.
 - Dispatcher shows the overnight pause and retains any last-known waiting calls
   without repeating alarms overnight. A fresh daytime check resumes reminders.
   The email monitor also skips its database/provider work while paused. Existing
@@ -123,8 +140,9 @@ authenticated B&D response and shared-session behavior still need verification.
 6. Check both alarms together, the B&D switch, and connection-loss/recovery.
    Confirm no Speedy order, assignment, message, or delivery-history record is made.
 
-Only `POST https://api.bddeliveries.ca/api/account/login` and
-`GET https://api.bddeliveries.ca/api/driver/order` are used. Redirects are rejected.
+`POST https://api.bddeliveries.ca/api/account/login`,
+`GET https://api.bddeliveries.ca/api/driver/order`, and the public
+`GET https://api.bddeliveries.ca/api/hours` are used. Redirects are rejected.
 The session token is held in backend memory. Credentials and raw order responses
 are never returned to browsers or logged. The staff-only endpoint
 `GET /api/v1/bnd-alerts/status` exposes only monitoring health and pending IDs/numbers.
@@ -171,3 +189,17 @@ Verification before enabling: backend and dispatcher checks; apply migration;
 confirm admin-only visibility and on/off persistence; then verify one real waiting
 call produces one email and no repeat after a refresh/restart. Offline tests use
 fake emails and never contact B&D or send a real message.
+
+## Bandwidth estimate for published hours
+
+The prior daily 10am–9pm window was 77 hours/week. Published regular hours total
+71.5 hours/week: 5.5 fewer hours (7.14%), or 330 fewer idle order checks/week
+(about 1,430/month). Roughly 14 small public-hours reads/week partly offset this.
+A continuously open dispatcher tab also makes about 1,980 fewer cached status
+requests/week, and an admin tab 660 fewer email-settings requests/week.
+Actual byte savings depend on payload/header sizes, open tabs, and waiting orders.
+At an illustrative 1KB outbound per exchange, that is about 1.4MB/month for
+backend requests plus 8.6MB/month per dispatcher tab (2.9MB extra for an admin).
+This is not a measured saving or 7.14% of the whole service's bandwidth. Render
+bills outbound public traffic; incoming B&D response bodies are not billable
+outbound. https://render.com/docs/outbound-bandwidth

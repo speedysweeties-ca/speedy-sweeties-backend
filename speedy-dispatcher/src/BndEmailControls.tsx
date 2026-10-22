@@ -89,7 +89,7 @@ export function BndEmailControls({ token }: { token: string }) {
     loading={(!settings && !error) || Boolean(settings && !settings.configured && !settings.enabled)}
     onToggle={() => void toggle()}>
     <p>Send to {settings?.recipient ?? "rstubbings@hotmail.com"}.</p>
-    <p className="mt-1">One email per waiting order during B&D checks, 10 a.m.–9 p.m. Toronto time. Works while Dispatcher is closed.</p>
+    <p className="mt-1">One email per waiting order during B&D’s published opening hours. Works while Dispatcher is closed.</p>
     {settings && !settings.configured && <p role="status" className="mt-1 text-amber-200">Email setup needs attention.</p>}
     {error && <p role="alert" className="mt-1 text-amber-200">{error}</p>}
   </DispatchToggleControl>;

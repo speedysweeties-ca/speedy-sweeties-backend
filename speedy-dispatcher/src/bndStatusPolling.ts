@@ -1,8 +1,9 @@
-import { getBndSchedule } from "./bndSchedule.ts";
+import { getBndSchedule, getBndHours, parseBndHours, setBndHours } from "./bndSchedule.ts";
 import { BND_STATUS_POLL_MS, parseBndStatus, type BndStatus } from "./bndOrderAlerts.ts";
 
 export function createBndStatusPolling(options: {
   url: string;
+  hoursUrl?: string;
   token: string;
   onSnapshot: (snapshot: BndStatus) => void;
   onFailure: () => void;
@@ -12,6 +13,7 @@ export function createBndStatusPolling(options: {
 }) {
   const now = options.now ?? Date.now;
   const fetchImpl = options.fetchImpl ?? fetch;
+  let hoursRefreshAt = 0;
   let disposed = false;
   let running = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -24,20 +26,44 @@ export function createBndStatusPolling(options: {
     const delay = hours.open
       ? Math.min(BND_STATUS_POLL_MS, hours.nextChangeAt - time)
       : hours.nextChangeAt - time;
-    timer = setTimeout(() => void poll(), Math.max(1, delay));
+    timer = setTimeout(() => void poll(), Math.max(1, Math.min(delay, options.hoursUrl ? hoursRefreshAt - time : Infinity)));
   }
 
   async function poll() {
     if (disposed || running) return;
     clearTimeout(timer);
-    options.onTick(now());
-    const hours = getBndSchedule(now());
-    if (!hours.open) { schedule(); return; }
     running = true;
-    const requestController = new AbortController();
-    controller = requestController;
-    const timeout = setTimeout(() => requestController.abort(), Math.min(10_000, hours.nextChangeAt - now()));
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
+      if (options.hoursUrl && now() >= hoursRefreshAt) {
+        const requestController = new AbortController();
+        controller = requestController;
+        timeout = setTimeout(() => requestController.abort(), 10_000);
+        try {
+          const response = await fetchImpl(options.hoursUrl, {
+            headers: { Authorization: `Bearer ${options.token}` }, cache: "no-store", signal: requestController.signal,
+          });
+          if (!response.ok) throw new Error("B&D hours unavailable");
+          const hours = parseBndHours(await response.json());
+          if (disposed) return;
+          setBndHours(hours);
+          // Let the backend finish its opening/midnight refresh before reading its cache.
+          hoursRefreshAt = hours.refreshAt === 0 ? now() + 15 * 60_000
+            : Math.max(now() + 30_000, hours.refreshAt + 3_000);
+        } catch {
+          if (disposed) return;
+          const saved = getBndHours();
+          setBndHours({ ...saved, source: saved.checkedAt === null ? "fallback" : "cached" });
+          hoursRefreshAt = now() + 15 * 60_000;
+        } finally { clearTimeout(timeout); }
+      }
+      if (disposed) return;
+      options.onTick(now());
+      const hours = getBndSchedule(now());
+      if (!hours.open) return;
+      const requestController = new AbortController();
+      controller = requestController;
+      timeout = setTimeout(() => requestController.abort(), Math.min(10_000, hours.nextChangeAt - now()));
       const response = await fetchImpl(options.url, {
         headers: { Authorization: `Bearer ${options.token}` }, cache: "no-store", signal: requestController.signal,
       });

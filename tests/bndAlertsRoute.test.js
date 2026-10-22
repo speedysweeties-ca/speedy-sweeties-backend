@@ -16,7 +16,7 @@ test("B&D status is cached, no-store, and limited to active admins and dispatche
   await new Promise(resolve => server.once("listening", resolve));
   t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
   const token = signAuthToken({ userId: "bnd-test-staff", email: "staff@example.invalid", role: "ADMIN" });
-  const get = (credential = token) => fetch(`http://127.0.0.1:${server.address().port}/bnd-alerts/status`, {
+  const get = (credential = token, path = "status") => fetch(`http://127.0.0.1:${server.address().port}/bnd-alerts/${path}`, {
     headers: credential ? { Authorization: `Bearer ${credential}` } : {},
   });
   assert.equal((await get(null)).status, 401);
@@ -25,8 +25,14 @@ test("B&D status is cached, no-store, and limited to active admins and dispatche
   role = "DISPATCHER"; active = false; assert.equal((await get()).status, 401);
   active = true; revoked = true; assert.equal((await get()).status, 401);
   revoked = false;
+  assert.equal((await get(null, "hours")).status, 401);
+  role = "DRIVER"; assert.equal((await get(token, "hours")).status, 403);
   for (const allowedRole of ["ADMIN", "DISPATCHER"]) {
     role = allowedRole;
+    const hours = await get(token, "hours");
+    assert.equal(hours.status, 200);
+    assert.equal(hours.headers.get("cache-control"), "no-store");
+    assert.equal((await hours.json()).weekly.length, 7);
     const result = await get(); assert.equal(result.status, 200);
     assert.equal(result.headers.get("cache-control"), "no-store");
     assert.deepEqual(await result.json(), {

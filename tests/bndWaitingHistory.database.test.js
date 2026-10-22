@@ -83,7 +83,21 @@ test('B&D history distinguishes observed claims, missing orders and monitoring g
     assert.equal(coverage[0].longest_gap_seconds, 11 * 3600);
     assert.equal(coverage[6].longest_gap_seconds, 8 * 3600);
     assert.equal(coverage[3].history_began_at.toISOString(), at(0).toISOString());
+    await prisma.systemSetting.createMany({ data: [
+      { key: 'bndHours:2026-10-25', value: JSON.stringify({ source: 'website', startAt: '2026-10-25T15:30:00Z', endAt: '2026-10-25T21:00:00Z' }) },
+      { key: 'bndHours:2026-10-23', value: JSON.stringify({ source: 'website', startAt: null, endAt: null }) },
+    ] });
+    const publishedCoverage = await prisma.$queryRawUnsafe(sql('docs/bnd-weekly-coverage.sql'));
+    assert.equal(publishedCoverage[6].expected_open_seconds, 5.5 * 3600);
+    assert.equal(publishedCoverage[6].longest_gap_seconds, 5.5 * 3600);
+    assert.equal(publishedCoverage[6].hours_source, 'website');
+    assert.equal(publishedCoverage[4].expected_open_seconds, 0);
+    assert.equal(publishedCoverage[4].longest_gap_seconds, 0);
+    assert.equal(publishedCoverage[4].successful_checks, 0);
+    assert.equal(publishedCoverage[0].hours_source, 'legacy');
+
   } finally {
+    await prisma.systemSetting.deleteMany({ where: { key: { in: ['bndHours:2026-10-25', 'bndHours:2026-10-23'] } } });
     await prisma.bndWaitingPeriod.deleteMany();
     await prisma.bndMonitorCheck.deleteMany();
     await prisma.$disconnect();
