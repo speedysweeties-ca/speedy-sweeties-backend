@@ -26,7 +26,8 @@ from email receipts and must not be inferred.
   observation. Outages and overnight pauses are not charged as waiting time.
   Previously confirmed overdue observations remain available. Claims observed
   after a gap can still be recorded, but do not retroactively create an overdue
-  event. Times are approximate observations, normally about a minute apart.
+  event. Times are approximate observations: checks run every 60 seconds with
+  no waiting orders and every 10 seconds while any order is waiting.
 - A database transaction/advisory lock and timestamp ordering handle restarts,
   duplicate snapshots and overlapping deploys. History failure is logged and
   rolls back the entire check without suppressing the existing alerts.
@@ -60,7 +61,12 @@ longer in that list. This does not prove a screenshot was sent to a driver.
 ## Monitoring and reminders
 
 - The backend signs in via the APK's existing login flow and reads the same
-  account-scoped order list, normally once per 60 seconds after each check.
+  account-scoped order list every 60 seconds when no orders are waiting. A valid
+  snapshot with any waiting order switches the next checks to every 10 seconds.
+  Fast checks continue until all waiting orders are claimed or disappear from a
+  successful list refresh, then the next check returns to 60 seconds. Opening one
+  of several waiting orders does not slow the checks while others remain.
+  Error backoff and B&D Retry-After limits override the faster schedule.
 - Each browser reads the backend's cached status every 10 seconds; extra tabs
   do not increase B&D requests within one backend process.
 - Both checks run **10 a.m. to 9 p.m. daily, America/Toronto**. At 9 p.m. the
@@ -80,7 +86,10 @@ longer in that list. This does not prove a screenshot was sent to a driver.
 - Existing unclaimed calls also alert on initial load, refresh and server restart.
 - The pop-up stays visible and sound repeats every 10 seconds until a successful
   B&D refresh clears the call. There is no Acknowledge action that could hide a
-  still-unclaimed call. Allow roughly 60–90 seconds for normal detection/clearing.
+  still-unclaimed call. New calls may take roughly 60–90 seconds to appear from
+  an idle queue. Once a call is detected, opening/claiming is normally detected
+  on the next 10-second upstream check, plus up to 10 seconds for the browser
+  status refresh and network time.
 - B&D Alerts ON/OFF controls pop-ups/sound for the current session and resets ON
   at login. The server keeps checking during monitoring hours while the browser
   switch is off. Re-enabling resumes reminders during those hours.

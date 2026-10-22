@@ -5,6 +5,7 @@ import { getBndSchedule, nextBndCheckAt } from "./schedule";
 const LOGIN_URL = "https://api.bddeliveries.ca/api/account/login";
 const ORDERS_URL = "https://api.bddeliveries.ca/api/driver/order";
 export const BND_POLL_MS = 60_000;
+export const BND_ACTIVE_POLL_MS = 10_000;
 const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const MAX_RETRY_MS = 15 * 60_000;
@@ -184,10 +185,11 @@ export function createBndMonitor(options: Options) {
       if (stopped) return;
       if (!getBndSchedule(now()).open) { pause(); return; }
       failures = 0;
-      notBefore = now() + BND_POLL_MS;
+      const pendingOrders = orders.filter(order => !order.claimed).map(({ id, number }) => ({ id, number }));
+      notBefore = now() + (pendingOrders.length ? BND_ACTIVE_POLL_MS : BND_POLL_MS);
       const observedAt = new Date(now());
       status = {
-        state: "connected", pendingOrders: orders.filter(order => !order.claimed).map(({ id, number }) => ({ id, number })),
+        state: "connected", pendingOrders,
         lastCheckedAt: status.lastCheckedAt,
         lastSuccessAt: observedAt.toISOString(), nextCheckAt: new Date(nextBndCheckAt(notBefore)).toISOString(), errorCode: null,
       };
@@ -225,7 +227,7 @@ export function createBndMonitor(options: Options) {
       if (!stopped) {
         const schedule = getBndSchedule(now());
         const delay = schedule.open
-          ? Math.min(schedule.nextChangeAt - now(), Math.max(BND_POLL_MS, notBefore - now()))
+          ? Math.min(schedule.nextChangeAt - now(), Math.max(1, notBefore - now()))
           : schedule.nextChangeAt - now();
         timer = setTimeout(() => void tick(), Math.max(1, delay));
         timer.unref();

@@ -148,9 +148,10 @@ test("9 p.m. pauses upstream traffic, retains the queue, and resumes at 10 a.m."
     json({ token: "session" }), json([row(1)]), json([]),
   ], "2026-10-18T00:59:00Z");
   await monitor.check(); assert.equal(requests.length, 2);
-  assert.equal(monitor.getStatus().nextCheckAt, "2026-10-18T14:00:00.000Z");
+  assert.equal(monitor.getStatus().nextCheckAt, "2026-10-18T00:59:10.000Z");
   advance();
   assert.equal(monitor.getStatus().state, "paused");
+  assert.equal(monitor.getStatus().nextCheckAt, "2026-10-18T14:00:00.000Z");
   await monitor.check();
   advance(13 * 60 * 60_000 - 1); await monitor.check();
   assert.equal(requests.length, 2);
@@ -229,4 +230,67 @@ test("history sees sanitized claim flags only on successful checks; write failur
   assert.deepEqual(monitor.getStatus().pendingOrders, [{ id: '3', number: '468003' }]);
   assert.doesNotMatch(JSON.stringify(snapshots), /private-|secret/);
   monitor.stop();
+});
+
+test("automatic checks switch 60 to 10 seconds until every waiting call is claimed, then return to 60", async t => {
+  const start = Date.parse('2026-10-22T16:00:00Z');
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: start });
+  const snapshots = [[], [row(1), row(2)], [row(1, true), row(2)], [row(1, true), row(2, true)], []];
+  const checks = [];
+  const monitor = createBndMonitor({ enabled: true, email: 'user', password: 'secret',
+    fetchImpl: async url => {
+      if (url.endsWith('login')) return json({ token: 'session' });
+      checks.push((Date.now() - start) / 1000);
+      assert.ok(snapshots.length, 'no unexpected extra upstream check');
+      return json(snapshots.shift());
+    } });
+  t.after(() => monitor.stop());
+  const tick = async ms => { t.mock.timers.tick(ms); await new Promise(setImmediate); };
+  monitor.start(); await new Promise(setImmediate);
+  assert.deepEqual(checks, [0]);
+  await tick(59999); assert.deepEqual(checks, [0]);
+  await tick(1); assert.deepEqual(checks, [0, 60]);
+  assert.equal(monitor.getStatus().nextCheckAt, new Date(start + 70000).toISOString());
+  await tick(9999); assert.equal(checks.length, 2);
+  await tick(1); assert.equal(monitor.getStatus().pendingOrders.length, 1);
+  await tick(10000); assert.equal(monitor.getStatus().pendingOrders.length, 0);
+  assert.equal(monitor.getStatus().nextCheckAt, new Date(start + 140000).toISOString());
+  await tick(59999); assert.deepEqual(checks, [0, 60, 70, 80]);
+  await tick(1); assert.deepEqual(checks, [0, 60, 70, 80, 140]);
+});
+
+test("active ten-second checks honor rate-limit backoff and recover to the right cadence", async () => {
+  const h = fixture([json({ token: 'session' }), json([row(1)]),
+    json({}, 429, { 'retry-after': '300' }), json([row(1)]), json([])]);
+  await h.monitor.check();
+  h.advance(10000); await h.monitor.check();
+  assert.equal(h.monitor.getStatus().errorCode, 'rate_limited');
+  assert.equal(h.monitor.getStatus().pendingOrders.length, 1);
+  h.advance(299999); await h.monitor.check(); assert.equal(h.requests.length, 3);
+  h.advance(1); await h.monitor.check(); assert.equal(h.requests.length, 4);
+  assert.equal(h.monitor.getStatus().state, 'connected');
+  h.advance(9999); await h.monitor.check(); assert.equal(h.requests.length, 4);
+  h.advance(1); await h.monitor.check(); assert.equal(h.requests.length, 5);
+  h.advance(10000); await h.monitor.check(); assert.equal(h.requests.length, 5);
+});
+
+test("active polling automatically pauses at 9pm even with waiting orders", async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.parse('2026-10-23T00:59:55Z') });
+  let checks = 0;
+  const monitor = createBndMonitor({ enabled: true, email: 'user', password: 'secret',
+    fetchImpl: async url => {
+      if (url.endsWith('login')) return json({ token: 'session' });
+      checks++; return json(checks === 1 ? [row(1)] : []);
+    } });
+  t.after(() => monitor.stop());
+  monitor.start(); await new Promise(setImmediate);
+  assert.equal(monitor.getStatus().nextCheckAt, '2026-10-23T14:00:00.000Z');
+  t.mock.timers.tick(5000); await new Promise(setImmediate);
+  assert.equal(monitor.getStatus().state, 'paused');
+  assert.equal(checks, 1);
+  t.mock.timers.tick(13 * 60 * 60_000 - 1); await new Promise(setImmediate);
+  assert.equal(checks, 1);
+  t.mock.timers.tick(1); await new Promise(setImmediate);
+  assert.equal(checks, 2);
+  assert.equal(monitor.getStatus().nextCheckAt, '2026-10-23T14:01:00.000Z');
 });
