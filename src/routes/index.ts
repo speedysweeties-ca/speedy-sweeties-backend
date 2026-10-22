@@ -19,9 +19,14 @@ import dispatcherPinboardRoutes from "./dispatcherPinboard.routes";
 import dispatcherStandardsRoutes from "./dispatcherStandards.routes";
 import addressRoutes from "./address.routes";
 
+import { getReadiness } from "../services/readiness.service";
+
 const router = Router();
 
-router.get("/health", (_req, res) => {
+router.get("/health", getReadiness);
+router.get("/health/ready", getReadiness);
+
+router.get("/health/live", (_req, res) => {
   res.status(200).json({
     success: true,
     message: "Speedy Sweeties backend is running"
