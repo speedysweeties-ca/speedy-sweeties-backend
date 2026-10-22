@@ -544,6 +544,27 @@ model BndEmailAlert {
   sentAt      DateTime?
 }
 
+// Successful, validated list checks provide report coverage independently of email alerts.
+model BndMonitorCheck {
+  checkedAt    DateTime @id
+  pendingCount Int
+}
+
+// A continuous sequence of positive waiting observations. No customer data.
+model BndWaitingPeriod {
+  id                String    @id @default(uuid())
+  orderId           String
+  orderNumber       String
+  firstSeenAt       DateTime
+  lastSeenWaitingAt DateTime
+  overFiveMinutesAt DateTime?
+  endObservedAt     DateTime?
+  endReason         String?
+
+  @@index([orderId, firstSeenAt])
+  @@index([overFiveMinutesAt])
+}
+
 model SystemSetting {
   key       String   @id
   value     String
