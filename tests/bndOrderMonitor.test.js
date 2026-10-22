@@ -200,3 +200,33 @@ test("overnight pause still honors an upstream retry deadline after opening", as
   h.advance(59 * 60_000); await h.monitor.check();
   assert.equal(h.requests.length, 3);
 });
+
+test("history sees sanitized claim flags only on successful checks; write failures do not stop alerts", async () => {
+  let time = Date.parse('2026-10-22T16:00:00Z');
+  const snapshots = [];
+  let historyErrors = 0;
+  const responses = [json({ token: 'private-session' }), json([row(1), row(2, true)]),
+    json({}, 500), json([]), json([row(3)])];
+  const monitor = createBndMonitor({ enabled: true, email: 'test', password: 'secret', now: () => time,
+    fetchImpl: async () => responses.shift(),
+    onSnapshot: async (orders, observedAt) => {
+      snapshots.push({ orders, observedAt });
+      if (orders.some(order => order.id === '3')) throw new Error('private-db-error');
+    },
+    onSnapshotError: () => { historyErrors++; },
+  });
+  await monitor.check();
+  assert.deepEqual(snapshots[0], { orders: [
+    { id: '1', number: '468001', claimed: false }, { id: '2', number: '468002', claimed: true },
+  ], observedAt: new Date(time) });
+  time += BND_POLL_MS; await monitor.check();
+  assert.equal(snapshots.length, 1); // An outage is not an empty observation.
+  time += BND_POLL_MS; await monitor.check();
+  assert.deepEqual(snapshots[1].orders, []);
+  time += BND_POLL_MS; await monitor.check();
+  assert.equal(historyErrors, 1);
+  assert.equal(monitor.getStatus().state, 'connected');
+  assert.deepEqual(monitor.getStatus().pendingOrders, [{ id: '3', number: '468003' }]);
+  assert.doesNotMatch(JSON.stringify(snapshots), /private-|secret/);
+  monitor.stop();
+});

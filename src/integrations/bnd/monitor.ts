@@ -11,6 +11,7 @@ const MAX_RETRY_MS = 15 * 60_000;
 
 type ErrorCode = "authentication" | "connection" | "response" | "rate_limited";
 export type BndPendingOrder = { id: string; number: string };
+export type BndObservedOrder = BndPendingOrder & { claimed: boolean };
 export type BndStatus = {
   state: "disabled" | "unconfigured" | "checking" | "connected" | "error" | "paused";
   pendingOrders: BndPendingOrder[];
@@ -26,6 +27,8 @@ type Options = {
   fetchImpl?: typeof fetch;
   now?: () => number;
   requestTimeoutMs?: number;
+  onSnapshot?: (orders: BndObservedOrder[], observedAt: Date) => Promise<void>;
+  onSnapshotError?: () => void;
 };
 
 class MonitorError extends Error {
@@ -46,9 +49,9 @@ function identifier(value: unknown): string {
   return text;
 }
 
-export function parseBndOrders(body: unknown): BndPendingOrder[] {
+export function parseBndObservation(body: unknown): BndObservedOrder[] {
   if (!Array.isArray(body) || body.length > 10_000) throw new MonitorError("response");
-  const pending: BndPendingOrder[] = [];
+  const orders: BndObservedOrder[] = [];
   const seen = new Set<string>();
   for (const item of body) {
     if (!item || typeof item !== "object") throw new MonitorError("response");
@@ -59,9 +62,14 @@ export function parseBndOrders(body: unknown): BndPendingOrder[] {
     if (![true, false, 0, 1].includes(item.is_en_route)) throw new MonitorError("response");
     if (seen.has(id)) throw new MonitorError("response");
     seen.add(id);
-    if (item.is_en_route === false || item.is_en_route === 0) pending.push({ id, number });
+    orders.push({ id, number, claimed: item.is_en_route === true || item.is_en_route === 1 });
   }
-  return pending;
+  return orders;
+}
+
+export function parseBndOrders(body: unknown): BndPendingOrder[] {
+  return parseBndObservation(body).filter(order => !order.claimed)
+    .map(({ id, number }) => ({ id, number }));
 }
 
 async function readJson(response: Response): Promise<unknown> {
@@ -149,7 +157,7 @@ export function createBndMonitor(options: Options) {
   }
 
   async function readOrders() {
-    return parseBndOrders(await request(ORDERS_URL, {
+    return parseBndObservation(await request(ORDERS_URL, {
       method: "GET", headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     }));
   }
@@ -164,23 +172,29 @@ export function createBndMonitor(options: Options) {
     try {
       const hadToken = Boolean(token);
       if (!token) await login();
-      let pendingOrders: BndPendingOrder[];
-      try { pendingOrders = await readOrders(); }
+      let orders: BndObservedOrder[];
+      try { orders = await readOrders(); }
       catch (error) {
         // Refresh an expired session once. Bad credentials never cause a tight login loop.
         if (!(error instanceof MonitorError) || error.code !== "authentication" || !hadToken || stopped) throw error;
         token = null;
         await login();
-        pendingOrders = await readOrders();
+        orders = await readOrders();
       }
       if (stopped) return;
       if (!getBndSchedule(now()).open) { pause(); return; }
       failures = 0;
       notBefore = now() + BND_POLL_MS;
+      const observedAt = new Date(now());
       status = {
-        state: "connected", pendingOrders, lastCheckedAt: status.lastCheckedAt,
-        lastSuccessAt: new Date(now()).toISOString(), nextCheckAt: new Date(nextBndCheckAt(notBefore)).toISOString(), errorCode: null,
+        state: "connected", pendingOrders: orders.filter(order => !order.claimed).map(({ id, number }) => ({ id, number })),
+        lastCheckedAt: status.lastCheckedAt,
+        lastSuccessAt: observedAt.toISOString(), nextCheckAt: new Date(nextBndCheckAt(notBefore)).toISOString(), errorCode: null,
       };
+      // History failures must not suppress the existing waiting-call alerts.
+      // Only validated IDs, numbers and claim flags leave this integration.
+      try { await options.onSnapshot?.(orders, observedAt); }
+      catch { options.onSnapshotError?.(); }
     } catch (error) {
       if (stopped) return;
       if (error instanceof MonitoringPaused || !getBndSchedule(now()).open) { pause(); return; }

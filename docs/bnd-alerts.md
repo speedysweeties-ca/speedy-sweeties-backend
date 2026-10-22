@@ -1,5 +1,50 @@
 # B&D waiting-call alerts
 
+## Weekly timing history (October 22, 2026)
+
+The successful list checks now also save a small timing history, independently
+of the desktop and immediate-email switches. Apply migration
+`20261022170000_bnd_waiting_history` before starting the updated backend.
+It adds `BndMonitorCheck` and `BndWaitingPeriod`; existing B&D response and
+Speedy order/customer schemas are unchanged. No new credentials or frontend
+deployment are required. Existing history before this rollout cannot be recovered
+from email receipts and must not be inferred.
+
+- `firstSeenAt` is when our monitor first observes a waiting order, not B&D's
+  exact order creation time. No customer details are retained.
+- A successful check explicitly returning `is_en_route=true/1` records
+  `endReason=CLAIMED` and the observation time. The B&D app claims an order when
+  its detail page opens. This does not identify the person using the shared
+  account or prove a screenshot was sent to a driver.
+- An absent order ends a period as `MISSING`, never as an inferred opening.
+- Only another positive waiting observation strictly more than five minutes
+  after the period started records `overFiveMinutesAt`. An opening detected at
+  5m30s with the last waiting observation at 5m does not qualify. This conservative
+  rule avoids blaming staff for the normal polling delay; some borderline late
+  openings cannot be proven and will not be reported.
+- Gaps longer than two minutes start a new waiting period on the next positive
+  observation. Outages and overnight pauses are not charged as waiting time.
+  Previously confirmed overdue observations remain available. Claims observed
+  after a gap can still be recorded, but do not retroactively create an overdue
+  event. Times are approximate observations, normally about a minute apart.
+- A database transaction/advisory lock and timestamp ordering handle restarts,
+  duplicate snapshots and overlapping deploys. History failure is logged and
+  rolls back the entire check without suppressing the existing alerts.
+
+Use `docs/bnd-weekly-report.sql` for the weekly email. It returns each order once,
+scoped by first observed waiting time to Monday 00:00 through Sunday 18:00 Toronto,
+and only uses overdue/opening observations before the cutoff. Unconfirmed opening
+times must say **Not confirmed**, not **Still waiting**. The confirmed waiting
+duration is a lower bound, not the exact time to open. Use
+`docs/bnd-weekly-coverage.sql` to disclose incomplete history and daytime gaps over
+120 seconds. No checks is unavailable history, never proof of zero late orders.
+Keep this section separate from dispatcher-attributed Speedy performance.
+
+The first weekly email will have partial history from rollout onward. Render
+runs the additive migration in pre-deploy. Rolling back application code leaves
+these independent tables safely in place. Automated tests use the isolated CI
+PostgreSQL database and never claim real B&D calls or send emails.
+
 This feature monitors the shared B&D account and displays an audio/visual reminder
 on every signed-in staff dispatch page. It does not create Speedy orders, import
 customer details, claim B&D calls, open their details, or send screenshots/texts.
