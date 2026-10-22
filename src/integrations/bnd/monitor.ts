@@ -28,6 +28,8 @@ type Options = {
   fetchImpl?: typeof fetch;
   now?: () => number;
   requestTimeoutMs?: number;
+  beforeCheck?: () => Promise<void>;
+  nextHoursRefreshAt?: () => number;
   onSnapshot?: (orders: BndObservedOrder[], observedAt: Date) => Promise<void>;
   onSnapshotError?: () => void;
 };
@@ -163,12 +165,12 @@ export function createBndMonitor(options: Options) {
     }));
   }
 
-  async function check() {
-    if (stopped || inFlight || !options.enabled || !configured) return;
+  async function performCheck() {
+    if (options.beforeCheck) await options.beforeCheck();
+    if (stopped) return;
     if (!getBndSchedule(now()).open) { pause(); return; }
     if (status.state === "paused") status = { ...status, state: status.errorCode ? "error" : "checking" };
     if (now() < notBefore) return;
-    inFlight = true;
     status.lastCheckedAt = new Date(now()).toISOString();
     try {
       const hadToken = Boolean(token);
@@ -208,7 +210,13 @@ export function createBndMonitor(options: Options) {
       notBefore = now() + delay;
       // Retain last-known waiting calls on failure. An outage is never an empty queue.
       status = { ...status, state: "error", errorCode: safeError.code, nextCheckAt: new Date(nextBndCheckAt(notBefore)).toISOString() };
-    } finally { inFlight = false; }
+    }
+  }
+
+  async function check() {
+    if (stopped || inFlight || !options.enabled || !configured) return;
+    inFlight = true;
+    try { await performCheck(); } finally { inFlight = false; }
   }
 
   function stop() {
@@ -229,7 +237,8 @@ export function createBndMonitor(options: Options) {
         const delay = schedule.open
           ? Math.min(schedule.nextChangeAt - now(), Math.max(1, notBefore - now()))
           : schedule.nextChangeAt - now();
-        timer = setTimeout(() => void tick(), Math.max(1, delay));
+        timer = setTimeout(() => void tick(), Math.max(1, Math.min(delay,
+          (options.nextHoursRefreshAt?.() ?? Infinity) - now())));
         timer.unref();
       }
     };

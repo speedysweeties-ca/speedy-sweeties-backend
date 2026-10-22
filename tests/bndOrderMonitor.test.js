@@ -143,7 +143,7 @@ test("slow requests are bounded and shutdown aborts an in-flight request", async
   assert.equal(stopping.getStatus().lastSuccessAt, null);
 });
 
-test("9 p.m. pauses upstream traffic, retains the queue, and resumes at 10 a.m.", async () => {
+test("9 p.m. pauses upstream traffic, retains the queue, and resumes at Sunday 11:30 a.m.", async () => {
   const { monitor, requests, advance } = fixture([
     json({ token: "session" }), json([row(1)]), json([]),
   ], "2026-10-18T00:59:00Z");
@@ -151,9 +151,9 @@ test("9 p.m. pauses upstream traffic, retains the queue, and resumes at 10 a.m."
   assert.equal(monitor.getStatus().nextCheckAt, "2026-10-18T00:59:10.000Z");
   advance();
   assert.equal(monitor.getStatus().state, "paused");
-  assert.equal(monitor.getStatus().nextCheckAt, "2026-10-18T14:00:00.000Z");
+  assert.equal(monitor.getStatus().nextCheckAt, "2026-10-18T15:30:00.000Z");
   await monitor.check();
-  advance(13 * 60 * 60_000 - 1); await monitor.check();
+  advance(14.5 * 60 * 60_000 - 1); await monitor.check();
   assert.equal(requests.length, 2);
   assert.equal(monitor.getStatus().pendingOrders.length, 1);
   advance(1); await monitor.check();
@@ -171,7 +171,7 @@ test("an overnight server start sleeps and automatically checks at opening", asy
   monitor.start();
   await new Promise(setImmediate);
   assert.equal(monitor.getStatus().state, "paused");
-  t.mock.timers.tick(13 * 60 * 60_000 - 1);
+  t.mock.timers.tick(14.5 * 60 * 60_000 - 1);
   await new Promise(setImmediate);
   assert.equal(requests.length, 0);
   t.mock.timers.tick(1);
@@ -191,11 +191,11 @@ test("login completing at closing does not start an order request", async () => 
 });
 
 test("overnight pause still honors an upstream retry deadline after opening", async () => {
-  const h = fixture([json({ token: "session" }), json({}, 429, { "retry-after": "50400" }), json([])], "2026-10-18T00:59:00Z");
+  const h = fixture([json({ token: "session" }), json({}, 429, { "retry-after": "55800" }), json([])], "2026-10-18T00:59:00Z");
   await h.monitor.check(); h.advance(); await h.monitor.check();
   assert.equal(h.monitor.getStatus().state, "paused");
-  assert.equal(h.monitor.getStatus().nextCheckAt, "2026-10-18T14:59:00.000Z");
-  h.advance(13 * 60 * 60_000); await h.monitor.check();
+  assert.equal(h.monitor.getStatus().nextCheckAt, "2026-10-18T16:29:00.000Z");
+  h.advance(14.5 * 60 * 60_000); await h.monitor.check();
   assert.equal(h.requests.length, 2);
   assert.equal(h.monitor.getStatus().state, "error");
   h.advance(59 * 60_000); await h.monitor.check();
@@ -284,13 +284,13 @@ test("active polling automatically pauses at 9pm even with waiting orders", asyn
     } });
   t.after(() => monitor.stop());
   monitor.start(); await new Promise(setImmediate);
-  assert.equal(monitor.getStatus().nextCheckAt, '2026-10-23T14:00:00.000Z');
+  assert.equal(monitor.getStatus().nextCheckAt, '2026-10-23T13:30:00.000Z');
   t.mock.timers.tick(5000); await new Promise(setImmediate);
   assert.equal(monitor.getStatus().state, 'paused');
   assert.equal(checks, 1);
-  t.mock.timers.tick(13 * 60 * 60_000 - 1); await new Promise(setImmediate);
+  t.mock.timers.tick(12.5 * 60 * 60_000 - 1); await new Promise(setImmediate);
   assert.equal(checks, 1);
   t.mock.timers.tick(1); await new Promise(setImmediate);
   assert.equal(checks, 2);
-  assert.equal(monitor.getStatus().nextCheckAt, '2026-10-23T14:01:00.000Z');
+  assert.equal(monitor.getStatus().nextCheckAt, '2026-10-23T13:31:00.000Z');
 });

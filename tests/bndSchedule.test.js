@@ -11,26 +11,28 @@ test("independent Render builds use identical monitoring hours and timezone rule
   );
 });
 
-test("Toronto 10 a.m. opening and 9 p.m. closing are exact in summer and winter", () => {
+test("published opening and closing boundaries include Sunday and shorter weekdays", () => {
   for (const [at, open, next] of [
-    ["2026-10-17T13:59:59.999Z", false, "2026-10-17T14:00:00Z"],
-    ["2026-10-17T14:00:00Z", true, "2026-10-18T01:00:00Z"],
+    ["2026-10-17T13:29:59.999Z", false, "2026-10-17T13:30:00Z"],
+    ["2026-10-17T13:30:00Z", true, "2026-10-18T01:00:00Z"],
     ["2026-10-18T00:59:59.999Z", true, "2026-10-18T01:00:00Z"],
-    ["2026-10-18T01:00:00Z", false, "2026-10-18T14:00:00Z"],
-    ["2026-01-17T14:59:59.999Z", false, "2026-01-17T15:00:00Z"],
-    ["2026-01-17T15:00:00Z", true, "2026-01-18T02:00:00Z"],
-    ["2026-01-18T02:00:00Z", false, "2026-01-18T15:00:00Z"],
-    ["2026-12-31T02:00:00Z", false, "2026-12-31T15:00:00Z"],
-    ["2027-01-01T02:00:00Z", false, "2027-01-01T15:00:00Z"],
+    ["2026-10-18T01:00:00Z", false, "2026-10-18T15:30:00Z"],
+    ["2026-10-18T15:30:00Z", true, "2026-10-18T21:00:00Z"],
+    ["2026-10-18T21:00:00Z", false, "2026-10-19T13:30:00Z"],
+    ["2026-10-20T00:00:00Z", false, "2026-10-20T13:30:00Z"],
+    ["2026-01-17T14:29:59.999Z", false, "2026-01-17T14:30:00Z"],
+    ["2026-01-17T14:30:00Z", true, "2026-01-18T02:00:00Z"],
+    ["2026-01-18T02:00:00Z", false, "2026-01-18T16:30:00Z"],
+    ["2026-12-31T02:00:00Z", false, "2026-12-31T14:30:00Z"],
+    ["2027-01-01T02:00:00Z", false, "2027-01-01T14:30:00Z"],
   ]) {
     assert.deepEqual(getBndSchedule(Date.parse(at)), { open, nextChangeAt: Date.parse(next) }, at);
   }
 });
-
 test("overnight timers handle both daylight-saving transitions", () => {
   for (const [at, next, hours] of [
-    ["2026-03-08T02:00:00Z", "2026-03-08T14:00:00Z", 12],
-    ["2026-11-01T01:00:00Z", "2026-11-01T15:00:00Z", 14],
+    ["2026-03-08T02:00:00Z", "2026-03-08T15:30:00Z", 13.5],
+    ["2026-11-01T01:00:00Z", "2026-11-01T16:30:00Z", 15.5],
   ]) {
     const schedule = getBndSchedule(Date.parse(at));
     assert.equal(schedule.open, false);

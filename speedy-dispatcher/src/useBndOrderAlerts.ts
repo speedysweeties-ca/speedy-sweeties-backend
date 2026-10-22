@@ -24,7 +24,8 @@ export function useBndOrderAlerts(token: string | null) {
   useEffect(() => {
     if (!token) return;
     const polling = createBndStatusPolling({
-      url: `${API_V1_BASE_URL}/bnd-alerts/status`, token,
+      url: `${API_V1_BASE_URL}/bnd-alerts/status`,
+      hoursUrl: `${API_V1_BASE_URL}/bnd-alerts/hours`, token,
       onSnapshot: snapshot => dispatch({ type: "snapshot", token, snapshot }),
       onFailure: () => dispatch({ type: "failed", token }), onTick: setNow,
     });
