@@ -180,22 +180,25 @@ model DispatcherNoteRead {
 }
 
 model Customer {
-  id                   String  @id @default(uuid())
-  fullName             String
-  normalizedFullName   String
-  phone                String
-  normalizedPhone      String
-  email                String?
-  normalizedEmail      String?
-  addressLine1         String
-  unitNumber           String?
-  buzzCode             String?
-  city                 String
-  province             String
-  postalCode           String?
-  notes                String?
-  dispatcherNotes      String?
-  recurringDriverNotes String?
+  // Never populated from a public order. Requires an independently verified channel.
+  privacyVerifiedEmail   String?
+  privacyVerifiedEmailAt DateTime?
+  id                     String    @id @default(uuid())
+  fullName               String
+  normalizedFullName     String
+  phone                  String
+  normalizedPhone        String
+  email                  String?
+  normalizedEmail        String?
+  addressLine1           String
+  unitNumber             String?
+  buzzCode               String?
+  city                   String
+  province               String
+  postalCode             String?
+  notes                  String?
+  dispatcherNotes        String?
+  recurringDriverNotes   String?
 
   smsMarketingOptOut      Boolean   @default(false)
   smsMarketingOptOutAt    DateTime?
@@ -284,6 +287,8 @@ model ItemCatalog {
 }
 
 model Order {
+  privacyErasedAt        DateTime?
+  privacyRetainUntil     DateTime?
   id                     String        @id @default(uuid())
   orderNumber            Int           @unique @default(autoincrement())
   fcmToken               String?
@@ -371,6 +376,77 @@ model Order {
   @@index([cancelledAt])
   @@index([cancelledFromStatus])
   @@index([geocodeStatus])
+}
+
+// Request credentials and audit records deliberately survive Customer deletion.
+model PrivacyChallenge {
+  id                 String    @id
+  subjectId          String?
+  contactFingerprint String?
+  phoneHash          String
+  requesterHash      String
+  codeHash           String
+  delivery           String    @default("UNAVAILABLE")
+  attempts           Int       @default(0)
+  verifiedAt         DateTime?
+  consumedAt         DateTime?
+  expiresAt          DateTime
+  createdAt          DateTime  @default(now())
+
+  @@index([phoneHash, createdAt])
+  @@index([requesterHash, createdAt])
+}
+
+model PrivacyDeletionRequest {
+  id                 String                @id
+  subjectId          String?
+  activeSubject      String?               @unique
+  challengeId        String                @unique
+  tokenHash          String
+  status             String                @default("SUBMITTED")
+  version            Int                   @default(0)
+  contactFingerprint String
+  decision           Json?
+  summary            String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  databaseErasedAt   DateTime?
+  completedAt        DateTime?
+  audit              PrivacyAudit[]
+  tasks              PrivacyExternalTask[]
+
+  @@index([status, createdAt])
+}
+
+model PrivacyAudit {
+  id        String                 @id @default(uuid())
+  requestId String
+  actorId   String
+  event     String
+  createdAt DateTime               @default(now())
+  request   PrivacyDeletionRequest @relation(fields: [requestId], references: [id])
+
+  @@index([requestId, createdAt])
+}
+
+model PrivacyExternalTask {
+  id        String                 @id @default(uuid())
+  requestId String
+  system    String
+  status    String                 @default("PENDING")
+  evidence  String?
+  updatedAt DateTime               @updatedAt
+  request   PrivacyDeletionRequest @relation(fields: [requestId], references: [id])
+
+  @@unique([requestId, system])
+}
+
+model PrivacyDeletedIdentity {
+  phoneHash      String   @id
+  keyFingerprint String
+  // An approved review date, not an automatic authorization to recreate a profile.
+  reviewAt       DateTime
+  createdAt      DateTime @default(now())
 }
 
 enum DeliveryHelpStatus {

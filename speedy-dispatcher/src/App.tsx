@@ -5,16 +5,17 @@ import { API_BASE_URL, API_V1_BASE_URL } from "./apiConfig";
 import { DispatcherHelp } from "./DispatcherHelp";
 import { LoadPreviousOrder } from "./LoadPreviousOrder";
 import { useIncomingOrderAlarm } from "./useIncomingOrderAlarm";
-import { IncomingOrderAlarmControls, IncomingOrderAlarmPopup, UnacceptedOrderAlarmPopup } from "./IncomingOrderAlarm";
+import { IncomingOrderAlarmControls, IncomingOrderAlarmPopup, UnacceptedOrderAlarmPopup } from "./IncomingOrderAlarmPanels";
 import { isUnacceptedOrderLate } from "./incomingOrderAlarm";
 import { useBndOrderAlerts } from "./useBndOrderAlerts";
-import { BndOrderAlertControls, BndOrderAlertPopup } from "./BndOrderAlerts";
+import { BndOrderAlertControls, BndOrderAlertPopup } from "./BndOrderAlertPanels";
 import { BndEmailControls } from "./BndEmailControls";
 import { DispatchToggleControl } from "./DispatchToggleControl";
 import { DispatcherPinboard } from "./DispatcherPinboard";
 import { DispatcherStandards } from "./DispatcherStandards";
 import { CustomerCare, CheckInResults } from "./CustomerCare";
 import { StaffManagement } from "./StaffManagement";
+import { PrivacyRequests } from "./PrivacyRequests";
 import { LogoutLog } from "./LogoutLog";
 import { DispatcherLogout } from "./DispatcherLogout";
 import { StaffPasswordPage } from "./StaffPasswordPage";
@@ -221,6 +222,7 @@ type Order = {
 };
 
 type ActiveTab =
+  | "PRIVACY_REQUESTS"
   | "LOGOUT_LOG"
   | "HELP"
   | "LIVE_ORDERS"
@@ -8183,6 +8185,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
       <div hidden={activeTab !== "DRIVERS"} className="max-w-7xl mx-auto px-6 py-6">
         {renderDriversPage()}
       </div>
+      {currentUser?.role === "ADMIN" && <div className="max-w-7xl mx-auto px-6 py-2"><button onClick={() => setActiveTab("PRIVACY_REQUESTS")}>Privacy requests</button></div>}
+      {activeTab === "PRIVACY_REQUESTS" && currentUser?.role === "ADMIN" && <div className="max-w-7xl mx-auto px-6 py-6"><PrivacyRequests token={token} /></div>}
       {activeTab === "LOGOUT_LOG" && currentUser?.role === "ADMIN" && <div className="max-w-7xl mx-auto px-6 py-6"><LogoutLog token={token} /></div>}
       <div key={activeTab} className="max-w-7xl mx-auto px-6 py-6">
         {activeTab === "LIVE_ORDERS" ? (
@@ -8519,7 +8523,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             onPresetDays={applyDispatcherPerformanceDatePreset}
             onRefresh={() => token && void fetchDispatcherPerformance(token, true)}
           />
-        ) : activeTab === "LOGOUT_LOG" || activeTab === "HELP" || activeTab === "CUSTOMER_FOLLOW_UPS" || activeTab === "DRIVERS" || activeTab === "DISPATCHER_PINBOARD" || activeTab === "DISPATCHER_STANDARDS" ? null : activeTab === "CATALOG" ? (
+        ) : activeTab === "PRIVACY_REQUESTS" || activeTab === "LOGOUT_LOG" || activeTab === "HELP" || activeTab === "CUSTOMER_FOLLOW_UPS" || activeTab === "DRIVERS" || activeTab === "DISPATCHER_PINBOARD" || activeTab === "DISPATCHER_STANDARDS" ? null : activeTab === "CATALOG" ? (
           renderCatalogAdmin()
         ) : activeTab === "PICKUP_LOCATIONS" ? (
           renderPickupLocations()
