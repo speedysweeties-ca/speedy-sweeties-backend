@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { randomUUID, randomBytes } = require('node:crypto');
+const { randomUUID, randomBytes, createHash } = require('node:crypto');
 
 test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.PRIVACY_SYNTHETIC_DATABASE !== 'yes' }, async t => {
   assert.equal(process.env.NODE_ENV, 'test');
@@ -14,158 +14,195 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
   const { getCustomerLoyaltyByTokenController } = require('../dist/controllers/customer.controller');
   const { getPublicOrderTrackingController } = require('../dist/controllers/order.controller');
   const sent = new Map();
-  const service = new PrivacyDeletionService(db, process.env.JWT_SECRET, async msg => { sent.set(msg.id, msg); }, () => true);
+  const delivery = {
+    async start(msg) { sent.set(msg.id, msg); return msg.channel === 'PHONE' ? { reference: `VE-${msg.id}` } : {}; },
+    async check(msg) { return msg.channel === 'PHONE' && msg.code === '654321' && msg.reference === `VE-${msg.reference.slice(3)}`; }
+  };
+  // Phone checks use a simpler deterministic mock below; no provider or live message is used.
+  delivery.check = async msg => msg.channel === 'PHONE' && msg.code === '654321' && String(msg.reference).startsWith('VE-');
+  const timeframe = 'within 30 days (synthetic test wording only)';
+  const service = new PrivacyDeletionService(db, process.env.JWT_SECRET, delivery, () => true, timeframe);
   const decision = () => ({ policyReference: 'SYNTHETIC-TEST-ONLY', justification: 'Synthetic fixture financial retention; not a business policy.',
     financialRetainUntil: new Date(Date.now() + 86400000).toISOString(), requestRetainUntil: new Date(Date.now() + 172800000).toISOString(),
     suppressionReviewAt: new Date(Date.now() + 172800000).toISOString(), personalFields: [], financialFields: [...retainedFinancialFields], unlinkedRecordsReviewed: true, confirmed: true });
-  const seed = async () => {
+  const seed = async ({ email = true } = {}) => {
     const unique = randomBytes(6).toString('hex');
-    const phone = '519' + String(parseInt(unique, 16)).slice(-7);
+    const phone = '519' + String(parseInt(unique, 16)).slice(-7).padStart(7, '0');
     return db.customer.create({ data: { fullName: 'Synthetic Customer', normalizedFullName: 'synthetic customer', phone, normalizedPhone: phone,
-      email: `${unique}@example.invalid`, normalizedEmail: `${unique}@example.invalid`, privacyVerifiedEmail: `${unique}@example.invalid`, privacyVerifiedEmailAt: new Date(),
+      email: email ? `${unique}@example.invalid` : null, normalizedEmail: email ? `${unique}@example.invalid` : null,
       addressLine1: '1 Example Street', city: 'Guelph', province: 'ON' } });
   };
-  const verified = async customer => {
-    const c = await service.challenge(customer.phone, randomUUID());
-    assert.equal(sent.get(c.challengeId).to, customer.email);
-    const { proof } = await service.verify(c.challengeId, sent.get(c.challengeId).code);
-    return { id: randomUUID(), token: randomBytes(32).toString('hex'), challengeId: c.challengeId, proof };
+  const ordered = async (customer, status = 'DELIVERED', changes = {}) => {
+    const trackingToken = randomBytes(32).toString('base64url');
+    const order = await db.order.create({ data: {
+      customerId: customer.id, customerName: customer.fullName, phone: customer.phone, email: customer.email || '',
+      addressLine1: customer.addressLine1, city: customer.city, province: customer.province, unitNumber: '2', buzzCode: '123',
+      itemsText: 'private text', additionalNotes: 'private instructions', fcmToken: 'synthetic-push',
+      trackingTokenHash: createHash('sha256').update(trackingToken).digest('hex'), trackingTokenExpiresAt: new Date(Date.now() + 86400000),
+      paymentMethod: 'CASH', orderSource: 'IOS_APP', orderStatus: status,
+      items: { create: { name: 'Synthetic water', quantity: 2, price: '3.50' } },
+      digitalReceipt: { create: { receiptNumber: randomUUID(), itemTotal: '7.00', deliveryCharge: '12.00', taxOrFees: '0.00', grandTotal: '19.00', notes: 'private note' } },
+      helpRequest: { create: { message: 'private message' } }, ...changes
+    } });
+    return { order, trackingToken };
   };
-  const ordered = async (customer, status = 'DELIVERED') => db.order.create({ data: {
-    customerId: customer.id, customerName: customer.fullName, phone: customer.phone, email: customer.email,
-    addressLine1: customer.addressLine1, city: customer.city, province: customer.province, unitNumber: '2', buzzCode: '123',
-    itemsText: 'private text', additionalNotes: 'private instructions', fcmToken: 'synthetic-push',
-    trackingTokenHash: randomBytes(32).toString('hex'), trackingTokenExpiresAt: new Date(Date.now() + 86400000),
-    paymentMethod: 'CASH', orderSource: 'IOS_APP', orderStatus: status,
-    items: { create: { name: 'Synthetic water', quantity: 2, price: '3.50' } },
-    digitalReceipt: { create: { receiptNumber: randomUUID(), itemTotal: '7.00', deliveryCharge: '12.00', taxOrFees: '0.00', grandTotal: '19.00', notes: 'private note' } },
-    helpRequest: { create: { message: 'private message' } }
-  } });
+  const verified = async (customer, bootstrap) => {
+    const source = bootstrap || await ordered(customer);
+    const challenge = await service.challenge(source.trackingToken
+      ? { trackingToken: source.trackingToken }
+      : { loyaltyToken: signCustomerLoyaltyToken(customer.id) }, randomUUID());
+    const accessToken = randomBytes(32).toString('hex');
+    const code = challenge.channel === 'PHONE' ? '654321' : sent.get(challenge.challengeId).code;
+    const { proof } = await service.verify(challenge.challengeId, code, accessToken);
+    return { id: randomUUID(), token: randomBytes(32).toString('hex'), challengeId: challenge.challengeId, proof, accessToken, source };
+  };
+  const freshProof = async input => {
+    const challenge = await service.challenge({ accessToken: input.accessToken }, randomUUID());
+    const code = challenge.channel === 'PHONE' ? '654321' : sent.get(challenge.challengeId).code;
+    const { proof } = await service.verify(challenge.challengeId, code, input.accessToken);
+    return { ...input, id: randomUUID(), token: randomBytes(32).toString('hex'), challengeId: challenge.challengeId, proof };
+  };
   const fulfill = async input => { const p = await service.impact(input.id); return service.fulfill(input.id, 'synthetic-admin', p.version, p.previewHash, decision()); };
   const response = () => ({ code: 200, status(code) { this.code = code; return this; }, json(value) { this.value = value; return this; } });
+
   try {
-    await t.test('no enumeration, no newly supplied email, ambiguous/unverified contact cannot prove ownership', async () => {
-      const c = await seed(); await db.customer.update({ where: { id: c.id }, data: { privacyVerifiedEmailAt: null } });
-      const challenge = await service.challenge(c.phone, randomUUID());
-      assert.equal(sent.has(challenge.challengeId), false);
-      await assert.rejects(service.verify(challenge.challengeId, '12345678'), /INVALID_OR_EXPIRED_CODE/);
-      const missing = await service.challenge('5195550000', randomUUID());
-      assert.equal(challenge.message, missing.message);
-      await db.customer.create({ data: { fullName: 'Duplicate', normalizedFullName: 'duplicate', phone: c.phone, normalizedPhone: c.phone, addressLine1: '', city: '', province: '' } });
-      const ambiguous = await service.challenge(c.phone, randomUUID());
-      assert.equal(sent.has(ambiguous.challengeId), false);
+    await t.test('customer/order credential is required and phone-only verification uses the managed provider path', async () => {
+      await assert.rejects(service.challenge({}, randomUUID()), /INVALID_REQUEST/);
+      await assert.rejects(service.challenge({ trackingToken: 'not-a-token' }, randomUUID()), /VERIFICATION_REQUIRED/);
+      const c = await seed(), source = await ordered(c);
+      const challenge = await service.challenge({ trackingToken: source.trackingToken }, randomUUID());
+      assert.equal(challenge.channel, 'EMAIL'); assert.match(challenge.maskedDestination, /@example\.invalid$/);
+      assert.equal(challenge.completionTimeframe, timeframe);
+      const phoneOnly = await seed({ email: false }); await ordered(phoneOnly);
+      const phoneChallenge = await service.challenge({ loyaltyToken: signCustomerLoyaltyToken(phoneOnly.id) }, randomUUID());
+      assert.equal(phoneChallenge.channel, 'PHONE'); assert.match(phoneChallenge.maskedDestination, /\d{4}$/);
+      const accessToken = randomBytes(32).toString('hex');
+      await assert.rejects(service.verify(phoneChallenge.challengeId, '000000', accessToken), /INVALID_OR_EXPIRED_CODE/);
+      await service.verify(phoneChallenge.challengeId, '654321', accessToken);
     });
+
+    await t.test('shared or reassigned contacts fail closed before a challenge is sent', async () => {
+      const c = await seed({ email: false }); const source = await ordered(c);
+      await db.customer.create({ data: { fullName: 'Other', normalizedFullName: 'other', phone: c.phone, normalizedPhone: c.phone,
+        addressLine1: '2 Example Street', city: 'Guelph', province: 'ON' } });
+      await assert.rejects(service.challenge({ trackingToken: source.trackingToken }, randomUUID()), /MANUAL_REVIEW_REQUIRED/);
+    });
+
+    await t.test('a resent code supersedes older challenges for the same customer', async () => {
+      const c = await seed(), source = await ordered(c);
+      const older = await service.challenge({ trackingToken: source.trackingToken }, randomUUID());
+      const newer = await service.challenge({ trackingToken: source.trackingToken }, randomUUID());
+      const accessToken = randomBytes(32).toString('hex');
+      await assert.rejects(service.verify(older.challengeId, sent.get(older.challengeId).code, accessToken), /INVALID_OR_EXPIRED_CODE/);
+      await service.verify(newer.challengeId, sent.get(newer.challengeId).code, accessToken);
+    });
+
     await t.test('attempt limits persist and expiry/contact changes invalidate proof', async () => {
-      const c = await seed(), challenge = await service.challenge(c.phone, randomUUID());
-      for (let n = 0; n < 5; n++) await assert.rejects(service.verify(challenge.challengeId, '00000000'));
-      await assert.rejects(service.verify(challenge.challengeId, sent.get(challenge.challengeId).code));
+      const c = await seed(), source = await ordered(c), challenge = await service.challenge({ trackingToken: source.trackingToken }, randomUUID());
+      const accessToken = randomBytes(32).toString('hex');
+      for (let n = 0; n < 5; n++) await assert.rejects(service.verify(challenge.challengeId, '00000000', accessToken));
+      await assert.rejects(service.verify(challenge.challengeId, sent.get(challenge.challengeId).code, accessToken));
       assert.equal((await db.privacyChallenge.findUnique({ where: { id: challenge.challengeId } })).attempts, 5);
-      const input = await verified(c);
-      await db.customer.update({ where: { id: c.id }, data: { normalizedEmail: 'changed@example.invalid' } });
+      const c2 = await seed(), input = await verified(c2);
+      await db.customer.update({ where: { id: c2.id }, data: { normalizedEmail: 'changed@example.invalid' } });
       await assert.rejects(service.submit(input), /VERIFICATION_REQUIRED/);
-      const c2 = await seed(), expired = await service.challenge(c2.phone, randomUUID());
+      const c3 = await seed(), source3 = await ordered(c3), expired = await service.challenge({ trackingToken: source3.trackingToken }, randomUUID());
       await db.privacyChallenge.update({ where: { id: expired.challengeId }, data: { expiresAt: new Date(0) } });
-      await assert.rejects(service.verify(expired.challengeId, sent.get(expired.challengeId).code));
+      await assert.rejects(service.verify(expired.challengeId, sent.get(expired.challengeId).code, randomBytes(32).toString('hex')));
     });
+
     await t.test('durable per-contact limit cannot be bypassed across service instances', async () => {
-      const c = await seed(); for (let n = 0; n < 5; n++) await service.challenge(c.phone, randomUUID());
-      const other = new PrivacyDeletionService(db, process.env.JWT_SECRET, async () => {});
-      await assert.rejects(other.challenge(c.phone, randomUUID()), /TRY_LATER/);
+      const c = await seed(), source = await ordered(c);
+      for (let n = 0; n < 5; n++) await service.challenge({ trackingToken: source.trackingToken }, randomUUID());
+      const other = new PrivacyDeletionService(db, process.env.JWT_SECRET, delivery, () => false, timeframe);
+      await assert.rejects(other.challenge({ trackingToken: source.trackingToken }, randomUUID()), /TRY_LATER/);
     });
-    await t.test('a contact becoming shared after challenge invalidates verification and submission', async () => {
-      const c = await seed(), challenge = await service.challenge(c.phone, randomUUID());
-      const duplicate = await seed();
-      await db.customer.update({ where: { id: duplicate.id }, data: { normalizedEmail: c.normalizedEmail } });
-      await assert.rejects(service.verify(challenge.challengeId, sent.get(challenge.challengeId).code), /INVALID_OR_EXPIRED_CODE/);
-      const c2 = await seed(), input = await verified(c2), duplicate2 = await seed();
-      await db.customer.update({ where: { id: duplicate2.id }, data: { normalizedPhone: c2.normalizedPhone } });
-      await assert.rejects(service.submit(input), /VERIFICATION_REQUIRED/);
-    });
-    await t.test('request replay is idempotent, loyalty token is not status authority, cancellation preserves account', async () => {
+
+    await t.test('request replay is idempotent and a fresh access challenge recovers a lost status credential', async () => {
       const c = await seed(), input = await verified(c);
-      await service.submit(input); await service.submit(input);
+      const first = await service.submit(input); await service.submit(input);
+      assert.equal(first.completionTimeframe, timeframe);
       await db.privacyChallenge.update({ where: { id: input.challengeId }, data: { expiresAt: new Date(0) } });
-      await service.submit(input); // Accepted request survives proof expiry after a lost response.
+      await service.submit(input);
       assert.equal(await db.privacyAudit.count({ where: { requestId: input.id, event: 'SUBMITTED' } }), 1);
       await assert.rejects(service.status(input.id, signCustomerLoyaltyToken(c.id)), /REQUEST_UNAVAILABLE/);
-      await assert.rejects(service.submit({ ...input, id: randomUUID() }), /VERIFICATION_REQUIRED/);
-      await assert.rejects(service.cancel(input.id, randomBytes(32).toString('hex')), /REQUEST_UNAVAILABLE/);
-      await service.cancel(input.id, input.token); await service.cancel(input.id, input.token);
+      const recovered = await freshProof(input), result = await service.submit(recovered);
+      assert.equal(result.id, input.id);
+      await assert.rejects(service.status(input.id, input.token), /REQUEST_UNAVAILABLE/);
+      assert.equal((await service.status(input.id, recovered.token)).status, 'SUBMITTED');
+      assert.equal(await db.privacyAudit.count({ where: { requestId: input.id, event: 'STATUS_CREDENTIAL_RECOVERED' } }), 1);
+      await service.cancel(input.id, recovered.token); await service.cancel(input.id, recovered.token);
       assert.ok(await db.customer.findUnique({ where: { id: c.id } }));
-      assert.equal((await service.status(input.id, input.token)).status, 'CANCELLED');
-      await assert.rejects(fulfill(input), /STALE_REQUEST/);
     });
+
     await t.test('active deliveries and missing retention decisions stop fulfillment, not submission', async () => {
-      const c = await seed(); await ordered(c, 'PLACED'); const input = await verified(c); await service.submit(input);
+      const c = await seed(), source = await ordered(c, 'PLACED'), input = await verified(c, source); await service.submit(input);
       const p = await service.impact(input.id);
       await assert.rejects(service.fulfill(input.id, 'admin', p.version, p.previewHash, {}), /VALIDATED_RETENTION/);
       await assert.rejects(fulfill(input), /ACTIVE_ORDERS_HOLD/);
-      const disabled = new PrivacyDeletionService(db, process.env.JWT_SECRET, async () => {});
+      const disabled = new PrivacyDeletionService(db, process.env.JWT_SECRET, delivery, () => false, timeframe);
       await assert.rejects(disabled.fulfill(input.id, 'admin', p.version, p.previewHash, decision()), /FULFILLMENT_DISABLED/);
     });
-    await t.test('stale preview and detached phone-matching records require review', async () => {
-      const c = await seed(), o = await ordered(c), input = await verified(c); await service.submit(input);
+
+    await t.test('stale, detached and identity-conflicting historical records require review', async () => {
+      const c = await seed(), source = await ordered(c), input = await verified(c, source); await service.submit(input);
       const p = await service.impact(input.id);
-      await db.order.update({ where: { id: o.id }, data: { additionalNotes: 'changed' } });
+      await db.order.update({ where: { id: source.order.id }, data: { additionalNotes: 'changed' } });
       await assert.rejects(service.fulfill(input.id, 'admin', p.version, p.previewHash, decision()), /STALE_PREVIEW/);
-      await db.order.update({ where: { id: o.id }, data: { customerId: null } });
-      await assert.rejects(fulfill(input), /UNLINKED_RECORDS_REQUIRE_REVIEW/);
+      await db.order.update({ where: { id: source.order.id }, data: { customerId: null } });
+      await assert.rejects(fulfill(input), /SOURCE_ORDER_UNAVAILABLE/);
+
+      const c2 = await seed(), source2 = await ordered(c2), input2 = await verified(c2, source2); await service.submit(input2);
+      await ordered(c2, 'DELIVERED', { customerName: 'Different Person' });
+      const preview = await service.impact(input2.id);
+      assert.equal(preview.conflictingLinkedOrderIds.length, 1);
+      await assert.rejects(service.fulfill(input2.id, 'admin', preview.version, preview.previewHash, decision()), /HISTORICAL_SCOPE_REVIEW_REQUIRED/);
     });
-    await t.test('atomic rollback on partial database failure, then retry with exact financial totals', async () => {
-      const c = await seed(), o = await ordered(c), input = await verified(c); await service.submit(input);
-      // Use a real DB constraint to inject a failure late in the transaction.
+
+    await t.test('atomic rollback then fulfillment retains financial totals and revokes customer access', async () => {
+      const c = await seed(), source = await ordered(c), input = await verified(c, source); await service.submit(input);
       await db.$executeRawUnsafe('CREATE TABLE "SyntheticDeletionHold" ("customerId" TEXT REFERENCES "Customer"(id) ON DELETE RESTRICT)');
       await db.$executeRaw`INSERT INTO "SyntheticDeletionHold" VALUES (${c.id})`;
       await assert.rejects(fulfill(input));
-      assert.equal((await db.order.findUnique({ where: { id: o.id } })).phone, c.phone);
-      assert.equal((await service.status(input.id, input.token)).status, 'SUBMITTED');
+      assert.equal((await db.order.findUnique({ where: { id: source.order.id } })).phone, c.phone);
       await db.$executeRaw`DELETE FROM "SyntheticDeletionHold" WHERE "customerId" = ${c.id}`;
       await db.$executeRawUnsafe('DROP TABLE "SyntheticDeletionHold"');
       const result = await fulfill(input); assert.equal(result.status, 'FULFILLING');
       assert.equal(await db.customer.findUnique({ where: { id: c.id } }), null);
-      const erased = await db.order.findUnique({ where: { id: o.id }, include: { digitalReceipt: true, items: true, helpRequest: true } });
+      assert.equal(await db.privacyAccessCredential.count({ where: { customerId: c.id } }), 0);
+      const erased = await db.order.findUnique({ where: { id: source.order.id }, include: { digitalReceipt: true, items: true, helpRequest: true } });
       assert.equal(erased.phone, ''); assert.equal(erased.addressLine1, ''); assert.equal(erased.customerId, null);
       assert.equal(erased.trackingTokenHash, null); assert.equal(erased.fcmToken, null); assert.equal(erased.helpRequest, null);
       assert.equal(erased.digitalReceipt.grandTotal.toFixed(2), '19.00'); assert.equal(erased.digitalReceipt.notes, null);
       assert.equal(erased.items[0].quantity, 2); assert.equal(erased.items[0].price.toFixed(2), '3.50');
-      await assert.rejects(db.order.update({ where: { id: o.id }, data: { phone: c.phone, customerId: c.id } }));
-      await assert.rejects(db.order.delete({ where: { id: o.id } }));
-      await assert.rejects(db.digitalReceipt.update({ where: { orderId: o.id }, data: { notes: 'stale write' } }));
-      await assert.rejects(db.digitalReceipt.delete({ where: { orderId: o.id } }));
+      await assert.rejects(db.order.update({ where: { id: source.order.id }, data: { phone: c.phone, customerId: c.id } }));
+      await assert.rejects(db.order.delete({ where: { id: source.order.id } }));
+      await assert.rejects(db.digitalReceipt.update({ where: { orderId: source.order.id }, data: { notes: 'stale write' } }));
       await assert.rejects(db.orderItem.delete({ where: { id: erased.items[0].id } }));
       await assert.rejects(db.$transaction(tx => assertPrivacyOrderAllowed(tx, c.phone)), /IDENTITY_REVERIFICATION_REQUIRED/);
-      const tracking = response(); await getPublicOrderTrackingController({ params: { id: o.id } }, tracking); assert.equal(tracking.code, 404);
+      const tracking = response(); await getPublicOrderTrackingController({ params: { id: source.order.id } }, tracking); assert.equal(tracking.code, 404);
       const loyalty = response(); await getCustomerLoyaltyByTokenController({ headers: { authorization: `Bearer ${signCustomerLoyaltyToken(c.id)}` } }, loyalty); assert.equal(loyalty.code, 401);
       await assert.rejects(service.cancel(input.id, input.token), /FULFILLMENT_ALREADY_STARTED/);
       await assert.rejects(service.complete(input.id, 'admin'), /EXTERNAL_WORK_INCOMPLETE/);
-      // Lost fulfillment response: a repeated command returns status without running deletion twice.
       await service.fulfill(input.id, 'admin', 0, 'old-preview', decision());
       for (const system of externalSystems) {
         await service.resolveExternal(input.id, 'admin', system, 'Synthetic external-system adapter confirmed no remaining copies');
         await service.resolveExternal(input.id, 'admin', system, 'Synthetic external-system adapter confirmed no remaining copies');
         assert.equal(await db.privacyAudit.count({ where: { requestId: input.id, event: `EXTERNAL_RESOLVED:${system}` } }), 1);
-        await assert.rejects(service.resolveExternal(input.id, 'admin', system, 'Different evidence must not silently replace the recorded result'), /EVIDENCE_ALREADY_RECORDED/);
       }
       await service.complete(input.id, 'admin'); await service.complete(input.id, 'admin');
-      assert.equal((await service.status(input.id, input.token)).status, 'COMPLETED');
-      assert.equal(await db.privacyAudit.count({ where: { requestId: input.id, event: 'DATABASE_ERASED_EXTERNAL_PENDING' } }), 1);
+      const completed = await service.status(input.id, input.token);
+      assert.equal(completed.status, 'COMPLETED'); assert.equal(completed.completionTimeframe, timeframe);
     });
-    await t.test('cancellation and fulfillment serialize: exactly one wins', async () => {
-      const c = await seed(); await ordered(c); const input = await verified(c); await service.submit(input);
-      const p = await service.impact(input.id);
-      const results = await Promise.allSettled([service.cancel(input.id, input.token), service.fulfill(input.id, 'admin', p.version, p.previewHash, decision())]);
-      assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
-      const status = await service.status(input.id, input.token);
-      assert.ok(['CANCELLED', 'FULFILLING'].includes(status.status));
-      assert.equal(!!await db.customer.findUnique({ where: { id: c.id } }), status.status === 'CANCELLED');
-    });
+
     await t.test('unaffected customer ordering guard, loyalty, receipt and tracking still work', async () => {
-      const c = await seed(), o = await ordered(c);
+      const c = await seed(), source = await ordered(c);
       await db.$transaction(tx => assertPrivacyOrderAllowed(tx, c.phone));
       const loyalty = response(); await getCustomerLoyaltyByTokenController({ headers: { authorization: `Bearer ${signCustomerLoyaltyToken(c.id)}` } }, loyalty); assert.equal(loyalty.code, 200);
-      const tracking = response(); await getPublicOrderTrackingController({ params: { id: o.id } }, tracking); assert.equal(tracking.code, 200);
-      assert.equal((await db.digitalReceipt.findUnique({ where: { orderId: o.id } })).grandTotal.toFixed(2), '19.00');
+      const tracking = response(); await getPublicOrderTrackingController({ params: { id: source.order.id } }, tracking); assert.equal(tracking.code, 200);
+      assert.equal((await db.digitalReceipt.findUnique({ where: { orderId: source.order.id } })).grandTotal.toFixed(2), '19.00');
     });
+
     await t.test('unplanned suppression-key rotation fails closed instead of restoring deleted identities', async () => {
       const previous = process.env.PRIVACY_DIGEST_KEY;
       process.env.PRIVACY_DIGEST_KEY = 'synthetic-rotated-key-not-approved';

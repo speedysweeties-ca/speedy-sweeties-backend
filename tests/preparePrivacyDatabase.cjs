@@ -15,3 +15,4 @@ const path = join(mkdtempSync(join(tmpdir(), 'privacy-baseline-')), 'schema.pris
 writeFileSync(path, baseline);
 execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push', '--schema', path, '--skip-generate'], { stdio: 'inherit' });
 execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'execute', '--schema', 'prisma/schema.prisma', '--file', 'prisma/migrations/20261023030000_customer_privacy_requests/migration.sql'], { stdio: 'inherit' });
+execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'execute', '--schema', 'prisma/schema.prisma', '--file', 'prisma/migrations/20261023150000_privacy_access_credentials/migration.sql'], { stdio: 'inherit' });

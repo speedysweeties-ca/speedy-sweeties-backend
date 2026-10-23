@@ -5,7 +5,7 @@ import { prisma } from "../lib/prisma";
 import { env } from "../config/env";
 import { requireAuth } from "../middleware/auth.middleware";
 import { PrivacyDeletionService, PrivacyError } from "../services/privacyDeletion.service";
-import { resendPrivacyDelivery } from "../services/privacyDelivery.service";
+import { privacyVerificationDelivery } from "../services/privacyDelivery.service";
 
 const uuid = z.string().uuid();
 const token = z.string().regex(/^[a-f0-9]{64}$/);
@@ -35,22 +35,32 @@ export function privacyRouter(service?: PrivacyDeletionService) {
     next();
   });
   router.use(rateLimit({ windowMs: 15 * 60000, limit: 60, standardHeaders: "draft-8", legacyHeaders: false }));
-  const get = () => service ??= new PrivacyDeletionService(prisma, process.env.PRIVACY_DIGEST_KEY || env.JWT_SECRET, resendPrivacyDelivery({
-    apiKey: env.RESEND_API_KEY, from: process.env.PRIVACY_VERIFICATION_FROM || "", enabled: process.env.PRIVACY_VERIFICATION_EMAIL_ENABLED === "true"
+  const get = () => service ??= new PrivacyDeletionService(prisma, process.env.PRIVACY_DIGEST_KEY || env.JWT_SECRET, privacyVerificationDelivery({
+    resendApiKey: env.RESEND_API_KEY,
+    resendFrom: process.env.PRIVACY_VERIFICATION_FROM || "",
+    emailEnabled: process.env.PRIVACY_VERIFICATION_EMAIL_ENABLED === "true",
+    twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || "",
+    twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || "",
+    twilioVerifyServiceSid: process.env.TWILIO_VERIFY_SERVICE_SID || "",
+    phoneEnabled: process.env.PRIVACY_VERIFICATION_PHONE_ENABLED === "true"
   }), decision => process.env.PRIVACY_FULFILLMENT_ENABLED === "true" &&
     !!process.env.PRIVACY_DIGEST_KEY && !!process.env.PRIVACY_APPROVED_RETENTION_POLICY &&
-    decision?.policyReference === process.env.PRIVACY_APPROVED_RETENTION_POLICY);
+    decision?.policyReference === process.env.PRIVACY_APPROVED_RETENTION_POLICY,
+    process.env.PRIVACY_COMPLETION_TIMEFRAME || "");
   router.post("/challenges", safe(async (req, res) => {
-    const input = body(z.object({ phone: z.string().min(7).max(30) }).strict(), req.body);
-    res.json(await get().challenge(input.phone, req.ip || "unknown"));
+    const input = body(z.object({
+      trackingToken: z.string().min(32).max(128).optional(),
+      loyaltyToken: z.string().min(32).max(2048).optional()
+    }).strict(), req.body);
+    res.json(await get().challenge({ ...input, accessToken: bearer(req) || undefined }, req.ip || "unknown"));
   }));
   router.post("/challenges/:id/verify", safe(async (req, res) => {
-    const input = body(z.object({ code: z.string().regex(/^\d{8}$/) }).strict(), req.body);
-    res.json(await get().verify(id(req), input.code));
+    const input = body(z.object({ code: z.string().regex(/^\d{4,10}$/), accessToken: token.optional() }).strict(), req.body);
+    res.json(await get().verify(id(req), input.code, bearer(req) || input.accessToken));
   }));
   router.post("/requests", safe(async (req, res) => {
     const input = body(z.object({ id: uuid, token, challengeId: uuid, proof: token }).strict(), req.body);
-    res.status(202).json(await get().submit(input));
+    res.status(202).json(await get().submit({ ...input, accessToken: bearer(req) }));
   }));
   router.get("/requests/:id", safe(async (req, res) => { res.json(await get().status(id(req), bearer(req))); }));
   router.post("/requests/:id/cancel", safe(async (req, res) => { res.json(await get().cancel(id(req), bearer(req))); }));

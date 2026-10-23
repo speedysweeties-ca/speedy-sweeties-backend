@@ -1,128 +1,186 @@
 # Customer account deletion — review implementation, not deployed
 
-Based on backend `12b78cc4780c96efa286c167c63ac1676dfc5dbb`. Work is confined to
-`review/customer-account-deletion`. Do not merge or deploy until the gates below
-are resolved. No real customer data, production migration, delivery or provider
-request was used during development. The dispatcher lives in this same repository.
+Updated 2026-10-23 on `review/customer-account-deletion` for draft PR 93. This
+branch must not be merged into an automatically deploying branch until the owner
+decisions, provider checks, isolated-database CI and rollout review below pass.
+No production migration, message, customer record, provider setting or deployment
+was used to implement or test this flow.
 
-## Customer and administrator flow
+## Customer flow
 
-The iOS Account screen explains consequences and offers verification against an
-existing contact. A challenge has an eight-digit random code, ten-minute expiry,
-five guesses and a durable five-per-hour contact/requester limit. Unknown,
-ambiguous, unverified and delivery-failed contacts receive the same response.
-The code digest is keyed; codes, status credentials and provider responses are
-not returned in errors or audit events. No loyalty token is accepted as proof.
+1. In Account > Delete account, iOS uses exactly one credential already stored on
+   that installation: an unexpired source-order tracking token, the existing signed
+   customer loyalty token, or a durable privacy-access token. The customer does not
+   type a phone number/email and is not asked to place a new order.
+2. The server resolves one source Order and Customer from that credential. It sends
+   a code only when the source-order contact still matches the Customer and that
+   normalized contact appears on exactly one Customer profile. Email is preferred
+   when eligible; phone-only customers use Twilio Verify SMS. The response shows
+   only a masked destination after credential validation.
+3. The first successful challenge creates a random, customer/source-order-bound
+   privacy-access credential. Only its SHA-256 hash is stored server-side; the
+   256-bit secret is stored in the app Keychain. It remains usable after the
+   48-hour tracking token expires. Existing installations can enroll once using
+   the 365-day loyalty credential plus the fresh contact code.
+4. Privacy access is identification/possession evidence, not deletion authority.
+   Every deletion or status-credential recovery requires a fresh purpose-bound
+   contact challenge. Challenges expire after ten minutes, allow at most five
+   attempts, have durable contact/requester rate limits and supersede earlier
+   challenges for the same Customer. A contact/profile change invalidates proof.
+5. Before submission, iOS stores a random request ID/status secret in a separate
+   Keychain namespace. Submission is idempotent. Request received is not deletion
+   completed; status and cancellation require that secret.
+6. If an active request exists but its status secret was lost, privacy access plus
+   a fresh code rotates the status secret, records an audit event and returns the
+   existing request. A lost device plus no surviving privacy/loyalty credential or
+   verified channel is Robert-only manual review; the customer need not order.
+7. The app displays the configured completion timeframe at challenge, confirmation
+   and status. Completion and the retention explanation are confirmed through
+   authenticated in-app status. No completion email/SMS is claimed or sent.
 
-Only an independently verified, unique email already recorded on the Customer
-can receive a code. The public order's supplied email is not sufficient. The new
-`privacyVerifiedEmail` and `privacyVerifiedEmailAt` fields have no public write
-endpoint and are not backfilled. Contact changes invalidate proof. This is NOT
-a claim that existing customers have such verified channels. There is no SMS
-transport. Phone-only and ambiguous/recycled/shared contacts need an approved
-verification method before rollout. Do not populate verification fields merely
-because an email appeared in an order. The existing Resend integration is reused
-behind an explicit off-by-default gate and tested through an injected mock.
+## Scope and shared/reassigned-contact safeguards
 
-After explicit confirmation, the client persists a random request ID/status
-secret in its separate Keychain namespace before submitting. Retrying the same
-request is idempotent. A consumed proof cannot create another request. Status
-access and cancellation require that request secret, not a phone or loyalty token.
-`SUBMITTED` is receipt, not completion. Cancellation remains possible until the
-fulfillment transaction wins the shared lock. An active order prevents fulfillment
-but does not prevent submission. A lost device/status credential currently needs
-assisted, independently verified recovery; there is no public credential-recovery
-endpoint. A new request after cancellation also needs a new verification flow.
+Current control of a phone number/email proves only current channel control. It
+does not establish ownership of every historical record containing that contact.
+The source order and Customer are fixed by the pre-existing credential, never by a
+typed contact. Duplicate Customer contacts fail closed before delivery.
 
-The dispatcher Privacy requests page requires current staff authentication, ADMIN
-role AND an explicit privacy-administrator ID allowlist on the server. Ordinary
-dispatchers cannot use it. It shows a read-only impact preview, audit trail,
-retention decision fields and external-work checklist. The fulfillment operation
-revalidates the preview fingerprint, customer contact, request state/version,
-unlinked phone-matching records and active orders inside a transaction. Unlinked
-records cause a hold; they are not swept based on a guessed shared phone/email.
-No automatic relinking/identity adjudication is implemented for those holds.
+Fulfillment compares every linked order's normalized name, phone and email with the
+source order. Any different identity is listed as `conflictingLinkedOrderIds` and
+causes `HISTORICAL_SCOPE_REVIEW_REQUIRED`. Detached phone-matching orders separately
+cause `UNLINKED_RECORDS_REQUIRE_REVIEW`. Neither list is automatically relinked,
+shown to the requester or deleted. An active delivery also causes a hold.
+
+Robert alone handles exceptional recovery at launch. Staff must have a current
+ADMIN session and their user ID must appear in `PRIVACY_ADMIN_USER_IDS`. Supporting
+order facts (date, items, total, address, receipt/order number or caller name) can
+help Robert search privately but never add up to authorization. Conflicting owners,
+shared/reassigned channels, recent edits or inconsistent links override supporting
+facts and remain on hold without disclosing another customer.
+
+## Verification delivery
+
+Email uses the existing Resend HTTPS pattern with a server-generated eight-digit
+code, ten-minute expiry, request idempotency key and ten-second timeout. Production
+requires an approved verified sender/domain and explicit email flag.
+
+Phone uses Twilio Verify: the server starts a Verification for its selected E.164
+Canadian number and later calls Verification Check for the submitted code. Twilio
+manages the SMS code/lifecycle; the application still owns subject/source-order
+binding, generic responses, local attempt/requester limits, supersession, audit and
+historical scope. Credentials remain server-side and tests use injected fetch mocks.
+No phone number, provider credential, code or provider error body is put in a URL,
+public error or audit event.
+
+Production activation is blocked until Robert confirms the actual Twilio account's
+Canadian Verify eligibility, geographic permissions, price/taxes, spend controls,
+privacy/DPA, retention/data-location and incident/support terms. The existing
+Resend account needs equivalent sender/quota/privacy/retention confirmation. Do not
+put secrets in Git, tickets, screenshots or this document.
 
 ## Fulfillment and retained records
 
-The database transaction removes the Customer (including its RetentionMessage
-cascade), eligible copied contact/address/unit/buzz/geocode/notes and attribution
-data in linked Orders, help/check-in records and linked dispatch/pickup/edit-pause
-history. Receipt notes and staff creator references are cleared. Item free text
-and catalog links are redacted; quantities, prices and receipt totals remain.
-Structural record IDs, financial timestamps, order/payment status and amounts are
-retained, as explicitly listed in the validated decision. This test-supported
-redaction profile is NOT an assertion that it satisfies Robert's tax obligations.
-If different personal fields are legally necessary, do not enable this version:
-review and extend the decision/redaction profile first.
+The restricted dispatcher preview shows the verified source order, active orders,
+detached candidates, identity-conflicting linked orders, exact financial fields,
+external systems and removal description. Fulfillment requires the same preview
+hash/version, a strict retention decision and the configured approved policy
+reference. There are no UI retention defaults.
 
-Financial retain-until is stored per erased order; policy reference, justification,
-request/audit retention date and anti-recreation identifier review date are recorded
-per case. There is no default real retention period. The UI supplies no date defaults.
-Production fulfillment additionally requires the supplied reference to match the
-explicitly configured approved retention policy. Expiry enforcement/purge and an
-overdue-retention review worker remain to be implemented and approved before
-production fulfillment; recording dates alone is not an operational retention policy.
+The transaction removes the Customer and eligible contact/address/geocode/notes,
+help/check-in/dispatch/pickup/edit-pause data, push/tracking credentials, receipt
+notes and item free text/catalog links from reviewed linked orders. It preserves
+only the strict financial/structural list in `retainedFinancialFields`: record IDs,
+order/receipt numbers, timestamps, payment/order status, quantities, prices and
+receipt totals/charges/tax. Retained erased orders, receipts and items have database
+write/delete guards. Customer/order creation shares the privacy advisory lock, and
+a keyed deleted-identity marker prevents old clients/restores from recreating the
+profile. Unplanned key rotation fails closed.
 
-Order push/tracking credentials are cleared, the old Customer ID stops working for
-loyalty, and both legacy-ID and token tracking reject erased records. A shared
-transaction lock and keyed deleted-identity marker block old public/manual/order-
-edit requests from recreating that phone identity. Retained orders and their receipt,
-item and help writes are protected with database triggers. Newly verified re-enrollment
-and safe key rotation require a separate reviewed workflow; no automatic expiry of
-the suppression marker restores authority. Its hash-key fingerprint makes key changes
-fail closed rather than accidentally bypassing deletion protection.
-
-After the DB transaction, status remains `FULFILLING`. Durable tasks cover phones/
+After the database transaction, status is `FULFILLING`. Durable tasks cover phones/
 synced contacts, messages/email, staff notes/exports, logs/providers and backups/
-restore. An administrator must record verified evidence or justified retained-copy
-expiry before completion. A checkbox is not provider deletion: these adapters have
-no provider access and do not erase backups, telephone history, mailboxes or logs.
-Review shared catalog text and any independently copied customer details as part
-of the external/manual inventory; there is no safe automatic shared-catalog purge.
-Existing provider accounts, actual retention, restore suppression, administrative
-exports and other-device copies remain unverified. Never attest them without evidence.
+restore. Robert must record verified removal evidence or a justified retain-until
+date for each. Only then can status become `COMPLETED`. These tasks are an audit
+control, not provider deletion adapters.
 
-Completion and retained-record details are available in authenticated in-app status.
-No email/SMS completion notification is sent. A separate delivery/recovery design
-is needed for customers who cannot return to the installation. The iOS client clears
-only its listed profile/history/favourite/reward/credential data after confirmed
-completion, withdraws voice consent, rejects stale callbacks and reports Keychain
-cleanup failure for retry. OS permission state and unrelated settings are untouched.
+No real retention duration is encoded. The policy reference, financial retain-until,
+request/audit retain-until, suppression review date, justification and field set are
+required per case. Manual expiry review can be used for launch only after Robert
+approves the schedule/operator runbook; an automated expiry worker is deferred.
 
-## Configuration gates — document only; none configured
+## Configuration — all off by default
 
-- `PRIVACY_DELETION_ENABLED=true`: makes request routes available after migration.
-- `PRIVACY_ADMIN_USER_IDS`: approved ADMIN staff IDs; default empty, no access.
-- `PRIVACY_VERIFICATION_EMAIL_ENABLED=true` and `PRIVACY_VERIFICATION_FROM`: only
-  after approved verified-contact provenance and a suitable sender are established.
-  Existing `RESEND_API_KEY` is reused; no key/account was retrieved or created.
-- `PRIVACY_DIGEST_KEY`: separate stable server-side privacy HMAC key (not an OpenAI
-  key, never in the app). No secret was created/configured. Request-only development
-  can use the existing JWT secret fallback; production fulfillment requires this
-  dedicated key. Changing it after deletion needs a reviewed migration. Keep it
-  available to restoration/revocation operations; protect it from source/logs.
-- `PRIVACY_APPROVED_RETENTION_POLICY`: approved policy reference; never a test policy.
-- `PRIVACY_FULFILLMENT_ENABLED=true`: still subject to all preceding decision gates.
+- `PRIVACY_DELETION_ENABLED=true`: expose request/admin routes after migration.
+- `PRIVACY_DIGEST_KEY`: dedicated stable HMAC key. Generate/store through existing
+  production secret management; never expose it to iOS. Preserve it for restores
+  and planned rotation/migration.
+- `PRIVACY_COMPLETION_TIMEFRAME`: Robert-approved customer wording, identical to
+  policy/reviewer copy (for example wording must not be invented by engineering).
+- `PRIVACY_ADMIN_USER_IDS`: comma-separated current Robert ADMIN user ID(s).
+- `PRIVACY_VERIFICATION_EMAIL_ENABLED=true`, `PRIVACY_VERIFICATION_FROM`, existing
+  `RESEND_API_KEY`: only after sender/account review.
+- `PRIVACY_VERIFICATION_PHONE_ENABLED=true`, `TWILIO_ACCOUNT_SID`,
+  `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`: only after Twilio review.
+- `PRIVACY_APPROVED_RETENTION_POLICY`: exact approved policy identifier.
+- `PRIVACY_FULFILLMENT_ENABLED=true`: final irreversible fulfillment gate; keep
+  false until all retention/external/operator checks are ready.
 
-The identity guard is not switched off with the request UI. Migration must precede
-deployment because order creation reads the new table. Do not roll back to pre-guard
-code after any deletion. Restore procedures must restore/reapply revocations before
-serving traffic. No production deployment/rollback/migration was performed here.
+The service refuses to initialize without a non-empty completion timeframe. Phone
+or email delivery refuses to operate unless its explicit channel flag and required
+configuration are present. Production fulfillment additionally requires the
+dedicated digest key, approved policy reference and fulfillment flag.
 
-## Synthetic testing
+## Staged rollout plan (requires a later explicit deployment approval)
 
-`tests/preparePrivacyDatabase.cjs` rejects anything except `NODE_ENV=test`, explicit
-`PRIVACY_SYNTHETIC_DATABASE=yes` and a loopback database named
-`speedy_privacy_synthetic`. It builds the pinned pre-feature baseline and applies
-the real new SQL migration. Historical unrelated migrations omit fields; this does
-not silently repair or rewrite those migrations. Production rollout needs its own
-schema-drift review. `privacyDeletion.database.test.js` exercises real transactions,
-holds, attempts, replay, rollback, revocation, races, retained totals and unaffected
-customer access. `privacyDelivery.test.js` uses a mocked transport and role checks.
-Existing order regression mocks are extended for the new guard, not disabled.
+1. Freeze and record exact iOS/backend commits, CI results and schema drift review.
+   Confirm PR 93 still targets a non-auto-deploy review branch.
+2. Robert completes the retention worksheet/runbook and provider/account checks.
+   Record only non-secret configuration names/status in the release evidence.
+3. Back up/verify recovery procedures. Apply the additive privacy migrations before
+   starting code that reads the new tables. Do not rewrite historical migrations.
+4. Deploy backend code with every privacy feature/channel/fulfillment flag false.
+   Verify ordinary ordering, tracking, loyalty and staff authentication first.
+5. Configure the stable digest key, timeframe, Robert allowlist, provider settings
+   and approved policy reference through secret/config management. Read back only
+   presence/flags, never secret values.
+6. Enable the needed verified channels and request route while fulfillment remains
+   false. Perform an explicitly authorized controlled non-production/synthetic
+   verification; do not use an unrelated customer's contact.
+7. After request/status/cancel/admin preview evidence and external-system operator
+   readiness are reviewed, separately approve `PRIVACY_FULFILLMENT_ENABLED=true`.
+8. Monitor provider errors/rate limits, privacy audit events, open-case age and all
+   retention/external review dates. Publication/App Review must use the same final
+   timeframe/policy and a functioning backend.
 
-The dispatcher components were renamed from BndOrderAlerts.tsx and
-IncomingOrderAlarm.tsx to BndOrderAlertPanels.tsx and IncomingOrderAlarmPanels.tsx
-solely to avoid TypeScript resolving their lower-case .ts helper modules on
-case-insensitive macOS. Alert logic is unchanged.
+## Rollback and incident plan
+
+- Stop new initiation/delivery by setting `PRIVACY_DELETION_ENABLED=false` and both
+  verification channel flags false. Set `PRIVACY_FULFILLMENT_ENABLED=false` first
+  for any identity, retention or deletion concern.
+- Keep the additive schema, privacy digest key, access/request/audit records,
+  deleted-identity markers, order guards and completed revocations. Do not roll
+  back to pre-guard code or drop privacy tables after any real request/deletion.
+- The iOS app fails safely with “request not confirmed” and retains its local
+  status credential for retry. Existing authenticated status remains available
+  only while the route is enabled; plan incident communication accordingly.
+- If a provider is unhealthy, disable only that channel; do not redirect to a
+  customer-typed contact or treat provider acceptance as receipt.
+- A database restore must restore/reapply deleted-identity markers, revoked access,
+  erased-order guards and completed decisions before traffic resumes. Reconcile
+  requests received after the restored snapshot. Never test rollback on production
+  customer data without an approved recovery exercise.
+
+## Verification
+
+`privacyDelivery.test.js` uses mocked Resend/Twilio transports and covers flags,
+timeouts/idempotency inputs, managed phone checking, malformed/unapproved responses,
+credential redaction and the ADMIN allowlist. `privacyDeletion.database.test.js`
+requires `NODE_ENV=test`, `PRIVACY_SYNTHETIC_DATABASE=yes`, a loopback host and the
+exact database name `speedy_privacy_synthetic`; its preparation script applies the
+pinned pre-feature baseline and both review migrations. It covers enrollment,
+phone-only delivery, superseded challenges, duplicate contacts, expiry/attempts,
+durable limits, recovery, holds, stale previews, rollback, redaction, guard triggers,
+completion and unaffected customers. No production database URL is accepted.
+
+Local TypeScript/Prisma/mock checks pass. This Mac has no local PostgreSQL runtime,
+so the updated transaction suite must pass the guarded draft-PR CI job before the
+branch is considered verified. A passing review branch is not deployment approval.

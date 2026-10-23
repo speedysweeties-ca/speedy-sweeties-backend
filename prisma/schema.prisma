@@ -217,6 +217,7 @@ model Customer {
 
   orders            Order[]
   retentionMessages RetentionMessage[]
+  privacyAccess     PrivacyAccessCredential[]
 
   @@index([normalizedPhone])
   @@index([normalizedFullName])
@@ -380,42 +381,68 @@ model Order {
 
 // Request credentials and audit records deliberately survive Customer deletion.
 model PrivacyChallenge {
-  id                 String    @id
-  subjectId          String?
-  contactFingerprint String?
-  phoneHash          String
-  requesterHash      String
-  codeHash           String
-  delivery           String    @default("UNAVAILABLE")
-  attempts           Int       @default(0)
-  verifiedAt         DateTime?
-  consumedAt         DateTime?
-  expiresAt          DateTime
-  createdAt          DateTime  @default(now())
+  id                  String    @id
+  subjectId           String?
+  sourceOrderId       String?
+  accessId            String?
+  purpose             String    @default("DELETE")
+  channel             String?
+  destinationHash     String?
+  providerReference   String?
+  completionTimeframe String?
+  contactFingerprint  String?
+  phoneHash           String
+  requesterHash       String
+  codeHash            String
+  delivery            String    @default("UNAVAILABLE")
+  attempts            Int       @default(0)
+  verifiedAt          DateTime?
+  consumedAt          DateTime?
+  expiresAt           DateTime
+  createdAt           DateTime  @default(now())
 
   @@index([phoneHash, createdAt])
   @@index([requesterHash, createdAt])
 }
 
 model PrivacyDeletionRequest {
-  id                 String                @id
-  subjectId          String?
-  activeSubject      String?               @unique
-  challengeId        String                @unique
-  tokenHash          String
-  status             String                @default("SUBMITTED")
-  version            Int                   @default(0)
-  contactFingerprint String
-  decision           Json?
-  summary            String?
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
-  databaseErasedAt   DateTime?
-  completedAt        DateTime?
-  audit              PrivacyAudit[]
-  tasks              PrivacyExternalTask[]
+  id                  String                @id
+  subjectId           String?
+  sourceOrderId       String
+  activeSubject       String?               @unique
+  challengeId         String                @unique
+  tokenHash           String
+  status              String                @default("SUBMITTED")
+  version             Int                   @default(0)
+  contactFingerprint  String
+  completionTimeframe String
+  decision            Json?
+  summary             String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  databaseErasedAt    DateTime?
+  completedAt         DateTime?
+  audit               PrivacyAudit[]
+  tasks               PrivacyExternalTask[]
 
   @@index([status, createdAt])
+}
+
+// A random customer-bound secret used only to locate the verified privacy subject.
+// It never authorizes deletion without a fresh purpose-bound contact challenge.
+model PrivacyAccessCredential {
+  id              String    @id @default(uuid())
+  customerId      String
+  sourceOrderId   String
+  tokenHash       String    @unique
+  channel         String
+  destinationHash String
+  createdAt       DateTime  @default(now())
+  lastUsedAt      DateTime  @default(now())
+  revokedAt       DateTime?
+  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, revokedAt])
 }
 
 model PrivacyAudit {

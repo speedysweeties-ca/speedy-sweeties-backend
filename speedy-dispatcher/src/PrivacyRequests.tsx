@@ -50,14 +50,17 @@ export function PrivacyRequests({ token }: { token: string }) {
         {['SUBMITTED', 'REVIEWING', 'HOLD'].includes(selected.status) && <>
           <button onClick={() => void run(async () => { setPreview(await api(`requests/${selected.id}/preview`)); setConfirmed(false); })}>Preview affected records (no deletion)</button>
           {preview && <>
-            <p>{preview.orderCount} linked orders. Active orders: {preview.activeOrders.length}. Unlinked candidates: {preview.unlinkedOrderIds.length}.</p>
+            <p>Verified source order: {preview.sourceOrderId}.</p>
+            <p>{preview.orderCount} linked orders. Active orders: {preview.activeOrders.length}. Unlinked candidates: {preview.unlinkedOrderIds.length}. Identity-conflicting linked orders: {preview.conflictingLinkedOrderIds.length}.</p>
+            {(preview.unlinkedOrderIds.length > 0 || preview.conflictingLinkedOrderIds.length > 0) &&
+              <p role="alert">Automatic fulfillment is on hold. Review ownership and scope without disclosing another customer’s information.</p>}
             <p>{preview.removes}</p><p>Retained financial fields: {preview.financialFields.join(', ')}</p>
             <label className="block">Approved retention-policy reference <input value={policy} onChange={e => setPolicy(e.target.value)} /></label>
             <label className="block">Legal/business justification (no customer details) <textarea value={reason} onChange={e => setReason(e.target.value)} /></label>
             <label className="block">Financial records retain until <input type="date" value={financialUntil} onChange={e => setFinancialUntil(e.target.value)} /></label>
             <label className="block">Request/audit evidence retain until <input type="date" value={requestUntil} onChange={e => setRequestUntil(e.target.value)} /></label>
             <label className="block">Anti-recreation identifier review date <input type="date" value={suppressionReview} onChange={e => setSuppressionReview(e.target.value)} /></label>
-            <label className="block"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} /> I have validated this retention decision and reviewed unlinked records. No additional customer personal fields are required in the financial record.</label>
+            <label className="block"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} /> I have validated this retention decision and confirmed there are no unresolved unlinked or identity-conflicting records. No additional customer personal fields are required in the financial record.</label>
             <button onClick={() => void run(async () => {
               const body = privacyDecision(preview, { policy, reason, financialUntil, requestUntil, suppressionReview, confirmed });
               if (!window.confirm('Start irreversible fulfillment for this verified request? Active deliveries, stale previews and unapproved retention are rejected by the server.')) return;
