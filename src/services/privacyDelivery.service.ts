@@ -15,10 +15,37 @@ type DeliveryConfig = {
   phoneEnabled: boolean;
 };
 
+export type VerificationDeliveryDiagnostic = {
+  provider: "twilio" | "resend";
+  operation: "start" | "check";
+  outcome: "accepted" | "rejected" | "timeout" | "network_error" | "invalid_response";
+  httpStatus?: number;
+  errorCode?: number;
+};
+
+type DiagnosticReporter = (diagnostic: VerificationDeliveryDiagnostic) => void;
+
+const safeProviderCode = async (result: Response) => {
+  try {
+    const payload = await result.clone().json() as { code?: unknown };
+    const code = typeof payload.code === "number" ? payload.code : Number(payload.code);
+    return Number.isSafeInteger(code) && code >= 0 ? code : undefined;
+  } catch { return undefined; }
+};
+
+const isTimeout = (error: unknown) => error instanceof Error &&
+  (error.name === "TimeoutError" || error.name === "AbortError");
+
+const defaultReporter: DiagnosticReporter = diagnostic => {
+  // This deliberately excludes destinations, credentials, SIDs, OTPs and response bodies.
+  console.warn(`[privacy-verification-provider] ${JSON.stringify(diagnostic)}`);
+};
+
 const verificationText = (code: string) =>
   `Your Speedy Sweeties privacy verification code is ${code}. It expires in 10 minutes. This code does not delete your account. Do not share it.`;
 
-export function privacyVerificationDelivery(config: DeliveryConfig, fetcher: typeof fetch = fetch): VerificationDelivery {
+export function privacyVerificationDelivery(config: DeliveryConfig, fetcher: typeof fetch = fetch,
+  report: DiagnosticReporter = defaultReporter): VerificationDelivery {
   const twilioUrl = (suffix: string) =>
     `https://verify.twilio.com/v2/Services/${encodeURIComponent(config.twilioVerifyServiceSid)}${suffix}`;
   const twilioHeaders = () => ({
@@ -54,18 +81,30 @@ export function privacyVerificationDelivery(config: DeliveryConfig, fetcher: typ
       if (!config.phoneEnabled || !config.twilioAccountSid || !config.twilioAuthToken || !config.twilioVerifyServiceSid) {
         throw new Error("Verification delivery unavailable");
       }
-      const result = await fetcher(twilioUrl("/Verifications"), {
-        method: "POST",
-        signal: AbortSignal.timeout(10_000),
-        headers: twilioHeaders(),
-        body: new URLSearchParams({ To: to, Channel: "sms" })
-      });
-      if (!result.ok) throw new Error("Verification delivery unavailable");
-      const payload = await result.json() as { sid?: unknown; status?: unknown };
-      if (typeof payload.sid !== "string" || payload.status !== "pending") {
+      try {
+        const result = await fetcher(twilioUrl("/Verifications"), {
+          method: "POST",
+          signal: AbortSignal.timeout(10_000),
+          headers: twilioHeaders(),
+          body: new URLSearchParams({ To: to, Channel: "sms" })
+        });
+        if (!result.ok) {
+          report({ provider: "twilio", operation: "start", outcome: "rejected",
+            httpStatus: result.status, errorCode: await safeProviderCode(result) });
+          throw new Error("Verification delivery unavailable");
+        }
+        const payload = await result.json() as { sid?: unknown; status?: unknown };
+        if (typeof payload.sid !== "string" || payload.status !== "pending") {
+          report({ provider: "twilio", operation: "start", outcome: "invalid_response", httpStatus: result.status });
+          throw new Error("Verification delivery unavailable");
+        }
+        report({ provider: "twilio", operation: "start", outcome: "accepted", httpStatus: result.status });
+        return { reference: payload.sid };
+      } catch (error) {
+        if (error instanceof Error && error.message === "Verification delivery unavailable") throw error;
+        report({ provider: "twilio", operation: "start", outcome: isTimeout(error) ? "timeout" : "network_error" });
         throw new Error("Verification delivery unavailable");
       }
-      return { reference: payload.sid };
     },
 
     async check({ channel, to, code, reference }) {

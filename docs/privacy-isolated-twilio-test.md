@@ -168,6 +168,18 @@ not assume the published business number can receive it.
 
 ## Evidence and cleanup
 
+If a live Verify start returns the generic delivery-unavailable response, do not
+retry it. Temporarily set `PRIVACY_ISOLATED_DIAGNOSTICS_ONLY=true`, both deletion
+and phone-verification gates to `false`, and provide a UTC diagnostic interval of
+no more than 15 minutes in `PRIVACY_ISOLATED_DIAGNOSTIC_AFTER` and
+`PRIVACY_ISOLATED_DIAGNOSTIC_BEFORE`. In this mode the server does not mount the
+fixture or privacy messaging routes. It makes only authenticated GET requests for
+the Twilio Account, Verify Service, Verification Attempts and Monitor Alerts, and
+logs a sanitized result containing status/error numbers, account state, ownership
+matches and delivery state. It never logs destinations, SIDs, credentials, OTPs or
+raw provider bodies. Restore the controlled-test gates only after reviewing the
+diagnosis and before any separately authorized retry.
+
 Record only commit SHA, isolated service/database IDs, UTC start/end, masked last
 four digits, HTTP/result states and sanitized Render/Twilio status. Do not preserve
 the phone, OTP, tokens, provider credentials, connection URL or request bodies.

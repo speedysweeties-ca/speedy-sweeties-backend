@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { createHash, randomBytes } = require('node:crypto');
 const express = require('express');
 const { ISOLATED_ROUTES, createControlAuthorizer } = require('./privacyIsolatedContract.cjs');
+const { collectTwilioDiagnostics } = require('./privacyTwilioDiagnostics.cjs');
 
 const exact = (name, expected) => assert.equal(process.env[name], expected, `${name} must equal ${expected}`);
 const absent = name => assert.ok(!process.env[name], `${name} must be unset in the isolated service`);
@@ -15,8 +16,9 @@ const secret = name => {
 exact('NODE_ENV', 'test');
 exact('PRIVACY_SYNTHETIC_DATABASE', 'yes');
 exact('PRIVACY_ISOLATED_RENDER', 'yes');
-exact('PRIVACY_DELETION_ENABLED', 'true');
-exact('PRIVACY_VERIFICATION_PHONE_ENABLED', 'true');
+const diagnosticsOnly = process.env.PRIVACY_ISOLATED_DIAGNOSTICS_ONLY === 'true';
+exact('PRIVACY_DELETION_ENABLED', diagnosticsOnly ? 'false' : 'true');
+exact('PRIVACY_VERIFICATION_PHONE_ENABLED', diagnosticsOnly ? 'false' : 'true');
 exact('PRIVACY_VERIFICATION_EMAIL_ENABLED', 'false');
 exact('PRIVACY_FULFILLMENT_ENABLED', 'false');
 exact('PRIVACY_APPROVED_RETENTION_POLICY', 'SS-RETENTION-2026-10-23');
@@ -55,6 +57,7 @@ const { signAuthToken } = require('../dist/utils/jwt');
 const authorize = createControlAuthorizer(controlSecret);
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
 app.use(express.json({ limit: '8kb' }));
 app.get('/health', async (_req, res) => {
   try { await prisma.$queryRaw`SELECT 1`; res.json({ status: 'ok', scope: 'privacy-isolated-synthetic' }); }
@@ -62,7 +65,7 @@ app.get('/health', async (_req, res) => {
 });
 
 let fixture;
-app.get(ISOLATED_ROUTES.preflight, authorize, (_req, res) => {
+if (!diagnosticsOnly) app.get(ISOLATED_ROUTES.preflight, authorize, (_req, res) => {
   res.json({
     ready: true,
     fixtureCreated: Boolean(fixture),
@@ -72,7 +75,7 @@ app.get(ISOLATED_ROUTES.preflight, authorize, (_req, res) => {
   });
 });
 
-app.post(ISOLATED_ROUTES.fixture, authorize, async (req, res) => {
+if (!diagnosticsOnly) app.post(ISOLATED_ROUTES.fixture, authorize, async (req, res) => {
   if (fixture) { res.status(409).json({ code: 'FIXTURE_ALREADY_CREATED' }); return; }
   const phone = typeof req.body?.phone === 'string' ? req.body.phone.replace(/\D/g, '') : '';
   if (!/^1[2-9]\d{9}$/.test(phone)) { res.status(400).json({ code: 'CANADIAN_E164_PHONE_REQUIRED' }); return; }
@@ -106,7 +109,7 @@ app.post(ISOLATED_ROUTES.fixture, authorize, async (req, res) => {
   res.json({ trackingToken, adminToken });
 });
 
-app.get(ISOLATED_ROUTES.unchanged, authorize, async (_req, res) => {
+if (!diagnosticsOnly) app.get(ISOLATED_ROUTES.unchanged, authorize, async (_req, res) => {
   if (!fixture) { res.status(404).json({ code: 'FIXTURE_NOT_CREATED' }); return; }
   const [customer, order] = await Promise.all([
     prisma.customer.findUnique({ where: { id: fixture.customerId }, select: { id: true } }),
@@ -115,16 +118,29 @@ app.get(ISOLATED_ROUTES.unchanged, authorize, async (_req, res) => {
   res.json({ customerPresent: !!customer, orderErased: !!order?.privacyErasedAt });
 });
 
-app.use('/api/v1/privacy/deletion', privacyRouter());
+if (!diagnosticsOnly) app.use('/api/v1/privacy/deletion', privacyRouter());
 
 (async () => {
-  const [customers, orders, users] = await Promise.all([
-    prisma.customer.count(), prisma.order.count(), prisma.user.count()
-  ]);
-  assert.deepEqual({ customers, orders, users }, { customers: 0, orders: 0, users: 0 },
-    'the isolated database must be empty before the single-use server starts');
+  if (diagnosticsOnly) {
+    const diagnostic = await collectTwilioDiagnostics({
+      accountSid: process.env.TWILIO_ACCOUNT_SID,
+      authToken: process.env.TWILIO_AUTH_TOKEN,
+      serviceSid: process.env.TWILIO_VERIFY_SERVICE_SID,
+      after: process.env.PRIVACY_ISOLATED_DIAGNOSTIC_AFTER,
+      before: process.env.PRIVACY_ISOLATED_DIAGNOSTIC_BEFORE
+    });
+    console.log(`[privacy-isolated] twilio diagnostic ${JSON.stringify(diagnostic)}`);
+  } else {
+    const [customers, orders, users] = await Promise.all([
+      prisma.customer.count(), prisma.order.count(), prisma.user.count()
+    ]);
+    assert.deepEqual({ customers, orders, users }, { customers: 0, orders: 0, users: 0 },
+      'the isolated database must be empty before the single-use server starts');
+  }
   const port = Number(process.env.PORT || 4000);
-  app.listen(port, '0.0.0.0', () => console.log(`[privacy-isolated] ready on port ${port}; no fixture or message created`));
+  app.listen(port, '0.0.0.0', () => console.log(diagnosticsOnly
+    ? `[privacy-isolated] ready on port ${port}; diagnostics only, messaging routes absent`
+    : `[privacy-isolated] ready on port ${port}; no fixture or message created`));
 })().catch(async error => {
   console.error(`[privacy-isolated] startup refused: ${error.message}`);
   await prisma.$disconnect();

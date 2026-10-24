@@ -55,6 +55,29 @@ test('Twilio Verify rejects disabled, malformed and unapproved provider response
   assert.equal(await denied.check({ channel: 'PHONE', to: '+15195550100', code: '000000', reference: 'VEsynthetic' }), false);
 });
 
+test('Twilio Verify diagnostics retain only safe status, numeric code and outcome', async () => {
+  const diagnostics = [];
+  const privateBody = JSON.stringify({ code: 20003, status: 401, message: 'private provider explanation', to: '+15195550100' });
+  const delivery = privacyVerificationDelivery(config(), async () => new Response(privateBody, {
+    status: 401, headers: { 'content-type': 'application/json' }
+  }), value => diagnostics.push(value));
+  await assert.rejects(delivery.start({ channel: 'PHONE', to: '+15195550100', code: '', id: 'safe' }));
+  assert.deepEqual(diagnostics, [{
+    provider: 'twilio', operation: 'start', outcome: 'rejected', httpStatus: 401, errorCode: 20003
+  }]);
+  assert.doesNotMatch(JSON.stringify(diagnostics), /private provider explanation|15195550100/);
+});
+
+test('Twilio Verify diagnostics distinguish timeout without exposing the thrown error', async () => {
+  const diagnostics = [];
+  const delivery = privacyVerificationDelivery(config(), async () => {
+    const error = new Error('private timeout details'); error.name = 'TimeoutError'; throw error;
+  }, value => diagnostics.push(value));
+  await assert.rejects(delivery.start({ channel: 'PHONE', to: '+15195550100', code: '', id: 'safe' }));
+  assert.deepEqual(diagnostics, [{ provider: 'twilio', operation: 'start', outcome: 'timeout' }]);
+  assert.doesNotMatch(JSON.stringify(diagnostics), /private timeout details|15195550100/);
+});
+
 test('privacy administrator requires both current ADMIN role and explicit staff allowlist', () => {
   process.env.PRIVACY_ADMIN_USER_IDS = 'approved-synthetic-admin';
   for (const user of [undefined, { userId: 'approved-synthetic-admin', role: 'DISPATCHER' }, { userId: 'other', role: 'ADMIN' }]) {
