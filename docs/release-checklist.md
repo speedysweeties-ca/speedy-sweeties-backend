@@ -36,6 +36,14 @@ a separate release and requires its own signed build and store submission.
   masked destination and obtain Robert's explicit authorization for exactly one SMS.
 - Keep fulfillment and email disabled. Require the test client to prove fulfillment
   is rejected and data unchanged, then cancel the synthetic request.
+- The authorized 2026-10-24 attempt reached the isolated challenge route at
+  `13:19:28Z` but returned `VERIFICATION_DELIVERY_UNAVAILABLE`. Read-only Twilio
+  diagnostics found valid credentials (`HTTP 200`), an active Full account and a
+  Verify Service owned by that account, but no accepted Verification Attempt or
+  Monitor Alert in `13:17Z`–`13:22Z`. The pre-diagnostic adapter did not retain the
+  provider response, so its HTTP status/code remain unknown. Do not retry. The next
+  owner check is Twilio Console > Verify > Settings > Geo permissions: confirm the
+  Canada SMS setting and record its displayed state without changing it first.
 - Delete the exact isolated service/database after sanitized evidence is retained.
   This gate never authorizes production deployment, production deletion or customer
   messaging.
