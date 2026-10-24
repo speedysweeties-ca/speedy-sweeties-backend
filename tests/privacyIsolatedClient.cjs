@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const { randomBytes, randomUUID } = require('node:crypto');
 const readline = require('node:readline');
+const { ISOLATED_ROUTES } = require('./privacyIsolatedContract.cjs');
 
 const ask = label => new Promise(resolve => {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
@@ -61,18 +62,28 @@ const askCanadianPhone = async (input = process.stdin, output = process.stdout) 
     output.write('Invalid Canadian phone format. Enter 10 digits, optionally prefixed by +1. Nothing was sent.\n');
   }
 };
-const json = async (url, options = {}) => {
-  const response = await fetch(url, {
+const json = async (url, options = {}, fetchImpl = fetch) => {
+  const response = await fetchImpl(url, {
     ...options,
     headers: { 'content-type': 'application/json', ...(options.headers || {}) }
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`Controlled test stopped: HTTP ${response.status}, code ${body.code || 'UNKNOWN'}`);
+  if (!response.ok) {
+    const error = new Error(`Controlled test stopped: HTTP ${response.status}, code ${body.code || 'UNKNOWN'}`);
+    error.status = response.status;
+    error.code = body.code || 'UNKNOWN';
+    throw error;
+  }
   return body;
 };
 const post = (url, body, token) => json(url, {
   method: 'POST', headers: token ? { authorization: `Bearer ${token}` } : {}, body: JSON.stringify(body)
 });
+const isolatedPreflight = (base, control, fetchImpl = fetch) => json(
+  new URL(ISOLATED_ROUTES.preflight, base),
+  { method: 'GET', headers: { authorization: `Bearer ${control}` } },
+  fetchImpl
+);
 
 const run = async () => {
   if (!process.stdin.isTTY || !process.stdout.isTTY) throw new Error('An interactive terminal is required');
@@ -81,8 +92,24 @@ const run = async () => {
   assert.equal(base.protocol, 'https:', 'The isolated endpoint must use HTTPS');
   base.pathname = base.pathname.replace(/\/$/, '');
   const control = await askHidden('Isolated control secret (hidden): ');
+  let preflight;
+  try {
+    preflight = await isolatedPreflight(base, control);
+  } catch (error) {
+    if (error.status === 404 && error.code === 'NOT_FOUND') {
+      throw new Error('The isolated control secret was not accepted. No phone or message was sent. Copy the current isolated-service value from Render and retry.');
+    }
+    throw error;
+  }
+  assert.deepEqual(preflight, {
+    ready: true,
+    fixtureCreated: false,
+    phoneVerificationEnabled: true,
+    emailVerificationEnabled: false,
+    fulfillmentEnabled: false
+  }, 'The isolated service is not in the approved pre-message state');
   const phone = await askCanadianPhone();
-  const fixture = await post(new URL('/__privacy_test/fixture', base), { phone }, control);
+  const fixture = await post(new URL(ISOLATED_ROUTES.fixture, base), { phone }, control);
   const authorization = await ask(`Authorize exactly one Twilio Verify SMS to ••• ••• ${phone.slice(-4)} by typing SEND ONE SMS: `);
   if (authorization !== 'SEND ONE SMS') throw new Error('Authorization not provided; no SMS was sent');
 
@@ -123,7 +150,7 @@ const run = async () => {
   const disabledBody = await disabled.json();
   assert.equal(disabled.status, 503);
   assert.equal(disabledBody.code, 'FULFILLMENT_DISABLED');
-  const unchanged = await json(new URL('/__privacy_test/unchanged', base), {
+  const unchanged = await json(new URL(ISOLATED_ROUTES.unchanged, base), {
     headers: { authorization: `Bearer ${control}` }
   });
   assert.deepEqual(unchanged, { customerPresent: true, orderErased: false });
@@ -138,4 +165,4 @@ const run = async () => {
 
 if (require.main === module) run().catch(error => { console.error(error.message); process.exitCode = 1; });
 
-module.exports = { askHidden, normalizeCanadianPhone, askCanadianPhone };
+module.exports = { askHidden, normalizeCanadianPhone, askCanadianPhone, isolatedPreflight };

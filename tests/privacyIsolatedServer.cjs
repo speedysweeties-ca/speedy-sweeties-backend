@@ -1,7 +1,8 @@
 // Test-only Render entry point. It deliberately does not import src/server or src/app.
 const assert = require('node:assert/strict');
-const { createHash, randomBytes, timingSafeEqual } = require('node:crypto');
+const { createHash, randomBytes } = require('node:crypto');
 const express = require('express');
+const { ISOLATED_ROUTES, createControlAuthorizer } = require('./privacyIsolatedContract.cjs');
 
 const exact = (name, expected) => assert.equal(process.env[name], expected, `${name} must equal ${expected}`);
 const absent = name => assert.ok(!process.env[name], `${name} must be unset in the isolated service`);
@@ -51,17 +52,7 @@ const { prisma } = require('../dist/lib/prisma');
 const { privacyRouter } = require('../dist/routes/privacy.routes');
 const { signAuthToken } = require('../dist/utils/jwt');
 
-const sameSecret = value => {
-  const supplied = Buffer.from(value || '');
-  const expected = Buffer.from(controlSecret);
-  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
-};
-const authorize = (req, res, next) => {
-  const value = req.headers.authorization?.replace(/^Bearer /, '') || '';
-  if (!sameSecret(value)) { res.status(404).json({ code: 'NOT_FOUND' }); return; }
-  res.set('Cache-Control', 'no-store');
-  next();
-};
+const authorize = createControlAuthorizer(controlSecret);
 const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '8kb' }));
@@ -71,7 +62,17 @@ app.get('/health', async (_req, res) => {
 });
 
 let fixture;
-app.post('/__privacy_test/fixture', authorize, async (req, res) => {
+app.get(ISOLATED_ROUTES.preflight, authorize, (_req, res) => {
+  res.json({
+    ready: true,
+    fixtureCreated: Boolean(fixture),
+    phoneVerificationEnabled: process.env.PRIVACY_VERIFICATION_PHONE_ENABLED === 'true',
+    emailVerificationEnabled: process.env.PRIVACY_VERIFICATION_EMAIL_ENABLED === 'true',
+    fulfillmentEnabled: process.env.PRIVACY_FULFILLMENT_ENABLED === 'true'
+  });
+});
+
+app.post(ISOLATED_ROUTES.fixture, authorize, async (req, res) => {
   if (fixture) { res.status(409).json({ code: 'FIXTURE_ALREADY_CREATED' }); return; }
   const phone = typeof req.body?.phone === 'string' ? req.body.phone.replace(/\D/g, '') : '';
   if (!/^1[2-9]\d{9}$/.test(phone)) { res.status(400).json({ code: 'CANADIAN_E164_PHONE_REQUIRED' }); return; }
@@ -105,7 +106,7 @@ app.post('/__privacy_test/fixture', authorize, async (req, res) => {
   res.json({ trackingToken, adminToken });
 });
 
-app.get('/__privacy_test/unchanged', authorize, async (_req, res) => {
+app.get(ISOLATED_ROUTES.unchanged, authorize, async (_req, res) => {
   if (!fixture) { res.status(404).json({ code: 'FIXTURE_NOT_CREATED' }); return; }
   const [customer, order] = await Promise.all([
     prisma.customer.findUnique({ where: { id: fixture.customerId }, select: { id: true } }),

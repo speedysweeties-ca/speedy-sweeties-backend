@@ -4,8 +4,10 @@ const { PassThrough } = require('node:stream');
 const {
   askHidden,
   normalizeCanadianPhone,
-  askCanadianPhone
+  askCanadianPhone,
+  isolatedPreflight
 } = require('./privacyIsolatedClient.cjs');
+const { ISOLATED_ROUTES, createControlAuthorizer } = require('./privacyIsolatedContract.cjs');
 
 const terminal = () => {
   const input = new PassThrough();
@@ -44,4 +46,47 @@ test('invalid phone input retries without echoing private input', async () => {
   assert.doesNotMatch(io.text(), /private-number|5195550123/);
   assert.match(io.text(), /Invalid Canadian phone format/);
   assert.match(io.text(), /Nothing was sent/);
+});
+
+test('client preflight uses the deployed authenticated GET route before fixture creation', async () => {
+  const calls = [];
+  const result = await isolatedPreflight(
+    new URL('https://isolated.example.invalid/ignored'),
+    'synthetic-control-secret',
+    async (url, options) => {
+      calls.push({ url: url.toString(), options });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ready: true, fixtureCreated: false, phoneVerificationEnabled: true,
+          emailVerificationEnabled: false, fulfillmentEnabled: false
+        })
+      };
+    }
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(new URL(calls[0].url).pathname, ISOLATED_ROUTES.preflight);
+  assert.equal(calls[0].options.method, 'GET');
+  assert.equal(calls[0].options.headers.authorization, 'Bearer synthetic-control-secret');
+  assert.equal(result.fixtureCreated, false);
+  assert.equal(result.fulfillmentEnabled, false);
+});
+
+test('invalid control-secret authentication intentionally returns sanitized 404', () => {
+  const authorize = createControlAuthorizer('expected-synthetic-control-secret');
+  let status;
+  let body;
+  authorize(
+    { headers: { authorization: 'Bearer rejected-private-input' } },
+    {
+      status(value) { status = value; return this; },
+      json(value) { body = value; },
+      set() { assert.fail('invalid authentication must not reach the success path'); }
+    },
+    () => assert.fail('invalid authentication must not call next')
+  );
+  assert.equal(status, 404);
+  assert.deepEqual(body, { code: 'NOT_FOUND' });
+  assert.doesNotMatch(JSON.stringify(body), /rejected-private-input/);
 });

@@ -151,7 +151,11 @@ The client accepts no phone, control secret or OTP command-line arguments. It us
 raw terminal input for those values, including pasted text, without echo. Phone input
 accepts ten Canadian digits (or the same digits prefixed by `+1`), normalizes them to
 `+1` format, and retries with a generic message that never repeats rejected input.
-It prepares the synthetic fixture without messaging, shows only the destination's
+Before asking for a phone, it calls an authenticated, side-effect-free preflight that
+confirms the current control secret, unused fixture state, enabled phone verification
+and disabled email/fulfillment gates. Invalid authentication deliberately returns a
+generic 404 and cannot create a fixture. It then prepares the synthetic fixture
+without messaging, shows only the destination's
 last four digits, and stops unless Robert types the exact one-message authorization.
 It performs one Verify start and one Verify check; there is no resend or OTP retry
 loop. Output is limited to a sanitized result:
