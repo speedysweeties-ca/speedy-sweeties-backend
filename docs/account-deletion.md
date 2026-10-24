@@ -76,11 +76,15 @@ historical scope. Credentials remain server-side and tests use injected fetch mo
 No phone number, provider credential, code or provider error body is put in a URL,
 public error or audit event.
 
-Production activation is blocked until Robert confirms the actual Twilio account's
-Canadian Verify eligibility, geographic permissions, price/taxes, spend controls,
-privacy/DPA, retention/data-location and incident/support terms. The existing
-Resend account needs equivalent sender/quota/privacy/retention confirmation. Do not
-put secrets in Git, tickets, screenshots or this document.
+The isolated account authenticated and accepted a Verification with HTTP 201/pending,
+and Canada SMS Geo Permission is Allow All Traffic. Its SMS delivery nevertheless
+became `undelivered`, error `30007`, on Canada/Telus; Robert submitted a Twilio
+support ticket. Phone production activation remains blocked while support
+investigates. Provider acceptance and pending verification are not delivery. Do not
+send again or redesign the channel meanwhile. Actual Twilio price/taxes, spend
+controls, privacy/DPA, retention/data-location and incident/support terms remain
+account checks. The existing Resend account needs equivalent sender/quota/privacy/
+retention confirmation. Do not put secrets in Git, tickets, screenshots or this document.
 
 ## Fulfillment and retained records
 
@@ -191,8 +195,9 @@ is part of the current iOS/backend scope.
 
 1. Freeze and record exact iOS/backend commits, CI results and schema drift review.
    Confirm PR 93 still targets a non-auto-deploy review branch.
-2. Robert completes the retention worksheet/runbook and provider/account checks.
-   Record only non-secret configuration names/status in the release evidence.
+2. Preserve the adopted retention decisions and complete only the remaining
+   provider/account checks. Keep Twilio phone disabled until its support dependency
+   is resolved. Record only non-secret configuration names/status in release evidence.
 3. Back up/verify recovery procedures. Apply the additive privacy migrations before
    starting code that reads the new tables. Do not rewrite historical migrations.
 4. Deploy backend code with every privacy feature/channel/fulfillment flag false.

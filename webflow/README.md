@@ -63,6 +63,18 @@ backend flow and monitored support mailbox. The page uses the existing support
 email as an initiation path for customers without the app; it does not call the
 privacy API, collect secrets, or treat emailed order facts as proof of ownership.
 
+The proposed production URL is
+`https://www.speedysweeties.ca/account-deletion`. On 2026-10-24, connected
+read-only Webflow access identified the Speedy Sweeties site and a page inventory
+containing only Home; both this path and proposed
+`https://www.speedysweeties.ca/privacy-policy` returned HTTP 404. Publishing
+connected site access exists and exposes page/publish operations, but write
+permission was not exercised and the pages have not been created. The exact policy
+candidate is maintained in the iOS release branch at
+`ReleaseNotes/PRIVACY_POLICY_PROPOSED.txt`; do not publish either page until all
+editor markers are resolved and the described production behavior is deployed and
+verified.
+
 When it is authorized for publication, place the content in a Webflow page whose
 public URL remains stable, set the final privacy-policy link, publish staging first,
 and verify keyboard navigation, the email link, mobile layout, HTTPS, and the live

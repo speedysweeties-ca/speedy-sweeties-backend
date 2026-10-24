@@ -145,14 +145,36 @@ a separate release and requires its own signed build and store submission.
   and retry preflight returned HTTP 404 because diagnostics-only mode deliberately
   left all fixture and messaging routes unmounted. That check sent no SMS and made
   no reset, deploy, credential rotation or environment change.
+- The final separately authorized attempt reached the instrumented Twilio adapter at
+  `2026-10-24T19:38:00Z`. The provider returned HTTP `201` with a syntactically
+  valid Verification SID and status `pending`, so the application accepted the
+  Verify start; this was not a network/timeout, malformed-success or post-send
+  database failure. The SMS did not arrive. Robert's later read-only Console check
+  recorded the SMS delivery attempt as `undelivered`, numeric error `30007`, on
+  Canada/Telus. A pending Verification is not a delivered message, and no OTP check
+  or fulfillment followed. Robert submitted a Twilio support ticket. Treat delivery
+  as unresolved: do not send another message or change the verification architecture
+  while support investigates. Twilio documents 30007 as provider or carrier
+  filtering; this record does not establish which layer made the decision.
 - Cleanup is not confirmed. As last read on 2026-10-24, isolated service
-  `srv-dbe3861srm7s73dgfe50` remained active in the unused, retry-ready state and
+  `srv-dbe3861srm7s73dgfe50` remained active after the closed test and
   paid database `dpg-dbe37v59fdbs73961o3g-a` remained available. Remove both
-  promptly after the single controlled test and sanitized evidence capture so the
+  promptly now that sanitized evidence is retained so the
   database does not continue accruing prorated charges.
 - Delete the exact isolated service/database after sanitized evidence is retained.
   This gate never authorizes production deployment, production deletion or customer
   messaging.
+- The 2026-10-24 closeout inventory independently reverified the exact resource
+  identities in Speedy's workspace: web service `srv-dbe3861srm7s73dgfe50`,
+  `speedy-privacy-isolated`, branch `review/customer-account-deletion`,
+  auto-deploy off; and database `dpg-dbe37v59fdbs73961o3g-a`,
+  `speedy-privacy-synthetic`, database `speedy_privacy_synthetic`, Ohio,
+  0.1c/256 MB. Production and ordering-staging IDs remain different. The connected
+  Render tools expose no delete operation. Use the service dashboard
+  <https://dashboard.render.com/web/srv-dbe3861srm7s73dgfe50> Settings/Danger Zone
+  first, then the database dashboard
+  <https://dashboard.render.com/d/dpg-dbe37v59fdbs73961o3g-a> Settings/Danger Zone;
+  read back each ID/name immediately before confirming deletion.
 
 ## After deployment
 

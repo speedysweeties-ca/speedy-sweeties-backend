@@ -196,6 +196,13 @@ not assume the published business number can receive it.
 
 ## Evidence and cleanup
 
+Closeout evidence, 2026-10-24: the final authorized Verify start returned provider
+HTTP 201 with status `pending`; Twilio later recorded the SMS delivery attempt as
+`undelivered`, numeric error `30007`, on Canada/Telus. No OTP/check/completion or
+fulfillment occurred. Robert submitted a Twilio support ticket. Preserve this
+sanitized outcome and the earlier HTTP 403/code 21608 rejection. Do not send again
+or alter the verification architecture while support investigates.
+
 If a live Verify start returns the generic delivery-unavailable response, do not
 retry it. Temporarily set `PRIVACY_ISOLATED_DIAGNOSTICS_ONLY=true`, both deletion
 and phone-verification gates to `false`, and provide a UTC diagnostic interval of
@@ -216,8 +223,10 @@ After the test:
 
 1. confirm the request ended `CANCELLED`, fulfillment was rejected and records were
    unchanged;
-2. delete `speedy-privacy-isolated` in its Settings danger area;
-3. delete `speedy-privacy-synthetic` in its Settings danger area;
+2. delete exact service `srv-dbe3861srm7s73dgfe50` / `speedy-privacy-isolated`
+   in its Settings danger area;
+3. delete exact database `dpg-dbe37v59fdbs73961o3g-a` /
+   `speedy-privacy-synthetic` in its Settings danger area;
 4. confirm both isolated resources are absent and production/staging deploys and
    database IDs are unchanged;
 5. check Render Billing for the final prorated amount and preserve only that amount.
