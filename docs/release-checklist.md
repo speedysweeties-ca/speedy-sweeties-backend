@@ -23,6 +23,23 @@ a separate release and requires its own signed build and store submission.
 - Identify the prior healthy commit so the code rollback target is known.
 - Do not run destructive or production database commands as part of validation.
 
+## Draft PR 93 isolated Twilio gate
+
+- Keep `speedy-api`, `speedy-sweeties-db`, `speedy-ordering-staging` and its database
+  unchanged. Do not use either existing service as the privacy API test target.
+- Require the current review-branch CI privacy job to pass serially against only
+  `speedy_privacy_synthetic`, including the real-route mocked-delivery test.
+- Follow `docs/privacy-isolated-twilio-test.md`. Provision the smallest paid database
+  only after Robert approves the dashboard estimate; configure a new auto-deploy-off
+  service with separate secrets and no production environment group.
+- Before a live attempt, prepare one synthetic phone-only source order, show only the
+  masked destination and obtain Robert's explicit authorization for exactly one SMS.
+- Keep fulfillment and email disabled. Require the test client to prove fulfillment
+  is rejected and data unchanged, then cancel the synthetic request.
+- Delete the exact isolated service/database after sanitized evidence is retained.
+  This gate never authorizes production deployment, production deletion or customer
+  messaging.
+
 ## After deployment
 
 - Confirm the hosting platform reports a successful deployment of the expected
