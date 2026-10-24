@@ -7,7 +7,9 @@ const suggestions = [
   "How do I change a customer's saved address?",
   "How do I assign an order to a driver?",
   "How do I create a telephone order?",
-  "What are my daily responsibilities?",
+  "Where do I find dispatcher standards and responsibilities?",
+  "How do I handle a customer follow-up?",
+  "Why is an item missing from order suggestions?",
 ];
 
 export function DispatcherHelp({ token, onNavigate, onSessionExpired }: {
