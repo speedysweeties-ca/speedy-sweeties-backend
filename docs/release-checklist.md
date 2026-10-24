@@ -83,6 +83,17 @@ a separate release and requires its own signed build and store submission.
   table deletion, weaken the startup assertion or turn messaging routes back on;
   add reviewed, identity-guarded synthetic reset tooling only with separate owner
   authorization.
+- Robert subsequently authorized that narrowly scoped reset tooling for the same
+  service/database only. Before executing it, require the injected Render service
+  ID/name, configured database resource ID, connection host, database name and user
+  all to match the approved target. Require a complete schema and prove the only
+  application rows are the exact single synthetic Customer, Order, User and
+  failed-delivery PrivacyChallenge. Reject any changed marker, provider reference,
+  completed challenge, privacy request, receipt or other populated application
+  table before `DROP SCHEMA`. Keep the one-shot reset gate in the build-only test
+  preparer, never the production server or a public route. After rebuilding, verify
+  the pinned schema, all four protection triggers and zero application rows, then
+  disable the reset gate before enabling the instrumented phone-only retry.
 - The same read-only check found the isolated database available and the current
   diagnostics deployment `f1c34c8e68c39ab5684e403e60b5ade654121edf` live with
   auto-deploy off. `GET /health` returned HTTP 200 with synthetic scope. Retry

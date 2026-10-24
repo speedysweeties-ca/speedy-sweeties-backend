@@ -36,8 +36,11 @@ resource may be created without Robert's approval.
 
 `preparePrivacyRenderDatabase.cjs` refuses to migrate unless `NODE_ENV=test`, both
 synthetic/isolated assertions are exact, the URL database name is exactly
-`speedy_privacy_synthetic`, and its hostname equals the separately entered expected
-host. It reads the committed pre-privacy schema fixture pinned from production
+`speedy_privacy_synthetic`, its user is exactly `speedy_privacy_synthetic_user`,
+and its hostname both equals the separately entered expected host and identifies
+database resource `dpg-dbe37v59fdbs73961o3g-a`. Render's injected service ID/name
+must identify `srv-dbe3861srm7s73dgfe50` / `speedy-privacy-isolated`. It reads the
+committed pre-privacy schema fixture pinned from production
 commit `12b78cc`, verifies that schema includes `DigitalReceipt` and excludes the
 privacy models, and then applies only the four reviewed privacy migrations in order.
 The committed fixture avoids depending on older Git objects being available in a
@@ -51,6 +54,19 @@ identity and zero customer data does it drop and recreate that disposable databa
 `public` schema, removing any failed Prisma migration record rather than falsely
 marking it successful. It then rebuilds and re-verifies the complete baseline. These
 recovery permissions do not apply to any production or shared staging database.
+
+The preparer also has a separately gated, non-HTTP reset mode for this exact
+disposable resource. `PRIVACY_ISOLATED_RESET=execute-once` is accepted only after
+all target checks above pass. Before dropping the schema, it requires exactly one
+fixture Customer, Order, User and failed-delivery PrivacyChallenge with the fixed
+synthetic markers created by this runbook, and zero rows in every other application
+table. Values used to prove the markers are never logged. Any unknown row, changed
+marker, completed challenge, provider reference, privacy request, receipt or other
+dependent record refuses the reset. A passing audit drops only that database's
+`public` schema, rebuilds the pinned baseline and privacy migrations, then verifies
+all required tables, columns and protection triggers and that every application
+table is empty. Remove the one-shot value immediately after the reset deploy; the
+server permits it only while diagnostics-only mode keeps messaging routes absent.
 
 `privacyIsolatedServer.cjs` imports neither the normal app nor `server.ts`, so it
 does not start session writers, undispatched-order alerts, pickup repair/monitoring,
@@ -103,6 +119,18 @@ Connection values:
 - `DATABASE_URL`: the new database's **internal** URL, added from the isolated
   database connection control; never the production or ordering-staging URL.
 - `PRIVACY_EXPECTED_DATABASE_HOST`: hostname parsed from that same internal URL.
+- `PRIVACY_EXPECTED_DATABASE_RESOURCE_ID`: exactly
+  `dpg-dbe37v59fdbs73961o3g-a`; this is non-secret and is checked against the
+  connection hostname. Render's documented `RENDER_SERVICE_ID` and
+  `RENDER_SERVICE_NAME` variables provide the independent service identity check.
+
+Reset control:
+
+- Normally set `PRIVACY_ISOLATED_RESET=disabled`.
+- Only an explicitly authorized reset deploy may temporarily use
+  `PRIVACY_ISOLATED_RESET=execute-once`, and only with
+  `PRIVACY_ISOLATED_DIAGNOSTICS_ONLY=true`, deletion/phone gates false, email and
+  fulfillment false. Restore `disabled` before the retry deploy.
 
 Generate three separate random values of at least 32 characters in Render's secret
 entry UI; never reuse or reveal them:

@@ -5,6 +5,11 @@ const {
   materializePinnedBaselineSchema,
   applyPinnedBaselineAndPrivacyMigrations,
 } = require('./privacyBaseline.cjs');
+const { validateAuthorizedRenderTarget } = require('./privacyRenderTarget.cjs');
+const {
+  inspectSyntheticFixture,
+  assertAllApplicationTablesEmpty,
+} = require('./privacyRenderReset.cjs');
 
 const CUSTOMER_DATA_TABLES = [
   'User',
@@ -86,14 +91,14 @@ const REQUIRED_TRIGGERS = [
   'privacy_help_guard',
 ];
 
-assert.equal(process.env.NODE_ENV, 'test');
-assert.equal(process.env.PRIVACY_SYNTHETIC_DATABASE, 'yes');
-assert.equal(process.env.PRIVACY_ISOLATED_RENDER, 'yes');
-const url = new URL(process.env.DATABASE_URL);
-assert.equal(decodeURIComponent(url.pathname), '/speedy_privacy_synthetic');
-assert.notEqual(url.hostname, 'localhost');
-assert.notEqual(url.hostname, '127.0.0.1');
-assert.equal(process.env.PRIVACY_EXPECTED_DATABASE_HOST, url.hostname);
+// This guard runs before Prisma is created or any destructive statement is possible.
+validateAuthorizedRenderTarget(process.env);
+assert.ok(
+  !process.env.PRIVACY_ISOLATED_RESET ||
+    ['disabled', 'execute-once'].includes(process.env.PRIVACY_ISOLATED_RESET),
+  'PRIVACY_ISOLATED_RESET has an unsupported value',
+);
+const resetRequested = process.env.PRIVACY_ISOLATED_RESET === 'execute-once';
 
 function quoteIdentifier(identifier) {
   return `"${identifier.replaceAll('"', '""')}"`;
@@ -163,12 +168,25 @@ async function prepare() {
     console.log('[privacy-isolated] verified database identity speedy_privacy_synthetic/public');
 
     const before = await inspectSchema(prisma);
-    if (before.complete) {
+    if (resetRequested) {
+      assert.equal(
+        before.complete,
+        true,
+        'Synthetic reset refused: fixture audit requires a complete verified schema',
+      );
+      const audit = await inspectSyntheticFixture(prisma, before.tableSet, quoteIdentifier);
+      if (audit.state === 'empty') {
+        console.log('[privacy-isolated] reset audit verified database already empty; no destructive operation required');
+        await assertAllApplicationTablesEmpty(prisma, before.tableSet, quoteIdentifier);
+        return;
+      }
+      console.log('[privacy-isolated] reset audit verified exclusive disposable fixture: Customer=1, Order=1, User=1, PrivacyChallenge=1; all other application tables empty');
+    } else if (before.complete) {
       console.log('[privacy-isolated] verified complete privacy baseline; no recovery required');
       return;
+    } else {
+      await assertNoCustomerData(prisma, before.tableSet);
     }
-
-    await assertNoCustomerData(prisma, before.tableSet);
 
     const failedMigrations = before.tableSet.has('_prisma_migrations')
       ? await prisma.$queryRawUnsafe(`
@@ -179,7 +197,7 @@ async function prepare() {
         `)
       : [];
     console.log(
-      `[privacy-isolated] rebuilding incomplete disposable schema; failed migrations: ${
+      `[privacy-isolated] rebuilding ${resetRequested ? 'authorized synthetic fixture' : 'incomplete disposable schema'}; failed migrations: ${
         failedMigrations.map((row) => row.migration_name).join(', ') || 'none'
       }`,
     );
@@ -199,7 +217,8 @@ async function prepare() {
     const after = await inspectSchema(prisma);
     assert.deepEqual(after.missing, [], `Incomplete privacy baseline: ${after.missing.join(', ')}`);
     await assertNoCustomerData(prisma, after.tableSet);
-    console.log('[privacy-isolated] complete privacy baseline verified');
+    await assertAllApplicationTablesEmpty(prisma, after.tableSet, quoteIdentifier);
+    console.log('[privacy-isolated] complete privacy baseline, protection triggers and empty fixture tables verified');
   } finally {
     await prisma.$disconnect();
   }

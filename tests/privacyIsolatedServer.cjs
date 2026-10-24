@@ -4,6 +4,7 @@ const { createHash, randomBytes } = require('node:crypto');
 const express = require('express');
 const { ISOLATED_ROUTES, createControlAuthorizer } = require('./privacyIsolatedContract.cjs');
 const { collectTwilioDiagnostics } = require('./privacyTwilioDiagnostics.cjs');
+const { validateAuthorizedRenderTarget } = require('./privacyRenderTarget.cjs');
 
 const exact = (name, expected) => assert.equal(process.env[name], expected, `${name} must equal ${expected}`);
 const absent = name => assert.ok(!process.env[name], `${name} must be unset in the isolated service`);
@@ -29,12 +30,10 @@ exact('AUTO_DISPATCH_ENABLED', 'false');
 exact('BND_MONITOR_ENABLED', 'false');
 exact('AI_PRODUCT_WEB_LOOKUP_ENABLED', 'false');
 exact('FIREBASE_SERVICE_ACCOUNT_JSON', '{}');
-
-const databaseUrl = new URL(process.env.DATABASE_URL);
-assert.equal(decodeURIComponent(databaseUrl.pathname), '/speedy_privacy_synthetic');
-assert.notEqual(databaseUrl.hostname, 'localhost');
-assert.notEqual(databaseUrl.hostname, '127.0.0.1');
-assert.equal(process.env.PRIVACY_EXPECTED_DATABASE_HOST, databaseUrl.hostname);
+validateAuthorizedRenderTarget(process.env);
+if (process.env.PRIVACY_ISOLATED_RESET === 'execute-once') {
+  assert.equal(diagnosticsOnly, true, 'reset authorization may only remain during a diagnostics-only reset deploy');
+}
 
 const jwtSecret = secret('JWT_SECRET');
 const digestSecret = secret('PRIVACY_DIGEST_KEY');
@@ -120,6 +119,7 @@ if (!diagnosticsOnly) app.get(ISOLATED_ROUTES.unchanged, authorize, async (_req,
 
 if (!diagnosticsOnly) app.use('/api/v1/privacy/deletion', privacyRouter());
 
+let server;
 (async () => {
   if (diagnosticsOnly) {
     const diagnostic = await collectTwilioDiagnostics({
@@ -138,11 +138,33 @@ if (!diagnosticsOnly) app.use('/api/v1/privacy/deletion', privacyRouter());
       'the isolated database must be empty before the single-use server starts');
   }
   const port = Number(process.env.PORT || 4000);
-  app.listen(port, '0.0.0.0', () => console.log(diagnosticsOnly
+  server = await new Promise((resolve, reject) => {
+    const listening = app.listen(port, '0.0.0.0', () => resolve(listening));
+    listening.once('error', reject);
+  });
+  if (!diagnosticsOnly) {
+    const response = await fetch(`http://127.0.0.1:${port}${ISOLATED_ROUTES.preflight}`, {
+      method: 'GET',
+      headers: { authorization: `Bearer ${controlSecret}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.deepEqual(body, {
+      ready: true,
+      fixtureCreated: false,
+      phoneVerificationEnabled: true,
+      emailVerificationEnabled: false,
+      fulfillmentEnabled: false,
+    });
+    console.log('[privacy-isolated] authenticated loopback preflight verified; no fixture or message created');
+  }
+  console.log(diagnosticsOnly
     ? `[privacy-isolated] ready on port ${port}; diagnostics only, messaging routes absent`
-    : `[privacy-isolated] ready on port ${port}; no fixture or message created`));
+    : `[privacy-isolated] ready on port ${port}; no fixture or message created`);
 })().catch(async error => {
   console.error(`[privacy-isolated] startup refused: ${error.message}`);
+  if (server) await new Promise(resolve => server.close(resolve));
   await prisma.$disconnect();
   process.exitCode = 1;
 });
