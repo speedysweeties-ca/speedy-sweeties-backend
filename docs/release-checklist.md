@@ -113,6 +113,19 @@ a separate release and requires its own signed build and store submission.
   remained HTTP 404. Auto-deploy remains off. Production remained live at
   `12b78cc4780c96efa286c167c63ac1676dfc5dbb`, and ordering staging remained live at
   `203b39990f008de28f066caed0b4635e8c233317`. No SMS was sent.
+- The first instrumented retry at `2026-10-24T19:19:10Z` was rejected by
+  Twilio before a Verification was accepted: the sanitized adapter record is
+  `outcome=rejected`, provider HTTP `403`, numeric code `21608`. The adapter did
+  not receive a success response or provider reference, and the post-send
+  database update was not reached. Preserve this as the provider evidence for
+  that attempt; it was not a network/timeout, malformed-success or post-send
+  database failure.
+- Robert confirmed on 2026-10-24 that the intended test destination ending
+  `8097` is successfully verified under Twilio Verified Caller IDs. This is an
+  owner-observed test-account configuration fact, not evidence of a new
+  delivery. No credential, Geo Permission or application change was made. A
+  fresh guarded synthetic fixture and separate authorization at the masked
+  `SEND ONE SMS` prompt are still required before exactly one further attempt.
 - Before the authorized reset, the read-only check found the isolated database
   available and diagnostics deployment `f1c34c8e68c39ab5684e403e60b5ade654121edf`
   live with auto-deploy off. `GET /health` returned HTTP 200 with synthetic scope,
