@@ -147,11 +147,14 @@ From the repository in an interactive terminal, run:
 npm run privacy:isolated:client
 ```
 
-The client accepts no phone, control secret or OTP command-line arguments. It prompts
-for those values without echo, prepares the synthetic fixture without messaging,
-shows only the destination's last four digits, and stops unless Robert types the
-exact one-message authorization. It performs one Verify start and one Verify check;
-there is no resend or OTP retry loop. Output is limited to a sanitized result:
+The client accepts no phone, control secret or OTP command-line arguments. It uses
+raw terminal input for those values, including pasted text, without echo. Phone input
+accepts ten Canadian digits (or the same digits prefixed by `+1`), normalizes them to
+`+1` format, and retries with a generic message that never repeats rejected input.
+It prepares the synthetic fixture without messaging, shows only the destination's
+last four digits, and stops unless Robert types the exact one-message authorization.
+It performs one Verify start and one Verify check; there is no resend or OTP retry
+loop. Output is limited to a sanitized result:
 SMS-attempt count, approved check, source binding, recorded due date, disabled
 fulfillment, unchanged data and cancellation status.
 
