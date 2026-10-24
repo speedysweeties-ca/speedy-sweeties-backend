@@ -67,8 +67,8 @@ The proposed production URL is
 `https://www.speedysweeties.ca/account-deletion`. On 2026-10-24, connected
 read-only Webflow access identified the Speedy Sweeties site and a page inventory
 containing only Home; both this path and proposed
-`https://www.speedysweeties.ca/privacy-policy` returned HTTP 404. Publishing
-connected site access exists and exposes page/publish operations, but write
+`https://www.speedysweeties.ca/privacy-policy` returned HTTP 404. Connected site
+access exists and exposes page/publish operations, but write
 permission was not exercised and the pages have not been created. The exact policy
 candidate is maintained in the iOS release branch at
 `ReleaseNotes/PRIVACY_POLICY_PROPOSED.txt`; do not publish either page until all
