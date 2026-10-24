@@ -126,6 +126,19 @@ a separate release and requires its own signed build and store submission.
   delivery. No credential, Geo Permission or application change was made. A
   fresh guarded synthetic fixture and separate authorization at the masked
   `SEND ONE SMS` prompt are still required before exactly one further attempt.
+- After that confirmation, guarded reset deploy `dep-dbege71srm7s73c2odq0`
+  independently reverified the exact authorized service/database identity and
+  refused to proceed until it proved the failed fixture contained only one
+  synthetic Customer, Order, User and PrivacyChallenge, with every other
+  application table empty. It rebuilt the pinned baseline and privacy migrations,
+  verified all protection triggers and zero rows, and exposed no destination or
+  secret. Retry-ready deploy `dep-dbegf62vcj2c73csjm7g` is live at
+  `e1ec40870e03e8c2785e56567df39f501fd157a1` with reset disabled, phone/deletion
+  enabled, email/fulfillment disabled and auto-deploy off. Authenticated loopback
+  preflight reported ready with no fixture or message created; external health was
+  HTTP 200 and unauthenticated preflight remained HTTP 404. Production and ordering
+  staging remained on `12b78cc4780c96efa286c167c63ac1676dfc5dbb` and
+  `203b39990f008de28f066caed0b4635e8c233317`, respectively. No SMS was sent.
 - Before the authorized reset, the read-only check found the isolated database
   available and diagnostics deployment `f1c34c8e68c39ab5684e403e60b5ade654121edf`
   live with auto-deploy off. `GET /health` returned HTTP 200 with synthetic scope,
