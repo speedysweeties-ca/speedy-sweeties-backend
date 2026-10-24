@@ -94,17 +94,36 @@ a separate release and requires its own signed build and store submission.
   preparer, never the production server or a public route. After rebuilding, verify
   the pinned schema, all four protection triggers and zero application rows, then
   disable the reset gate before enabling the instrumented phone-only retry.
-- The same read-only check found the isolated database available and the current
-  diagnostics deployment `f1c34c8e68c39ab5684e403e60b5ade654121edf` live with
-  auto-deploy off. `GET /health` returned HTTP 200 with synthetic scope. Retry
-  preflight returned HTTP 404 because diagnostics-only mode deliberately leaves all
-  fixture and messaging routes unmounted. No SMS was sent and no reset, deploy,
-  credential rotation or environment change was performed.
+- Reset execution completed on 2026-10-24 against only those exact resources at
+  commit `3cc6a3a1ae732ad8267e0300145c75b9784d4b69`. Diagnostics-only deploy
+  `dep-dbef2tu7bikc73888eq0` verified the injected service identity, database
+  resource/host/name/user, complete schema and exclusively synthetic row set before
+  rebuilding: Customer=1, Order=1, User=1 and PrivacyChallenge=1, with every other
+  application table empty. The rebuilt pinned baseline and four privacy migrations
+  then passed required table/column checks, all four protection-trigger checks, and
+  zero-row checks across 26 customer-bearing tables and every application table.
+  No fixture value, destination, token, OTP or credential was logged or retained in
+  this evidence.
+- Retry deploy `dep-dbef3i0m7kps73dmn8f0` is live on the same commit with the reset
+  gate disabled, diagnostics-only mode off, phone/deletion gates on, and email plus
+  fulfillment gates off. Startup verified zero Customer, Order and User rows and an
+  authenticated loopback request to the real preflight route returned ready=true,
+  fixtureCreated=false, phone=true, email=false and fulfillment=false. External
+  `GET /health` returned HTTP 200 with synthetic scope; unauthenticated preflight
+  remained HTTP 404. Auto-deploy remains off. Production remained live at
+  `12b78cc4780c96efa286c167c63ac1676dfc5dbb`, and ordering staging remained live at
+  `203b39990f008de28f066caed0b4635e8c233317`. No SMS was sent.
+- Before the authorized reset, the read-only check found the isolated database
+  available and diagnostics deployment `f1c34c8e68c39ab5684e403e60b5ade654121edf`
+  live with auto-deploy off. `GET /health` returned HTTP 200 with synthetic scope,
+  and retry preflight returned HTTP 404 because diagnostics-only mode deliberately
+  left all fixture and messaging routes unmounted. That check sent no SMS and made
+  no reset, deploy, credential rotation or environment change.
 - Cleanup is not confirmed. As last read on 2026-10-24, isolated service
-  `srv-dbe3861srm7s73dgfe50` remained active in diagnostics-only mode and paid
-  database `dpg-dbe37v59fdbs73961o3g-a` remained available. Remove both promptly
-  after the read-only log inspection so the database does not continue accruing
-  prorated charges.
+  `srv-dbe3861srm7s73dgfe50` remained active in the unused, retry-ready state and
+  paid database `dpg-dbe37v59fdbs73961o3g-a` remained available. Remove both
+  promptly after the single controlled test and sanitized evidence capture so the
+  database does not continue accruing prorated charges.
 - Delete the exact isolated service/database after sanitized evidence is retained.
   This gate never authorizes production deployment, production deletion or customer
   messaging.
