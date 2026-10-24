@@ -1,7 +1,6 @@
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
-const { mkdtempSync, writeFileSync } = require('node:fs');
-const { tmpdir } = require('node:os');
+const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 
 const BASELINE_COMMIT = '12b78cc4780c96efa286c167c63ac1676dfc5dbb';
@@ -13,17 +12,10 @@ const PRIVACY_MIGRATIONS = [
 ];
 
 function materializePinnedBaselineSchema() {
-  const baseline = execFileSync(
-    'git',
-    ['show', `${BASELINE_COMMIT}:prisma/schema.prisma`],
-    { encoding: 'utf8' },
-  );
+  const path = join(__dirname, 'fixtures', 'privacyBaseline-12b78cc.prisma');
+  const baseline = readFileSync(path, 'utf8');
   assert.match(baseline, /model DigitalReceipt\s*\{/);
   assert.doesNotMatch(baseline, /model PrivacyDeletionRequest\s*\{/);
-
-  const directory = mkdtempSync(join(tmpdir(), 'privacy-baseline-'));
-  const path = join(directory, 'schema.prisma');
-  writeFileSync(path, baseline, { mode: 0o600 });
   return path;
 }
 

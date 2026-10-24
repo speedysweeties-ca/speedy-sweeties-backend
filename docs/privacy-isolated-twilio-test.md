@@ -37,9 +37,11 @@ resource may be created without Robert's approval.
 `preparePrivacyRenderDatabase.cjs` refuses to migrate unless `NODE_ENV=test`, both
 synthetic/isolated assertions are exact, the URL database name is exactly
 `speedy_privacy_synthetic`, and its hostname equals the separately entered expected
-host. It materializes the same pre-privacy schema pinned by CI at production commit
-`12b78cc`, verifies that schema includes `DigitalReceipt`, and then applies only the
-four reviewed privacy migrations in order.
+host. It reads the committed pre-privacy schema fixture pinned from production
+commit `12b78cc`, verifies that schema includes `DigitalReceipt` and excludes the
+privacy models, and then applies only the four reviewed privacy migrations in order.
+The committed fixture avoids depending on older Git objects being available in a
+Render build checkout.
 
 Preparation is repeat-safe. A database whose required privacy tables, columns and
 write-protection triggers are complete is verified without modification. If setup
