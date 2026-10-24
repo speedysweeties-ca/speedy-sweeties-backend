@@ -44,6 +44,18 @@ a separate release and requires its own signed build and store submission.
   provider response, so its HTTP status/code remain unknown. Do not retry. The next
   owner check is Twilio Console > Verify > Settings > Geo permissions: confirm the
   Canada SMS setting and record its displayed state without changing it first.
+- Robert's read-only Console inspection on 2026-10-24 confirmed Canada `SMS & RCS:
+  Allow All Traffic` and `Voice: Disable All Traffic`; no setting was changed. Do
+  not attribute the failed SMS attempt to Canada being disabled. The next diagnostic
+  is a read-only inspection of Twilio Verify Logs and Monitor Error Logs for
+  `2026-10-24 13:17Z` through `13:22Z`: record only whether a Verification exists,
+  its provider HTTP status and numeric error code. Do not copy destinations, SIDs,
+  OTPs, request/response bodies or trigger another verification.
+- Cleanup is not confirmed. As last read on 2026-10-24, isolated service
+  `srv-dbe3861srm7s73dgfe50` remained active in diagnostics-only mode and paid
+  database `dpg-dbe37v59fdbs73961o3g-a` remained available. Remove both promptly
+  after the read-only log inspection so the database does not continue accruing
+  prorated charges.
 - Delete the exact isolated service/database after sanitized evidence is retained.
   This gate never authorizes production deployment, production deletion or customer
   messaging.
