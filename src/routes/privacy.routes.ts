@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { env } from "../config/env";
 import { requireAuth } from "../middleware/auth.middleware";
-import { PrivacyDeletionService, PrivacyError } from "../services/privacyDeletion.service";
+import { ADOPTED_COMPLETION_TIMEFRAME, ADOPTED_RETENTION_POLICY, PrivacyDeletionService, PrivacyError } from "../services/privacyDeletion.service";
 import { privacyVerificationDelivery } from "../services/privacyDelivery.service";
 
 const uuid = z.string().uuid();
@@ -45,8 +45,13 @@ export function privacyRouter(service?: PrivacyDeletionService) {
     phoneEnabled: process.env.PRIVACY_VERIFICATION_PHONE_ENABLED === "true"
   }), decision => process.env.PRIVACY_FULFILLMENT_ENABLED === "true" &&
     !!process.env.PRIVACY_DIGEST_KEY && !!process.env.PRIVACY_APPROVED_RETENTION_POLICY &&
+    process.env.PRIVACY_APPROVED_RETENTION_POLICY === ADOPTED_RETENTION_POLICY &&
+    process.env.PRIVACY_COMPLETION_TIMEFRAME === ADOPTED_COMPLETION_TIMEFRAME &&
+    !!process.env.PRIVACY_FISCAL_YEAR_END_MM_DD &&
     decision?.policyReference === process.env.PRIVACY_APPROVED_RETENTION_POLICY,
-    process.env.PRIVACY_COMPLETION_TIMEFRAME || "");
+    process.env.PRIVACY_COMPLETION_TIMEFRAME === ADOPTED_COMPLETION_TIMEFRAME
+      ? ADOPTED_COMPLETION_TIMEFRAME : "",
+    process.env.PRIVACY_FISCAL_YEAR_END_MM_DD || "");
   router.post("/challenges", safe(async (req, res) => {
     const input = body(z.object({
       trackingToken: z.string().min(32).max(128).optional(),
@@ -69,7 +74,7 @@ export function privacyRouter(service?: PrivacyDeletionService) {
     const after = req.query.after === undefined ? undefined : body(uuid, req.query.after);
     const rows = await get().db.privacyDeletionRequest.findMany({ take: 101, orderBy: { id: "asc" },
       ...(after ? { cursor: { id: after }, skip: 1 } : {}), select: {
-      id: true, status: true, version: true, createdAt: true, updatedAt: true, summary: true, tasks: true, audit: true
+      id: true, status: true, version: true, createdAt: true, dueAt: true, updatedAt: true, summary: true, tasks: true, audit: true
     } });
     res.json({ requests: rows.slice(0, 100), next: rows.length > 100 ? rows[99].id : null });
   }));

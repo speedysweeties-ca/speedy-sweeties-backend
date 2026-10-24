@@ -26,12 +26,28 @@ const maskDestination = (channel: VerificationChannel, value: string) => {
 };
 const closed = ["DELIVERED", "CANCELLED"];
 const cancellable = ["SUBMITTED", "REVIEWING", "HOLD"];
+const DAY_MS = 24 * 60 * 60 * 1000;
+export const ADOPTED_RETENTION_POLICY = "SS-RETENTION-2026-10-23";
+export const ADOPTED_COMPLETION_TIMEFRAME = "Normally within 30 calendar days after verification; an ownership conflict or legal hold may require longer.";
 export const externalSystems = ["phones_and_synced_contacts", "messages_and_email", "staff_notes_and_exports", "logs_and_providers", "backups_and_restore"] as const;
-export const retainedFinancialFields = ["recordIds", "orderNumber", "createdAt", "updatedAt", "paymentMethod", "orderStatus", "quantity", "price", "receiptNumber", "itemTotal", "deliveryCharge", "taxOrFees", "grandTotal"] as const;
+export const retainedFinancialFields = ["recordIds", "orderNumber", "createdAt", "updatedAt", "paymentMethod", "orderStatus", "itemDescription", "quantity", "price", "receiptNumber", "itemTotal", "deliveryCharge", "taxOrFees", "grandTotal", "receiptChargeEvidence"] as const;
 const future = z.string().datetime().refine(v => new Date(v).getTime() > Date.now(), "A future date is required");
+const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const receiptChargeEvidence = (notes: string | null) => {
+  if (!notes) return undefined;
+  const amount = (label: string) => notes.match(new RegExp(`${label}:\\s*\\$?([0-9]+(?:\\.[0-9]{1,2})?)`, "i"))?.[1];
+  const count = notes.match(/Extra stops:\s*([0-9]+)/i)?.[1];
+  const evidence = {
+    ...(count ? { extraStops: Number(count) } : {}),
+    ...(amount("Extra stop charge") ? { extraStopCharge: amount("Extra stop charge") } : {}),
+    ...(amount("Distance surcharge") ? { distanceSurcharge: amount("Distance surcharge") } : {})
+  };
+  return Object.keys(evidence).length ? evidence : undefined;
+};
 export const retentionDecisionSchema = z.object({
   policyReference: z.string().trim().min(8).max(200),
   justification: z.string().trim().min(12).max(600),
+  taxYearEnd: dateOnly,
   financialRetainUntil: future,
   requestRetainUntil: future,
   suppressionReviewAt: future,
@@ -52,9 +68,23 @@ export async function privacyLock(tx: Tx) {
 export class PrivacyDeletionService {
   constructor(readonly db: PrismaClient, private key: string, private delivery: VerificationDelivery,
     private canFulfill: (decision?: RetentionDecision) => boolean = () => false,
-    private completionTimeframe = "") {
+    private completionTimeframe = "", private fiscalYearEndMonthDay = "") {
     if (key.length < 16) throw new Error("Privacy digest key is not configured");
     if (!completionTimeframe.trim() || completionTimeframe.length > 200) throw new Error("Privacy completion timeframe is not configured");
+  }
+  private validateFinancialExpiry(orders: { createdAt: Date }[], decision: RetentionDecision) {
+    if (!/^\d{2}-\d{2}$/.test(this.fiscalYearEndMonthDay)) throw new PrivacyError(503, "FISCAL_YEAR_END_REQUIRED");
+    const taxYearEnd = new Date(`${decision.taxYearEnd}T23:59:59.999Z`);
+    if (Number.isNaN(taxYearEnd.getTime()) || decision.taxYearEnd.slice(5) !== this.fiscalYearEndMonthDay) {
+      throw new PrivacyError(400, "INVALID_TAX_YEAR_END");
+    }
+    const latest = orders.reduce((value, order) => order.createdAt > value ? order.createdAt : value, new Date(0));
+    const previousYearEnd = new Date(taxYearEnd);
+    previousYearEnd.setUTCFullYear(previousYearEnd.getUTCFullYear() - 1);
+    if (latest > taxYearEnd || latest <= previousYearEnd) throw new PrivacyError(400, "INVALID_TAX_YEAR_END");
+    const minimum = new Date(taxYearEnd);
+    minimum.setUTCFullYear(minimum.getUTCFullYear() + 6);
+    if (new Date(decision.financialRetainUntil) < minimum) throw new PrivacyError(400, "FINANCIAL_RETENTION_TOO_SHORT");
   }
   hash(value: string) { return createHmac("sha256", this.key).update(`privacy-v1:${value}`).digest("hex"); }
   fingerprint(c: Customer) { return this.hash(JSON.stringify([c.id, c.normalizedPhone, c.normalizedEmail, c.privacyVerifiedEmail, c.privacyVerifiedEmailAt])); }
@@ -252,19 +282,20 @@ export class PrivacyDeletionService {
       const request = await tx.privacyDeletionRequest.create({ data: {
         id: input.id, tokenHash: digest(input.token), challengeId: c.id, subjectId: customer.id, sourceOrderId: sourceOrder.id,
         activeSubject: customer.id, contactFingerprint: this.fingerprint(customer), completionTimeframe: c.completionTimeframe!,
+        dueAt: new Date(Date.now() + 30 * DAY_MS),
         audit: { create: { actorId: "customer", event: "SUBMITTED" } }
       } });
       return this.publicStatus(request);
     });
   }
   authorize(expected: string, token: string) { if (!secureEqual(expected, digest(token))) throw new PrivacyError(404, "REQUEST_UNAVAILABLE"); }
-  publicStatus(r: { id: string; status: string; version: number; summary: string | null; completionTimeframe: string }) {
+  publicStatus(r: { id: string; status: string; version: number; summary: string | null; completionTimeframe: string; dueAt: Date }) {
     return { id: r.id, status: r.status, version: r.version, canCancel: cancellable.includes(r.status),
       message: r.status === "COMPLETED" ? "Deletion completed for eligible records. Retention details are below." :
         r.status === "CANCELLED" ? "Request cancelled. Your account was not deleted by this request." :
         r.status === "FULFILLING" ? "Fulfillment has started. Required external-system checks are still pending; deletion is not complete." :
         "Request received. Your account has not been deleted. We will review identity, active deliveries and required retention.",
-      completionTimeframe: r.completionTimeframe, retentionSummary: r.summary };
+      completionTimeframe: r.completionTimeframe, dueAt: r.dueAt.toISOString(), retentionSummary: r.summary };
   }
   async status(id: string, token: string) {
     const r = await this.db.privacyDeletionRequest.findUnique({ where: { id } });
@@ -315,7 +346,8 @@ export class PrivacyDeletionService {
         sourceOrderId: p.sourceOrder.id, activeOrders: p.activeOrders, unlinkedOrderIds: p.unlinkedOrderIds,
         conflictingLinkedOrderIds: p.conflictingLinkedOrderIds,
         financialFields: retainedFinancialFields, externalSystems,
-        removes: "Customer profile; copied order contact/address/geocode/notes; receipt notes; help messages; retention drafts; order push/tracking credentials; dispatch and pickup history. Item text and catalog links are redacted; quantities and financial amounts remain." };
+        dueAt: p.request.dueAt,
+        removes: "Customer profile, preferences and loyalty; copied order contact/address/geocode/instructions; help messages; retention drafts; order push/tracking credentials; dispatch and pickup history. Catalog links and free-text receipt notes are removed. Item descriptions and recognized receipt-charge facts remain only as restricted receipt/transaction evidence with quantities, prices and totals." };
     });
   }
   async fulfill(id: string, actor: string, version: number, previewHash: string, rawDecision: unknown) {
@@ -333,9 +365,16 @@ export class PrivacyDeletionService {
       if (p.activeOrders.length) throw new PrivacyError(409, "ACTIVE_ORDERS_HOLD");
       if (p.unlinkedOrderIds.length) throw new PrivacyError(409, "UNLINKED_RECORDS_REQUIRE_REVIEW");
       if (p.conflictingLinkedOrderIds.length) throw new PrivacyError(409, "HISTORICAL_SCOPE_REVIEW_REQUIRED");
+      this.validateFinancialExpiry(p.orders, decision);
       const now = new Date(), ids = p.orders.map(o => o.id);
-      await tx.orderItem.updateMany({ where: { orderId: { in: ids } }, data: { name: "Redacted item description", itemCatalogId: null } });
-      await tx.digitalReceipt.updateMany({ where: { orderId: { in: ids } }, data: { notes: null, createdByDriverId: null } });
+      await tx.orderItem.updateMany({ where: { orderId: { in: ids } }, data: { itemCatalogId: null } });
+      for (const order of p.orders) {
+        if (!order.digitalReceipt) continue;
+        await tx.digitalReceipt.update({ where: { orderId: order.id }, data: {
+          createdByDriverId: null, notes: null,
+          retainedChargeEvidence: receiptChargeEvidence(order.digitalReceipt.notes) ?? undefined
+        } });
+      }
       await tx.dispatchEvent.deleteMany({ where: { orderId: { in: ids } } });
       await tx.orderEditPause.deleteMany({ where: { orderId: { in: ids } } });
       await tx.orderPickupStop.deleteMany({ where: { orderId: { in: ids } } });
@@ -363,7 +402,7 @@ export class PrivacyDeletionService {
       return this.publicStatus(await tx.privacyDeletionRequest.update({ where: { id }, data: {
         subjectId: null, activeSubject: null, contactFingerprint: "revoked", databaseErasedAt: now,
         status: "FULFILLING", version: { increment: 1 }, decision,
-        summary: `Financial fields retained: ${decision.financialFields.join(", ")}. Basis: ${decision.justification}. Retain until ${decision.financialRetainUntil}. Request evidence retained until ${decision.requestRetainUntil}. Anti-recreation identifier review: ${decision.suppressionReviewAt}. External-system checks pending.`,
+        summary: `Restricted financial evidence retained: ${decision.financialFields.join(", ")}. Related tax year ended ${decision.taxYearEnd}. Basis: ${decision.justification}. Retain until ${decision.financialRetainUntil}, subject to review and any longer applicable hold. Request evidence retained until ${decision.requestRetainUntil}. Anti-recreation identifier review: ${decision.suppressionReviewAt}. External-system checks pending.`,
         tasks: { create: externalSystems.map(system => ({ system })) },
         audit: { create: { actorId: actor, event: "DATABASE_ERASED_EXTERNAL_PENDING" } }
       } }));
@@ -383,7 +422,7 @@ export class PrivacyDeletionService {
         throw new PrivacyError(409, "EVIDENCE_ALREADY_RECORDED");
       }
       await tx.privacyExternalTask.update({ where: { requestId_system: { requestId: id, system } }, data: {
-        status: outcome, evidence: recordedEvidence
+        status: outcome, evidence: recordedEvidence, retainUntil: retainUntil ? new Date(retainUntil) : null, reviewedAt: new Date()
       } });
       await tx.privacyAudit.create({ data: { requestId: id, actorId: actor, event: `EXTERNAL_RESOLVED:${system}` } });
       return { success: true };
@@ -397,7 +436,7 @@ export class PrivacyDeletionService {
         throw new PrivacyError(409, "EXTERNAL_WORK_INCOMPLETE");
       return this.publicStatus(await tx.privacyDeletionRequest.update({ where: { id }, data: {
         status: "COMPLETED", completedAt: new Date(), version: { increment: 1 },
-        summary: `${r.summary?.replace("External-system checks pending.", "External-system checks recorded.")} ${r.tasks.filter(t => t.status === "RETAINED_WITH_EXPIRY").map(t => `${t.system}: ${t.evidence}`).join(" ")}`,
+        summary: `${r.summary?.replace("External-system checks pending.", "External-system checks recorded.")} ${r.tasks.filter(t => t.status === "RETAINED_WITH_EXPIRY").map(t => `${t.system}: retained until ${t.retainUntil?.toISOString() || "review required"}.`).join(" ")}`,
         audit: { create: { actorId: actor, event: "COMPLETED_CUSTOMER_STATUS_AVAILABLE" } }
       } }));
     });

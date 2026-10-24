@@ -21,9 +21,11 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
   // Phone checks use a simpler deterministic mock below; no provider or live message is used.
   delivery.check = async msg => msg.channel === 'PHONE' && msg.code === '654321' && String(msg.reference).startsWith('VE-');
   const timeframe = 'within 30 days (synthetic test wording only)';
-  const service = new PrivacyDeletionService(db, process.env.JWT_SECRET, delivery, () => true, timeframe);
-  const decision = () => ({ policyReference: 'SYNTHETIC-TEST-ONLY', justification: 'Synthetic fixture financial retention; not a business policy.',
-    financialRetainUntil: new Date(Date.now() + 86400000).toISOString(), requestRetainUntil: new Date(Date.now() + 172800000).toISOString(),
+  const fiscalYearEnd = `${new Date().getUTCFullYear()}-12-31`;
+  const financialRetainUntil = `${new Date().getUTCFullYear() + 6}-12-31T23:59:59.999Z`;
+  const service = new PrivacyDeletionService(db, process.env.JWT_SECRET, delivery, () => true, timeframe, '12-31');
+  const decision = () => ({ policyReference: 'SYNTHETIC-TEST-ONLY', justification: 'Synthetic fixture financial retention; not a business policy.', taxYearEnd: fiscalYearEnd,
+    financialRetainUntil, requestRetainUntil: new Date(Date.now() + 172800000).toISOString(),
     suppressionReviewAt: new Date(Date.now() + 172800000).toISOString(), personalFields: [], financialFields: [...retainedFinancialFields], unlinkedRecordsReviewed: true, confirmed: true });
   const seed = async ({ email = true } = {}) => {
     const unique = randomBytes(6).toString('hex');
@@ -41,7 +43,7 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
       trackingTokenHash: createHash('sha256').update(trackingToken).digest('hex'), trackingTokenExpiresAt: new Date(Date.now() + 86400000),
       paymentMethod: 'CASH', orderSource: 'IOS_APP', orderStatus: status,
       items: { create: { name: 'Synthetic water', quantity: 2, price: '3.50' } },
-      digitalReceipt: { create: { receiptNumber: randomUUID(), itemTotal: '7.00', deliveryCharge: '12.00', taxOrFees: '0.00', grandTotal: '19.00', notes: 'private note' } },
+      digitalReceipt: { create: { receiptNumber: randomUUID(), itemTotal: '7.00', deliveryCharge: '12.00', taxOrFees: '0.00', grandTotal: '19.00', notes: 'Extra stops: 2\nExtra stop charge: $8.00\nDistance surcharge: $4.00\nGate code 1234' } },
       helpRequest: { create: { message: 'private message' } }, ...changes
     } });
     return { order, trackingToken };
@@ -114,7 +116,7 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
     await t.test('durable per-contact limit cannot be bypassed across service instances', async () => {
       const c = await seed(), source = await ordered(c);
       for (let n = 0; n < 5; n++) await service.challenge({ trackingToken: source.trackingToken }, randomUUID());
-      const other = new PrivacyDeletionService(db, process.env.JWT_SECRET, delivery, () => false, timeframe);
+      const other = new PrivacyDeletionService(db, process.env.JWT_SECRET, delivery, () => false, timeframe, '12-31');
       await assert.rejects(other.challenge({ trackingToken: source.trackingToken }, randomUUID()), /TRY_LATER/);
     });
 
@@ -122,6 +124,7 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
       const c = await seed(), input = await verified(c);
       const first = await service.submit(input); await service.submit(input);
       assert.equal(first.completionTimeframe, timeframe);
+      assert.ok(Date.parse(first.dueAt) >= Date.now() + 29 * 86400000);
       await db.privacyChallenge.update({ where: { id: input.challengeId }, data: { expiresAt: new Date(0) } });
       await service.submit(input);
       assert.equal(await db.privacyAudit.count({ where: { requestId: input.id, event: 'SUBMITTED' } }), 1);
@@ -140,7 +143,7 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
       const p = await service.impact(input.id);
       await assert.rejects(service.fulfill(input.id, 'admin', p.version, p.previewHash, {}), /VALIDATED_RETENTION/);
       await assert.rejects(fulfill(input), /ACTIVE_ORDERS_HOLD/);
-      const disabled = new PrivacyDeletionService(db, process.env.JWT_SECRET, delivery, () => false, timeframe);
+      const disabled = new PrivacyDeletionService(db, process.env.JWT_SECRET, delivery, () => false, timeframe, '12-31');
       await assert.rejects(disabled.fulfill(input.id, 'admin', p.version, p.previewHash, decision()), /FULFILLMENT_DISABLED/);
     });
 
@@ -161,6 +164,7 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
 
     await t.test('atomic rollback then fulfillment retains financial totals and revokes customer access', async () => {
       const c = await seed(), source = await ordered(c), input = await verified(c, source); await service.submit(input);
+      const receiptCreatedAt = (await db.digitalReceipt.findUnique({ where: { orderId: source.order.id } })).createdAt;
       await db.$executeRawUnsafe('CREATE TABLE "SyntheticDeletionHold" ("customerId" TEXT REFERENCES "Customer"(id) ON DELETE RESTRICT)');
       await db.$executeRaw`INSERT INTO "SyntheticDeletionHold" VALUES (${c.id})`;
       await assert.rejects(fulfill(input));
@@ -174,7 +178,9 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
       assert.equal(erased.phone, ''); assert.equal(erased.addressLine1, ''); assert.equal(erased.customerId, null);
       assert.equal(erased.trackingTokenHash, null); assert.equal(erased.fcmToken, null); assert.equal(erased.helpRequest, null);
       assert.equal(erased.digitalReceipt.grandTotal.toFixed(2), '19.00'); assert.equal(erased.digitalReceipt.notes, null);
-      assert.equal(erased.items[0].quantity, 2); assert.equal(erased.items[0].price.toFixed(2), '3.50');
+      assert.equal(erased.digitalReceipt.createdAt.toISOString(), receiptCreatedAt.toISOString());
+      assert.deepEqual(erased.digitalReceipt.retainedChargeEvidence, { extraStops: 2, extraStopCharge: '8.00', distanceSurcharge: '4.00' });
+      assert.equal(erased.items[0].name, 'Synthetic water'); assert.equal(erased.items[0].quantity, 2); assert.equal(erased.items[0].price.toFixed(2), '3.50');
       await assert.rejects(db.order.update({ where: { id: source.order.id }, data: { phone: c.phone, customerId: c.id } }));
       await assert.rejects(db.order.delete({ where: { id: source.order.id } }));
       await assert.rejects(db.digitalReceipt.update({ where: { orderId: source.order.id }, data: { notes: 'stale write' } }));

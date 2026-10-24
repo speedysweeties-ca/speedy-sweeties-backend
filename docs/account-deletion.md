@@ -34,9 +34,13 @@ was used to implement or test this flow.
    a fresh code rotates the status secret, records an audit event and returns the
    existing request. A lost device plus no surviving privacy/loyalty credential or
    verified channel is Robert-only manual review; the customer need not order.
-7. The app displays the configured completion timeframe at challenge, confirmation
-   and status. Completion and the retention explanation are confirmed through
-   authenticated in-app status. No completion email/SMS is claimed or sent.
+7. A verified request stores its own due date 30 calendar days after submission.
+   The app displays the adopted timeframe at challenge and confirmation, and the
+   exact due date at status. Completion and the retention explanation are confirmed
+   through authenticated in-app status. No completion email/SMS is claimed or sent.
+8. A customer who has uninstalled the app can initiate through the public website
+   account-deletion page. That route reaches Robert for the same private recovery
+   review; a typed contact or supplied order facts never becomes deletion authority.
 
 ## Scope and shared/reassigned-contact safeguards
 
@@ -86,15 +90,29 @@ external systems and removal description. Fulfillment requires the same preview
 hash/version, a strict retention decision and the configured approved policy
 reference. There are no UI retention defaults.
 
-The transaction removes the Customer and eligible contact/address/geocode/notes,
-help/check-in/dispatch/pickup/edit-pause data, push/tracking credentials, receipt
-notes and item free text/catalog links from reviewed linked orders. It preserves
-only the strict financial/structural list in `retainedFinancialFields`: record IDs,
-order/receipt numbers, timestamps, payment/order status, quantities, prices and
-receipt totals/charges/tax. Retained erased orders, receipts and items have database
-write/delete guards. Customer/order creation shares the privacy advisory lock, and
-a keyed deleted-identity marker prevents old clients/restores from recreating the
-profile. Unplanned key rotation fails closed.
+The inspected receipt is structured from the `DigitalReceipt` row plus `OrderItem`
+names, quantities and prices. Removing item names would therefore destroy the only
+stored item description. `DigitalReceipt.notes` is free text, but the dispatcher
+also parses three receipt facts from it: extra-stop count, extra-stop charge and
+distance surcharge. Fulfillment copies only those recognized facts into structured
+`retainedChargeEvidence`, then removes the original free text. This preserves the
+receipt/transaction evidence without retaining an arbitrary note such as an access
+code. The dispatcher reads either the original recognized note fields or the
+structured retained values, uses the receipt creation date after personal order
+timestamps are removed, and renders the stored item, delivery/service, tax/fee and
+grand-total amounts rather than hard-coded example components.
+
+The transaction removes the Customer and eligible contact/address/geocode/order
+instructions, help/check-in/dispatch/pickup/edit-pause data, push/tracking
+credentials, receipt free text and item catalogue links from reviewed linked orders.
+It preserves the strict financial/structural list in `retainedFinancialFields`:
+record IDs, order/receipt numbers, timestamps, payment/order status, item
+descriptions, quantities, prices, receipt totals/charges/tax and the recognized
+receipt-charge evidence. It does not retain customer contact or delivery details
+merely because financial evidence is retained. Retained erased orders, receipts and
+items have database write/delete guards. Customer/order creation shares the privacy
+advisory lock, and a keyed deleted-identity marker prevents old clients/restores
+from recreating the profile. Unplanned key rotation fails closed.
 
 After the database transaction, status is `FULFILLING`. Durable tasks cover phones/
 synced contacts, messages/email, staff notes/exports, logs/providers and backups/
@@ -102,10 +120,15 @@ restore. Robert must record verified removal evidence or a justified retain-unti
 date for each. Only then can status become `COMPLETED`. These tasks are an audit
 control, not provider deletion adapters.
 
-No real retention duration is encoded. The policy reference, financial retain-until,
-request/audit retain-until, suppression review date, justification and field set are
-required per case. Manual expiry review can be used for launch only after Robert
-approves the schedule/operator runbook; an automated expiry worker is deferred.
+Policy `SS-RETENTION-2026-10-23` sets the financial minimum to six years after the
+end of the last tax year containing an affected order, subject to a longer applicable
+hold. The backend validates both the configured fiscal year-end and the case's
+calculated tax-year end before fulfillment. The request/audit retain-until,
+suppression review date, justification and field set remain required per case because
+Robert has not supplied those normal periods. External retained copies require their
+own explicit expiry. Robert's existing weekly request and monthly retention reviews
+are the launch process; an automatic expiry worker is deferred. There is no automatic
+two-year inactive-profile deletion.
 
 ## Configuration — all off by default
 
@@ -113,21 +136,25 @@ approves the schedule/operator runbook; an automated expiry worker is deferred.
 - `PRIVACY_DIGEST_KEY`: dedicated stable HMAC key. Generate/store through existing
   production secret management; never expose it to iOS. Preserve it for restores
   and planned rotation/migration.
-- `PRIVACY_COMPLETION_TIMEFRAME`: Robert-approved customer wording, identical to
-  policy/reviewer copy (for example wording must not be invented by engineering).
+- `PRIVACY_COMPLETION_TIMEFRAME`: must exactly equal `Normally within 30 calendar
+  days after verification; an ownership conflict or legal hold may require longer.`
 - `PRIVACY_ADMIN_USER_IDS`: comma-separated current Robert ADMIN user ID(s).
 - `PRIVACY_VERIFICATION_EMAIL_ENABLED=true`, `PRIVACY_VERIFICATION_FROM`, existing
   `RESEND_API_KEY`: only after sender/account review.
 - `PRIVACY_VERIFICATION_PHONE_ENABLED=true`, `TWILIO_ACCOUNT_SID`,
   `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`: only after Twilio review.
-- `PRIVACY_APPROVED_RETENTION_POLICY`: exact approved policy identifier.
+- `PRIVACY_APPROVED_RETENTION_POLICY`: must exactly equal
+  `SS-RETENTION-2026-10-23`.
+- `PRIVACY_FISCAL_YEAR_END_MM_DD`: Robert's actual corporate fiscal year-end as
+  `MM-DD`. This is a business fact and has no source-code default.
 - `PRIVACY_FULFILLMENT_ENABLED=true`: final irreversible fulfillment gate; keep
   false until all retention/external/operator checks are ready.
 
 The service refuses to initialize without a non-empty completion timeframe. Phone
 or email delivery refuses to operate unless its explicit channel flag and required
 configuration are present. Production fulfillment additionally requires the
-dedicated digest key, approved policy reference and fulfillment flag.
+dedicated digest key, exact adopted policy/timeframe, configured fiscal year-end
+and fulfillment flag.
 
 ## Staged rollout plan (requires a later explicit deployment approval)
 

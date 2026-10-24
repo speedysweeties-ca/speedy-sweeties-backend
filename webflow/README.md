@@ -53,3 +53,17 @@ Google Maps continue to receive only the civic street address.
    show both values while map navigation uses only the street address.
 
 The second analytics script on the page is separate and should remain in place.
+
+## Account-deletion page — review artifact, not published
+
+`account-deletion-page.html` is accessible, customer-facing copy for a stable
+`/account-deletion` website path. It is deliberately a review artifact: publishing
+it requires Robert's separate approval and must follow a functioning reviewed
+backend flow and monitored support mailbox. The page uses the existing support
+email as an initiation path for customers without the app; it does not call the
+privacy API, collect secrets, or treat emailed order facts as proof of ownership.
+
+When it is authorized for publication, place the content in a Webflow page whose
+public URL remains stable, set the final privacy-policy link, publish staging first,
+and verify keyboard navigation, the email link, mobile layout, HTTPS, and the live
+URL while signed out. Only then enter that verified URL in Google Play Console.
