@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { env } from "../config/env";
 import { requireAuth } from "../middleware/auth.middleware";
-import { ADOPTED_COMPLETION_TIMEFRAME, ADOPTED_RETENTION_POLICY, PrivacyDeletionService, PrivacyError } from "../services/privacyDeletion.service";
+import { ADOPTED_COMPLETION_TIMEFRAME, ADOPTED_FISCAL_YEAR_END_MM_DD, ADOPTED_RETENTION_POLICY, PrivacyDeletionService, PrivacyError } from "../services/privacyDeletion.service";
 import { privacyVerificationDelivery } from "../services/privacyDelivery.service";
 
 const uuid = z.string().uuid();
@@ -47,7 +47,7 @@ export function privacyRouter(service?: PrivacyDeletionService) {
     !!process.env.PRIVACY_DIGEST_KEY && !!process.env.PRIVACY_APPROVED_RETENTION_POLICY &&
     process.env.PRIVACY_APPROVED_RETENTION_POLICY === ADOPTED_RETENTION_POLICY &&
     process.env.PRIVACY_COMPLETION_TIMEFRAME === ADOPTED_COMPLETION_TIMEFRAME &&
-    !!process.env.PRIVACY_FISCAL_YEAR_END_MM_DD &&
+    process.env.PRIVACY_FISCAL_YEAR_END_MM_DD === ADOPTED_FISCAL_YEAR_END_MM_DD &&
     decision?.policyReference === process.env.PRIVACY_APPROVED_RETENTION_POLICY,
     process.env.PRIVACY_COMPLETION_TIMEFRAME === ADOPTED_COMPLETION_TIMEFRAME
       ? ADOPTED_COMPLETION_TIMEFRAME : "",

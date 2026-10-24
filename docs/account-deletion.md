@@ -123,12 +123,27 @@ control, not provider deletion adapters.
 Policy `SS-RETENTION-2026-10-23` sets the financial minimum to six years after the
 end of the last tax year containing an affected order, subject to a longer applicable
 hold. The backend validates both the configured fiscal year-end and the case's
-calculated tax-year end before fulfillment. The request/audit retain-until,
-suppression review date, justification and field set remain required per case because
-Robert has not supplied those normal periods. External retained copies require their
-own explicit expiry. Robert's existing weekly request and monthly retention reviews
-are the launch process; an automatic expiry worker is deferred. There is no automatic
-two-year inactive-profile deletion.
+calculated tax-year end before fulfillment. Robert confirmed a December 31 fiscal
+year-end, recorded as `12-31`. For an affected order in tax year 2026, the ordinary
+minimum is therefore the end of 2032; a later applicable hold can extend it. The
+deletion-request date never starts or shortens this calculation.
+
+The request/audit retain-until, suppression review date, justification and field set
+remain required per case. The current engineering proposal—explicitly not yet owner-
+approved—is a 24-month post-closure review date for minimized request/audit evidence
+and a first review 24 months after `databaseErasedAt` for the keyed anti-reactivation
+marker.
+An active complaint, dispute or hold extends request evidence. The marker must not be
+removed at review while any supported old client, recoverable backup or restoration
+path can recreate the profile, or while its key migration is incomplete. These are
+manual review dates, not automatic deletion dates or claimed legal requirements.
+If approved, the runbook/code still needs to record the closure-based audit date for
+cancelled or otherwise closed requests; the existing fulfillment decision can record
+the database-erasure-based dates for fulfilled requests but must not guess them.
+External retained copies require their own verified outcome or explicit expiry.
+Robert's existing weekly request and monthly retention reviews are the launch process;
+an automatic expiry worker is deferred. There is no automatic two-year inactive-
+profile deletion.
 
 ## Configuration — all off by default
 
@@ -138,15 +153,17 @@ two-year inactive-profile deletion.
   and planned rotation/migration.
 - `PRIVACY_COMPLETION_TIMEFRAME`: must exactly equal `Normally within 30 calendar
   days after verification; an ownership conflict or legal hold may require longer.`
-- `PRIVACY_ADMIN_USER_IDS`: comma-separated current Robert ADMIN user ID(s).
+- `PRIVACY_ADMIN_USER_IDS`: comma-separated current Robert ADMIN user ID(s). The
+  read-only production lookup confirmed `afca21ae-4c43-4c14-a2a7-f3ad790b12dc` is
+  the single active ADMIN record; read it back again immediately before rollout.
 - `PRIVACY_VERIFICATION_EMAIL_ENABLED=true`, `PRIVACY_VERIFICATION_FROM`, existing
   `RESEND_API_KEY`: only after sender/account review.
 - `PRIVACY_VERIFICATION_PHONE_ENABLED=true`, `TWILIO_ACCOUNT_SID`,
   `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`: only after Twilio review.
 - `PRIVACY_APPROVED_RETENTION_POLICY`: must exactly equal
   `SS-RETENTION-2026-10-23`.
-- `PRIVACY_FISCAL_YEAR_END_MM_DD`: Robert's actual corporate fiscal year-end as
-  `MM-DD`. This is a business fact and has no source-code default.
+- `PRIVACY_FISCAL_YEAR_END_MM_DD=12-31`: Robert's confirmed December 31 corporate
+  fiscal year-end. Fulfillment requires this exact adopted value.
 - `PRIVACY_FULFILLMENT_ENABLED=true`: final irreversible fulfillment gate; keep
   false until all retention/external/operator checks are ready.
 
@@ -155,6 +172,11 @@ or email delivery refuses to operate unless its explicit channel flag and requir
 configuration are present. Production fulfillment additionally requires the
 dedicated digest key, exact adopted policy/timeframe, configured fiscal year-end
 and fulfillment flag.
+
+Read-only production findings and the remaining dashboard checks are recorded in
+`docs/privacy-technical-configuration.md`. The frozen Android integration contract
+is recorded in `docs/android-account-deletion-handoff.md`; no Android merge or release
+is part of the current iOS/backend scope.
 
 ## Staged rollout plan (requires a later explicit deployment approval)
 

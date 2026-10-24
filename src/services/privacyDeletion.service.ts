@@ -29,6 +29,7 @@ const cancellable = ["SUBMITTED", "REVIEWING", "HOLD"];
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const ADOPTED_RETENTION_POLICY = "SS-RETENTION-2026-10-23";
 export const ADOPTED_COMPLETION_TIMEFRAME = "Normally within 30 calendar days after verification; an ownership conflict or legal hold may require longer.";
+export const ADOPTED_FISCAL_YEAR_END_MM_DD = "12-31";
 export const externalSystems = ["phones_and_synced_contacts", "messages_and_email", "staff_notes_and_exports", "logs_and_providers", "backups_and_restore"] as const;
 export const retainedFinancialFields = ["recordIds", "orderNumber", "createdAt", "updatedAt", "paymentMethod", "orderStatus", "itemDescription", "quantity", "price", "receiptNumber", "itemTotal", "deliveryCharge", "taxOrFees", "grandTotal", "receiptChargeEvidence"] as const;
 const future = z.string().datetime().refine(v => new Date(v).getTime() > Date.now(), "A future date is required");
