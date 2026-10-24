@@ -23,8 +23,10 @@ It cannot read customer/order records or perform changes.
 
 `src/data/dispatcherHelpKnowledge.ts` is the versioned source of truth. Each
 article has a stable ID, title, reviewed date, permitted roles, destination,
-plain-language content and code/document evidence for maintainers. Initial
-articles were verified against repository commit `3bec1b0` on 2026-09-30.
+plain-language content and code/document evidence for maintainers. The full
+workflow audit on 2026-10-24 reviewed main commit `12b78cc` and expanded the
+guide from 13 to 37 articles covering all 19 dispatcher destinations, shared
+settings and alerts, and separate administrator procedures.
 
 Update an article whenever its screen or procedure changes. For business policy,
 obtain the business owner's confirmed wording before adding an article, record
@@ -38,6 +40,72 @@ The initial guide is small, so the backend supplies the complete role-filtered
 guide on each request. No external index, file upload, or database copy is needed.
 If the guide grows substantially, add permission-aware retrieval with the same
 source IDs and answer validation.
+
+## Required maintenance with future changes
+
+Every dispatcher feature change includes its help update in the same PR and
+release, including backend changes to permissions, validation, timing or side
+effects. `AGENTS.md` gives coding agents the same instruction. Update the actual
+article content, affected `reviewedAt` dates and `evidence`; add/remove destinations
+in both backend and dispatcher definitions when screens change. For changes with
+no staff-visible effect, re-review the affected guidance and document that outcome
+as described in `AGENTS.md`; never invent new steps just to satisfy the check.
+
+Run `npm run check:dispatcher-help -- <base-ref>` locally. GitHub CI checks the
+whole PR against its base, or the complete push against its previous commit.
+Runtime code, styles, dependency and schema changes require an accompanying
+knowledge-file update. A new branch compares against main. Missing history fails
+closed; checkout uses full history. This check verifies that a guide review was
+included; it cannot determine whether the prose is factually correct. Reviewers
+must still check the affected procedures against the implementation.
+
+Automated maintenance tests compare the real `ActiveTab` union with client help
+links and article coverage, check evidence files and source IDs, and enforce
+administrator-only source filtering. A new dispatcher destination without a
+guide fails tests. Deployment must include the backend knowledge; if help links
+or suggested questions changed, deploy the dispatcher too. Neither branch tests
+nor a PR mean the guide is already live.
+
+## Audit notes and smoke questions (2026-10-24)
+
+- Dispatcher Standards is the destination for expectations and consequences.
+  Daily Responsibilities still exists under Show more in the audited code; its
+  guide explains the separate checklist without claiming it was removed or
+  treating its loaded tasks as current owner-approved policy.
+- Published standards and pinboard notes are live records, not copied into the
+  AI prompt. Policy edits appear in their screens; the assistant directs staff
+  there and must not claim to read their saved wording.
+- Auto dispatch uses the direct customer route; the map preview includes pickup
+  stops. Pre-dispatch editing affects dispatch timing, not the delivery deadline.
+- Catalog UNKNOWN pickup types are hidden from order suggestions. Creator
+  Unknown is a different concept. Manual-order internal notes can save while
+  typing even when the form is later cancelled.
+- Receipt View/Send uses preset delivery/HST/tip lines in `buildReceiptText`,
+  while the grand total comes from the saved receipt. The receipt guide warns
+  staff to verify the breakdown before sending; correcting the receipt renderer
+  is a separate financial-behavior change, not part of this help refresh.
+- No new database migration, secret, model, paid service or live-record access
+  is introduced. The existing full-guide prompt is larger; real model latency
+  and answer quality should be checked after rollout.
+
+With an authorized staff session, ask these read-only questions, expand the
+source and follow its navigation without performing the described operation:
+
+1. Where do I find dispatcher standards? Follow-up: Can you tell me the current fee?
+2. How do I handle a customer follow-up? Follow-up: Does Handled message the customer?
+3. Why is an UNKNOWN catalog item missing from suggestions?
+4. Does Acknowledge assign the driver? Follow-up: Why is acceptance still alarming?
+5. Does editing pause the 40-minute delivery warning?
+6. Does auto dispatch use pickup stops? Follow-up: How do I compare pickup ETAs?
+7. How do I find an old order by address across all dates?
+8. What gets copied by Load Different Previous Order?
+9. If I cancel a manual order draft, are its internal note changes undone?
+10. As admin, how do I read Logout Log or turn B&D Emails off? As dispatcher,
+    confirm those private guides are not available as sources.
+
+The help UI retains the existing red/dark styling. Source-navigation validation
+recognizes all current pages, and suggested questions include standards,
+follow-ups and catalog visibility.
 
 ## Boundaries and validation
 
