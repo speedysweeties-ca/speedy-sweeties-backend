@@ -246,6 +246,9 @@ records, and cancellation using mocked delivery. The guarded, single-use Render
 configuration and interactive one-message client are documented in
 `docs/privacy-isolated-twilio-test.md`; neither is part of the production server.
 
-Local TypeScript/Prisma/mock checks pass. This Mac has no local PostgreSQL runtime,
-so the updated transaction suite must pass the guarded draft-PR CI job before the
-branch is considered verified. A passing review branch is not deployment approval.
+Local TypeScript/Prisma/mock checks pass. This Mac has no local PostgreSQL runtime.
+Draft-PR Backend CI run 550 passed both jobs at `42c3057`: its guarded PostgreSQL 18
+job ran the privacy lifecycle, real-route mocked phone flow and delivery adapter
+serially (17 tests, zero failed/skipped), while validation passed the full backend,
+isolated timing and dispatcher checks. A passing review branch is not deployment or
+live-message approval.
