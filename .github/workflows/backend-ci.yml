@@ -8,6 +8,41 @@ permissions:
   contents: read
 
 jobs:
+  privacy-database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: speedy_privacy_synthetic
+          POSTGRES_USER: privacy_test
+          POSTGRES_PASSWORD: synthetic-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U privacy_test -d speedy_privacy_synthetic"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_ENV: test
+      PRIVACY_SYNTHETIC_DATABASE: 'yes'
+      DATABASE_URL: postgresql://privacy_test:synthetic-only@127.0.0.1:5432/speedy_privacy_synthetic
+      JWT_SECRET: synthetic-privacy-test-key
+      FIREBASE_SERVICE_ACCOUNT_JSON: '{}'
+      AUTO_DISPATCH_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The schema baseline is an exact, reviewed historical commit.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - run: npm run build
+      - run: node tests/preparePrivacyDatabase.cjs
+      - run: node --test --test-concurrency=1 tests/privacyBaseline.test.js tests/privacyDeletion.database.test.js tests/privacyRoutes.database.test.js tests/privacyDelivery.test.js
   validate:
     runs-on: ubuntu-latest
     services:

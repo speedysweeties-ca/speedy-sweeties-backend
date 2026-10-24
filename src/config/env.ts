@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 
-dotenv.config();
+// Synthetic test runs must never import live service credentials from a local .env.
+if (process.env.NODE_ENV !== "test") dotenv.config();
 
 function requireEnv(name: string): string {
   const value = process.env[name];

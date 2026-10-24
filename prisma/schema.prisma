@@ -180,22 +180,25 @@ model DispatcherNoteRead {
 }
 
 model Customer {
-  id                   String  @id @default(uuid())
-  fullName             String
-  normalizedFullName   String
-  phone                String
-  normalizedPhone      String
-  email                String?
-  normalizedEmail      String?
-  addressLine1         String
-  unitNumber           String?
-  buzzCode             String?
-  city                 String
-  province             String
-  postalCode           String?
-  notes                String?
-  dispatcherNotes      String?
-  recurringDriverNotes String?
+  // Never populated from a public order. Requires an independently verified channel.
+  privacyVerifiedEmail   String?
+  privacyVerifiedEmailAt DateTime?
+  id                     String    @id @default(uuid())
+  fullName               String
+  normalizedFullName     String
+  phone                  String
+  normalizedPhone        String
+  email                  String?
+  normalizedEmail        String?
+  addressLine1           String
+  unitNumber             String?
+  buzzCode               String?
+  city                   String
+  province               String
+  postalCode             String?
+  notes                  String?
+  dispatcherNotes        String?
+  recurringDriverNotes   String?
 
   smsMarketingOptOut      Boolean   @default(false)
   smsMarketingOptOutAt    DateTime?
@@ -214,6 +217,7 @@ model Customer {
 
   orders            Order[]
   retentionMessages RetentionMessage[]
+  privacyAccess     PrivacyAccessCredential[]
 
   @@index([normalizedPhone])
   @@index([normalizedFullName])
@@ -284,6 +288,8 @@ model ItemCatalog {
 }
 
 model Order {
+  privacyErasedAt        DateTime?
+  privacyRetainUntil     DateTime?
   id                     String        @id @default(uuid())
   orderNumber            Int           @unique @default(autoincrement())
   fcmToken               String?
@@ -371,6 +377,111 @@ model Order {
   @@index([cancelledAt])
   @@index([cancelledFromStatus])
   @@index([geocodeStatus])
+}
+
+// Request credentials and audit records deliberately survive Customer deletion.
+model PrivacyChallenge {
+  id                  String    @id
+  subjectId           String?
+  sourceOrderId       String?
+  accessId            String?
+  purpose             String    @default("DELETE")
+  channel             String?
+  destinationHash     String?
+  providerReference   String?
+  completionTimeframe String?
+  contactFingerprint  String?
+  phoneHash           String
+  requesterHash       String
+  codeHash            String
+  delivery            String    @default("UNAVAILABLE")
+  attempts            Int       @default(0)
+  verifiedAt          DateTime?
+  consumedAt          DateTime?
+  expiresAt           DateTime
+  createdAt           DateTime  @default(now())
+
+  @@index([phoneHash, createdAt])
+  @@index([requesterHash, createdAt])
+}
+
+model PrivacyDeletionRequest {
+  id                   String                @id
+  subjectId            String?
+  sourceOrderId        String
+  activeSubject        String?               @unique
+  challengeId          String                @unique
+  tokenHash            String
+  status               String                @default("SUBMITTED")
+  version              Int                   @default(0)
+  contactFingerprint   String
+  completionTimeframe  String
+  dueAt                DateTime
+  decision             Json?
+  summary              String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  databaseErasedAt     DateTime?
+  completedAt          DateTime?
+  // Owner-approved review anchor/date; neither field authorizes automatic deletion.
+  closedAt             DateTime?
+  requestAuditReviewAt DateTime?
+  audit                PrivacyAudit[]
+  tasks                PrivacyExternalTask[]
+
+  @@index([status, createdAt])
+  @@index([status, dueAt])
+  @@index([requestAuditReviewAt])
+}
+
+// A random customer-bound secret used only to locate the verified privacy subject.
+// It never authorizes deletion without a fresh purpose-bound contact challenge.
+model PrivacyAccessCredential {
+  id              String    @id @default(uuid())
+  customerId      String
+  sourceOrderId   String
+  tokenHash       String    @unique
+  channel         String
+  destinationHash String
+  createdAt       DateTime  @default(now())
+  lastUsedAt      DateTime  @default(now())
+  revokedAt       DateTime?
+  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, revokedAt])
+}
+
+model PrivacyAudit {
+  id        String                 @id @default(uuid())
+  requestId String
+  actorId   String
+  event     String
+  createdAt DateTime               @default(now())
+  request   PrivacyDeletionRequest @relation(fields: [requestId], references: [id])
+
+  @@index([requestId, createdAt])
+}
+
+model PrivacyExternalTask {
+  id          String                 @id @default(uuid())
+  requestId   String
+  system      String
+  status      String                 @default("PENDING")
+  evidence    String?
+  retainUntil DateTime?
+  reviewedAt  DateTime?
+  updatedAt   DateTime               @updatedAt
+  request     PrivacyDeletionRequest @relation(fields: [requestId], references: [id])
+
+  @@unique([requestId, system])
+}
+
+model PrivacyDeletedIdentity {
+  phoneHash      String   @id
+  keyFingerprint String
+  // An approved review date, not an automatic authorization to recreate a profile.
+  reviewAt       DateTime
+  createdAt      DateTime @default(now())
 }
 
 enum DeliveryHelpStatus {
@@ -467,7 +578,8 @@ model DigitalReceipt {
   taxOrFees      Decimal @db.Decimal(10, 2)
   grandTotal     Decimal @db.Decimal(10, 2)
 
-  notes String?
+  notes                  String?
+  retainedChargeEvidence Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
