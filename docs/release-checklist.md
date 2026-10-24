@@ -51,6 +51,22 @@ a separate release and requires its own signed build and store submission.
   `2026-10-24 13:17Z` through `13:22Z`: record only whether a Verification exists,
   its provider HTTP status and numeric error code. Do not copy destinations, SIDs,
   OTPs, request/response bodies or trigger another verification.
+- The follow-up Console inspection found zero Verify verifications and zero Blocked
+  Verifications in the last 30 days, plus no US1 Monitor Debugger results in the
+  last 24 hours. These are negative observations, not proof that the original HTTP
+  request never reached Twilio: the adapter then in service did not retain the
+  provider status/error or distinguish a rejection, malformed success, network
+  failure, ten-second timeout, or failure in the post-send database update.
+- Code-path review found no evidenced construction defect. The private client
+  accepts a valid Canadian ten-digit number and normalizes it to E.164; the fixture
+  stores the matching national digits; source-order/contact validation reconstructs
+  the same `+1` destination; and the adapter uses the configured Verify Service
+  `/Verifications` endpoint with Basic Account SID/Auth Token authentication and
+  form-encoded `To` plus `Channel=sms`. Existing mocked adapter and real-route tests
+  cover those transformations. The original cause is therefore unrecoverable. One
+  separately authorized retry with the already-added sanitized instrumentation is
+  required; do not send until the client again shows only the masked destination
+  and Robert authorizes exactly one SMS.
 - Cleanup is not confirmed. As last read on 2026-10-24, isolated service
   `srv-dbe3861srm7s73dgfe50` remained active in diagnostics-only mode and paid
   database `dpg-dbe37v59fdbs73961o3g-a` remained available. Remove both promptly
