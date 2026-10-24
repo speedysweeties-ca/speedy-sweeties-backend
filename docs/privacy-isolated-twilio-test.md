@@ -37,7 +37,18 @@ resource may be created without Robert's approval.
 `preparePrivacyRenderDatabase.cjs` refuses to migrate unless `NODE_ENV=test`, both
 synthetic/isolated assertions are exact, the URL database name is exactly
 `speedy_privacy_synthetic`, and its hostname equals the separately entered expected
-host. It uses `prisma migrate deploy`; it never resets or drops a database.
+host. It materializes the same pre-privacy schema pinned by CI at production commit
+`12b78cc`, verifies that schema includes `DigitalReceipt`, and then applies only the
+four reviewed privacy migrations in order.
+
+Preparation is repeat-safe. A database whose required privacy tables, columns and
+write-protection triggers are complete is verified without modification. If setup
+is incomplete, the preparer counts every present customer-bearing table and refuses
+recovery if any contains a row. Only after confirming the exact synthetic database
+identity and zero customer data does it drop and recreate that disposable database's
+`public` schema, removing any failed Prisma migration record rather than falsely
+marking it successful. It then rebuilds and re-verifies the complete baseline. These
+recovery permissions do not apply to any production or shared staging database.
 
 `privacyIsolatedServer.cjs` imports neither the normal app nor `server.ts`, so it
 does not start session writers, undispatched-order alerts, pickup repair/monitoring,

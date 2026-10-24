@@ -42,7 +42,7 @@ jobs:
       - run: npx prisma generate
       - run: npm run build
       - run: node tests/preparePrivacyDatabase.cjs
-      - run: node --test --test-concurrency=1 tests/privacyDeletion.database.test.js tests/privacyRoutes.database.test.js tests/privacyDelivery.test.js
+      - run: node --test --test-concurrency=1 tests/privacyBaseline.test.js tests/privacyDeletion.database.test.js tests/privacyRoutes.database.test.js tests/privacyDelivery.test.js
   validate:
     runs-on: ubuntu-latest
     services:
