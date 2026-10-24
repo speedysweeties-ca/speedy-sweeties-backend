@@ -67,6 +67,28 @@ a separate release and requires its own signed build and store submission.
   separately authorized retry with the already-added sanitized instrumentation is
   required; do not send until the client again shows only the masked destination
   and Robert authorizes exactly one SMS.
+- A 2026-10-24 reset audit reconfirmed the isolated identities before any database
+  operation: service `srv-dbe3861srm7s73dgfe50` (`speedy-privacy-isolated`) and
+  database `dpg-dbe37v59fdbs73961o3g-a` (`speedy-privacy-synthetic`, database name
+  `speedy_privacy_synthetic`). Production `srv-d7ntlnpkh4rs73bev9q0` /
+  `dpg-d7m33g2qqhas73f58hrg-a` and ordering staging
+  `srv-davc147avr4c73bd7eig` / `dpg-davbqnhsrm7s73bd3uq0-a` are explicitly excluded.
+  Existing tooling cannot safely reset the used fixture: the Render preparer exits
+  when the schema is complete and only rebuilds an incomplete schema after proving
+  all customer-bearing tables empty, while normal isolated-server startup requires
+  zero Customer, Order and User rows and stores fixture identity only in process
+  memory. The prior single-use fixture left synthetic rows after that process ended,
+  and privacy request/audit tables add dependent and `ON DELETE RESTRICT` records.
+  There is no existing reset command or authenticated reset route. Do not improvise
+  table deletion, weaken the startup assertion or turn messaging routes back on;
+  add reviewed, identity-guarded synthetic reset tooling only with separate owner
+  authorization.
+- The same read-only check found the isolated database available and the current
+  diagnostics deployment `f1c34c8e68c39ab5684e403e60b5ade654121edf` live with
+  auto-deploy off. `GET /health` returned HTTP 200 with synthetic scope. Retry
+  preflight returned HTTP 404 because diagnostics-only mode deliberately leaves all
+  fixture and messaging routes unmounted. No SMS was sent and no reset, deploy,
+  credential rotation or environment change was performed.
 - Cleanup is not confirmed. As last read on 2026-10-24, isolated service
   `srv-dbe3861srm7s73dgfe50` remained active in diagnostics-only mode and paid
   database `dpg-dbe37v59fdbs73961o3g-a` remained available. Remove both promptly
