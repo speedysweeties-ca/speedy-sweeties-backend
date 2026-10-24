@@ -234,7 +234,7 @@ timeouts/idempotency inputs, managed phone checking, malformed/unapproved respon
 credential redaction and the ADMIN allowlist. `privacyDeletion.database.test.js`
 requires `NODE_ENV=test`, `PRIVACY_SYNTHETIC_DATABASE=yes`, a loopback host and the
 exact database name `speedy_privacy_synthetic`; its preparation script applies the
-pinned pre-feature baseline and both review migrations. It covers enrollment,
+pinned pre-feature baseline and all additive privacy review migrations. It covers enrollment,
 phone-only delivery, superseded challenges, duplicate contacts, expiry/attempts,
 durable limits, recovery, holds, stale previews, rollback, redaction, guard triggers,
 completion and unaffected customers. No production database URL is accepted.
