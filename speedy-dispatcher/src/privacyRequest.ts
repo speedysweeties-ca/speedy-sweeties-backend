@@ -4,7 +4,7 @@ export type PrivacyPreview = {
   financialFields: string[]; externalSystems: string[]; removes: string; dueAt: string;
 };
 export function privacyDecision(preview: PrivacyPreview, input: {
-  policy: string; reason: string; taxYearEnd: string; financialUntil: string; requestUntil: string; suppressionReview: string; confirmed: boolean;
+  policy: string; reason: string; taxYearEnd: string; financialUntil: string; confirmed: boolean;
 }) {
   if (!input.confirmed || input.policy.trim().length < 8 || input.reason.trim().length < 12 ||
       !/^\d{4}-\d{2}-\d{2}$/.test(input.taxYearEnd) ||
@@ -16,7 +16,6 @@ export function privacyDecision(preview: PrivacyPreview, input: {
   };
   return { version: preview.version, previewHash: preview.previewHash, decision: {
     policyReference: input.policy.trim(), justification: input.reason.trim(), taxYearEnd: input.taxYearEnd, financialRetainUntil: date(input.financialUntil),
-    requestRetainUntil: date(input.requestUntil), suppressionReviewAt: date(input.suppressionReview),
     personalFields: [], financialFields: preview.financialFields, unlinkedRecordsReviewed: true, confirmed: true
   } };
 }

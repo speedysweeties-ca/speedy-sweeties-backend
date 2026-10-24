@@ -30,10 +30,21 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const ADOPTED_RETENTION_POLICY = "SS-RETENTION-2026-10-23";
 export const ADOPTED_COMPLETION_TIMEFRAME = "Normally within 30 calendar days after verification; an ownership conflict or legal hold may require longer.";
 export const ADOPTED_FISCAL_YEAR_END_MM_DD = "12-31";
+export const ADOPTED_REQUEST_AUDIT_REVIEW_MONTHS = 24;
+export const ADOPTED_ANTI_REACTIVATION_REVIEW_MONTHS = 24;
 export const externalSystems = ["phones_and_synced_contacts", "messages_and_email", "staff_notes_and_exports", "logs_and_providers", "backups_and_restore"] as const;
 export const retainedFinancialFields = ["recordIds", "orderNumber", "createdAt", "updatedAt", "paymentMethod", "orderStatus", "itemDescription", "quantity", "price", "receiptNumber", "itemTotal", "deliveryCharge", "taxOrFees", "grandTotal", "receiptChargeEvidence"] as const;
 const future = z.string().datetime().refine(v => new Date(v).getTime() > Date.now(), "A future date is required");
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+export const addCalendarMonths = (value: Date, months: number) => {
+  const result = new Date(value);
+  const day = result.getUTCDate();
+  result.setUTCDate(1);
+  result.setUTCMonth(result.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)).getUTCDate();
+  result.setUTCDate(Math.min(day, lastDay));
+  return result;
+};
 const receiptChargeEvidence = (notes: string | null) => {
   if (!notes) return undefined;
   const amount = (label: string) => notes.match(new RegExp(`${label}:\\s*\\$?([0-9]+(?:\\.[0-9]{1,2})?)`, "i"))?.[1];
@@ -50,8 +61,6 @@ export const retentionDecisionSchema = z.object({
   justification: z.string().trim().min(12).max(600),
   taxYearEnd: dateOnly,
   financialRetainUntil: future,
-  requestRetainUntil: future,
-  suppressionReviewAt: future,
   personalFields: z.array(z.string()).length(0),
   financialFields: z.array(z.enum(retainedFinancialFields)).refine(v =>
     v.length === retainedFinancialFields.length && new Set(v).size === retainedFinancialFields.length),
@@ -310,8 +319,10 @@ export class PrivacyDeletionService {
       this.authorize(r.tokenHash, token);
       if (r.status === "CANCELLED") return this.publicStatus(r);
       if (!cancellable.includes(r.status)) throw new PrivacyError(409, "FULFILLMENT_ALREADY_STARTED");
+      const closedAt = new Date();
       return this.publicStatus(await tx.privacyDeletionRequest.update({ where: { id }, data: {
-        status: "CANCELLED", activeSubject: null, version: { increment: 1 },
+        status: "CANCELLED", activeSubject: null, version: { increment: 1 }, closedAt,
+        requestAuditReviewAt: addCalendarMonths(closedAt, ADOPTED_REQUEST_AUDIT_REVIEW_MONTHS),
         audit: { create: { actorId: "customer", event: "CANCELLED" } }
       } }));
     });
@@ -368,6 +379,7 @@ export class PrivacyDeletionService {
       if (p.conflictingLinkedOrderIds.length) throw new PrivacyError(409, "HISTORICAL_SCOPE_REVIEW_REQUIRED");
       this.validateFinancialExpiry(p.orders, decision);
       const now = new Date(), ids = p.orders.map(o => o.id);
+      const suppressionReviewAt = addCalendarMonths(now, ADOPTED_ANTI_REACTIVATION_REVIEW_MONTHS);
       await tx.orderItem.updateMany({ where: { orderId: { in: ids } }, data: { itemCatalogId: null } });
       for (const order of p.orders) {
         if (!order.digitalReceipt) continue;
@@ -395,15 +407,15 @@ export class PrivacyDeletionService {
       await tx.deliveryHelpRequest.deleteMany({ where: { orderId: { in: ids } } });
       await tx.deliveryCheckInEvent.deleteMany({ where: { orderId: { in: ids } } });
       await tx.privacyDeletedIdentity.upsert({ where: { phoneHash: this.hash(`phone:${p.customer.normalizedPhone}`) },
-        create: { phoneHash: this.hash(`phone:${p.customer.normalizedPhone}`), keyFingerprint: digest(this.key), reviewAt: new Date(decision.suppressionReviewAt) },
-        update: { reviewAt: new Date(decision.suppressionReviewAt) } });
+        create: { phoneHash: this.hash(`phone:${p.customer.normalizedPhone}`), keyFingerprint: digest(this.key), reviewAt: suppressionReviewAt },
+        update: { reviewAt: suppressionReviewAt } });
       // Cascade removes RetentionMessage, but all independent order snapshots were handled above.
       await tx.customer.delete({ where: { id: p.customer.id } });
       await tx.privacyChallenge.updateMany({ where: { subjectId: p.customer.id }, data: { subjectId: null, contactFingerprint: null, codeHash: "revoked", consumedAt: now } });
       return this.publicStatus(await tx.privacyDeletionRequest.update({ where: { id }, data: {
         subjectId: null, activeSubject: null, contactFingerprint: "revoked", databaseErasedAt: now,
         status: "FULFILLING", version: { increment: 1 }, decision,
-        summary: `Restricted financial evidence retained: ${decision.financialFields.join(", ")}. Related tax year ended ${decision.taxYearEnd}. Basis: ${decision.justification}. Retain until ${decision.financialRetainUntil}, subject to review and any longer applicable hold. Request evidence retained until ${decision.requestRetainUntil}. Anti-recreation identifier review: ${decision.suppressionReviewAt}. External-system checks pending.`,
+        summary: `Restricted financial evidence retained: ${decision.financialFields.join(", ")}. Related tax year ended ${decision.taxYearEnd}. Basis: ${decision.justification}. Retain until ${decision.financialRetainUntil}, subject to review and any longer applicable hold. Minimized request/audit evidence will be reviewed 24 months after closure. Anti-reactivation identifier first review: ${suppressionReviewAt.toISOString()}. These are review dates, not automatic deletion dates. External-system checks pending.`,
         tasks: { create: externalSystems.map(system => ({ system })) },
         audit: { create: { actorId: actor, event: "DATABASE_ERASED_EXTERNAL_PENDING" } }
       } }));
@@ -435,9 +447,11 @@ export class PrivacyDeletionService {
       if (r.status === "COMPLETED") return this.publicStatus(r);
       if (r.status !== "FULFILLING" || r.tasks.length !== externalSystems.length || r.tasks.some(t => t.status === "PENDING"))
         throw new PrivacyError(409, "EXTERNAL_WORK_INCOMPLETE");
+      const closedAt = new Date();
+      const requestAuditReviewAt = addCalendarMonths(closedAt, ADOPTED_REQUEST_AUDIT_REVIEW_MONTHS);
       return this.publicStatus(await tx.privacyDeletionRequest.update({ where: { id }, data: {
-        status: "COMPLETED", completedAt: new Date(), version: { increment: 1 },
-        summary: `${r.summary?.replace("External-system checks pending.", "External-system checks recorded.")} ${r.tasks.filter(t => t.status === "RETAINED_WITH_EXPIRY").map(t => `${t.system}: retained until ${t.retainUntil?.toISOString() || "review required"}.`).join(" ")}`,
+        status: "COMPLETED", completedAt: closedAt, closedAt, requestAuditReviewAt, version: { increment: 1 },
+        summary: `${r.summary?.replace("Minimized request/audit evidence will be reviewed 24 months after closure.", `Minimized request/audit evidence first review: ${requestAuditReviewAt.toISOString()}.`).replace("External-system checks pending.", "External-system checks recorded.")} ${r.tasks.filter(t => t.status === "RETAINED_WITH_EXPIRY").map(t => `${t.system}: retained until ${t.retainUntil?.toISOString() || "review required"}.`).join(" ")}`,
         audit: { create: { actorId: actor, event: "COMPLETED_CUSTOMER_STATUS_AVAILABLE" } }
       } }));
     });

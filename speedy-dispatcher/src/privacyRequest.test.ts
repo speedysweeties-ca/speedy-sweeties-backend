@@ -4,8 +4,8 @@ import { privacyDecision, type PrivacyPreview } from './privacyRequest.ts';
 const preview: PrivacyPreview = { id: 'synthetic', version: 2, previewHash: 'snapshot', orderCount: 1,
   sourceOrderId: 'source-order', activeOrders: [], unlinkedOrderIds: [], conflictingLinkedOrderIds: [],
   financialFields: ['grandTotal'], externalSystems: [], removes: '', dueAt: '2098-12-01T00:00:00.000Z' };
-test('retention has no defaults and requires confirmation, dates and hold resolution', () => {
-  const input = { policy: 'SYNTHETIC-POLICY', reason: 'Synthetic test only, not real retention', taxYearEnd: '2092-12-31', financialUntil: '2099-01-01', requestUntil: '2099-01-02', suppressionReview: '2099-01-03', confirmed: true };
+test('financial retention has no default and requires confirmation, dates and hold resolution', () => {
+  const input = { policy: 'SYNTHETIC-POLICY', reason: 'Synthetic test only, not real retention', taxYearEnd: '2092-12-31', financialUntil: '2099-01-01', confirmed: true };
   assert.throws(() => privacyDecision(preview, { ...input, financialUntil: '' }));
   assert.throws(() => privacyDecision(preview, { ...input, taxYearEnd: '' }));
   assert.throws(() => privacyDecision(preview, { ...input, confirmed: false }));

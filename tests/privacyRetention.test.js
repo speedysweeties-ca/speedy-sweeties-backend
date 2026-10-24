@@ -8,6 +8,9 @@ const assert = require('node:assert/strict');
 const {
   ADOPTED_FISCAL_YEAR_END_MM_DD,
   PrivacyDeletionService,
+  ADOPTED_REQUEST_AUDIT_REVIEW_MONTHS,
+  ADOPTED_ANTI_REACTIVATION_REVIEW_MONTHS,
+  addCalendarMonths,
   retainedFinancialFields
 } = require('../dist/services/privacyDeletion.service');
 
@@ -25,13 +28,17 @@ const decision = (overrides = {}) => ({
   justification: 'Synthetic financial-retention calculation test only.',
   taxYearEnd: '2026-12-31',
   financialRetainUntil: '2032-12-31T23:59:59.999Z',
-  requestRetainUntil: '2030-01-01T00:00:00.000Z',
-  suppressionReviewAt: '2030-01-01T00:00:00.000Z',
   personalFields: [],
   financialFields: [...retainedFinancialFields],
   unlinkedRecordsReviewed: true,
   confirmed: true,
   ...overrides
+});
+
+test('approved review periods are calendar-month calculations, not automatic deletion dates', () => {
+  assert.equal(ADOPTED_REQUEST_AUDIT_REVIEW_MONTHS, 24);
+  assert.equal(ADOPTED_ANTI_REACTIVATION_REVIEW_MONTHS, 24);
+  assert.equal(addCalendarMonths(new Date('2028-02-29T15:30:00.000Z'), 24).toISOString(), '2030-02-28T15:30:00.000Z');
 });
 
 test('approved fiscal year-end is December 31 and expiry is six years after that tax-year end', () => {

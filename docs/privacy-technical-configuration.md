@@ -67,21 +67,24 @@ and Guideline 1.4.3 terms, found no response in the connected mailbox. The case 
 an external pending dependency; this is not evidence that Apple has not responded
 through another account or portal.
 
-## Proposed review periods — not approved policy
+## Owner-approved operational review periods
 
-- Request/audit evidence: propose a retain-until review 24 months after closure.
+- Request/audit evidence: first review 24 calendar months after actual closure.
   Purpose: preserve minimized proof of verification, scope, decisions, external
   outcomes and completion long enough for operational follow-up or a complaint.
   Extend only for an active complaint, dispute, applicable hold or a documented
-  adviser/insurer requirement. Review before removal; do not auto-delete.
-- Anti-reactivation marker: propose its first review 24 months after
+  need. An extension must record its reason and next review date. Review before
+  removal; do not auto-delete or treat the review date as a minimum.
+- Anti-reactivation marker: first review 24 calendar months after
   `databaseErasedAt`, when the marker is created.
   Purpose: stop restored data and old clients from recreating the deleted account.
   At review, retain it if any supported client, backup/restore path, unresolved case
   or incomplete HMAC-key migration can still reactivate the identity. The review date
-  is not a promise of deletion and is not presented as a legal retention period.
+  is not a promise of deletion, a minimum retention period or a legal requirement.
+  Any extension requires a documented reason and next review date.
 
-Robert must approve or revise those two operational periods before they become
-public policy or normal case defaults. If approved, technical follow-up must record
-the audit date from actual closure for cancelled/otherwise closed requests; the
-current fulfillment decision only captures dates for fulfilled requests.
+Robert approved both periods on 2026-10-23. This is owner approval, not Apple
+approval. Backend review source now calculates the first dates from actual closure
+and database erasure rather than asking the operator to choose them. Existing weekly
+request and monthly retention reminders remain unchanged; no duplicate reminder or
+automatic expiry worker was created.

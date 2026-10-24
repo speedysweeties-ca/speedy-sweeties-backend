@@ -8,7 +8,7 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
   assert.ok(['127.0.0.1', 'localhost'].includes(url.hostname));
   assert.equal(url.pathname, '/speedy_privacy_synthetic');
   const { prisma: db } = require('../dist/lib/prisma');
-  const { PrivacyDeletionService, retainedFinancialFields, externalSystems } = require('../dist/services/privacyDeletion.service');
+  const { PrivacyDeletionService, addCalendarMonths, retainedFinancialFields, externalSystems } = require('../dist/services/privacyDeletion.service');
   const { assertPrivacyOrderAllowed } = require('../dist/services/privacyGuards.service');
   const { signCustomerLoyaltyToken } = require('../dist/utils/jwt');
   const { getCustomerLoyaltyByTokenController } = require('../dist/controllers/customer.controller');
@@ -25,8 +25,7 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
   const financialRetainUntil = `${new Date().getUTCFullYear() + 6}-12-31T23:59:59.999Z`;
   const service = new PrivacyDeletionService(db, process.env.JWT_SECRET, delivery, () => true, timeframe, '12-31');
   const decision = () => ({ policyReference: 'SYNTHETIC-TEST-ONLY', justification: 'Synthetic fixture financial retention; not a business policy.', taxYearEnd: fiscalYearEnd,
-    financialRetainUntil, requestRetainUntil: new Date(Date.now() + 172800000).toISOString(),
-    suppressionReviewAt: new Date(Date.now() + 172800000).toISOString(), personalFields: [], financialFields: [...retainedFinancialFields], unlinkedRecordsReviewed: true, confirmed: true });
+    financialRetainUntil, personalFields: [], financialFields: [...retainedFinancialFields], unlinkedRecordsReviewed: true, confirmed: true });
   const seed = async ({ email = true } = {}) => {
     const unique = randomBytes(6).toString('hex');
     const phone = '519' + String(parseInt(unique, 16)).slice(-7).padStart(7, '0');
@@ -135,6 +134,8 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
       assert.equal((await service.status(input.id, recovered.token)).status, 'SUBMITTED');
       assert.equal(await db.privacyAudit.count({ where: { requestId: input.id, event: 'STATUS_CREDENTIAL_RECOVERED' } }), 1);
       await service.cancel(input.id, recovered.token); await service.cancel(input.id, recovered.token);
+      const cancelled = await db.privacyDeletionRequest.findUnique({ where: { id: input.id } });
+      assert.equal(cancelled.requestAuditReviewAt.toISOString(), addCalendarMonths(cancelled.closedAt, 24).toISOString());
       assert.ok(await db.customer.findUnique({ where: { id: c.id } }));
     });
 
@@ -172,6 +173,9 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
       await db.$executeRaw`DELETE FROM "SyntheticDeletionHold" WHERE "customerId" = ${c.id}`;
       await db.$executeRawUnsafe('DROP TABLE "SyntheticDeletionHold"');
       const result = await fulfill(input); assert.equal(result.status, 'FULFILLING');
+      const erasedRequest = await db.privacyDeletionRequest.findUnique({ where: { id: input.id } });
+      const marker = await db.privacyDeletedIdentity.findUnique({ where: { phoneHash: service.hash(`phone:${c.normalizedPhone}`) } });
+      assert.equal(marker.reviewAt.toISOString(), addCalendarMonths(erasedRequest.databaseErasedAt, 24).toISOString());
       assert.equal(await db.customer.findUnique({ where: { id: c.id } }), null);
       assert.equal(await db.privacyAccessCredential.count({ where: { customerId: c.id } }), 0);
       const erased = await db.order.findUnique({ where: { id: source.order.id }, include: { digitalReceipt: true, items: true, helpRequest: true } });
@@ -199,6 +203,8 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
       await service.complete(input.id, 'admin'); await service.complete(input.id, 'admin');
       const completed = await service.status(input.id, input.token);
       assert.equal(completed.status, 'COMPLETED'); assert.equal(completed.completionTimeframe, timeframe);
+      const closedRequest = await db.privacyDeletionRequest.findUnique({ where: { id: input.id } });
+      assert.equal(closedRequest.requestAuditReviewAt.toISOString(), addCalendarMonths(closedRequest.closedAt, 24).toISOString());
     });
 
     await t.test('unaffected customer ordering guard, loyalty, receipt and tracking still work', async () => {

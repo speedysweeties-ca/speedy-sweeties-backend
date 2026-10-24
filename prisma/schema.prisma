@@ -406,28 +406,32 @@ model PrivacyChallenge {
 }
 
 model PrivacyDeletionRequest {
-  id                  String                @id
-  subjectId           String?
-  sourceOrderId       String
-  activeSubject       String?               @unique
-  challengeId         String                @unique
-  tokenHash           String
-  status              String                @default("SUBMITTED")
-  version             Int                   @default(0)
-  contactFingerprint  String
-  completionTimeframe String
-  dueAt               DateTime
-  decision            Json?
-  summary             String?
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  databaseErasedAt    DateTime?
-  completedAt         DateTime?
-  audit               PrivacyAudit[]
-  tasks               PrivacyExternalTask[]
+  id                   String                @id
+  subjectId            String?
+  sourceOrderId        String
+  activeSubject        String?               @unique
+  challengeId          String                @unique
+  tokenHash            String
+  status               String                @default("SUBMITTED")
+  version              Int                   @default(0)
+  contactFingerprint   String
+  completionTimeframe  String
+  dueAt                DateTime
+  decision             Json?
+  summary              String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  databaseErasedAt     DateTime?
+  completedAt          DateTime?
+  // Owner-approved review anchor/date; neither field authorizes automatic deletion.
+  closedAt             DateTime?
+  requestAuditReviewAt DateTime?
+  audit                PrivacyAudit[]
+  tasks                PrivacyExternalTask[]
 
   @@index([status, createdAt])
   @@index([status, dueAt])
+  @@index([requestAuditReviewAt])
 }
 
 // A random customer-bound secret used only to locate the verified privacy subject.

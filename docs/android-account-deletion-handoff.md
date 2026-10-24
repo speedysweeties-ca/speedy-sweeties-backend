@@ -29,6 +29,13 @@ With `PRIVACY_DELETION_ENABLED=false`, only the new privacy route is unavailable
 - Normal completion wording: `Normally within 30 calendar days after verification;
   an ownership conflict or legal hold may require longer.`
 - Fiscal year-end: `PRIVACY_FISCAL_YEAR_END_MM_DD=12-31`.
+- Owner-approved operational reviews: minimized deletion-request/audit evidence is
+  first reviewed 24 calendar months after actual closure; the anti-reactivation
+  marker is first reviewed 24 calendar months after `databaseErasedAt`. These are
+  review dates, not minimum retention periods, automatic deletion dates, legal
+  requirements or Apple-approved durations. Extensions require a documented reason
+  and next review date; preserve the marker while a verified restore or unresolved-
+  case risk remains.
 - Financial evidence is retained generally until at least six years after the end
   of the last tax year containing the affected order, subject to a longer applicable
   hold. The request date is not the calculation start.

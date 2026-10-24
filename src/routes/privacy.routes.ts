@@ -74,7 +74,8 @@ export function privacyRouter(service?: PrivacyDeletionService) {
     const after = req.query.after === undefined ? undefined : body(uuid, req.query.after);
     const rows = await get().db.privacyDeletionRequest.findMany({ take: 101, orderBy: { id: "asc" },
       ...(after ? { cursor: { id: after }, skip: 1 } : {}), select: {
-      id: true, status: true, version: true, createdAt: true, dueAt: true, updatedAt: true, summary: true, tasks: true, audit: true
+      id: true, status: true, version: true, createdAt: true, dueAt: true, updatedAt: true, databaseErasedAt: true,
+      closedAt: true, requestAuditReviewAt: true, summary: true, tasks: true, audit: true
     } });
     res.json({ requests: rows.slice(0, 100), next: rows.length > 100 ? rows[99].id : null });
   }));

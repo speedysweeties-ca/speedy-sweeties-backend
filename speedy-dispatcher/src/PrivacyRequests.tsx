@@ -3,7 +3,8 @@ import { API_V1_BASE_URL } from './apiConfig';
 import { privacyDecision, type PrivacyPreview } from './privacyRequest';
 
 type Case = { id: string; status: string; version: number; summary: string | null;
-  createdAt: string; dueAt: string; tasks: { system: string; status: string; evidence: string | null; retainUntil: string | null; reviewedAt: string | null }[];
+  createdAt: string; dueAt: string; databaseErasedAt: string | null; closedAt: string | null; requestAuditReviewAt: string | null;
+  tasks: { system: string; status: string; evidence: string | null; retainUntil: string | null; reviewedAt: string | null }[];
   audit: { id: string; event: string; actorId: string; createdAt: string }[] };
 export function PrivacyRequests({ token }: { token: string }) {
   const [cases, setCases] = useState<Case[]>([]), [selected, setSelected] = useState<Case>();
@@ -13,7 +14,7 @@ export function PrivacyRequests({ token }: { token: string }) {
   const [notice, setNotice] = useState('Load requests to verify your privacy-administrator access.'), [busy, setBusy] = useState(false);
   const [policy, setPolicy] = useState('SS-RETENTION-2026-10-23'), [reason, setReason] = useState('');
   const [taxYearEnd, setTaxYearEnd] = useState('');
-  const [financialUntil, setFinancialUntil] = useState(''), [requestUntil, setRequestUntil] = useState(''), [suppressionReview, setSuppressionReview] = useState('');
+  const [financialUntil, setFinancialUntil] = useState('');
   const [confirmed, setConfirmed] = useState(false), [system, setSystem] = useState('phones_and_synced_contacts');
   const [evidence, setEvidence] = useState(''), [externalUntil, setExternalUntil] = useState('');
   async function api(path: string, body?: unknown) {
@@ -50,6 +51,7 @@ export function PrivacyRequests({ token }: { token: string }) {
       })}>Load more requests</button>}
       {selected && <>
         <h3 className="font-bold">{selected.id} — {selected.status}</h3><p>{selected.summary}</p>
+        {selected.requestAuditReviewAt && <p>Minimized request/audit evidence review: {new Date(selected.requestAuditReviewAt).toLocaleString()}.</p>}
         {['SUBMITTED', 'REVIEWING', 'HOLD'].includes(selected.status) && <>
           <button onClick={() => void run(async () => { setPreview(await api(`requests/${selected.id}/preview`)); setConfirmed(false); })}>Preview affected records (no deletion)</button>
           {preview && <>
@@ -63,11 +65,10 @@ export function PrivacyRequests({ token }: { token: string }) {
             <label className="block">Legal/business justification (no customer details) <textarea value={reason} onChange={e => setReason(e.target.value)} /></label>
             <label className="block">Tax year end covering the latest affected order <input type="date" value={taxYearEnd} onChange={e => setTaxYearEnd(e.target.value)} /></label>
             <label className="block">Financial records retain until <input type="date" value={financialUntil} onChange={e => setFinancialUntil(e.target.value)} /></label>
-            <label className="block">Request/audit evidence retain until <input type="date" value={requestUntil} onChange={e => setRequestUntil(e.target.value)} /></label>
-            <label className="block">Anti-recreation identifier review date <input type="date" value={suppressionReview} onChange={e => setSuppressionReview(e.target.value)} /></label>
+            <p>Approved operational reviews are calculated by the server: minimized request/audit evidence 24 months after actual closure, and the anti-reactivation marker 24 months after database erasure. They are review dates, not minimum retention periods or automatic deletion dates.</p>
             <label className="block"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} /> I have validated this retention decision and confirmed there are no unresolved unlinked or identity-conflicting records. No additional customer personal fields are required in the financial record.</label>
             <button onClick={() => void run(async () => {
-              const body = privacyDecision(preview, { policy, reason, taxYearEnd, financialUntil, requestUntil, suppressionReview, confirmed });
+              const body = privacyDecision(preview, { policy, reason, taxYearEnd, financialUntil, confirmed });
               if (!window.confirm('Start irreversible fulfillment for this verified request? Active deliveries, stale previews and unapproved retention are rejected by the server.')) return;
               await api(`requests/${selected.id}/fulfill`, body); await reload(); setNotice('Database fulfillment recorded. External work must still be verified; deletion is not yet complete.');
             })}>Confirm and begin fulfillment</button>

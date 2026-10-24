@@ -88,7 +88,9 @@ The restricted dispatcher preview shows the verified source order, active orders
 detached candidates, identity-conflicting linked orders, exact financial fields,
 external systems and removal description. Fulfillment requires the same preview
 hash/version, a strict retention decision and the configured approved policy
-reference. There are no UI retention defaults.
+reference. There is no operator-entered default for financial retention; the two
+owner-approved operational review dates are server-calculated from their actual
+anchor events.
 
 The inspected receipt is structured from the `DigitalReceipt` row plus `OrderItem`
 names, quantities and prices. Removing item names would therefore destroy the only
@@ -128,18 +130,21 @@ year-end, recorded as `12-31`. For an affected order in tax year 2026, the ordin
 minimum is therefore the end of 2032; a later applicable hold can extend it. The
 deletion-request date never starts or shortens this calculation.
 
-The request/audit retain-until, suppression review date, justification and field set
-remain required per case. The current engineering proposal—explicitly not yet owner-
-approved—is a 24-month post-closure review date for minimized request/audit evidence
-and a first review 24 months after `databaseErasedAt` for the keyed anti-reactivation
-marker.
-An active complaint, dispute or hold extends request evidence. The marker must not be
-removed at review while any supported old client, recoverable backup or restoration
-path can recreate the profile, or while its key migration is incomplete. These are
-manual review dates, not automatic deletion dates or claimed legal requirements.
-If approved, the runbook/code still needs to record the closure-based audit date for
-cancelled or otherwise closed requests; the existing fulfillment decision can record
-the database-erasure-based dates for fulfilled requests but must not guess them.
+Robert owner-approved two operational review rules: minimized request/audit evidence
+is first reviewed 24 calendar months after actual request closure, and the keyed
+anti-reactivation marker is first reviewed 24 calendar months after
+`databaseErasedAt`. The backend calculates these dates; the operator cannot substitute
+preselected dates in the fulfillment decision. Cancelled and completed requests store
+`closedAt` and `requestAuditReviewAt`; marker `reviewAt` is anchored to the database
+erasure transaction.
+
+These are review dates, not minimum retention periods, automatic deletion dates,
+indefinite-retention permission, legal requirements or Apple-approved durations.
+Delete information at review when no justified need remains. Any extension requires
+a documented reason and a next review date. An active complaint, dispute or hold can
+justify extending minimized request evidence. Preserve the marker while a verified
+restoration path, supported old client, unresolved case or incomplete HMAC-key
+migration can recreate the profile. Review before removal.
 External retained copies require their own verified outcome or explicit expiry.
 Robert's existing weekly request and monthly retention reviews are the launch process;
 an automatic expiry worker is deferred. There is no automatic two-year inactive-
@@ -164,6 +169,10 @@ profile deletion.
   `SS-RETENTION-2026-10-23`.
 - `PRIVACY_FISCAL_YEAR_END_MM_DD=12-31`: Robert's confirmed December 31 corporate
   fiscal year-end. Fulfillment requires this exact adopted value.
+- Owner-approved operational constants are 24 calendar months after actual closure
+  for minimized request/audit evidence and 24 calendar months after
+  `databaseErasedAt` for the anti-reactivation marker. They are server-calculated
+  review dates, not operator-entered retention deadlines.
 - `PRIVACY_FULFILLMENT_ENABLED=true`: final irreversible fulfillment gate; keep
   false until all retention/external/operator checks are ready.
 
