@@ -3,11 +3,15 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": "24.22.1"
+  },
   "scripts": {
     "dev": "vite",
+    "prebuild": "node -e \"require('node:assert/strict').equal(process.versions.node, require('./package.json').engines.node, 'Use the pinned Node.js runtime before building')\"",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test src/*.test.ts tests/*.test.mjs",
+    "test": "node --experimental-strip-types --test --test-concurrency=1 src/*.test.ts tests/*.test.mjs",
     "check": "npm run lint && npm test && npm run build",
     "start": "node server.mjs",
     "preview": "node server.mjs",

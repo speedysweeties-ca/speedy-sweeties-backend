@@ -3,6 +3,23 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## Node 24.22.1 advisory update (2026-10-26; separate from PR 93)
+
+- Follow `docs/node-runtime-security-2026-10-26.md` for observed API/dispatcher/cron
+  versions, owner-observed absence of `NODE_VERSION`, exact source pins, compatibility
+  evidence, and the separately approved fresh-build/certificate verification plan.
+- Require exact-head Linux CI, including the dispatcher production build and two
+  isolated PostgreSQL timing-history checks. Do not confuse the documented local
+  Mac case-collision build limitation with a successful production build.
+- No dependency graph, application workflow or migration change. Never bring the
+  privacy branch into this security merge. Preserve its existing recovery evidence.
+- Production auto-deploy is currently on for API, dispatcher **and retention cron**;
+  disable it for all three only as part of an explicitly approved rollout, before
+  merging. No deployment/settings change is authorized by preparation alone.
+- Runtime/CA verification and no-order/no-message smoke checks replace live mutation
+  tests for this update. Do not Trigger Run on the cron: DRY_RUN still writes audit
+  records. Existing staged/SMS resources are not security test targets.
+
 ## Before opening the pull request
 
 - Confirm the worktree contains only the intended release.
