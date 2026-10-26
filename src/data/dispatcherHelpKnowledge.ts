@@ -31,6 +31,8 @@ export interface HelpArticle {
 }
 
 // Workflow audit: main 12b78cc, 2026-10-24. Update affected guides in every workflow change.
+// Maintenance review 2026-10-26: dispatcher lint-only Zod updated; navigation, help
+// sources and staff workflows are unchanged (guide: help-guide).
 // Published standards are live data; this guide explains their screen, never copies their policy.
 export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
@@ -45,7 +47,7 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "help-guide",
     title: "Use How do I…? and its source guides",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-26",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "HELP",
     evidence: ["speedy-dispatcher/src/DispatcherHelp.tsx", "src/services/dispatcherHelp.service.ts"],
