@@ -185,11 +185,16 @@ profile deletion.
 - `PRIVACY_FULFILLMENT_ENABLED=true`: final irreversible fulfillment gate; keep
   false until all retention/external/operator checks are ready.
 
-The service refuses to initialize without a non-empty completion timeframe. Phone
-or email delivery refuses to operate unless its explicit channel flag and required
-configuration are present. Production fulfillment additionally requires the
-dedicated digest key, exact adopted policy/timeframe, configured fiscal year-end
-and fulfillment flag.
+The privacy service is initialized lazily after its route gate opens; it requires a
+key of at least 16 characters and the exact approved completion timeframe. These
+are not unconditional application startup requirements with all gates disabled.
+Ordinary ordering still requires the migrated anti-reactivation table and uses the
+dedicated digest key (falling back to the existing JWT secret if absent). Stage the
+dedicated key before creating privacy state and preserve it during recovery. Phone
+or email delivery requires its explicit channel flag and provider configuration.
+Production fulfillment additionally requires the exact adopted policy/timeframe,
+configured fiscal year-end and fulfillment flag. See the exact staged configuration
+table and recovery evidence in `docs/privacy-technical-configuration.md`.
 
 Read-only production findings and the remaining dashboard checks are recorded in
 `docs/privacy-technical-configuration.md`. The frozen Android integration contract
@@ -205,13 +210,21 @@ is part of the current iOS/backend scope.
    for that environment only; keep production phone disabled until the staged
    production configuration and in-app flow are explicitly authorized. Record only
    non-secret configuration names/status in release evidence.
-3. Back up/verify recovery procedures. Apply the additive privacy migrations before
-   starting code that reads the new tables. Do not rewrite historical migrations.
-4. Deploy backend code with every privacy feature/channel/fulfillment flag false.
-   Verify ordinary ordering, tracking, loyalty and staff authentication first.
-5. Configure the stable digest key, timeframe, Robert allowlist, provider settings
-   and approved policy reference through secret/config management. Read back only
-   presence/flags, never secret values.
+3. Obtain actual Recovery/PITR/export observations and a non-production restore
+   record. The prepared exercise requires a separately approved protected recovery
+   database and cost quote; the existing SMS database must never receive customer
+   backup data. Disable production auto-deploy before any approved merge.
+4. Stage the stable dedicated digest key, exact approved timeframe/policy/fiscal
+   year-end and Robert allowlist through secret/config management. Set all four
+   privacy gates false and read back presence/equality only. Preserve existing
+   production secrets and unrelated operational settings. Provider values are
+   required only for separately approved channel activation.
+5. Deploy only after separate approval. Require the Render pre-deploy hook to apply
+   all four additive privacy migrations before the new application starts. Do not
+   rewrite historical migrations. Use only the no-order/no-message smoke requests
+   in `docs/privacy-technical-configuration.md`; reuse isolated ordinary-order,
+   Android, dispatcher and loyalty evidence. The loyalty GET can mutate monthly
+   counters, so it is excluded from this read-only production smoke check.
 6. Enable the needed verified channels and request route while fulfillment remains
    false. Perform an explicitly authorized controlled non-production/synthetic
    verification; do not use an unrelated customer's contact.
