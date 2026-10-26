@@ -10,6 +10,7 @@ const EXPECTED_NONEMPTY = Object.freeze({
 });
 const SYSTEM_TABLES = new Set(['_prisma_migrations']);
 const HEX_64 = /^[a-f0-9]{64}$/;
+const TWILIO_VERIFICATION_SID = /^VE[a-f0-9]{32}$/i;
 
 function safeFixtureAssertion(condition, code) {
   assert.ok(condition, `Synthetic reset refused: ${code}`);
@@ -63,9 +64,16 @@ function validateSyntheticFixtureSnapshot(snapshot) {
   safeFixtureAssertion(HEX_64.test(challenge?.requesterHash || ''), 'challenge requester hash mismatch');
   safeFixtureAssertion(HEX_64.test(challenge?.codeHash || ''), 'challenge code hash mismatch');
   safeFixtureAssertion(HEX_64.test(challenge?.contactFingerprint || ''), 'challenge contact marker mismatch');
-  safeFixtureAssertion(challenge?.providerReference === null, 'challenge provider reference must be absent');
   safeFixtureAssertion(challenge?.completionTimeframe === EXPECTED_TIMEFRAME, 'challenge timeframe mismatch');
-  safeFixtureAssertion(challenge?.delivery === 'UNAVAILABLE', 'challenge delivery state mismatch');
+  const rejectedBeforeAcceptance =
+    challenge?.delivery === 'UNAVAILABLE' && challenge?.providerReference === null;
+  const acceptedButUnverified =
+    challenge?.delivery === 'SENT' &&
+    TWILIO_VERIFICATION_SID.test(challenge?.providerReference || '');
+  safeFixtureAssertion(
+    rejectedBeforeAcceptance || acceptedButUnverified,
+    'challenge provider/delivery state mismatch',
+  );
   safeFixtureAssertion(challenge?.attempts === 0, 'challenge attempt state mismatch');
   safeFixtureAssertion(challenge?.verifiedAt === null && challenge?.consumedAt === null, 'challenge completion state mismatch');
 

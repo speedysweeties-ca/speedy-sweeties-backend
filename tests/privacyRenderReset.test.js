@@ -79,8 +79,29 @@ for (const [name, mutate] of [
   });
 }
 
-test('fixture audit accepts only the exact synthetic failed-attempt state', () => {
+test('fixture audit accepts the exact synthetic pre-acceptance failure state', () => {
   assert.equal(validateSyntheticFixtureSnapshot(syntheticSnapshot()), 'synthetic-fixture');
+});
+
+test('fixture audit accepts the exact synthetic accepted-but-unverified state', () => {
+  const snapshot = syntheticSnapshot();
+  snapshot.challenge.delivery = 'SENT';
+  snapshot.challenge.providerReference = `VE${'a'.repeat(32)}`;
+  assert.equal(validateSyntheticFixtureSnapshot(snapshot), 'synthetic-fixture');
+});
+
+test('fixture audit rejects a sent challenge without a valid Twilio verification reference', () => {
+  const snapshot = syntheticSnapshot();
+  snapshot.challenge.delivery = 'SENT';
+  snapshot.challenge.providerReference = 'private-provider-value';
+  assert.throws(
+    () => validateSyntheticFixtureSnapshot(snapshot),
+    error => {
+      assert.match(error.message, /challenge provider\/delivery state mismatch/);
+      assert.doesNotMatch(error.message, /private-provider-value|5195550123/);
+      return true;
+    },
+  );
 });
 
 test('fixture audit rejects altered fixture markers without echoing private values', () => {

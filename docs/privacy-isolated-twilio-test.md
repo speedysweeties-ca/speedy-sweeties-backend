@@ -58,11 +58,14 @@ recovery permissions do not apply to any production or shared staging database.
 The preparer also has a separately gated, non-HTTP reset mode for this exact
 disposable resource. `PRIVACY_ISOLATED_RESET=execute-once` is accepted only after
 all target checks above pass. Before dropping the schema, it requires exactly one
-fixture Customer, Order, User and failed-delivery PrivacyChallenge with the fixed
-synthetic markers created by this runbook, and zero rows in every other application
-table. Values used to prove the markers are never logged. Any unknown row, changed
-marker, completed challenge, provider reference, privacy request, receipt or other
-dependent record refuses the reset. A passing audit drops only that database's
+fixture Customer, Order, User and PrivacyChallenge with the fixed synthetic markers
+created by this runbook, and zero rows in every other application table. The
+challenge must be either the exact pre-acceptance failure state (unavailable with no
+provider reference) or the exact accepted-but-unverified state (sent with a
+syntactically valid Twilio Verification SID). Values used to prove the markers are
+never logged. Any unknown row, changed marker, completed challenge, malformed
+provider reference, privacy request, receipt or other dependent record refuses the
+reset. A passing audit drops only that database's
 `public` schema, rebuilds the pinned baseline and privacy migrations, then verifies
 all required tables, columns and protection triggers and that every application
 table is empty. Remove the one-shot value immediately after the reset deploy; the
