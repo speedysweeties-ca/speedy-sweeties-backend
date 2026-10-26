@@ -175,6 +175,19 @@ a separate release and requires its own signed build and store submission.
   loopback preflight reported ready with no fixture or message, while unauthenticated
   preflight returned the intentional sanitized 404. No SMS was sent during reset,
   deployment or preflight.
+- Robert reported that the separately authorized 2026-10-26 controlled-client run
+  completed with `smsAttempts=1`, an approved verification, source-order binding,
+  `SUBMITTED` request status, a recorded due date, rejected fulfillment with records
+  unchanged, and final `CANCELLED` status. This is one SMS attempt in this successful
+  run, not a claim that only one SMS occurred across all sessions: preserve the
+  earlier cancelled client session and the `403`/`21608` plus accepted-but-undelivered
+  `30007` history. The sanitized Render adapter log at
+  `2026-10-26T16:50:31.573Z` corroborates provider acceptance of the Verify start with
+  HTTP `201`. The adapter does not log successful Verify checks and no sanitized route
+  log corroborated request/status/cancel, so those are owner-provided client results.
+  Fulfillment remained disabled and was not performed. This closes the isolated
+  verification/request/status/cancellation check only; production activation and the
+  iOS in-app verification/deletion flow remain pending.
 - Cleanup is deferred only for this separately requested retest. Isolated service
   `srv-dbe3861srm7s73dgfe50` and paid database `dpg-dbe37v59fdbs73961o3g-a` remain
   active. Remove both promptly after the test and sanitized evidence capture so the

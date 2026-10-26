@@ -207,10 +207,9 @@ sanitized outcome and the earlier HTTP 403/code 21608 rejection.
 
 On 2026-10-26, Twilio support reported that its carrier partner identified this as a
 false positive, remediated it and requested another test. This is a provider-reported
-correction, not verified delivery success. It does not authorize production phone
-verification or an automatic retry. One new isolated attempt still requires a fresh
-guarded fixture, a masked-destination check and Robert's explicit authorization at
-the existing `SEND ONE SMS` prompt. Do not alter the verification architecture.
+correction, not by itself verified delivery success. The separately authorized retest
+below supplied the delivery/check evidence; it does not authorize production phone
+verification or another automatic retry. Do not alter the verification architecture.
 
 Preparation evidence, 2026-10-26: reset deploy `dep-dbfo4vui0phs73d86vv0` at
 `ef944a0c54d7d49d6d923de8a411333109857bb1` independently passed the exact
@@ -223,6 +222,22 @@ at the same commit with reset and diagnostics disabled, deletion/phone enabled,
 email/fulfillment disabled and auto-deploy off. External health returned the
 synthetic scope; the authenticated loopback preflight confirmed no fixture or
 message, and unauthenticated preflight returned the intentional sanitized 404.
+
+Owner-provided retest result, 2026-10-26: the controlled client reported
+`smsAttempts=1`, `verificationApproved=true`, `sourceOrderBound=true`,
+`requestStatus=SUBMITTED`, `dueAtRecorded=true`, `fulfillmentRejected=true`,
+`recordsUnchanged=true` and `finalStatus=CANCELLED`. This establishes one SMS attempt
+in this successful run, receipt of a usable OTP, approved Verify check, source-bound
+request creation/status, recorded due date, fail-closed fulfillment and cancellation.
+It does not say that only one SMS occurred across all isolated sessions; preserve the
+earlier cancelled session and the prior `403`/`21608` and accepted-but-undelivered
+`30007` attempts in the evidence history. A sanitized Render adapter record at
+`2026-10-26T16:50:31.573Z` independently corroborates the Verify start as accepted by
+Twilio with HTTP `201`. The adapter intentionally emits no successful Verify-check
+diagnostic, and no sanitized server route log was available for the later request,
+status or cancellation operations, so those results remain owner-provided controlled-
+client evidence. Actual fulfillment was neither enabled nor performed, and the iOS
+in-app verification/deletion flow remains untested.
 
 If a live Verify start returns the generic delivery-unavailable response, do not
 retry it. Temporarily set `PRIVACY_ISOLATED_DIAGNOSTICS_ONLY=true`, both deletion
@@ -240,7 +255,7 @@ Record only commit SHA, isolated service/database IDs, UTC start/end, masked las
 four digits, HTTP/result states and sanitized Render/Twilio status. Do not preserve
 the phone, OTP, tokens, provider credentials, connection URL or request bodies.
 
-After the new separately authorized test:
+After the separately authorized test and evidence capture:
 
 1. confirm the request ended `CANCELLED`, fulfillment was rejected and records were
    unchanged;

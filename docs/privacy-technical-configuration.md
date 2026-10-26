@@ -15,7 +15,7 @@ staging, backups and customer records were not changed.
   immediately before rollout in case staff records change.
 - Confirmed privacy contact: Robert Stubbings, `speedysweeties@hotmail.com`,
   `519-826-8097`.
-- The live API is still `main` commit `12b78cc4780c96efa286c167c63ac1676dfc5dbb`.
+- The live API is `main` commit `7bcaaf7cfff6f8e45ab0b912f35d61ffd56c7e39`.
   The privacy routes/migrations in draft PR 93 are not deployed, so no live
   `PRIVACY_*` setting or request behavior is claimed.
 - The production 90-day retention cron remains a marketing `DRY_RUN`. Read-only
@@ -32,14 +32,17 @@ staging, backups and customer records were not changed.
 - No Twilio integration exists on live `main`; production privacy flags remain
   disabled. Robert confirmed the Speedy Sweeties Verify service, SMS enabled with
   Fraud Guard Standard, and Canada SMS & RCS Geo Permission `Allow All Traffic`.
-  The isolated adapter authenticated and received HTTP 201/pending for the final
-  Verification, but its SMS delivery became `undelivered`, numeric error `30007`,
-  on Canada/Telus. On 2026-10-26, Twilio support reported that its carrier partner
-  identified a false positive, remediated it and requested another test. This is a
-  provider-reported correction, not delivery evidence. Provider acceptance,
-  Caller-ID verification and Geo Permission do not establish delivery. Keep
-  production phone verification disabled; only the separately authorized isolated
-  retest may proceed through the guarded one-message prompt.
+  An earlier isolated Verification was accepted HTTP 201/pending but became
+  `undelivered`, numeric error `30007`, on Canada/Telus. On 2026-10-26, Twilio support
+  reported that its carrier partner identified a false positive and remediated it.
+  Robert then reported a separately authorized controlled-client retest with one SMS
+  attempt, approved Verify check, source-bound submitted request, recorded due date,
+  rejected fulfillment with unchanged records and final cancellation. A sanitized
+  Render log corroborates the Verify start as accepted HTTP 201 at
+  `2026-10-26T16:50:31.573Z`; the successful check and later lifecycle results are
+  owner-provided client evidence because those success paths are not logged. This is
+  not an iOS in-app or production activation test. Keep production phone verification
+  disabled until staged activation is explicitly approved.
 - Twilio pricing/taxes, spend controls and privacy/retention/location terms remain
   account checks. The Render read API still does not expose secret values, and no
   credential value was read or printed.
@@ -79,27 +82,75 @@ through another account or portal.
 
 ## PR 93 rollout boundary
 
-- Draft PR 93 was rechecked at
-  `5a198ee54de27838c3a49fc6aa8607e1c1b866af`, 22 commits ahead of production
-  `12b78cc4780c96efa286c167c63ac1676dfc5dbb`. It remains draft and unmerged;
-  Backend CI run 578 passed at that head.
+- Draft PR 93 was rechecked before this evidence-only update at
+  `686a2d9f96d7b81530b5a1b17f0429a215b4a8c0`. It remains draft and unmerged. Its
+  merge base with current `main` is `12b78cc4780c96efa286c167c63ac1676dfc5dbb`;
+  production is now `7bcaaf7cfff6f8e45ab0b912f35d61ffd56c7e39` after the dispatcher-help release.
+- A dry merge-tree found no textual conflict markers. Both branches change
+  `.github/workflows/backend-ci.yml`, `docs/release-checklist.md` and `package.json`.
+  Before deployment, integrate current `main` into the review branch and preserve
+  both sets: main's dispatcher-help fetch/check and package script, plus PR 93's
+  serial PostgreSQL privacy job and three isolated-test scripts. The lockfile's
+  overlapping dependency refresh is presently identical. Re-run current combined CI
+  after that integration; the prior passing PR run does not validate the combined
+  head.
+- Read-only production schema inspection found every migration through
+  `20261022170000_bnd_waiting_history` completed and no privacy table, target privacy
+  column or partially applied privacy migration. A historical rolled-back
+  `20260805015000_add_monthly_loyalty_reset` entry is followed by a successful entry
+  of the same migration and is unrelated to PR 93. This is the current baseline, not
+  permission to migrate production.
 - Apply the four additive migrations in this order before code reads their fields:
   `20261023030000_customer_privacy_requests`,
   `20261023150000_privacy_access_credentials`,
   `20261023190000_adopt_retention_policy`, and
   `20261023220000_approved_privacy_review_dates`.
-- First deploy reviewed code with deletion, fulfillment, email and phone gates all
-  false. Read back policy/timeframe/`12-31`, the current admin allowlist, separate
-  digest secret, provider secret presence and health. Enable initiation only after
-  the public policy/deletion pages and a controlled source-bound flow are verified.
-  Enable each delivery channel separately; Twilio phone remains blocked by support.
-  Enable fulfillment last, only after external-copy and restore procedures are
-  recorded and Robert explicitly authorizes it.
+- The migrations are additive to existing customer/order responses, so the released
+  Android client needs no new request field. However, PR 93 adds an anti-reactivation
+  lookup to ordinary order create/update even while the four public privacy gates are
+  false. The first migration must therefore succeed before the new process starts;
+  deploying code against the current unmigrated schema would break those writes.
+  Initially the marker table is empty, so existing Android ordering behavior remains
+  unchanged; after a verified deletion, blocking recreation from an old client is
+  intentional.
+- Production currently auto-deploys `main`, and its pre-deploy command runs
+  `npx prisma migrate deploy`. Before any future merge, turn auto-deploy off and record
+  the last healthy deploy/commit so merge cannot apply migrations implicitly. Then
+  set and read back all four gates as false: `PRIVACY_DELETION_ENABLED`,
+  `PRIVACY_FULFILLMENT_ENABLED`, `PRIVACY_VERIFICATION_EMAIL_ENABLED` and
+  `PRIVACY_VERIFICATION_PHONE_ENABLED`.
+- Configure, without displaying values, a stable dedicated `PRIVACY_DIGEST_KEY`, the
+  current `PRIVACY_ADMIN_USER_IDS`, exact `PRIVACY_APPROVED_RETENTION_POLICY`, exact
+  `PRIVACY_COMPLETION_TIMEFRAME`, and `PRIVACY_FISCAL_YEAR_END_MM_DD=12-31`. Retain
+  Twilio/Resend credentials only for their separately gated channels; never copy the
+  isolated control or synthetic JWT secrets into production.
+- After Recovery/restore facts and a current schema read-back are recorded, manually
+  deploy only the reviewed combined commit. The pre-deploy hook must apply exactly the
+  four migrations above. Stop on any drift or failed migration; do not resolve a
+  failed migration as successful without establishing the actual schema state.
+- With all gates still false, verify the expected commit, health/readiness, four
+  migration records, tables/columns and four protection triggers. Smoke-test ordinary
+  ordering, tracking, loyalty, staff authentication and the released Android API;
+  confirm privacy initiation fails closed while disabled. Keep auto-deploy off through
+  this validation.
+- Publish and verify the final policy/deletion pages before enabling initiation. In a
+  separate approved change, enable only one verified channel together with deletion
+  initiation while fulfillment remains false, then run the documented production/iOS
+  controlled flow. Enable fulfillment last and separately, only after external-copy,
+  operator and restore procedures are recorded and Robert explicitly authorizes it.
 - There are no down migrations. Code rollback may disable gates and redeploy the
-  prior healthy application, but must preserve the additive schema, revoked
-  credentials, completed decisions, protection triggers and anti-reactivation
-  markers. A restore must reconcile post-snapshot requests/markers before traffic;
-  never improvise destructive production rollback or recreate deleted identities.
+  prior healthy application only if no privacy request/access/deleted-identity or
+  erased-order state exists. Leave the additive schema and triggers in place; do not
+  drop privacy objects or reverse migrations. Read back all four gates as false after
+  rollback because platform rollback behavior must not be assumed to preserve the
+  intended configuration.
+- Once any real privacy state exists, do not roll back to pre-privacy `7bcaaf7` code,
+  which cannot maintain status, revocation and anti-reactivation behavior. Keep the
+  privacy-capable code with gates off or deploy a reviewed forward fix. Preserve the
+  digest key, revoked credentials, completed decisions, protection triggers and
+  deleted-identity markers. A restore must reconcile post-snapshot requests/markers
+  before traffic; never improvise destructive production rollback or recreate a
+  deleted identity.
 
 ## Owner-approved operational review periods
 

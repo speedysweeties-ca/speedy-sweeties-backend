@@ -77,16 +77,19 @@ No phone number, provider credential, code or provider error body is put in a UR
 public error or audit event.
 
 The isolated account authenticated and accepted a Verification with HTTP 201/pending,
-and Canada SMS Geo Permission is Allow All Traffic. Its SMS delivery nevertheless
-became `undelivered`, error `30007`, on Canada/Telus; Robert submitted a Twilio
-support ticket. On 2026-10-26, Twilio support reported that its carrier partner
-identified a false positive, remediated it and requested another test. That report is
-not verified delivery success. Phone production activation remains blocked pending
-one explicitly authorized isolated delivery retest; do not redesign the channel or
-infer production readiness. Actual Twilio price/taxes, spend controls, privacy/DPA,
-retention/data-location and incident/support terms remain account checks. The
-existing Resend account needs equivalent sender/quota/privacy/retention confirmation.
-Do not put secrets in Git, tickets, screenshots or this document.
+and Canada SMS Geo Permission is Allow All Traffic. An earlier attempt became
+`undelivered`, error `30007`, on Canada/Telus; Robert submitted a Twilio support
+ticket. On 2026-10-26, Twilio support reported that its carrier partner identified a
+false positive and remediated it. In one separately authorized retest, the controlled
+client reported one SMS attempt, an approved Verify check, source-bound request/status,
+a recorded due date, rejected fulfillment with unchanged records, and final
+cancellation. A sanitized server log independently corroborates that retest's Verify
+start as accepted with HTTP 201. This is isolated provider/request evidence, not an
+iOS in-app or production activation test, and actual fulfillment was not performed.
+Actual Twilio price/taxes, spend controls, privacy/DPA, retention/data-location and
+incident/support terms remain account checks. The existing Resend account needs
+equivalent sender/quota/privacy/retention confirmation. Do not put secrets in Git,
+tickets, screenshots or this document.
 
 ## Fulfillment and retained records
 
@@ -198,8 +201,10 @@ is part of the current iOS/backend scope.
 1. Freeze and record exact iOS/backend commits, CI results and schema drift review.
    Confirm PR 93 still targets a non-auto-deploy review branch.
 2. Preserve the adopted retention decisions and complete only the remaining
-   provider/account checks. Keep Twilio phone disabled until its support dependency
-   is resolved. Record only non-secret configuration names/status in release evidence.
+   provider/account checks. Treat the successful isolated Twilio retest as evidence
+   for that environment only; keep production phone disabled until the staged
+   production configuration and in-app flow are explicitly authorized. Record only
+   non-secret configuration names/status in release evidence.
 3. Back up/verify recovery procedures. Apply the additive privacy migrations before
    starting code that reads the new tables. Do not rewrite historical migrations.
 4. Deploy backend code with every privacy feature/channel/fulfillment flag false.
