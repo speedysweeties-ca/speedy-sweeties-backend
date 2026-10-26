@@ -156,10 +156,28 @@ a separate release and requires its own signed build and store submission.
   as unresolved: do not send another message or change the verification architecture
   while support investigates. Twilio documents 30007 as provider or carrier
   filtering; this record does not establish which layer made the decision.
-- Cleanup is not confirmed. As last read on 2026-10-24, isolated service
-  `srv-dbe3861srm7s73dgfe50` remained active after the closed test and
-  paid database `dpg-dbe37v59fdbs73961o3g-a` remained available. Remove both
-  promptly now that sanitized evidence is retained so the
+- On 2026-10-26, Twilio support reported that its carrier partner identified a false
+  positive, remediated it and requested another test. Record this only as a
+  provider-reported correction; it is not a verified delivery success and does not
+  clear the production phone gate. One further isolated attempt still requires the
+  existing masked-destination prompt and Robert's explicit one-message authorization.
+- For that retest, guarded reset deploy `dep-dbfo4vui0phs73d86vv0` at
+  `ef944a0c54d7d49d6d923de8a411333109857bb1` reverified the injected service ID/name,
+  database resource/host/name/user, complete schema and exclusive disposable fixture.
+  The only application rows were one fixed synthetic Customer, Order, User and
+  accepted-but-unverified PrivacyChallenge; every other application table was empty.
+  It rebuilt the pinned baseline plus four privacy migrations, verified the four
+  protection triggers, 26 customer-bearing tables and zero application rows. No
+  destination, provider SID, token, OTP or credential was logged.
+- Retry deploy `dep-dbfo5mui0phs73d89hq0` is live at that commit with reset and
+  diagnostics disabled, deletion/phone enabled, email/fulfillment disabled and
+  auto-deploy off. `GET /health` returned HTTP 200 with synthetic scope; authenticated
+  loopback preflight reported ready with no fixture or message, while unauthenticated
+  preflight returned the intentional sanitized 404. No SMS was sent during reset,
+  deployment or preflight.
+- Cleanup is deferred only for this separately requested retest. Isolated service
+  `srv-dbe3861srm7s73dgfe50` and paid database `dpg-dbe37v59fdbs73961o3g-a` remain
+  active. Remove both promptly after the test and sanitized evidence capture so the
   database does not continue accruing prorated charges.
 - Delete the exact isolated service/database after sanitized evidence is retained.
   This gate never authorizes production deployment, production deletion or customer

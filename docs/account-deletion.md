@@ -79,12 +79,14 @@ public error or audit event.
 The isolated account authenticated and accepted a Verification with HTTP 201/pending,
 and Canada SMS Geo Permission is Allow All Traffic. Its SMS delivery nevertheless
 became `undelivered`, error `30007`, on Canada/Telus; Robert submitted a Twilio
-support ticket. Phone production activation remains blocked while support
-investigates. Provider acceptance and pending verification are not delivery. Do not
-send again or redesign the channel meanwhile. Actual Twilio price/taxes, spend
-controls, privacy/DPA, retention/data-location and incident/support terms remain
-account checks. The existing Resend account needs equivalent sender/quota/privacy/
-retention confirmation. Do not put secrets in Git, tickets, screenshots or this document.
+support ticket. On 2026-10-26, Twilio support reported that its carrier partner
+identified a false positive, remediated it and requested another test. That report is
+not verified delivery success. Phone production activation remains blocked pending
+one explicitly authorized isolated delivery retest; do not redesign the channel or
+infer production readiness. Actual Twilio price/taxes, spend controls, privacy/DPA,
+retention/data-location and incident/support terms remain account checks. The
+existing Resend account needs equivalent sender/quota/privacy/retention confirmation.
+Do not put secrets in Git, tickets, screenshots or this document.
 
 ## Fulfillment and retained records
 

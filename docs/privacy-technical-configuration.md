@@ -1,9 +1,10 @@
-# Privacy deletion technical configuration — read-only findings
+# Privacy deletion technical configuration and isolated evidence
 
-Updated 2026-10-24. These findings came from repository inspection plus read-only
-Render/PostgreSQL and mailbox access. No environment variable was changed, no secret
-value was requested or displayed, and no deployment, message, backup, restore or
-production deletion was triggered.
+Updated 2026-10-26. The production findings came from repository inspection plus
+read-only Render/PostgreSQL and mailbox access. The isolated-test update separately
+used the authorized disposable service/database reset and deploy sequence; no secret
+value was requested or displayed and no message was sent. Production, ordering
+staging, backups and customer records were not changed.
 
 ## Confirmed configuration facts
 
@@ -33,9 +34,12 @@ production deletion was triggered.
   Fraud Guard Standard, and Canada SMS & RCS Geo Permission `Allow All Traffic`.
   The isolated adapter authenticated and received HTTP 201/pending for the final
   Verification, but its SMS delivery became `undelivered`, numeric error `30007`,
-  on Canada/Telus. Robert submitted a Twilio support ticket. Provider acceptance,
-  Caller-ID verification and Geo Permission do not establish delivery. Keep phone
-  verification disabled and send no further test while support investigates.
+  on Canada/Telus. On 2026-10-26, Twilio support reported that its carrier partner
+  identified a false positive, remediated it and requested another test. This is a
+  provider-reported correction, not delivery evidence. Provider acceptance,
+  Caller-ID verification and Geo Permission do not establish delivery. Keep
+  production phone verification disabled; only the separately authorized isolated
+  retest may proceed through the guarded one-message prompt.
 - Twilio pricing/taxes, spend controls and privacy/retention/location terms remain
   account checks. The Render read API still does not expose secret values, and no
   credential value was read or printed.

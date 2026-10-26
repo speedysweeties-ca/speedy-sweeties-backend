@@ -203,8 +203,26 @@ Closeout evidence, 2026-10-24: the final authorized Verify start returned provid
 HTTP 201 with status `pending`; Twilio later recorded the SMS delivery attempt as
 `undelivered`, numeric error `30007`, on Canada/Telus. No OTP/check/completion or
 fulfillment occurred. Robert submitted a Twilio support ticket. Preserve this
-sanitized outcome and the earlier HTTP 403/code 21608 rejection. Do not send again
-or alter the verification architecture while support investigates.
+sanitized outcome and the earlier HTTP 403/code 21608 rejection.
+
+On 2026-10-26, Twilio support reported that its carrier partner identified this as a
+false positive, remediated it and requested another test. This is a provider-reported
+correction, not verified delivery success. It does not authorize production phone
+verification or an automatic retry. One new isolated attempt still requires a fresh
+guarded fixture, a masked-destination check and Robert's explicit authorization at
+the existing `SEND ONE SMS` prompt. Do not alter the verification architecture.
+
+Preparation evidence, 2026-10-26: reset deploy `dep-dbfo4vui0phs73d86vv0` at
+`ef944a0c54d7d49d6d923de8a411333109857bb1` independently passed the exact
+service/database identity checks and proved the only application rows were the fixed
+synthetic Customer, Order, User and accepted-but-unverified PrivacyChallenge. Every
+other application table was empty. It rebuilt the pinned baseline and four privacy
+migrations, verified all protection triggers and 26 customer-bearing tables, and
+left every application table empty. Retry deploy `dep-dbfo5mui0phs73d89hq0` is live
+at the same commit with reset and diagnostics disabled, deletion/phone enabled,
+email/fulfillment disabled and auto-deploy off. External health returned the
+synthetic scope; the authenticated loopback preflight confirmed no fixture or
+message, and unauthenticated preflight returned the intentional sanitized 404.
 
 If a live Verify start returns the generic delivery-unavailable response, do not
 retry it. Temporarily set `PRIVACY_ISOLATED_DIAGNOSTICS_ONLY=true`, both deletion
@@ -222,7 +240,7 @@ Record only commit SHA, isolated service/database IDs, UTC start/end, masked las
 four digits, HTTP/result states and sanitized Render/Twilio status. Do not preserve
 the phone, OTP, tokens, provider credentials, connection URL or request bodies.
 
-After the test:
+After the new separately authorized test:
 
 1. confirm the request ended `CANCELLED`, fulfillment was rejected and records were
    unchanged;
