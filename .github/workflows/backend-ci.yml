@@ -68,6 +68,13 @@ jobs:
       AUTO_DISPATCH_ENABLED: 'false'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require dispatcher help review with workflow changes
+        env:
+          HELP_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/checkDispatcherHelp.cjs
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

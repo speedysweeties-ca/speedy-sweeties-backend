@@ -1,9 +1,15 @@
 export const helpDestinations = {
+  HELP: "How do I…?",
   CUSTOMERS: "Customers", LIVE_ORDERS: "Live Orders", CREATE_MANUAL_ORDER: "Create Manual Order",
   DELIVERED_HISTORY: "Delivered History", DISPATCHER_CHECKLIST: "Daily Responsibilities",
   DRIVER_LOCATION: "Driver Location", DISPATCHER_PERFORMANCE: "Dispatcher Performance",
+  PRIVACY_REQUESTS: "Privacy requests",
   DRIVERS: "Staff", DISPATCHER_PINBOARD: "Dispatcher Pinboard",
   DISPATCHER_STANDARDS: "Dispatcher Standards",
+  CUSTOMER_FOLLOW_UPS: "Customer Follow-ups", CATALOG: "Catalog",
+  PICKUP_LOCATIONS: "Pickup Locations", CUSTOMER_RETENTION: "Customer Retention",
+  DRIVER_STATS: "Driver Stats", GROWTH_COMMAND_CENTRE: "Growth",
+  QR_TRACKING: "QR Code Tracking", LOGOUT_LOG: "Logout Log",
 } as const;
 export type HelpDestination = keyof typeof helpDestinations;
 export type HelpTurn = { role: "user" | "assistant"; content: string };

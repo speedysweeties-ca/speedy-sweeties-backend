@@ -26,14 +26,20 @@ export function privacyAdminOnly(req: Request, res: Response, next: NextFunction
   if (!user || user.role !== "ADMIN" || !allowed.includes(user.userId)) { res.status(403).json({ code: "PRIVACY_ADMIN_REQUIRED" }); return; }
   next();
 }
+export function privacyEnabledOnly(injected: boolean) {
+  return (_req: Request, res: Response, next: NextFunction) => {
+    res.set("Cache-Control", "no-store");
+    if (!injected && process.env.PRIVACY_DELETION_ENABLED !== "true") {
+      res.status(503).json({ code: "PRIVACY_SERVICE_UNAVAILABLE" });
+      return;
+    }
+    next();
+  };
+}
 export function privacyRouter(service?: PrivacyDeletionService) {
   const router = Router();
   const injected = service !== undefined;
-  router.use((_req, res, next) => {
-    res.set("Cache-Control", "no-store");
-    if (!injected && process.env.PRIVACY_DELETION_ENABLED !== "true") { res.status(503).json({ code: "PRIVACY_SERVICE_UNAVAILABLE" }); return; }
-    next();
-  });
+  router.use(privacyEnabledOnly(injected));
   router.use(rateLimit({ windowMs: 15 * 60000, limit: 60, standardHeaders: "draft-8", legacyHeaders: false }));
   const get = () => service ??= new PrivacyDeletionService(prisma, process.env.PRIVACY_DIGEST_KEY || env.JWT_SECRET, privacyVerificationDelivery({
     resendApiKey: env.RESEND_API_KEY,

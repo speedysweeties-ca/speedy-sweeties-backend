@@ -17,7 +17,8 @@
     "privacy:isolated:server": "node tests/privacyIsolatedServer.cjs",
     "privacy:isolated:client": "node tests/privacyIsolatedClient.cjs",
     "test": "npm run build && node --test tests/*.test.js",
-    "check": "npm run prisma:generate && npx prisma validate && npm test"
+    "check": "npm run prisma:generate && npx prisma validate && npm test",
+    "check:dispatcher-help": "node scripts/checkDispatcherHelp.cjs"
   },
   "keywords": [
     "node",

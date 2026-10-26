@@ -6,6 +6,11 @@ a separate release and requires its own signed build and store submission.
 ## Before opening the pull request
 
 - Confirm the worktree contains only the intended release.
+- Update the How do I…? articles alongside every dispatcher workflow change,
+  including underlying backend behavior. Verify exact labels, roles, side
+  effects, review dates, evidence and help navigation. Run
+  `npm run check:dispatcher-help -- <base-ref>` and record affected guide IDs and
+  example questions in the PR. See `AGENTS.md` and `docs/dispatcher-help.md`.
 - Run `npm ci` and `npm run check` from the repository root.
 - Run `npx prisma format --check` from the repository root.
 - Run `npm ci` and `npm run check` from `speedy-dispatcher/`.
@@ -216,6 +221,9 @@ a separate release and requires its own signed build and store submission.
 - Check recent production logs for startup errors and unexpected 5xx responses.
 - Exercise the specific feature changed by the release with a non-destructive
   smoke test.
+- Ask a matching How do I…? question and a follow-up, expand its source guide,
+  and check navigation under the appropriate staff role. Release the backend
+  knowledge and dispatcher destination changes together when both changed.
 - Record any remaining physical-device or live-delivery field test separately;
   passing CI does not replace field verification.
 

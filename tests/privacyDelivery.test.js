@@ -5,7 +5,7 @@ process.env.FIREBASE_SERVICE_ACCOUNT_JSON = '{}';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { privacyVerificationDelivery } = require('../dist/services/privacyDelivery.service');
-const { privacyAdminOnly } = require('../dist/routes/privacy.routes');
+const { privacyAdminOnly, privacyEnabledOnly } = require('../dist/routes/privacy.routes');
 
 const config = overrides => ({
   resendApiKey: 'synthetic-not-a-key', resendFrom: 'privacy@example.invalid', emailEnabled: true,
@@ -87,4 +87,38 @@ test('privacy administrator requires both current ADMIN role and explicit staff 
   }
   let next = false; privacyAdminOnly({ user: { userId: 'approved-synthetic-admin', role: 'ADMIN' } }, {}, () => { next = true; }); assert.equal(next, true);
   delete process.env.PRIVACY_ADMIN_USER_IDS;
+});
+
+test('public privacy routes fail closed before service access when deletion is disabled', async () => {
+  const previous = {
+    deletion: process.env.PRIVACY_DELETION_ENABLED,
+    fulfillment: process.env.PRIVACY_FULFILLMENT_ENABLED,
+    email: process.env.PRIVACY_VERIFICATION_EMAIL_ENABLED,
+    phone: process.env.PRIVACY_VERIFICATION_PHONE_ENABLED
+  };
+  process.env.PRIVACY_DELETION_ENABLED = 'false';
+  process.env.PRIVACY_FULFILLMENT_ENABLED = 'false';
+  process.env.PRIVACY_VERIFICATION_EMAIL_ENABLED = 'false';
+  process.env.PRIVACY_VERIFICATION_PHONE_ENABLED = 'false';
+  try {
+    let status, body, next = false, cacheControl;
+    privacyEnabledOnly(false)({}, {
+      set(name, value) { if (name === 'Cache-Control') cacheControl = value; return this; },
+      status(value) { status = value; return this; },
+      json(value) { body = value; return this; }
+    }, () => { next = true; });
+    assert.equal(status, 503);
+    assert.deepEqual(body, { code: 'PRIVACY_SERVICE_UNAVAILABLE' });
+    assert.equal(cacheControl, 'no-store');
+    assert.equal(next, false);
+  } finally {
+    for (const [key, value] of Object.entries({
+      PRIVACY_DELETION_ENABLED: previous.deletion,
+      PRIVACY_FULFILLMENT_ENABLED: previous.fulfillment,
+      PRIVACY_VERIFICATION_EMAIL_ENABLED: previous.email,
+      PRIVACY_VERIFICATION_PHONE_ENABLED: previous.phone
+    })) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
 });
