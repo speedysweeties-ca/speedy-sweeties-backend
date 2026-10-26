@@ -67,12 +67,16 @@ staging, backups and customer records were not changed.
   25 MB, latest completed migration `20261022170000_bnd_waiting_history`, zero
   privacy migration entries and zero privacy tables. The sole active ADMIN ID
   above was rechecked. These are availability/schema facts, not backup evidence.
-- Actual PITR availability, earliest/latest selectable recovery timestamps,
-  workspace recovery window, and available logical exports remain **unverified**.
-  The Render connector exposes no recovery/export read operation. No Render CLI or
-  `RENDER_API_KEY` was available; read-only Safari access timed out and Chrome was
-  not running. No account secret was sought or displayed. Neither an empty backup
-  inventory nor a particular retention period can be inferred from this access gap.
+- Robert inspected this exact production database's Recovery page on 2026-10-26:
+  **PITR allows restoration from the past three days**, and the page states logical
+  exports are retained for **at least seven days**. These are owner-observed account
+  facts, not assumed plan defaults. No existing export, exact selectable timestamp
+  or successful restore was shown. The configured window is known; individual
+  recovery-point availability, existing exports and tested recovery remain unverified.
+- The Render connector exposes no recovery/export read operation. No authenticated
+  CLI/API session was available, and read-only browser access did not succeed. No
+  account secret was sought or displayed. This remaining access gap does not negate
+  Robert's observations or establish that the export inventory is empty.
 - The documented read-only REST operations are
   `GET /v1/postgres/dpg-d7m33g2qqhas73f58hrg-a/recovery` (`recoveryStatus`, `startsAt`)
   and `GET /v1/postgres/dpg-d7m33g2qqhas73f58hrg-a/export` (export ID/date and a
@@ -82,52 +86,164 @@ staging, backups and customer records were not changed.
 - No backup cron/service, `pg_dump`, S3 backup workflow or other independent backup
   automation is present in the connected Render resources or repository. This does
   not prove that a manually created export or external process does not exist.
-- Before deployment approval, inspect [production database → Recovery](https://dashboard.render.com/d/dpg-d7m33g2qqhas73f58hrg-a):
-  record the observation time/timezone, displayed recovery availability, earliest
-  and latest selectable timestamps, workspace plan, and export count/dates/status.
-  Inspect the date selector without clicking Start Recovery or Create export.
-  Record external copies/operators separately; none are established by the connector.
+- The remaining Dashboard fields are specified below; do not ask Robert to reconfirm
+  the three-day window. If an export is listed, record only its date/status, not its
+  download URL. No export creation or download is needed for the proposed PITR test.
 - No completed non-production backup-restore evidence was found in repository docs,
   tests, history, iOS release handoffs or the targeted Render/recovery mailbox search.
   `privacyDeletion.database.test.js` tests transaction rollback and anti-reactivation;
   `preparePrivacyRenderDatabase.cjs` rebuilds a synthetic baseline. Neither proves
   recovery from a backup. The exercise below is prepared, **not executed**.
 
-## Prepared recovery exercise (separate authorization required)
+## Prepared protected PITR exercise (not authorized or executed)
 
-1. Capture the production Recovery evidence above and select a timestamp actually
-   offered by Render. Record its UTC value and source resource ID. Current Render
-   documentation describes PITR as creating a new instance and excludes the latest
-   ten minutes; the observed selector remains authoritative for availability.
-2. Request approval for **one new, temporary PITR database** in Ohio, proposed name
-   `speedy-privacy-restore-rehearsal-20261026`, with no attached web service, worker,
-   cron, environment group or production connection change. Approval must explicitly
-   cover the protected production-data copy and the Dashboard's quoted compute plus
-   storage price, prorated. No current quote is available, so no price is asserted.
-   The old US$6/month approval was for the named SMS resources and does not authorize
-   this resource. Select the smallest supported plan after seeing the quote; request
-   a total ceiling and a cleanup deadline of at most 24 hours. Provision nothing
-   until those terms are approved.
-3. Independently verify the new resource ID, host, database, owner and region before
-   any write. Never use production `dpg-d7m33g2qqhas73f58hrg-a`, ordering staging
-   `dpg-davbqnhsrm7s73bd3uq0-a`, or SMS database `dpg-dbe37v59fdbs73961o3g-a`
-   as the restore destination. The SMS service `srv-dbe3861srm7s73dgfe50` is also
-   excluded. Render copies the source IP allowlist during PITR; production currently
-   allows `0.0.0.0/0`, so restrict the **new clone only** to the authorized operator
-   before inspecting it. Never start `src/server.ts` on the restored data: startup
-   includes background monitors and repairs. Database tools alone are sufficient.
-4. Wait for the new instance to be available. Through read-only SQL check migration
-   history, schema, foreign keys, row-count consistency and aggregate receipt/item
-   amounts. A moving production database is not a row-for-row reference for a past
-   snapshot; verify against snapshot timing and document that limit. Do not export
-   customer rows, receipt notes, phone numbers or credentials into evidence.
-5. On that independently verified clone only, run the reviewed revision's
-   `npx prisma migrate deploy` once, inspect the four completed migration records,
-   and run it again to confirm nothing remains pending. Compare pre/post aggregate
-   financial evidence and counts; verify all four protection triggers are enabled.
-   Use privately supplied clone credentials; do not log a connection URL. Do not run
-   the synthetic reset/preparer or app server against this production-data copy.
-6. Separately rehearse the post-snapshot privacy reconciliation using **only synthetic
+The current request is **create, restrict, read-only verify, then delete one clone**.
+It does not authorize migration/seed/reset commands, an application deployment,
+production writes, or attachment of any service to copied customer records.
+
+### Exact proposed target and Dashboard confirmation
+
+- Source: `dpg-d7m33g2qqhas73f58hrg-a` / `speedy-sweeties-db` only.
+- Proposed restore timestamp: **2026-10-26T21:45:00Z**, October 26 at **5:45 p.m.
+  Toronto (EDT, UTC-04:00)**. It is older than ten minutes and within the observed
+  three-day window at preparation time. Its acceptance by Render's selector has
+  **not** been verified. Record the selector's timezone and accepted UTC value; if
+  unavailable or expired, stop and obtain approval for a replacement, not silently
+  substitute another time.
+- New display name: `speedy-privacy-restore-rehearsal-20261026`; workspace
+  `tea-d7loaul7vvec73cme5d0`, Ohio, PostgreSQL 18, Basic-256mb/current
+  `0.1c-256mb`, 1 GB storage, storage autoscaling off, no HA, replica or pool.
+  Select Copy Existing Settings **No**; attach no project environment, environment
+  group, Datadog integration, application, worker, scheduled job or messaging system.
+- The new resource ID/host are assigned on creation and must differ from source,
+  ordering staging `dpg-davbqnhsrm7s73bd3uq0-a`, and SMS database
+  `dpg-dbe37v59fdbs73961o3g-a`. Never change those resources or SMS service
+  `srv-dbe3861srm7s73dgfe50`. A restored database name may equal the source name;
+  **name equality is not target verification**. Match the new Render ID/host,
+  workspace, region and recovery-source/timestamp metadata before connecting.
+- Public compute pricing suggests US$6/month for this size; it is **not this
+  account's displayed quote**. The restore form must confirm compute, 1 GB storage
+  and total recurring cost, prorating and any additional charge. Proposed approval
+  ceiling: **US$6/month total resource charge including storage, prorated, no other
+  paid resource**, maximum lifetime 24 hours. If the displayed total exceeds that
+  ceiling, do not create; return the exact quote for a revised approval. The earlier
+  SMS-resource authorization does not authorize this new protected copy.
+
+Robert's exact screen: open [production database](https://dashboard.render.com/d/dpg-d7m33g2qqhas73f58hrg-a)
+→ **Recovery → Point-in-Time Recovery → Restore Database**. Enter the proposed name
+and timestamp; choose **Copy Existing Settings: No** and, if offered, **Customize
+Recovery** to inspect the settings/quote. Stop before the final **Start Recovery**
+or other create/confirm action. Report only: accepted timestamp and displayed
+timezone; selected plan; storage GB and its charge; compute charge; total recurring
+charge/currency and any extra charge. Do not send connection strings, export links
+or credentials. If no quote is visible without creating, stop and ask Render support
+for it rather than provision to discover the price.
+
+### Access, read-only verification and cleanup
+
+1. Before creation, confirm an authorized Dashboard operator can both restrict and
+   delete the clone. The current connector cannot update PostgreSQL access rules or
+   delete the database, and authenticated browser access is unavailable. Robert must
+   perform those steps or make an appropriate authorized session available; do not
+   leave cleanup dependent on unavailable tooling.
+2. Render PITR inherits the source external IP allowlist; source read-back is
+   `0.0.0.0/0`. Immediately restrict **the new clone only**: deny all external access
+   when the authorized internal read-only connector is sufficient, otherwise allow
+   only the operator's verified current public IP as a `/32`, using TLS. This
+   inherited broad-list interval cannot be claimed to be pre-restricted. Keep clone
+   credentials private/unattached throughout; if immediate restriction is impossible,
+   delete the clone and stop. Same-workspace private networking remains reachable;
+   this is a separate authenticated resource, not a claim of network segmentation.
+3. Wait for Available and confirm exact resource identity/recovery point again.
+   Use database tools only, one connection at a time, in a `REPEATABLE READ READ
+   ONLY` transaction with 15-second statement and two-second lock timeouts. Never
+   start `src/server.ts` (its imports/startup include monitors and repairs), invoke
+   Prisma migration/reset/seed commands, or run the SMS fixture tooling here.
+4. Compare restored schema/migration metadata with pinned production source
+   `7bcaaf7cfff6f8e45ab0b912f35d61ffd56c7e39`: expected final completed migration
+   `20261022170000_bnd_waiting_history`; no unfinished migration or privacy objects
+   expected at the chosen snapshot. Inspect only migration names/checksums/status,
+   not migration error logs. Verify public tables, columns, types, indexes and
+   validated foreign keys against that source; compare Customer, Order, OrderItem,
+   DigitalReceipt and User aggregate counts and join integrity. No row values leave
+   the database. Existing production is moving, so current count differences alone
+   do not prove restore loss; report any unresolvable timing discrepancy honestly.
+5. Verify financial fields are readable by server-side aggregate calculations over
+   saved receipt amounts, item quantity/price, identifiers, original timestamps,
+   descriptions and receipt notes. Do not rewrite/redact originals, publish financial
+   totals, or assume stored totals must equal a recomputed formula. Example checks
+   below return counts/booleans only. A missing or inconsistent record is a failed
+   or qualified check, never permission to repair this copy or production.
+6. Retain only source/clone IDs, timestamp, schema/migration fingerprints, aggregate
+   counts, pass/fail results, elapsed time and quoted/actual resource charges. No
+   local dump, customer fields, phone numbers, receipt text, credential, URL with
+   credentials or export download link. This proves tested restoration/readability,
+   not full business-workflow correctness or post-snapshot privacy reconciliation.
+7. Delete **only the new clone ID** immediately after verification, immediately on
+   an unresolved blocker, and in all cases within 24 hours of creation. On that
+   clone's Dashboard Settings page use its delete-database action and confirm the
+   exact name/ID; refresh the resource inventory to verify absence and record the
+   deletion time. Confirm no separately billable clone resources remain. Deletion
+   stops future instance charges, not charges already incurred; provider backup
+   expiry is not a claim of immediate erasure. Never delete the source, staging or
+   SMS resources. Create no additional reminder or scheduled job.
+
+After independently verifying the clone ID and host, these representative queries
+are safe read-only checks (prepared, **not run**). The schema inventory/migration
+comparison above remains required; these queries do not replace it.
+
+```sql
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
+SET LOCAL statement_timeout = '15s';
+SET LOCAL lock_timeout = '2s';
+SELECT current_database(), current_setting('server_version'),
+       current_setting('transaction_read_only');
+SELECT migration_name, checksum, finished_at IS NOT NULL AS completed,
+       rolled_back_at IS NOT NULL AS rolled_back
+FROM "_prisma_migrations" ORDER BY migration_name;
+SELECT count(*) AS foreign_keys,
+       count(*) FILTER (WHERE NOT convalidated) AS unvalidated_foreign_keys
+FROM pg_constraint
+WHERE contype = 'f' AND connamespace = 'public'::regnamespace;
+SELECT (SELECT count(*) FROM "Customer") AS customers,
+       (SELECT count(*) FROM "Order") AS orders,
+       (SELECT count(*) FROM "OrderItem") AS items,
+       (SELECT count(*) FROM "DigitalReceipt") AS receipts,
+       (SELECT count(*) FROM "User") AS staff;
+SELECT
+  (SELECT count(*) FROM "Order" o LEFT JOIN "Customer" c ON c.id = o."customerId"
+   WHERE o."customerId" IS NOT NULL AND c.id IS NULL) AS orphan_customers,
+  (SELECT count(*) FROM "OrderItem" i LEFT JOIN "Order" o ON o.id = i."orderId"
+   WHERE o.id IS NULL) AS orphan_items,
+  (SELECT count(*) FROM "DigitalReceipt" r LEFT JOIN "Order" o ON o.id = r."orderId"
+   WHERE o.id IS NULL) AS orphan_receipts;
+SELECT count(*) AS receipts,
+       count("itemTotal" + "deliveryCharge" + "taxOrFees" + "grandTotal")
+         AS readable_amount_rows,
+       count(*) FILTER (WHERE "receiptNumber" = '' OR "createdAt" IS NULL)
+         AS missing_required_evidence,
+       count(notes) AS note_rows, count(md5(notes)) AS readable_note_rows
+FROM "DigitalReceipt";
+SELECT count(*) AS items, count(quantity * price) AS readable_amount_rows,
+       count(*) FILTER (WHERE name = '' OR "createdAt" IS NULL)
+         AS missing_required_evidence,
+       count(md5(name)) AS readable_description_rows
+FROM "OrderItem";
+SELECT count(*) AS orders, count(md5("itemsText")) AS readable_order_text_rows
+FROM "Order";
+ROLLBACK;
+```
+
+The `md5` expressions force the database to read text, including out-of-line values;
+only counts are returned, never text or text hashes. These are readability checks,
+not a cryptographic integrity comparison or a privacy transformation.
+
+### Separate later work, outside this clone approval
+
+- The prior migration rehearsal remains prepared, not executed: only with separate
+  permission could a protected clone receive the four privacy migrations and
+  pre/post financial checks. The current approval request is read-only after restore.
+- Separately rehearse post-snapshot privacy reconciliation using **only synthetic
    data** in a PostgreSQL 18 loopback/container database on an ephemeral runner.
    Reuse `tests/privacyBaseline.cjs`, the existing fixture and mocked delivery from
    `tests/privacyDeletion.database.test.js`; keep its loopback/name guards intact.
@@ -142,22 +258,21 @@ staging, backups and customer records were not changed.
    and triggers survive, all required financial evidence is unchanged, and an
    unrelated synthetic identity still works. Never run the test's reset/seed phase
    over a restored dataset and call that a restore verification.
-7. The durable source and operator procedure for post-snapshot privacy decisions
+- The durable source and operator procedure for post-snapshot privacy decisions
    still need to be established before fulfillment activation. Restoring an old
    snapshot alone cannot reconstruct later decisions; no automatic replay system
    is claimed. The synthetic exercise must prove the chosen reconciliation procedure
    before it is used on real requests. A new ephemeral runner run requires available
    included CI minutes or separate cost approval; it needs no paid web service.
-8. Preserve only resource/revision IDs, recovery timestamp, elapsed time, migration
-   results and aggregate/pass-fail evidence. Delete the new clone and ephemeral
-   synthetic snapshots after validation, or immediately on an unresolved blocker,
-   within the approved deadline. Confirm resource absence and stopped charges.
-   Preserve the original production database, staging and SMS resources.
+- Any separately authorized synthetic runner/snapshots also require prompt cleanup;
+  they are not part of the one-clone request above.
 
 This exercise uses the current [Render recovery documentation](https://render.com/docs/postgresql-backups)
 and [recovery-status API](https://api-docs.render.com/reference/retrieve-postgres-recovery-info),
 read on 2026-10-26. Provider documentation is not evidence that this account has a
-particular usable recovery point. No restore pass, backup window or price is claimed.
+particular usable recovery point. The three-day window and at-least-seven-day export
+statement are owner-observed; no successful restore or account-specific quote is
+claimed. Public price context: [Render pricing](https://render.com/pricing).
 
 ## Exact production configuration checklist
 
@@ -171,6 +286,11 @@ sheet; no production environment values were read or changed in this review.
   by `src/config/env.ts`; production also requires CORS, and Firebase initialization
   parses/validates its service-account JSON. Do not rotate the existing JWT or copy
   synthetic secrets. Preserve all unrelated provider/dispatch/background-job settings.
+- Separately address the observed Node 24.14.1 advisory before calling the runtime
+  patched: propose `NODE_VERSION=24.22.1` and a fresh build, with runtime/CA read-back.
+  This is not a setting change or deployment authorization. See the dated assessment
+  in `docs/production-security-maintenance.md`; both API and dispatcher are affected
+  by the version mismatch. Ordinary HTTP health does not prove certificate updates.
 - Apply all four migrations before startup. Ordinary create/update calls
   `assertPrivacyOrderAllowed` even with the public gates off. The health endpoint's
   `SELECT 1` alone does **not** prove these tables/triggers exist.
@@ -283,7 +403,8 @@ through another account or portal.
   `PRIVACY_COMPLETION_TIMEFRAME`, and `PRIVACY_FISCAL_YEAR_END_MM_DD=12-31`. Retain
   Twilio/Resend credentials only for their separately gated channels; never copy the
   isolated control or synthetic JWT secrets into production.
-- After Recovery/restore facts and a current schema read-back are recorded, manually
+- After Recovery/restore facts, runtime-security remediation and a current schema
+  read-back are recorded, manually
   deploy only the reviewed combined commit. The pre-deploy hook must apply exactly the
   four migrations above. Stop on any drift or failed migration; do not resolve a
   failed migration as successful without establishing the actual schema state.

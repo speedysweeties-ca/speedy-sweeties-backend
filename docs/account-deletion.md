@@ -210,10 +210,14 @@ is part of the current iOS/backend scope.
    for that environment only; keep production phone disabled until the staged
    production configuration and in-app flow are explicitly authorized. Record only
    non-secret configuration names/status in release evidence.
-3. Obtain actual Recovery/PITR/export observations and a non-production restore
-   record. The prepared exercise requires a separately approved protected recovery
-   database and cost quote; the existing SMS database must never receive customer
-   backup data. Disable production auto-deploy before any approved merge.
+3. Complete the protected restore exercise: Robert has observed three-day PITR and
+   an at-least-seven-day export-retention statement; exact recovery-point acceptance,
+   available exports and a completed restore are not yet established. The prepared
+   read-only exercise requires a separately approved recovery clone and total cost
+   quote; the existing SMS database must never receive customer backup data. Address
+   the observed Node 24.14.1 runtime advisory separately (see
+   `docs/production-security-maintenance.md`). Disable production auto-deploy before
+   any approved merge.
 4. Stage the stable dedicated digest key, exact approved timeframe/policy/fiscal
    year-end and Robert allowlist through secret/config management. Set all four
    privacy gates false and read back presence/equality only. Preserve existing

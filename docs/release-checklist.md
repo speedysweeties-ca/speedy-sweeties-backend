@@ -33,9 +33,20 @@ a separate release and requires its own signed build and store submission.
 Current production-deployment preparation (2026-10-26): integrated application
 revision `4aa373e7a50c1f79c047a7fa7e9260be9a3c431f` passed both CI jobs in PR run
 `40406476683` and push run `40406469607`. Main and production remain `7bcaaf7`.
-Production health and pre-privacy schema were rechecked. Actual Recovery/PITR/export
-availability and a completed non-production restore remain unverified. Follow the
-exact configuration, separately costed restore exercise and no-order/no-message
+Documentation head `770ef237e83ff886b78c9eace2a65e0ef55ff536` subsequently passed
+both CI jobs in PR run `40408519711` and push run `40408512266` (automatic CI;
+application content unchanged). Production health and pre-privacy schema were
+rechecked. Robert's 2026-10-26 Recovery inspection establishes a three-day PITR window
+and the displayed statement that logical exports are retained at least seven days.
+It did not establish an existing export, exact selectable point or completed restore.
+The protected one-clone exercise now proposes `2026-10-26T21:45:00Z`, read-only
+verification and deletion within 24 hours; selector acceptance and the total
+compute-plus-storage Dashboard quote still require confirmation before approval.
+No clone is authorized or created. API and dispatcher deployment logs show Node
+24.14.1, below Render's patched 24.22.1 minimum for Node 24; system CA update status
+is unverified. See `docs/production-security-maintenance.md` for the separate runtime
+remediation proposal; no production setting/build was changed. Follow the
+exact configuration, protected restore exercise and no-order/no-message
 smoke plan in `docs/privacy-technical-configuration.md`; historical isolated reset
 evidence below is not a backup-restore pass. All four production gates must be false
 for the separately approved deployment. No application tests are required locally
