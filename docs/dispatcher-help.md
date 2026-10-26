@@ -24,9 +24,10 @@ It cannot read customer/order records or perform changes.
 `src/data/dispatcherHelpKnowledge.ts` is the versioned source of truth. Each
 article has a stable ID, title, reviewed date, permitted roles, destination,
 plain-language content and code/document evidence for maintainers. The full
-workflow audit on 2026-10-24 reviewed main commit `12b78cc` and expanded the
-guide from 13 to 37 articles covering all 19 dispatcher destinations, shared
-settings and alerts, and separate administrator procedures.
+workflow audit was refreshed on 2026-10-26 against main commit `7bcaaf7` and the
+integrated PR 93 review head. The guide now contains 38 articles covering all 20
+dispatcher destinations, shared settings and alerts, and separate administrator
+procedures.
 
 Update an article whenever its screen or procedure changes. For business policy,
 obtain the business owner's confirmed wording before adding an article, record
@@ -66,7 +67,7 @@ guide fails tests. Deployment must include the backend knowledge; if help links
 or suggested questions changed, deploy the dispatcher too. Neither branch tests
 nor a PR mean the guide is already live.
 
-## Audit notes and smoke questions (2026-10-24)
+## Audit notes and smoke questions (2026-10-26)
 
 - Dispatcher Standards is the destination for expectations and consequences.
   Daily Responsibilities still exists under Show more in the audited code; its
@@ -80,13 +81,17 @@ nor a PR mean the guide is already live.
 - Catalog UNKNOWN pickup types are hidden from order suggestions. Creator
   Unknown is a different concept. Manual-order internal notes can save while
   typing even when the form is later cancelled.
-- Receipt View/Send uses preset delivery/HST/tip lines in `buildReceiptText`,
-  while the grand total comes from the saved receipt. The receipt guide warns
-  staff to verify the breakdown before sending; correcting the receipt renderer
-  is a separate financial-behavior change, not part of this help refresh.
-- No new database migration, secret, model, paid service or live-record access
-  is introduced. The existing full-guide prompt is larger; real model latency
-  and answer quality should be checked after rollout.
+- Receipt View/Send uses the saved receipt fields and structured retained order
+  evidence. Staff must verify the saved breakdown before sending; they must not
+  invent preset amounts or remove item descriptions/notes that are required
+  transaction evidence.
+- PR 93 adds an administrator-only Privacy requests destination and four additive
+  privacy migrations. It does not expose privacy controls to dispatchers. The
+  existing full-guide prompt is larger; real model latency and answer quality
+  should be checked after rollout.
+- The order-alarm and B&D-alert guides were re-reviewed against the renamed
+  `*Panels.tsx` implementations; their operator steps and side effects remain
+  unchanged.
 
 With an authorized staff session, ask these read-only questions, expand the
 source and follow its navigation without performing the described operation:
@@ -102,6 +107,14 @@ source and follow its navigation without performing the described operation:
 9. If I cancel a manual order draft, are its internal note changes undone?
 10. As admin, how do I read Logout Log or turn B&D Emails off? As dispatcher,
     confirm those private guides are not available as sources.
+11. As admin, where do I preview and complete a verified privacy request? As a
+    dispatcher, confirm that guide is not available as a source.
+12. Why can I not work around a blocked manual order by changing the phone number?
+13. Which saved receipt and order details must remain as financial evidence?
+
+Affected guide IDs for the PR 93 integration review are `navigation`,
+`privacy-requests`, `manual-order`, `edit-order`, `receipts`, `order-alarms` and
+`bnd-alerts`.
 
 The help UI retains the existing red/dark styling. Source-navigation validation
 recognizes all current pages, and suggested questions include standards,

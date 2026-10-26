@@ -216,7 +216,7 @@ a separate release and requires its own signed build and store submission.
 
 - Confirm the hosting platform reports a successful deployment of the expected
   commit.
-- Verify `GET /api/v1/health` succeeds.
+- Verify both `GET /api/v1/health/ready` and `GET /api/v1/health/live` succeed.
 - Open the dispatcher and confirm authentication and live-order loading.
 - Check recent production logs for startup errors and unexpected 5xx responses.
 - Exercise the specific feature changed by the release with a non-destructive

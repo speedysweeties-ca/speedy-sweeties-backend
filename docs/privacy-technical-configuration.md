@@ -16,7 +16,8 @@ staging, backups and customer records were not changed.
 - Confirmed privacy contact: Robert Stubbings, `speedysweeties@hotmail.com`,
   `519-826-8097`.
 - The live API is `main` commit `7bcaaf7cfff6f8e45ab0b912f35d61ffd56c7e39`.
-  The privacy routes/migrations in draft PR 93 are not deployed, so no live
+  Render reported live deploy `dep-dbej0hks728c73clt3gg` at that revision. The
+  privacy routes/migrations in draft PR 93 are not deployed, so no live
   `PRIVACY_*` setting or request behavior is claimed.
 - The production 90-day retention cron remains a marketing `DRY_RUN`. Read-only
   logs on 2026-10-23 reported `SMS messages sent: 0`; it is not an inactive-profile
@@ -82,18 +83,14 @@ through another account or portal.
 
 ## PR 93 rollout boundary
 
-- Draft PR 93 was rechecked before this evidence-only update at
-  `686a2d9f96d7b81530b5a1b17f0429a215b4a8c0`. It remains draft and unmerged. Its
-  merge base with current `main` is `12b78cc4780c96efa286c167c63ac1676dfc5dbb`;
-  production is now `7bcaaf7cfff6f8e45ab0b912f35d61ffd56c7e39` after the dispatcher-help release.
-- A dry merge-tree found no textual conflict markers. Both branches change
-  `.github/workflows/backend-ci.yml`, `docs/release-checklist.md` and `package.json`.
-  Before deployment, integrate current `main` into the review branch and preserve
-  both sets: main's dispatcher-help fetch/check and package script, plus PR 93's
-  serial PostgreSQL privacy job and three isolated-test scripts. The lockfile's
-  overlapping dependency refresh is presently identical. Re-run current combined CI
-  after that integration; the prior passing PR run does not validate the combined
-  head.
+- Draft PR 93 remains unmerged. Current `main`
+  (`7bcaaf7cfff6f8e45ab0b912f35d61ffd56c7e39`) was merged into the privacy review
+  branch by integration commit `99bc51b907380c274af8f98fe0b0aabad0db4f62`,
+  whose parents are privacy head `9c657dd3cb3c59d5b9f6649eebf0e48abfacb44e`
+  and that main commit. The merge was clean and preserves both main's full-history
+  dispatcher-help validation and PR 93's serial PostgreSQL privacy validation. It
+  also preserves the dispatcher-help and isolated-test package scripts; the
+  overlapping dependency refresh required no lockfile conflict resolution.
 - Read-only production schema inspection found every migration through
   `20261022170000_bnd_waiting_history` completed and no privacy table, target privacy
   column or partially applied privacy migration. A historical rolled-back
@@ -113,12 +110,16 @@ through another account or portal.
   Initially the marker table is empty, so existing Android ordering behavior remains
   unchanged; after a verified deletion, blocking recreation from an old client is
   intentional.
-- Production currently auto-deploys `main`, and its pre-deploy command runs
-  `npx prisma migrate deploy`. Before any future merge, turn auto-deploy off and record
-  the last healthy deploy/commit so merge cannot apply migrations implicitly. Then
-  set and read back all four gates as false: `PRIVACY_DELETION_ENABLED`,
-  `PRIVACY_FULFILLMENT_ENABLED`, `PRIVACY_VERIFICATION_EMAIL_ENABLED` and
-  `PRIVACY_VERIFICATION_PHONE_ENABLED`.
+- Production currently auto-deploys `main`. Its observed lifecycle is build command
+  `npm ci --include=dev && node ./node_modules/prisma/build/index.js generate && npm run build`,
+  then pre-deploy command `npx prisma migrate deploy`, then start command
+  `npm run start`. Render runs the pre-deploy command before starting the new
+  application, enforcing migration-before-start ordering. Before any future merge,
+  turn auto-deploy off and record the last healthy deploy/commit so merge cannot
+  apply migrations implicitly. Then set and read back all four gates as false:
+  `PRIVACY_DELETION_ENABLED=false`, `PRIVACY_FULFILLMENT_ENABLED=false`,
+  `PRIVACY_VERIFICATION_EMAIL_ENABLED=false` and
+  `PRIVACY_VERIFICATION_PHONE_ENABLED=false`.
 - Configure, without displaying values, a stable dedicated `PRIVACY_DIGEST_KEY`, the
   current `PRIVACY_ADMIN_USER_IDS`, exact `PRIVACY_APPROVED_RETENTION_POLICY`, exact
   `PRIVACY_COMPLETION_TIMEFRAME`, and `PRIVACY_FISCAL_YEAR_END_MM_DD=12-31`. Retain
@@ -128,11 +129,12 @@ through another account or portal.
   deploy only the reviewed combined commit. The pre-deploy hook must apply exactly the
   four migrations above. Stop on any drift or failed migration; do not resolve a
   failed migration as successful without establishing the actual schema state.
-- With all gates still false, verify the expected commit, health/readiness, four
-  migration records, tables/columns and four protection triggers. Smoke-test ordinary
-  ordering, tracking, loyalty, staff authentication and the released Android API;
-  confirm privacy initiation fails closed while disabled. Keep auto-deploy off through
-  this validation.
+- With all gates still false, verify the expected commit through both
+  `/api/v1/health/ready` and `/api/v1/health/live`, then verify the four migration
+  records, tables/columns and four protection triggers. Smoke-test ordinary ordering,
+  tracking, loyalty, staff authentication and the released Android API; confirm
+  privacy initiation fails closed while disabled. Keep auto-deploy off through this
+  validation.
 - Publish and verify the final policy/deletion pages before enabling initiation. In a
   separate approved change, enable only one verified channel together with deletion
   initiation while fulfillment remains false, then run the documented production/iOS
@@ -151,6 +153,19 @@ through another account or portal.
   deleted-identity markers. A restore must reconcile post-snapshot requests/markers
   before traffic; never improvise destructive production rollback or recreate a
   deleted identity.
+
+## Current-main integration verification
+
+The integrated review source was checked locally in serial on 2026-10-26. Backend
+focused suites passed 90/90 tests with one worker, covering ordinary/manual/mobile
+order creation, released-client contracts, privacy route and gate behavior,
+financial-record evidence, protection rules and anti-reactivation. Dispatcher suites
+passed 69/69 tests with one worker; backend and dispatcher production builds passed,
+as did Prisma format/validation and `npm run check:dispatcher-help -- origin/main`.
+The dispatcher build retained its existing unset local Maps-key placeholder and
+large-chunk warnings; neither was a build failure. The exact pushed integration head
+must still pass both GitHub Actions jobs, including the PostgreSQL 18 baseline plus
+four-migration privacy database job, before deployment approval.
 
 ## Owner-approved operational review periods
 
