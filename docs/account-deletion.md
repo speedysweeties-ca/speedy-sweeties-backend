@@ -1,4 +1,12 @@
-# Customer account deletion — review implementation, not deployed
+# Customer account deletion — implementation and rollout history
+
+Current status, 2026-10-27: PR 93 is merged and deployed at `4ac2ba3` with all four
+privacy gates false. The original implementation/rollout plan below is historical;
+it is not a request to repeat the deployment or recovery exercise. Current evidence
+and remaining activation gates are in `docs/privacy-technical-configuration.md`
+and `docs/release-checklist.md`. Recovery remains **QUALIFIED**, cleanup confirmed.
+Robert's October 27 account evidence records Hobby/no default log stream and an
+empty current production logical-export list; these do not prove all-copy erasure.
 
 Updated 2026-10-23 on `review/customer-account-deletion` for draft PR 93. This
 branch must not be merged into an automatically deploying branch until the owner
@@ -210,14 +218,13 @@ is part of the current iOS/backend scope.
    for that environment only; keep production phone disabled until the staged
    production configuration and in-app flow are explicitly authorized. Record only
    non-secret configuration names/status in release evidence.
-3. Complete the protected restore exercise: Robert has observed three-day PITR and
-   an at-least-seven-day export-retention statement; exact recovery-point acceptance,
-   available exports and a completed restore are not yet established. The prepared
-   read-only exercise requires a separately approved recovery clone and total cost
-   quote; the existing SMS database must never receive customer backup data. Address
-   the observed Node 24.14.1 runtime advisory separately (see
-   `docs/production-security-maintenance.md`). Disable production auto-deploy before
-   any approved merge.
+3. **Completed — do not repeat:** the protected PITR exercise remains QUALIFIED and
+   clone cleanup is confirmed; exact limits are in the technical document. Robert
+   observed three-day PITR/at-least-seven-day export retention and later reported
+   an empty current export list. Past/offsite copies and post-snapshot privacy
+   reconciliation remain separate checks. The SMS database must never receive
+   customer backups. The separate Node security rollout is also complete; preserve
+   its evidence in `docs/production-security-maintenance.md` and Auto-Deploy Off.
 4. Stage the stable dedicated digest key, exact approved timeframe/policy/fiscal
    year-end and Robert allowlist through secret/config management. Set all four
    privacy gates false and read back presence/equality only. Preserve existing

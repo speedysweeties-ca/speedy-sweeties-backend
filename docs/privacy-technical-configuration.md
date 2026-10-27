@@ -348,11 +348,53 @@ dates; none is changed. See the iOS retention mapping and unpublished policy han
 - Historical pre-deployment inspection: no live API log matched `privacy`, `Twilio`
   or `Resend` in that inspected seven-day window. This was not proof of a provider-
   retention practice and must not be read as a current undeployed-branch claim.
-- Render log retention depends on the workspace plan (currently documented as 7,
-  14 or 30 days). The connector does not expose the workspace plan or log-stream
-  configuration. Six-day-old cron logs were readable; 13-day-old cron logs were not.
-  That observation does not justify publishing an exact retention claim. Confirm the
-  Billing plan and any external log streams in the Render Dashboard.
+- Earlier inspection could read six-day-old cron logs but not 13-day-old entries;
+  this did not establish a retention period. The connector still exposes neither
+  the workspace plan nor log-stream configuration. The owner evidence and separate
+  platform-documentation findings below now supersede the plan/default-stream gap.
+
+### Render account evidence — owner-provided, 2026-10-27
+
+- **Owner-provided screenshot evidence (Robert's report, not an agent dashboard
+  inspection):** workspace **Speedy's workspace**; workspace plan **Hobby**;
+  **Log Streams > Default destination: None configured**, with **Set default**
+  displayed. Settings were left unchanged. This closes the workspace-plan and
+  default-destination checks only; the screenshots do not establish native log
+  retention, past forwarding, independent log copies or backup/export inventory.
+- **Separate owner read-only report:** on exact production
+  `dpg-d7m33g2qqhas73f58hrg-a` / `speedy-sweeties-db` > Recovery, the existing
+  logical-export list was **empty**. No settings changed; no export was created,
+  downloaded or restored. This closes the displayed inventory at the inspection
+  time, not whether exports previously existed or were saved elsewhere. It does
+  not negate the known PITR window or establish that the database has no backups.
+
+**Separate technical documentation check, same date:**
+
+- [Render logging documentation](https://render.com/docs/logging) lists **seven
+  days** of log retention for Hobby. Applied to the owner-confirmed plan, that is
+  the documented native-log period, **not** a screenshot observation, account-level
+  expiration test or proof that all provider/support/downloaded copies are purged
+  after seven days. No new log retrieval or expiry probe was needed. Render's
+  separate platform HTTP request-log feature is documented for Pro or higher;
+  do not claim it is enabled on this Hobby workspace.
+- [Render log-stream documentation](https://render.com/docs/log-streams) does not
+  offer per-service exclusion/custom-destination overrides on Hobby. Together with
+  the owner-observed absent default destination, there is no supported-plan basis
+  for requiring a repeated per-service override audit. This is a documentation-
+  based conclusion, not an independent read of each service's settings or proof
+  that no application/manual copy can leave Render.
+- [Render recovery documentation](https://render.com/docs/postgresql-backups)
+  distinguishes continuous PITR backups from separately created logical exports.
+  The empty export list does not invalidate PITR. Preserve the existing owner-
+  observed three-day PITR/at-least-seven-day export-retention wording and completed
+  **QUALIFIED** rehearsal with confirmed cleanup; no new copy or exercise is needed.
+
+Current tool discovery still provides no Recovery/export read operation; service
+event history explicitly excludes Postgres. No additional secret access, database
+query, service probe, provider call or configuration change was used for this update.
+The remaining facts are provider-specific retention/removal/location controls,
+operator-held copies and durable post-snapshot privacy reconciliation, not the
+already answered plan/default-stream/current-export-list questions.
 
 ### Read-only follow-up — 2026-10-27; no account settings inferred from source
 
@@ -400,22 +442,15 @@ environment read; reuse the passing owner-run gate/configuration evidence above.
   those facilities are absent. The known owner-observed recovery windows, qualified
   rehearsal and confirmed clone deletion below remain valid and unchanged.
 
-**Remaining account facts — read only; never provide tokens, endpoints containing
+**Account facts and remaining checks — read only; never provide tokens, endpoints containing
 credentials, download URLs or customer information:**
 
-1. Render workspace Billing: record the workspace plan (not the database instance
-   plan). Workspace **Integrations > Observability > Log Streams**: report only
-   whether a default destination exists and its provider name; then inspect each
-   production service's **Settings > Log Stream** for inheritance/exclusion/override.
-   Do not edit/save. [Render's log-stream instructions](https://render.com/docs/log-streams)
-   identify these screens. If a sink exists, its own retention/removal controls are
-   separate facts. Never infer workspace plan from the known three-day PITR window.
-2. Exact production database **Recovery**: inspect existing export entries only;
-   record count/date/status, or an owner-observed empty list. Do not create/download
-   an export, expose a download URL or repeat the completed restore rehearsal.
-   [Render backup documentation](https://render.com/docs/postgresql-backups) explains
-   recovery/exports; it cannot establish this account's export inventory or offsite
-   copies. Do not ask again for the already confirmed three-day/seven-day facts.
+1. **CLOSED on owner evidence:** Hobby workspace; no default log-stream destination.
+   Separate documentation supplies the plan's native-log period and override limits,
+   with the evidence boundaries above. Do not ask Robert to repeat these checks.
+2. **CLOSED for the displayed current inventory:** production Recovery's logical-
+   export list is empty on owner report. Past downloads/offsite copies remain a
+   separate operator fact. No export creation/download or repeat restore is needed.
 3. Twilio/Resend actual account/service data controls and processing-location terms;
    OpenAI organization/project Data controls (including inheritance) and region;
    privacy-specific Resend sender/domain readiness. Existing delivery successes and
@@ -444,7 +479,8 @@ a fulfillment prerequisite; an available PITR window is not proof of that behavi
   facts, not assumed plan defaults. No existing export, exact selectable timestamp
   or successful restore was shown in that initial inspection. The configured window
   is known. The later approved copy/read-only result is recorded below; the export
-  inventory and other selectable recovery points remain unverified.
+  inventory was subsequently reported empty by Robert on 2026-10-27, as recorded
+  above; other selectable recovery points and past/offsite exports remain unverified.
 - The Render connector exposes no recovery/export read operation. No authenticated
   CLI/API session was available, and read-only browser access did not succeed. No
   account secret was sought or displayed. This remaining access gap does not negate
@@ -459,9 +495,9 @@ a fulfillment prerequisite; an available PITR window is not proof of that behavi
 - No backup cron/service, `pg_dump`, S3 backup workflow or other independent backup
   automation is present in the connected Render resources or repository. This does
   not prove that a manually created export or external process does not exist.
-- The remaining Dashboard fields are specified below; do not ask Robert to reconfirm
-  the three-day window. If an export is listed, record only its date/status, not its
-  download URL. No export creation or download is needed for the proposed PITR test.
+- The later owner-reported empty export inventory and known recovery window need
+  no reconfirmation. Historical exercise instructions below do not authorize a new
+  export, download or recovery copy; the approved rehearsal and cleanup are complete.
 - Before this rehearsal, no completed non-production backup-restore evidence was
   found in repository docs, tests, history, iOS release handoffs or the targeted
   Render/recovery mailbox search.

@@ -96,6 +96,18 @@ completed **QUALIFIED** rehearsal/cleanup remain recorded, not reopened. Documen
 only: no application tests/build, messages, new restore, publication or configuration
 change; all gates false and Auto-Deploy Off remain the operating constraints.
 
+Render follow-up, 2026-10-27: owner-provided screenshot evidence records **Speedy's
+workspace / Hobby / Log Streams default destination None configured (Set default
+displayed)**, settings unchanged. Robert separately reports production Recovery's
+logical-export list **empty**, with no settings changed. Close those specific
+account checks. The screenshots do not establish native retention or backup inventory;
+the export observation is separate evidence and does not mean PITR backups are absent.
+Current official documentation lists seven-day native log retention for Hobby and
+no Hobby per-service log-stream overrides. These are documentation-based findings,
+not an account-level purge test or an all-copy deletion guarantee. See the technical
+document for sources/limits. Remaining provider controls, operator copies and
+post-snapshot privacy reconciliation are still open. No new tests/resources/settings.
+
 ## Node 24.22.1 advisory update (2026-10-26; deployed separately as PR 96)
 
 - Follow `docs/node-runtime-security-2026-10-26.md` for observed API/dispatcher/cron
