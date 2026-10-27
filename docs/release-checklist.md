@@ -108,6 +108,35 @@ not an account-level purge test or an all-copy deletion guarantee. See the techn
 document for sources/limits. Remaining provider controls, operator copies and
 post-snapshot privacy reconciliation are still open. No new tests/resources/settings.
 
+Consolidated privacy-publication preparation, 2026-10-27: current official Twilio
+Verify, Resend and OpenAI arrangements are now separated from source observations
+and unresolved effective account controls in `docs/privacy-technical-configuration.md`.
+Its **One consolidated factual handoff** is the single remaining dashboard/owner
+request; no provider/account secret was read and no delivery was attempted. Resend
+privacy sender readiness is still open: eligible email is preferred and email-off
+does not trigger SMS fallback. OpenAI `store:false` is not account-level ZDR.
+The unpublished iOS policy now includes supported processing/removal facts without
+claiming account defaults are verified settings. Paper/TurboTax provenance and all
+approved retention/review rules remain unchanged.
+
+Restore-protection scope is now concrete: the same-database markers can be lost in
+an older snapshot, and blindly importing completed requests would make `fulfill`
+return before erasing restored data. The technical document proposes a minimized
+independent decision checkpoint, offline reconciliation using the existing flow,
+and a serial synthetic-only restore test preserving original dates, later holds/
+cancellations and financial evidence. **Not implemented/tested; fulfillment remains
+blocked.** Completed QUALIFIED recovery/cleanup and production enum findings are
+preserved. No new production-data clone or broader recovery audit is needed.
+
+This update changes documentation only. Reuse deployed-commit CI 40450819956.
+Focused documentation consistency checks passed **16/16**, and `git diff --check`
+passed in both checkouts. The disposable checker normalized Markdown emphasis
+after an initial literal-text mismatch; no application assertion was changed.
+Tracked source/tests/workflows match deployed `4ac2ba3`; no application suite/build.
+All four gates remain false and Auto-Deploy Off; no settings, customer data, messages,
+resource operations, publication or Apple upload. Next: return the consolidated
+account facts and separately implement/test the bounded restore reconciliation.
+
 ## Node 24.22.1 advisory update (2026-10-26; deployed separately as PR 96)
 
 - Follow `docs/node-runtime-security-2026-10-26.md` for observed API/dispatcher/cron

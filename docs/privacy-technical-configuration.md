@@ -442,6 +442,117 @@ environment read; reuse the passing owner-run gate/configuration evidence above.
   those facilities are absent. The known owner-observed recovery windows, qualified
   rehearsal and confirmed clone deletion below remain valid and unchanged.
 
+### Consolidated provider review — 2026-10-27
+
+**Evidence boundary.** The provider callers, privacy guards/lifecycle and database
+tests reviewed here are unchanged from deployed `4ac2ba3`; no application test,
+delivery, account-setting change or secret read was needed. Available connectors
+cannot read Twilio/Resend account controls or OpenAI organization/project controls.
+Targeted, message-ID-only searches of the connected mailbox found no matching
+provider retention/residency/control confirmations; this is not proof that none
+exist. No new API key, project or integration was created. Completed Render, staff,
+recovery and receipt-provenance evidence above remains unchanged.
+
+**Twilio Verify — source and public documentation, not a new account inspection.**
+
+- The deployed adapter uses the unprefixed `verify.twilio.com` API. Twilio documents
+  US1 as the default when no region is specified; this supports a US-region routing
+  inference, not exclusive US processing/storage or a Canadian residency promise.
+  [Regional API documentation](https://www.twilio.com/docs/global-infrastructure/using-the-twilio-rest-api-in-a-non-us-region).
+- The [Verification resource](https://www.twilio.com/docs/verify/api/verification)
+  labels destination PII with MTL 30 days. Twilio's [retention explanation](https://help.twilio.com/articles/4410585868443)
+  defines MTL as **minimum** time to live, not a maximum erasure deadline. The
+  [Attempts API](https://www.twilio.com/docs/verify/api/attempts) exposes a 30-day
+  query window; that is not an all-record retention limit. Do not apply separate
+  Programmable Messaging or SendGrid periods to Verify.
+- The reviewed Verification update operation accepts approval/cancellation, not a
+  per-customer erasure instruction. Cancelling the local request does not erase
+  Twilio/carrier records. The adapter has no provider-removal operation. Actual
+  Verify destination/event/fraud retention, removal assistance, exceptions and
+  downstream locations need account/support evidence; no precise maximum is claimed.
+- Preserve the existing isolated success, earlier `21608`/`30007` evidence, SMS/Fraud
+  Guard/Canada permissions and support correction. Do not repeat those checks or
+  send another code to establish retention. Inspect only whether Verify Events
+  forwarding is enabled; external sinks would create a separate copy to handle.
+
+Unsent support question if existing account documents do not answer it: "For our
+existing Verify SMS service, what retention/removal arrangements apply to destination,
+verification/attempt, delivery and fraud records, beyond the documented MTL/query
+window? Please identify early-erasure assistance, any justified residual/legal or
+carrier records and their limits, and storage/processing locations for this service.
+Please distinguish account-specific terms from product defaults." No destination,
+OTP or credential is needed in the shared reply; this review sends no support message.
+
+**Resend — documented arrangements and a distinct privacy-sender dependency.**
+
+- [Resend GDPR documentation](https://resend.com/security/gdpr) states US storage
+  for email content, delivery logs, webhook payloads and account records, with
+  primary US processing. It documents 30-day email/log retention for Free/Pro/Scale
+  and customizable Enterprise retention; early removal of a particular message
+  goes through support. [Security documentation](https://resend.com/security)
+  states seven-day backups. These are published arrangements, not this account's
+  verified plan/exception or a tested all-copy deletion guarantee.
+- A domain's [sending region](https://resend.com/docs/dashboard/domains/regions)
+  does not relocate storage. An existing content-storage exception must be verified,
+  not inferred from source; [that optional feature](https://resend.com/docs/knowledge-base/how-do-i-ensure-sensitive-data-isnt-stored-on-resend)
+  is support-managed, not enabled by this application. No paid add-on is proposed.
+- `privacy.routes.ts` uses **only `PRIVACY_VERIFICATION_FROM`** for privacy mail;
+  it does not fall back to `UNDISPATCHED_ALERT_FROM`. The operational source default
+  `onboarding@resend.dev` is not a production environment observation and is
+  [restricted to test sending to the account owner's email](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain).
+  Previously accepted operational alerts prove neither a verified privacy sender
+  nor permission to email arbitrary customers. Verify the intended domain's sending
+  status/SPF/DKIM and existing key's domain permission without revealing the key.
+- `contactFor` prefers an eligible matching email **before** consulting channel
+  flags. When email is disabled it fails closed at delivery; it does not silently
+  switch to SMS. Therefore phone-only isolated success does not close email-capable
+  customers' production readiness. No routing/architecture change is proposed.
+  Record domain open/click tracking too: [domain controls](https://resend.com/docs/dashboard/domains/introduction)
+  can affect content even when the adapter does not explicitly request tracking.
+
+**OpenAI — source controls versus effective account/project controls.**
+
+- All three reviewed callers use `api.openai.com/v1/responses` with `store:false`:
+  order drafting, product verification and dispatcher help. There is no regional
+  hostname, organization/project header or provider-erasure call. The key's project
+  cannot be inferred from these facts, and `store:false` is not Zero Data Retention.
+- [API data controls](https://developers.openai.com/api/docs/guides/your-data)
+  document default abuse-monitoring retention up to 30 days, subject to exceptions;
+  application state and model/tool caches are separate. Approved Zero Data Retention
+  or Modified Abuse Monitoring and project inheritance must be checked, not assumed.
+  Effective model names also matter; source defaults do not establish runtime overrides.
+- OpenAI documents API training/data sharing as off by default unless opted in.
+  The [sharing controls](https://help.openai.com/en/articles/10306912-sharing-feedback-evaluation-and-fine-tuning-data-and-api-inputs-and-outputs-with-openai)
+  separately cover feedback, evaluation/fine-tuning and API inputs/outputs, with
+  organization/all-or-selected-project scope. Verify the backend's existing project.
+- No Canada-only or US-only processing is established. Residency is project- and
+  feature-dependent; [subprocessors](https://openai.com/policies/sub-processor-list/)
+  include US and other locations. A stored-response
+  [delete operation](https://developers.openai.com/api/reference/resources/responses/methods/delete)
+  is not erasure of every abuse-monitoring/cache copy. Provider assistance under the
+  [business DPA](https://cdn.openai.com/pdf/openai-data-processing-addendum.pdf)
+  is distinct from deleting Robert's ChatGPT account. No ZDR approval, sharing opt-in,
+  residence setting or successful provider erasure is asserted for this account.
+
+### One consolidated factual handoff — inspect only, save/change nothing
+
+Return only the non-secret facts below, in one response if practical. Do not copy
+keys, account credentials, raw messages, customer details, webhook URLs or download
+links. A setting not visible is **not visible**, not automatically disabled. No
+previously closed retention/contact/Render/recovery question is being reopened.
+
+| Outstanding fact | Exact read-only screen / information needed | Why it matters |
+| --- | --- | --- |
+| Twilio Verify records and onward copies | Console **Verify > Services > Speedy Sweeties > General**: report only whether **Verify Events Subscribed** is on/off. If on, **Event Streams > Manage**: whether a Verify subscription/sink exists and its destination service type, not its URL. Use the existing account's Support Center/contract records for any Verify-specific retention/removal/location answer; if absent, prepare one question covering destination/event/fraud records, early removal and residual carrier/legal copies. Do not send it automatically. | MTL/query visibility are not an erasure limit. Forwarding changes the external-copy inventory. The [official screen guide](https://www.twilio.com/docs/verify/verify-events-webhook-onboarding-guide) is for navigation only: do not enable, create or test a sink. |
+| Resend privacy sender and actual retention | Existing Resend team **Settings > Billing**: plan; **Domains > intended sender domain**: verified/sending status, SPF/DKIM, region, open/click tracking. **API Keys**: whether the existing backend key's metadata permits that domain, no key value. Existing support/account records: any custom retention/content-storage exception, or none known. In **Render > speedy-api > Environment**, report only `PRIVACY_VERIFICATION_FROM` (non-secret sender address, or unset), without saving. | Confirm deliverability prerequisites and whether standard retention applies. Sender readiness is not proven by B&D alerts; sending region is not storage residency. |
+| OpenAI effective project controls | For the organization/project already used by the backend key, **Settings > Organization > Data controls > Sharing**: all three sharing settings and whether this project is included. **Data retention**: organization setting and project override/inheritance, or not available. Existing **project > General**: displayed residency/region or not visible. In Render Environment report only the model names or unset for `OPENAI_ORDER_DRAFT_MODEL`, `OPENAI_PRODUCT_WEB_LOOKUP_MODEL`, `OPENAI_DISPATCHER_HELP_MODEL`. Do not create a project/key or reveal the existing key. | Source `store:false` does not settle monitoring, training opt-in, location or model-specific state. [Data-retention screen](https://platform.openai.com/settings/organization/data-controls/data-retention). |
+| Operator-held copies and recovery checkpoint storage | One concise inventory of existing request mailbox/synced contacts, manual downloads/exports and paper-original storage/access, who removes eligible copies, and whether an existing restricted store outside the database rollback boundary can hold minimized privacy-decision checkpoints. Report additional tax-tool uploads only if they actually occur. | Account APIs cannot establish manual practice. TurboTax tax filing is not evidence of receipt/profile storage; no new retention period or accountant sign-off is requested. |
+
+After these facts, reconcile the unpublished iOS policy and existing external-task
+completion evidence. A missing maximum does not justify inventing one: record the
+actual removal/support process and justified residual outcome. Publication and
+channel/fulfillment activation remain separate approvals, not actions in this review.
+
 **Account facts and remaining checks — read only; never provide tokens, endpoints containing
 credentials, download URLs or customer information:**
 
@@ -451,11 +562,10 @@ credentials, download URLs or customer information:**
 2. **CLOSED for the displayed current inventory:** production Recovery's logical-
    export list is empty on owner report. Past downloads/offsite copies remain a
    separate operator fact. No export creation/download or repeat restore is needed.
-3. Twilio/Resend actual account/service data controls and processing-location terms;
-   OpenAI organization/project Data controls (including inheritance) and region;
-   privacy-specific Resend sender/domain readiness. Existing delivery successes and
-   source settings do not close these account facts. No secret access is needed in
-   a shared report. Provider periods remain unclaimed until supported.
+3. The consolidated handoff above is the remaining provider/account request. It
+   now distinguishes current official arrangements from unverified effective
+   settings. Existing delivery successes and source settings do not close those
+   account facts; do not repeat the completed Render inventory.
 
 These are technical/account-access gaps, distinct from Robert's receipt/tax-tool
 practice. Paper storage/access and manual copies need owner knowledge only where
@@ -873,32 +983,93 @@ not a cryptographic integrity comparison or a privacy transformation.
 
 ### Separate later work, outside this clone approval
 
-- The prior migration rehearsal remains prepared, not executed: only with separate
-  permission could a protected clone receive the four privacy migrations and
-  pre/post financial checks. The current approval request is read-only after restore.
-- Separately rehearse post-snapshot privacy reconciliation using **only synthetic
-   data** in a PostgreSQL 18 loopback/container database on an ephemeral runner.
-   Reuse `tests/privacyBaseline.cjs`, the existing fixture and mocked delivery from
-   `tests/privacyDeletion.database.test.js`; keep its loopback/name guards intact.
-   Take a `pg_dump --format=custom` snapshot before synthetic fulfillment; record a
-   second post-fulfillment snapshot/checkpoint containing the deletion request,
-   revocations, marker, erased financial rows, external tasks and audit decisions.
-   Restore the old snapshot into an empty synthetic target with
-   `pg_restore --exit-on-error --no-owner --no-privileges --single-transaction`.
-   Keep the target offline while replaying/reconciling the newer decision through
-   the existing service with mocked delivery. Assert that the profile stays erased,
-   old access/tracking/loyalty credentials remain rejected, marker/key fingerprint
-   and triggers survive, all required financial evidence is unchanged, and an
-   unrelated synthetic identity still works. Never run the test's reset/seed phase
-   over a restored dataset and call that a restore verification.
-- The durable source and operator procedure for post-snapshot privacy decisions
-   still need to be established before fulfillment activation. Restoring an old
-   snapshot alone cannot reconstruct later decisions; no automatic replay system
-   is claimed. The synthetic exercise must prove the chosen reconciliation procedure
-   before it is used on real requests. A new ephemeral runner run requires available
-   included CI minutes or separate cost approval; it needs no paid web service.
-- Any separately authorized synthetic runner/snapshots also require prompt cleanup;
-  they are not part of the one-clone request above.
+The historical proposal to migrate a protected production-data clone was not
+executed. The four privacy migrations have since deployed successfully through the
+approved rollout. Do not reopen that proposal or create another production-data
+copy for the remaining restore-protection work. The completed read-only recovery
+rehearsal stays **QUALIFIED**, and its deleted clone's exact enum mismatch remains
+unprovable; the separate production enum assessment is not retroactive clone proof.
+
+#### Post-snapshot privacy decisions — bounded source assessment, 2026-10-27
+
+`PrivacyDeletedIdentity`, requests, audit, external tasks and access/challenge state
+are in the **same database** as Customer/Order. `assertPrivacyOrderAllowed` rejects
+an existing matching marker and fails closed for a marker/key-fingerprint mismatch.
+It cannot detect a marker lost by restoring an older snapshot with no such row.
+Keeping all four privacy gates false does not close ordinary ordering; a restored
+system must remain offline until reconciliation, not merely have privacy disabled.
+
+There is also a concrete replay constraint in `privacyDeletion.service.ts`:
+`fulfill` returns early when a request already has `databaseErasedAt`. Blindly
+importing a completed request then calling fulfillment would leave restored older
+Customer/Order data untouched. Restoring markers alone would not erase copied
+order contacts or revoke restored credentials. Replaying at a later date must not
+restart the original request due date, closure or 24-month review anchors. Existing
+ownership/preview/hold checks and financial-evidence guards must remain effective.
+
+**Smallest remaining work — proposed, not implemented or verified:**
+
+1. Define one minimized, access-restricted recovery case/checkpoint format outside
+   this database's rollback boundary, using an existing approved protected store if
+   available. It needs original request/source/order identifiers and scope/binding
+   evidence, ordered/versioned decisions, holds/cancellations, erasure/revocation
+   outcome, marker/key fingerprint and original due/closure/review/retention dates.
+   Preserve necessary pre-erasure linkage because fulfillment removes it. Use
+   existing digest/token hashes, not raw tokens, OTPs, provider keys or a full export
+   of customer contacts. Hashes/identifiers are still restricted personal information.
+   Securely retained digest-key continuity is separate from the case record.
+2. Establish completeness before real privacy processing: persist a durable intent
+   before each relevant transition and its result afterward, with a sequence/high-
+   water check and an operator hold for an unfinished intent. A post-commit-only
+   export can lose the last deletion in a crash; periodic database backups alone
+   are insufficient. Later cancellations/holds must supersede earlier intent, never
+   become an automatic deletion on restore. An operator checkpoint can cover manual
+   fulfillment, but automatic request/cancellation transitions also need an explicit
+   completeness mechanism; periodic manual copying alone does not prove coverage.
+   Extend the existing flow only as needed; this is not a second deletion API.
+3. Add only the narrow offline reconciliation support that the synthetic exercise
+   proves necessary. Reuse existing preview/fulfillment/guard functions and approved
+   decisions; do not bypass guards, create public reset/replay routes or copy terminal
+   request rows ahead of erasure. Reconcile requests missing entirely from the old
+   snapshot as well as older request versions. Preserve original dates and required
+   readable financial evidence. Produce sanitized counts/pass-fail plus unresolved
+   cases. Incomplete coverage, wrong key or ambiguous ownership keeps traffic and
+   workers off; do not silently reopen an account or re-delete a cancelled case.
+4. Document recovery ordering: isolate the restored database; verify target/schema;
+   load the latest complete protected decision history; reconcile/revoke/erase only
+   eligible scoped records; verify protections and external-copy outcomes; then
+   authorize reopening. Apply the already-approved review/justified-need rules to
+   these checkpoints, not a new indefinite or minimum retention period.
+
+**Synthetic-only verification proposal; no new test run needed for this doc change:**
+
+- Extend the existing serial PostgreSQL 18 privacy lifecycle test setup with
+  `tests/privacyBaseline.cjs`, existing synthetic fixture and delivery mocks. Use
+  guarded loopback/container `speedy_privacy_synthetic`, one worker, dedicated
+  synthetic JWT/digest secrets, no application background startup or provider calls.
+  Use available included Linux CI minutes; ask before any new paid resource.
+- Snapshot T0 with `pg_dump --format=custom`; test both T0 before request creation
+  and T0 before fulfillment. At T1, exercise the existing request/fulfillment flow
+  and record minimized intent/outcome checkpoints outside the database. Include
+  newer cancellation/hold decisions. Restore T0 offline, only after exact synthetic
+  target/content guards, with
+  `pg_restore --exit-on-error --no-owner --no-privileges --single-transaction`.
+- Demonstrate the negative control: a post-T0 marker is absent before reconciliation.
+  Then reconcile and assert erased profile/contact copies, rejected old access/
+  tracking/loyalty credentials and reactivation, intact marker fingerprint/triggers,
+  unchanged item descriptions/quantities/prices/recognized charges and readable
+  receipts, original review anchors, unrelated synthetic identity unaffected and
+  replay-twice idempotence. Wrong targets must fail before destructive operations;
+  wrong key, incomplete checkpoints and intent-without-outcome must stop reopening.
+- Never reseed/reset over restored data and call it a restore test. The existing
+  Render SMS reset tool is deliberately limited to its single-use unfulfilled
+  fixture; it is **not** a completed-deletion replay tool and must not be broadened
+  to bypass its guards. Keep all artifacts synthetic and clean up test snapshots.
+
+This is a **fulfillment activation blocker**, not evidence of a failed existing
+backup or a reason to reverse the gates-off deployment. No restore reconciliation,
+new checkpoint tool or synthetic restore pass is claimed. The next technical task
+is this narrowly scoped implementation/test, alongside the account facts above.
 
 This exercise uses the current [Render recovery documentation](https://render.com/docs/postgresql-backups)
 and [recovery-status API](https://api-docs.render.com/reference/retrieve-postgres-recovery-info),

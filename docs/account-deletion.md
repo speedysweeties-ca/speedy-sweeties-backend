@@ -130,8 +130,11 @@ descriptions, quantities, prices, receipt totals/charges/tax and the recognized
 receipt-charge evidence. It does not retain customer contact or delivery details
 merely because financial evidence is retained. Retained erased orders, receipts and
 items have database write/delete guards. Customer/order creation shares the privacy
-advisory lock, and a keyed deleted-identity marker prevents old clients/restores
-from recreating the profile. Unplanned key rotation fails closed.
+advisory lock, and a keyed deleted-identity marker prevents old clients from
+recreating the profile **while that marker exists**. A snapshot predating erasure
+can lose the marker; restore reconciliation is a separate activation prerequisite,
+not a protection already established by these guards. Unplanned key rotation with
+existing markers fails closed; an empty restored marker table cannot detect loss.
 
 After the database transaction, status is `FULFILLING`. Durable tasks cover phones/
 synced contacts, messages/email, staff notes/exports, logs/providers and backups/
@@ -260,8 +263,14 @@ is part of the current iOS/backend scope.
   customer-typed contact or treat provider acceptance as receipt.
 - A database restore must restore/reapply deleted-identity markers, revoked access,
   erased-order guards and completed decisions before traffic resumes. Reconcile
-  requests received after the restored snapshot. Never test rollback on production
-  customer data without an approved recovery exercise.
+  requests received after the restored snapshot. The 2026-10-27 bounded assessment
+  in `docs/privacy-technical-configuration.md` specifies the remaining independent
+  decision checkpoint/offline reconciliation and synthetic-only test. In particular,
+  do not import a completed request then expect `fulfill` to redact older records:
+  `databaseErasedAt` deliberately causes an early return. Preserve original due/
+  review anchors and later cancellations/holds. This work is proposed, not verified;
+  keep fulfillment disabled. The completed QUALIFIED restore rehearsal and cleanup
+  are unchanged; no new production-data copy is required.
 
 ## Verification
 
