@@ -446,7 +446,53 @@ through another account or portal.
   before traffic; never improvise destructive production rollback or recreate a
   deleted identity.
 
-## Current-main integration verification
+## Security-main combined integration verification
+
+On 2026-10-26 (Toronto; CI timestamps 2026-10-27 UTC), the existing clean review
+head `e07c3b9f4dd264414fbbcb915c00fc9b0c7a5473` and fetched security main
+`c5f249fc079f2faa5ff99c61b193a0626eccc3aa` became the two parents of merge
+`b597f5e8b6011e9cfc0fc778e87073143ecf7f9e`. No other main change was imported.
+Production remains on security-only `c5f249f`; this review was not deployed.
+
+- The only textual conflict was root `package.json`: retain the three isolated-test
+  scripts and the security update's serial `npm test`. Both exact-version prebuild
+  guards and both checked-in Node 24.22.1 pins are preserved.
+- Both CI jobs select `.node-version` and run the runtime guard test first. That
+  test now checks each job independently, full-history checkout, the help guard's
+  Node setup ordering, serial timing-history commands and the serial privacy suite.
+- Local serial structural checks passed: package/lock dependency graphs identical
+  to the pre-merge privacy branch (only root engine metadata added), package/lock
+  consistency, no privacy schema/migration/tooling changes, workflow assertion,
+  JavaScript syntax, whitespace and dispatcher-help review against both parents.
+  The Mac's Node 22 was used only for structural/help checks, not claimed as Node 24
+  application validation. No install, simulator, local database or duplicate build.
+- Both `validate` and `privacy-database` passed at the merge above in
+  [PR CI 40438313429](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40438313429)
+  and [push CI 40438309354](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40438309354).
+  Logs from both jobs report Node **v24.22.1** and three passing runtime/guard checks.
+- `validate`: Prisma format/validation/generation and backend build passed; **454
+  backend tests passed**, four database-only tests skipped in the general suite and
+  exercised separately. PostgreSQL 18 timing-history checks both passed. Dispatcher
+  lint, **69 tests** and Linux production build passed. Both runtime-only dependency
+  audits found zero vulnerabilities; the existing two dispatcher development-only
+  findings remain documented in the security runbook, not hidden or fixed here.
+- `privacy-database`: pinned complete baseline plus all four ordered migrations
+  succeeded; **22 tests passed, zero skipped**. Coverage includes source-order
+  binding, real mocked-delivery routes, due date/status/cancellation, disabled
+  fulfillment, transaction rollback, financial evidence/receipt protection, access
+  revocation, unaffected-customer behavior and fail-closed anti-reactivation/key
+  rotation. General tests also cover approved fiscal/review dates, gates off,
+  ordinary ordering and existing mobile contracts. All mutations use synthetic
+  loopback PostgreSQL or mocks; no live provider call or production record is used.
+
+Subsequent evidence edits are documentation only. Final pushed-head CI links belong
+in PR 93's review description; the links above identify the exact tested code merge.
+The protected restore exercise is still unapproved/unperformed: obtain the accepted
+timestamp/timezone and displayed total compute/storage quote before the existing
+bounded clone approval request. Recovery's three-day PITR and at-least-seven-day
+export retention remain established owner observations, not unknown settings.
+
+## Earlier main integration verification (preserved evidence)
 
 The integrated review source was checked locally in serial on 2026-10-26. Backend
 focused suites passed 90/90 tests with one worker, covering ordinary/manual/mobile
@@ -459,10 +505,8 @@ large-chunk warnings; neither was a build failure. Reviewed application revision
 `4aa373e7a50c1f79c047a7fa7e9260be9a3c431f` passed both `validate` and
 `privacy-database` in [PR CI 40406476683](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40406476683)
 and [push CI 40406469607](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40406469607).
-Those results, current main/PR head, production live deploy and health were rechecked
-on 2026-10-26 before this documentation-only update. Application, schema, dependencies
-and workflows are unchanged; no application tests were manually rerun. Subsequent
-documentation commits must be identified separately from the tested source revision.
+Those results were rechecked on 2026-10-26 before the earlier documentation update.
+They do not substitute for the later security-main combined verification above.
 
 ## Smoke checks for the proposed gates-off deployment
 

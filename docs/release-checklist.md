@@ -56,9 +56,20 @@ BUILD-VERIFIED ONLY with no extra run. See the sanitized closeout in
 That security main is now integrated into this existing privacy review branch,
 preserving both Node pins/guards, full-history dispatcher-help validation, serial
 timing-history and privacy database validation. Both CI jobs select `.node-version`.
-Combined exact-head CI is required before this integration is considered verified;
-earlier passes are not evidence for the new combination. No production change is
-part of this review-branch integration.
+Combined integration commit `b597f5e8b6011e9cfc0fc778e87073143ecf7f9e` passed both
+`validate` and `privacy-database` in [PR run 40438313429](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40438313429)
+and [push run 40438309354](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40438309354).
+Both jobs report Node 24.22.1. Backend: 454 passes, four database-only skips covered
+by the dedicated jobs; timing history: two passes; dispatcher: 69 passes and Linux
+build; privacy database: 22 passes, none skipped. Exact final documentation-head CI
+is recorded in PR 93; no older run is relabelled as that head. No production change
+is part of this review-branch integration.
+
+NEXT: complete the existing protected restore exercise preparation: confirm the
+accepted PITR timestamp/timezone and displayed compute-plus-storage quote, then
+obtain separate creation/verification/deletion approval. No clone is authorized by
+this integration. Keep PR 93 draft/unmerged and Auto-Deploy Off. Apple eligibility,
+website publication and later in-app/fulfillment checks remain separate open gates.
 
 Preserved privacy integration evidence (2026-10-26): integrated application
 revision `4aa373e7a50c1f79c047a7fa7e9260be9a3c431f` passed both CI jobs in PR run
