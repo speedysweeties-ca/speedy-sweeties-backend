@@ -32,11 +32,15 @@ export interface HelpArticle {
 
 // Workflow audit: main 12b78cc, 2026-10-24. Update affected guides in every workflow change.
 // Published standards are live data; this guide explains their screen, never copies their policy.
+// 2026-10-26 Node 24.22.1 security review: navigation, B&D email controls and
+// customer-retention procedures remain unchanged. Runtime pins/build guards do
+// not change polling, authorization, dispatch, messaging settings or the cron's
+// DRY_RUN-only behavior. No published policy or live provider outcome is inferred.
 export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "navigation",
     title: "Find dispatcher pages and refresh information",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-26",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "LIVE_ORDERS",
     evidence: ["speedy-dispatcher/src/App.tsx"],
@@ -306,7 +310,7 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "bnd-emails",
     title: "Control B&D email notifications",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-26",
     roles: ["ADMIN"],
     destination: "LIVE_ORDERS",
     evidence: ["speedy-dispatcher/src/BndEmailControls.tsx", "src/routes/bndAlerts.routes.ts"],
@@ -315,7 +319,7 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "customer-retention",
     title: "Find customers who have not ordered recently",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-26",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "CUSTOMER_RETENTION",
     evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/customer.controller.ts"],

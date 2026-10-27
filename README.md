@@ -2,6 +2,12 @@
 
 Production API for the Speedy Sweeties delivery operation. It is built with Node.js, TypeScript, Express, Prisma, PostgreSQL, and Firebase Admin.
 
+Use **Node.js 24.22.1** from `.node-version` for backend/cron and dispatcher builds.
+Both package manifests and CI use this exact security pin; `npm run build` rejects
+a different runtime. Render's `NODE_VERSION` setting overrides repository pins,
+so verify it before a separately approved fresh build. See
+[`docs/node-runtime-security-2026-10-26.md`](docs/node-runtime-security-2026-10-26.md).
+
 The API is consumed by the Customer Android app, Driver Android app, and Dispatcher web app.
 
 ## What it supports
