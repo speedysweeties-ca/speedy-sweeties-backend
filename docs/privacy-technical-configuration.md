@@ -139,6 +139,27 @@ maximum lifetime of 24 hours. No repeat approval is needed for that same scope.
 - SQL verification and cleanup results are pending the private local run. No
   customer fields, financial totals, receipt text, dump or connection string will
   be retained; only sanitized metadata/counts/pass-fail results belong here.
+- The first owner-run local attempt stopped with the generic target/URL rejection
+  before opening a connection. No SQL result file exists. Its original failing
+  rule cannot be recovered because the private input and per-rule diagnostics
+  were intentionally not retained; do not guess that the hostname or database was
+  wrong or mark restoration verified.
+- A synthetic reproduction found a hidden-input defect: bracketed-paste markers
+  split across TTY chunks could become literal URL text and fail URL-format
+  validation. This is an evidenced defect, not proof of the original attempt's
+  cause. The temporary PITR checker now carries paste/control sequences across
+  chunks and has fixed, non-secret per-rule labels plus a `--check-input` mode that
+  never opens a database connection, even on input PASS. The exact clone hostname,
+  database, port, TLS and option guards remain; no hostname alias, wildcard or
+  bypass was added. Shared SMS tooling and application source were left unchanged.
+- Verification of that local-only correction passed 21 focused tests and two
+  real-PTY no-echo checks using synthetic inputs. Tests included every split of
+  the bracketed-paste sequence, multiline/control rejection, editing/cancellation,
+  and production/staging/SMS/wrong-database target rejection. No live credentials,
+  provider calls or database connections were involved. The next private input-only
+  check must identify the actual failed rule or establish valid input; neither
+  outcome by itself is a recovery-verification pass. Cleanup remains pending under
+  the same already-approved scope/deadline.
 
 ## Original protected PITR proposal and verification plan (historical approval state)
 
