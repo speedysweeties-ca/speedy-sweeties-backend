@@ -5,6 +5,18 @@ a separate release and requires its own signed build and store submission.
 
 ## PR 93 production closeout — 2026-10-27
 
+**CONFIGURATION CLOSEOUT BLOCKED:** Robert's subsequent sanitized API Shell result
+identifies deployed `4ac2ba3` and all four gates exactly false, but both digest-key
+checks and admin/policy/timeframe/fiscal matches fail. This supersedes the earlier
+saved-setting confirmation for runtime readiness. The key check includes a length
+test; do not infer absence or rotate it. API and dispatcher are already live as
+recorded below; the reply arrived after dispatcher deployment. Further deployment
+is paused for API-only Dashboard correction, preserving the existing key and all
+four false gates. After Save only, the existing approval covers an exact-`4ac2ba3`
+API redeploy and mandatory fresh runtime read-back before further dispatcher action.
+See the technical configuration document for the consolidated correction. No new
+deployment, configuration write, migration or test occurred in recording this result.
+
 - **Merged and deployed, all privacy gates off.** Robert approved review head
   `d8291bbba745fbac62e0ff25816e51dd384d4b87` and privately confirmed the eight exact
   non-secret values plus dedicated digest-key presence/secure retention. Merge:
@@ -25,8 +37,9 @@ a separate release and requires its own signed build and store submission.
   `4ac2ba3`: [run 40450819956](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40450819956).
 - Auto-Deploy independently **Off on API, dispatcher and cron**. Cron unchanged
   at `c5f249f`, build-verified only; no manual run. Ordering staging/SMS untouched.
-- Saved all-four-false/key/policy configuration is owner-observed; sanitized running
-  Shell read-back remains pending. Authenticated existing-session staff reads were
+- Saved configuration was owner-observed; the later sanitized runtime check passes
+  the four false gates but fails key/admin/policy/timeframe/fiscal checks above.
+  Authenticated existing-session staff reads were
   unavailable, not passed. See `docs/privacy-technical-configuration.md` for exact
   evidence, timestamps, commands and rollback boundary. No rollback was required.
 - Recovery exercise/cleanup are complete; original result stays **QUALIFIED**.

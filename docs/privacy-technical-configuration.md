@@ -10,7 +10,44 @@ only and does not activate privacy behavior. The approved gates-off PR 93 rollou
 below supersedes earlier undeployed/draft status statements; it does not authorize
 customer initiation, verification delivery or fulfillment.
 
-## Production rollout completed — 2026-10-27, all privacy gates off
+## Production rollout — deployments live; configuration verification failed
+
+**Superseding owner-provided runtime result, 2026-10-27:** Shell identified the
+expected `4ac2ba372ae23972ee665a77ce241c3d267ea107` and
+`allFourGatesExactlyFalse=true`, but returned `false` for
+`dedicatedDigestKeyPresent`, `digestKeyDistinctFromJWT`, `adminMatches`,
+`policyMatches`, `timeframeMatches` and `fiscalYearMatches`. Configuration closeout
+has therefore **failed**, not passed or merely pending. The key-presence probe
+also requires length >=32; its false result alone cannot distinguish an absent,
+empty or short value. The second boolean also cannot alone establish whether a
+key is absent/empty or equals JWT. No secret was retrieved; no cause is guessed.
+
+The dispatcher had already become live before this asynchronous result arrived.
+That deployment is recorded below, not described as paused before it occurred.
+Further deployments are paused pending the targeted API configuration correction.
+Keep all four gates false and Auto-Deploy Off; no rollback, key rotation, application
+change, migration retry or data mutation is authorized by this correction step.
+
+Consolidated Dashboard correction: open ONLY speedy-api
+`srv-d7ntlnpkh4rs73bev9q0` -> Environment. Confirm exact key names and separate
+single-line values. Correct only the admin, policy, timeframe and fiscal rows to
+the approved values in the configuration section below. Preserve all four already
+false gates and unrelated settings. Inspect `PRIVACY_DIGEST_KEY` privately: leave
+an existing nonempty value untouched; if the exact row is missing, restore the
+same already-securely-retained key under that exact name, not a new generated key.
+If a malformed/misnamed entry holds that original key, preserve the value while
+correcting its association. If the existing key is short/reuses JWT, its origin is
+uncertain, or the retained original cannot be recovered, report only that category
+and stop before replacing it. Choose **Save only**; no secret file/environment
+group change, dispatcher setting change or automatic deployment.
+
+After Robert confirms the correction is saved, the existing approval covers an
+API redeploy of exactly `4ac2ba372ae23972ee665a77ce241c3d267ea107`. Recheck source,
+Auto-Deploy and the migration state; preserve build -> migrate deploy -> start.
+Require a fresh Shell/session read-back after it becomes live, all original checks
+passing plus read-only health/disabled-route checks, before any further dispatcher
+action. The dispatcher already runs that SHA; no repeat dispatcher build is needed
+solely to apply API-only settings. Record its verification only after API closure.
 
 Robert approved exact review head `d8291bbba745fbac62e0ff25816e51dd384d4b87`
 against `c5f249fc079f2faa5ff99c61b193a0626eccc3aa`, then confirmed privately saved
@@ -51,9 +88,9 @@ Final readiness and evidence:
   normal 30-day timeframe and fiscal `12-31`. He confirmed the dedicated stable
   `PRIVACY_DIGEST_KEY` is present and securely retained. No secret was requested,
   printed or rotated; no synthetic setting was copied. Existing settings were
-  preserved. This is **owner-observed saved-configuration evidence**. A sanitized
-  running-Shell boolean read-back was requested; until returned, direct runtime
-  confirmation of all four flags/key presence remains a verification limitation.
+  preserved. This was **owner-observed saved-configuration evidence**. The later
+  running-Shell result above supersedes it for runtime readiness: four flags pass,
+  but key/admin/policy/timeframe/fiscal checks fail and require targeted correction.
 - API commands remained build `npm ci --include=dev && node ./node_modules/prisma/build/index.js generate && npm run build`
   → pre-deploy `npx prisma migrate deploy` → start `npm run start`.
   Build logs identify Node 24.22.1 on both services. All four privacy migrations
@@ -87,7 +124,7 @@ proof of no real privacy state. Preserve the digest key and all protection state
 The completed recovery exercise remains **QUALIFIED**, with cleanup confirmed and
 the separate production enum-order assessment non-blocking; no new copy was created.
 
-Next: close the sanitized running-configuration read-back and existing-session
+Next: correct and reverify the failed running-configuration checks, then existing-session
 staff reads when available, then complete final website/provider prerequisites
 before separately approved initiation/channel activation and the controlled iOS
 flow. All gates remain off; Apple case `103005572330` and Android deferral remain.
