@@ -6,7 +6,106 @@ used the authorized disposable service/database reset and deploy sequence; no se
 value was requested or displayed and no message was sent. Ordering staging, backups
 and customer records were not changed. The later, separately authorized PR 96
 security rollout is recorded below; this evidence update itself is documentation-
-only and does not activate privacy behavior.
+only and does not activate privacy behavior. The approved gates-off PR 93 rollout
+below supersedes earlier undeployed/draft status statements; it does not authorize
+customer initiation, verification delivery or fulfillment.
+
+## Production rollout completed — 2026-10-27, all privacy gates off
+
+Robert approved exact review head `d8291bbba745fbac62e0ff25816e51dd384d4b87`
+against `c5f249fc079f2faa5ff99c61b193a0626eccc3aa`, then confirmed privately saved
+configuration before execution. PR 93 was marked ready and merged as
+**`4ac2ba372ae23972ee665a77ce241c3d267ea107`**, with precisely those two parents.
+Only the API and dispatcher were manually deployed, in that order:
+
+| Service | Deployment | Live at (UTC) |
+| --- | --- | --- |
+| speedy-api | `dep-dbg2lf4ipgvc73eapitg` | `2026-10-27T04:39:20.047361Z` |
+| speedy-dispatcher | `dep-dbg2mgkipgvc73ease2g` | `2026-10-27T04:41:20.189964Z` |
+
+Both live deploy records identify the merge SHA above. The dispatcher deploy was
+triggered only after API health, schema/protection and disabled-route checks passed.
+Auto-Deploy was independently rechecked **Off** on API, dispatcher and retention
+cron. Cron remains on `c5f249f` / `dep-dbg083uk1f9s73aunkd0`; no cron deploy/run,
+schedule change, ordering-staging or SMS-resource change was performed.
+
+Final readiness and evidence:
+
+- Fetched refs matched the approved source/baseline; existing local untracked work
+  was preserved. Changes since tested `b3d6b1280f41770ab951aa7086c678b23c59fda9`
+  affected only this document and `docs/release-checklist.md`. Reused successful
+  `validate`/`privacy-database` in [PR CI 40438700778](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40438700778)
+  and [push CI 40438694962](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40438694962).
+  The documentation-only approved head used `[skip ci]`; no new test result is
+  attributed to it. GitHub reported main protection disabled and no repository
+  rulesets; no required check was bypassed. No local build/simulator/test rerun.
+  GitHub subsequently ran the normal merge-push workflow automatically: both
+  `validate` and `privacy-database` passed on exact deployed merge `4ac2ba3` in
+  [CI 40450819956](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40450819956).
+  This was platform-triggered CI, not a requested repeat of the unchanged suites.
+- Exact production database `dpg-d7m33g2qqhas73f58hrg-a` / `speedy_sweeties_db`
+  had 44 completed migrations, no unresolved migration or privacy objects, and the
+  approved administrator was active immediately before merge.
+- Robert confirmed all eight non-secret saved values in the configuration section
+  match exactly, including **all four gates `false`**, admin allowlist, policy,
+  normal 30-day timeframe and fiscal `12-31`. He confirmed the dedicated stable
+  `PRIVACY_DIGEST_KEY` is present and securely retained. No secret was requested,
+  printed or rotated; no synthetic setting was copied. Existing settings were
+  preserved. This is **owner-observed saved-configuration evidence**. A sanitized
+  running-Shell boolean read-back was requested; until returned, direct runtime
+  confirmation of all four flags/key presence remains a verification limitation.
+- API commands remained build `npm ci --include=dev && node ./node_modules/prisma/build/index.js generate && npm run build`
+  → pre-deploy `npx prisma migrate deploy` → start `npm run start`.
+  Build logs identify Node 24.22.1 on both services. All four privacy migrations
+  finished successfully in order at `04:39:00.436938Z`, `04:39:00.630618Z`,
+  `04:39:00.644491Z` and `04:39:00.658318Z`, respectively, on 2026-10-27 UTC.
+  Logs then record pre-deploy completion at `04:39:06.427139075Z` and application
+  start at `04:39:13.037995081Z`. No migration was manually marked successful.
+- Read-only database verification: **48 completed migrations, zero unresolved**;
+  all six privacy tables and all **64 privacy-table scalar columns**, types and
+  nullability match reviewed Prisma source. Added Customer/Order/receipt columns,
+  deadline/review fields and all four enabled protection triggers were verified:
+  `privacy_retained_order_guard`, `privacy_receipt_guard`, `privacy_item_guard`,
+  `privacy_help_guard`. All six privacy tables and erased-order state were empty.
+  Production protection was inspected, not exercised by a destructive write;
+  financial-evidence/anti-reactivation behavior retains the passing synthetic CI.
+- API live/ready both HTTP 200, readiness database `ok`. Disabled admin privacy GET
+  returned HTTP 503 / `PRIVACY_SERVICE_UNAVAILABLE` / `Cache-Control: no-store`.
+  The documented all-zero synthetic tracking ID returned the normal HTTP 404.
+  Dispatcher page and referenced JavaScript asset returned HTTP 200; API health
+  passed again afterward. Recent service error-level log queries returned no entries
+  in the observed post-start windows; this is not a claim about all historical logs.
+- Existing-session staff/dispatcher authenticated reads were **unavailable** through
+  connected access, not passed. No login/password reset, AI help, loyalty GET,
+  order write, verification code, message or deletion was invoked. No iOS rebuild,
+  website publication or store action. In-app verification and actual fulfillment
+  remain pending; this rollout does not complete account-deletion launch readiness.
+
+No rollback was needed. The documented boundary below remains: do not reverse
+migrations/drop objects; pre-privacy code rollback only after a fresh read-only
+proof of no real privacy state. Preserve the digest key and all protection state.
+The completed recovery exercise remains **QUALIFIED**, with cleanup confirmed and
+the separate production enum-order assessment non-blocking; no new copy was created.
+
+Next: close the sanitized running-configuration read-back and existing-session
+staff reads when available, then complete final website/provider prerequisites
+before separately approved initiation/channel activation and the controlled iOS
+flow. All gates remain off; Apple case `103005572330` and Android deferral remain.
+
+### Remaining private runtime read-back (no application/database call)
+
+Open only [speedy-api Shell](https://dashboard.render.com/web/srv-d7ntlnpkh4rs73bev9q0/shell)
+and run the following. It returns the public commit identifier and booleans, never
+secret values. Expect commit `4ac2ba372ae23972ee665a77ce241c3d267ea107` and all
+booleans `true`. Report only this sanitized output; never use `env`, `printenv`,
+credential screenshots or a full environment dump. A false result is a specific
+configuration discrepancy to investigate, not permission to rotate the key or
+activate a gate. This probe does not prove key backup/recovery storage; that remains
+Robert's separately recorded secure-retention confirmation.
+
+```sh
+node -e 'const e=process.env;const gates=["PRIVACY_DELETION_ENABLED","PRIVACY_FULFILLMENT_ENABLED","PRIVACY_VERIFICATION_EMAIL_ENABLED","PRIVACY_VERIFICATION_PHONE_ENABLED"];console.log(JSON.stringify({commit:e.RENDER_GIT_COMMIT,allFourGatesExactlyFalse:gates.every(k=>e[k]==="false"),dedicatedDigestKeyPresent:typeof e.PRIVACY_DIGEST_KEY==="string"&&e.PRIVACY_DIGEST_KEY.length>=32,digestKeyDistinctFromJWT:!!e.PRIVACY_DIGEST_KEY&&e.PRIVACY_DIGEST_KEY!==e.JWT_SECRET,adminMatches:e.PRIVACY_ADMIN_USER_IDS==="afca21ae-4c43-4c14-a2a7-f3ad790b12dc",policyMatches:e.PRIVACY_APPROVED_RETENTION_POLICY==="SS-RETENTION-2026-10-23",timeframeMatches:e.PRIVACY_COMPLETION_TIMEFRAME==="Normally within 30 calendar days after verification; an ownership conflict or legal hold may require longer.",fiscalYearMatches:e.PRIVACY_FISCAL_YEAR_END_MM_DD==="12-31"},null,2));'
+```
 
 ## Confirmed configuration facts
 
@@ -17,12 +116,13 @@ only and does not activate privacy behavior.
   immediately before rollout in case staff records change.
 - Confirmed privacy contact: Robert Stubbings, `speedysweeties@hotmail.com`,
   `519-826-8097`.
-- The live API and dispatcher now use security PR 96's `main` merge
-  `c5f249fc079f2faa5ff99c61b193a0626eccc3aa`. Runtime/certificate items are closed
+- The live API and dispatcher now use PR 93's merge `4ac2ba372ae23972ee665a77ce241c3d267ea107`,
+  which includes security PR 96's `c5f249fc079f2faa5ff99c61b193a0626eccc3aa`.
+  The earlier security runtime/certificate items are closed
   on Robert's owner-provided Shell evidence in `docs/production-security-maintenance.md`;
   cron evidence remains build-only. Auto-Deploy is Off for all three. The
-  privacy routes/migrations in draft PR 93 are not deployed, so no live
-  `PRIVACY_*` setting or request behavior is claimed.
+  privacy routes/migrations are deployed with initiation/delivery/fulfillment
+  disabled. Configuration evidence and remaining runtime-read-back limits are above.
 - The production 90-day retention cron remains a marketing `DRY_RUN`. Read-only
   logs on 2026-10-23 reported `SMS messages sent: 0`; it is not an inactive-profile
   deletion or privacy-expiry worker.
@@ -34,8 +134,8 @@ only and does not activate privacy behavior.
   recently 2026-10-23. This establishes neither a privacy-verification sender/domain
   nor Resend deletion, retention, location or inbox-delivery outcomes. Those remain
   separate account/dashboard checks before enabling privacy email.
-- No Twilio integration exists on live `main`; production privacy flags remain
-  disabled. Robert confirmed the Speedy Sweeties Verify service, SMS enabled with
+- The existing instrumented Twilio integration is now deployed but production
+  privacy flags remain disabled. Robert confirmed the Speedy Sweeties Verify service, SMS enabled with
   Fraud Guard Standard, and Canada SMS & RCS Geo Permission `Allow All Traffic`.
   An earlier isolated Verification was accepted HTTP 201/pending but became
   `undelivered`, numeric error `30007`, on Canada/Telus. On 2026-10-26, Twilio support
@@ -508,8 +608,9 @@ result above supersede that historical status. Public price context:
 
 ## Exact production configuration checklist
 
-Target only `speedy-api` (`srv-d7ntlnpkh4rs73bev9q0`). This is a proposed change
-sheet; no production environment values were read or changed in this review.
+Target only `speedy-api` (`srv-d7ntlnpkh4rs73bev9q0`). Robert privately saved and
+confirmed this configuration for the approved rollout above. The connector did
+not retrieve secret values; preserve the saved values and their evidence attribution.
 
 ### Startup and ordinary ordering with privacy disabled
 
@@ -592,9 +693,9 @@ and Guideline 1.4.3 terms, found no response in the connected mailbox. The case 
 an external pending dependency; this is not evidence that Apple has not responded
 through another account or portal.
 
-## PR 93 rollout boundary
+## PR 93 rollout boundary (approved procedure; execution recorded above)
 
-- Draft PR 93 remains unmerged. The previous `main`
+- Historical integration preparation: the previous `main`
   (`7bcaaf7cfff6f8e45ab0b912f35d61ffd56c7e39`) was merged into the privacy review
   branch by integration commit `99bc51b907380c274af8f98fe0b0aabad0db4f62`,
   whose parents are privacy head `9c657dd3cb3c59d5b9f6649eebf0e48abfacb44e`

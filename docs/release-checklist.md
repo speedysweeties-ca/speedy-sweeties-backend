@@ -3,6 +3,39 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## PR 93 production closeout — 2026-10-27
+
+- **Merged and deployed, all privacy gates off.** Robert approved review head
+  `d8291bbba745fbac62e0ff25816e51dd384d4b87` and privately confirmed the eight exact
+  non-secret values plus dedicated digest-key presence/secure retention. Merge:
+  `4ac2ba372ae23972ee665a77ce241c3d267ea107` (baseline `c5f249f`).
+- API `dep-dbg2lf4ipgvc73eapitg` live `04:39:20Z`; dispatcher
+  `dep-dbg2mgkipgvc73ease2g` live `04:41:20Z`, both on 2026-10-27 UTC and that SHA.
+  API passed before dispatcher deployment. All four migrations completed in order
+  before API startup; 48 total complete, zero unresolved. Six privacy tables/64
+  scalar columns and all four enabled protection triggers verified read-only.
+- Live/readiness 200 with database `ok`; disabled privacy GET 503/
+  `PRIVACY_SERVICE_UNAVAILABLE`/`no-store`; nonexistent tracking ID 404;
+  dispatcher HTML and JavaScript asset 200. Empty privacy/erased-order state.
+  Recent post-start error-level queries returned no entries. No live mutation test.
+- Reused both passing CI jobs at `b3d6b128` (PR run 40438700778; push run
+  40438694962): only two documentation files changed afterward. No required GitHub
+  check bypass, local test/build/simulator rerun or app-source change.
+  Automatic merge-push CI subsequently passed both jobs on exact deployed
+  `4ac2ba3`: [run 40450819956](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40450819956).
+- Auto-Deploy independently **Off on API, dispatcher and cron**. Cron unchanged
+  at `c5f249f`, build-verified only; no manual run. Ordering staging/SMS untouched.
+- Saved all-four-false/key/policy configuration is owner-observed; sanitized running
+  Shell read-back remains pending. Authenticated existing-session staff reads were
+  unavailable, not passed. See `docs/privacy-technical-configuration.md` for exact
+  evidence, timestamps, commands and rollback boundary. No rollback was required.
+- Recovery exercise/cleanup are complete; original result stays **QUALIFIED**.
+  Production enum ordering is assessed/non-blocking; no new restore copy or migration.
+- NEXT: finish runtime-configuration read-back and available existing-session reads,
+  then final website/provider prerequisites before separately approved activation
+  and controlled in-app verification. Apple case 103005572330 remains unresolved;
+  Android deferred. No website publication, iOS rebuild/archive/upload/submission.
+
 ## Node 24.22.1 advisory update (2026-10-26; deployed separately as PR 96)
 
 - Follow `docs/node-runtime-security-2026-10-26.md` for observed API/dispatcher/cron
@@ -46,7 +79,9 @@ a separate release and requires its own signed build and store submission.
 - Identify the prior healthy commit so the code rollback target is known.
 - Do not run destructive or production database commands as part of validation.
 
-## Draft PR 93 isolated Twilio gate
+## PR 93 integration/recovery and isolated Twilio history
+
+The production closeout above supersedes historical draft/undeployed status below.
 
 Current security prerequisite: PR 96 is merged and deployed at
 `c5f249fc079f2faa5ff99c61b193a0626eccc3aa`. API and dispatcher runtime/certificate
@@ -65,9 +100,8 @@ build; privacy database: 22 passes, none skipped. Exact final documentation-head
 is recorded in PR 93; no older run is relabelled as that head. No production change
 is part of this review-branch integration.
 
-NEXT: obtain separate approval for PR 93's documented **all-four-gates-false**
-merge/rollout, with final source/CI, migration-state and private configuration
-read-back before execution. The narrow enum assessment is complete: Robert's
+The separately approved **all-four-gates-false** merge/rollout is now completed
+above; do not reopen that approval. The narrow enum assessment is complete: Robert's
 fresh production inspection found matching names/label sets for all 13 enums and
 only `OrderStatus` ordering differs. Review of deployed `c5f249f` and PR source
 `1815085` found no status ordinal sorting/range/aggregate dependency; explicit
@@ -99,7 +133,7 @@ Full workflow restoration and post-snapshot reconciliation remain later activati
 requirements. No application change/test rerun is needed for this documentation-only
 assessment; unchanged combined CI evidence is preserved. See the rehearsal/cleanup entry in
 `docs/privacy-technical-configuration.md`.
-Keep PR 93 draft/unmerged and Auto-Deploy Off. Apple eligibility, website publication
+PR 93 is merged; keep Auto-Deploy Off. Apple eligibility, website publication
 and later in-app/fulfillment checks remain separate open gates.
 
 Preserved privacy integration evidence (2026-10-26): integrated application
