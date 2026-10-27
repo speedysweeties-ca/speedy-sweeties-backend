@@ -75,8 +75,9 @@ only and does not activate privacy behavior.
   **PITR allows restoration from the past three days**, and the page states logical
   exports are retained for **at least seven days**. These are owner-observed account
   facts, not assumed plan defaults. No existing export, exact selectable timestamp
-  or successful restore was shown. The configured window is known; individual
-  recovery-point availability, existing exports and tested recovery remain unverified.
+  or successful restore was shown in that initial inspection. The configured window
+  is known. The later approved copy/read-only result is recorded below; the export
+  inventory and other selectable recovery points remain unverified.
 - The Render connector exposes no recovery/export read operation. No authenticated
   CLI/API session was available, and read-only browser access did not succeed. No
   account secret was sought or displayed. This remaining access gap does not negate
@@ -86,18 +87,21 @@ only and does not activate privacy behavior.
   and `GET /v1/postgres/dpg-d7m33g2qqhas73f58hrg-a/export` (export ID/date and a
   sensitive download URL). They require authenticated access not supplied by this
   connector. If used later, retain only status/timestamps/counts; suppress download
-  URLs and credentials. No export creation or recovery was triggered.
+  URLs and credentials. No export creation or recovery was triggered by that initial
+  read-only investigation; the later authorized recovery copy is recorded below.
 - No backup cron/service, `pg_dump`, S3 backup workflow or other independent backup
   automation is present in the connected Render resources or repository. This does
   not prove that a manually created export or external process does not exist.
 - The remaining Dashboard fields are specified below; do not ask Robert to reconfirm
   the three-day window. If an export is listed, record only its date/status, not its
   download URL. No export creation or download is needed for the proposed PITR test.
-- No completed non-production backup-restore evidence was found in repository docs,
-  tests, history, iOS release handoffs or the targeted Render/recovery mailbox search.
+- Before this rehearsal, no completed non-production backup-restore evidence was
+  found in repository docs, tests, history, iOS release handoffs or the targeted
+  Render/recovery mailbox search.
   `privacyDeletion.database.test.js` tests transaction rollback and anti-reactivation;
   `preparePrivacyRenderDatabase.cjs` rebuilds a synthetic baseline. Neither proves
-  recovery from a backup. The exercise below is prepared, **not executed**.
+  recovery from a backup. The subsequently executed protected rehearsal below has
+  a **qualified** result, not an unconditional schema-equivalence pass.
 
 ## Owner-approved protected PITR rehearsal — 2026-10-26
 
@@ -136,12 +140,13 @@ maximum lifetime of 24 hours. No repeat approval is needed for that same scope.
   target/unsafe-URL rejections, syntax, and pinned-source inventory (44 migrations,
   24 application tables, 296 scalar columns, 13 enums, 80 named indexes and 21
   migration-defined foreign keys). This is preparation evidence, not a restore pass.
-- SQL verification and cleanup results are pending the private local run. No
-  customer fields, financial totals, receipt text, dump or connection string will
-  be retained; only sanitized metadata/counts/pass-fail results belong here.
+- SQL verification has now completed with the qualified result below. Cleanup is
+  pending owner Dashboard deletion and independent read-back. No customer fields,
+  financial totals, receipt text, dump or connection string were retained; only
+  sanitized metadata/counts/pass-fail results belong here.
 - The first owner-run local attempt stopped with the generic target/URL rejection
-  before opening a connection. No SQL result file exists. Its original failing
-  rule cannot be recovered because the private input and per-rule diagnostics
+  before opening a connection. No SQL result file existed at that point. Its original
+  failing rule cannot be recovered because the private input and per-rule diagnostics
   were intentionally not retained; do not guess that the hostname or database was
   wrong or mark restoration verified.
 - A synthetic reproduction found a hidden-input defect: bracketed-paste markers
@@ -156,10 +161,76 @@ maximum lifetime of 24 hours. No repeat approval is needed for that same scope.
   real-PTY no-echo checks using synthetic inputs. Tests included every split of
   the bracketed-paste sequence, multiline/control rejection, editing/cancellation,
   and production/staging/SMS/wrong-database target rejection. No live credentials,
-  provider calls or database connections were involved. The next private input-only
-  check must identify the actual failed rule or establish valid input; neither
-  outcome by itself is a recovery-verification pass. Cleanup remains pending under
-  the same already-approved scope/deadline.
+  provider calls or database connections were involved. Robert subsequently reported
+  input PASS, corroborated by the sanitized input-only report at
+  `2026-10-27T03:50:42.743Z`; `databaseConnectionOpened=false`. That input result alone
+  was not treated as a recovery-verification pass.
+
+### Executed read-only result — qualified; cleanup pending
+
+Robert ran the prepared checker privately. Its sanitized report records
+`2026-10-27T03:52:24.397Z` through `2026-10-27T03:52:27.885Z` (October 26,
+23:52 Toronto), 3.488 seconds. The exact clone hostname/database guards passed;
+independent resource read-back matched the ID, name, workspace, database, Ohio,
+PostgreSQL 18, 1 GB and sole approved Mac `/32`. The source comparison remains
+`7bcaaf7cfff6f8e45ab0b912f35d61ffd56c7e39`, not a moving production count baseline.
+
+- Session: PostgreSQL `18.6 (Debian 18.6-1.pgdg12+2)`, TLS true, read-only on,
+  repeatable read, 15-second statement timeout and two-second lock timeout.
+  The same connection was confirmed at the end; the transaction was rolled back
+  and the client disconnected. No application startup or record mutation occurred.
+- Migrations: all **44** expected entries completed, zero missing/unexpected,
+  unresolved or checksum mismatches. Seven match the pinned SQL only after the
+  already documented CRLF line-ending equivalence. One historical rolled-back
+  attempt has its successful completion; none remains without completion. Latest
+  expected migration is `20261022170000_bnd_waiting_history`.
+- Tables/columns: all **24 application tables plus `_prisma_migrations`**, all
+  **296 expected scalar columns**, matching checked types/nullability/native
+  precision, no missing/unexpected tables or application columns, no privacy tables.
+- Indexes/relationships: all **80 migration-parser-defined named indexes** and
+  expected primary keys match; all **127** observed indexes are valid/ready.
+  All **21 migration-parser-defined foreign keys** match; all **24** observed
+  foreign keys are validated. The parser inventories are subsets, not proof of
+  exact equivalence for every extra index/constraint. No tested orphan join exists.
+- Enums: **13 expected / 13 observed; one ordered-label comparison differs**.
+  The checker retained only the mismatch count, not the enum name/labels. It cannot
+  distinguish a label difference from order-only drift from this report. Do not
+  infer restore corruption, waive the discrepancy, or call the full schema check
+  passed. A narrow catalog comparison remains needed to close this qualification;
+  no repair, migration, extra clone or automatic rerun was performed.
+
+| Sanitized aggregate | Restored count | Verification |
+| --- | ---: | --- |
+| Customers | 560 | Order-to-customer orphan count 0 |
+| Orders | 5,717 | All 5,717 original order-text values readable server-side |
+| Order items | 9,886 | All amount expressions/descriptions readable; required-evidence gaps 0; orphan count 0 |
+| Digital receipts | 5,137 | All amount expressions/notes readable; required-evidence gaps 0; orphan count 0 |
+| Staff records | 10 | Count only; no account details returned |
+
+These checks establish a usable restored dataset and financial-field readability,
+not exact point-in-time row completeness, financial formula correctness, a full
+application exercise, or later privacy-decision reconciliation. No current-versus-
+snapshot count difference was used to assert restore loss. Receipt notes and item
+descriptions remained in the database; neither content nor content hashes left it.
+
+The original result remains **QUALIFIED**, not PASS. Sanitized evidence fingerprints
+from the report (SHA-256):
+
+- Migration metadata: `af313dbf3e6df861e112b7a38a45f35a64c816a47bd381213cd1d64f3c91885c`.
+- Pinned source schema: `f30f7b7d21e1f19109f4f7ad9c69507050fe27339064db2115ca114a43a35091`.
+- Restored column metadata: `fe970e902c45676e94333ba333625cc81a72ca7d42269b21bcab6c09256f7f22`.
+- Restored index metadata: `cbf44e1d10e9419bc0f833b684a379a68f11690691bd206427a64acdf902837f`.
+- Original sanitized result file: `6f7714521a053f9bbb8ea61c8cd127223c1aefb25a7fc848f51e6c2897caeb99`.
+- Temporary checker used for this run: `fd2f6be1ab35ccb705e308f8493da1f948582c13d077baf94465fb7a4bd23d80`.
+
+Cleanup is already authorized and must not wait for another broad investigation.
+The connector still offers no PostgreSQL deletion operation. Robert was directed to
+delete only `dpg-dbg14b59el5s73bj1sm0-a` from its Info page's **Delete Database** action,
+confirming `speedy-privacy-restore-rehearsal-20261026`. At this evidence update the
+copy still exists and deletion/cessation of future charges is **not yet confirmed**.
+No export is requested. Production, ordering staging and the SMS database remain
+untouched. Verify removal through the resource API/inventory after owner deletion;
+record the actual time and any observed charge rather than inventing an invoice.
 
 ## Original protected PITR proposal and verification plan (historical approval state)
 
@@ -341,8 +412,10 @@ This exercise uses the current [Render recovery documentation](https://render.co
 and [recovery-status API](https://api-docs.render.com/reference/retrieve-postgres-recovery-info),
 read on 2026-10-26. Provider documentation is not evidence that this account has a
 particular usable recovery point. The three-day window and at-least-seven-day export
-statement are owner-observed; no successful restore or account-specific quote is
-claimed. Public price context: [Render pricing](https://render.com/pricing).
+statement are owner-observed. The original proposal did not establish a restore or
+account-specific quote; the later approved US$6.30/month copy and qualified read-only
+result above supersede that historical status. Public price context:
+[Render pricing](https://render.com/pricing).
 
 ## Exact production configuration checklist
 
@@ -553,9 +626,10 @@ Production remains on security-only `c5f249f`; this review was not deployed.
 
 Subsequent evidence edits are documentation only. Final pushed-head CI links belong
 in PR 93's review description; the links above identify the exact tested code merge.
-The protected restore exercise is still unapproved/unperformed: obtain the accepted
-timestamp/timezone and displayed total compute/storage quote before the existing
-bounded clone approval request. Recovery's three-day PITR and at-least-seven-day
+The protected restore exercise was subsequently approved and executed with the
+qualified result above: record readability is verified, one enum comparison remains
+unresolved, and exact-copy deletion still needs independent confirmation. Do not
+request the same approval again. Recovery's three-day PITR and at-least-seven-day
 export retention remain established owner observations, not unknown settings.
 
 ## Earlier main integration verification (preserved evidence)
