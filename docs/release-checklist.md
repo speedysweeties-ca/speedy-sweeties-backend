@@ -80,6 +80,22 @@ provider/external-copy/restore-operation fact list. Preserve Home and all gates 
 Focused review-HTML assertions pass (labelled heading, contact-only links, no form/
 script/API call, adopted retention terms). No application suite/build was repeated.
 
+Privacy fact correction, 2026-10-27: Robert uses TurboTax to prepare/file taxes.
+Older receipts remain physical paper; digital receipts began with the current
+dispatcher. Neither scanning/import of older receipts nor customer-profile/receipt-
+copy storage in TurboTax is established. The iOS policy/retention handoff and
+`docs/privacy-technical-configuration.md` distinguish those owner-confirmed practices
+from the digital field mapping; all approved retention decisions are unchanged.
+
+Scoped technical follow-up confirmed provider/logging source matches deployed
+`4ac2ba3`; ten existing health-readiness log entries match redacted route format.
+No blanket all-log redaction or provider retention claim follows. Account log-stream
+settings/export inventory remain inaccessible through the connector; exact read-only
+dashboard checks are in the technical document. The known recovery windows and
+completed **QUALIFIED** rehearsal/cleanup remain recorded, not reopened. Documentation
+only: no application tests/build, messages, new restore, publication or configuration
+change; all gates false and Auto-Deploy Off remain the operating constraints.
+
 ## Node 24.22.1 advisory update (2026-10-26; deployed separately as PR 96)
 
 - Follow `docs/node-runtime-security-2026-10-26.md` for observed API/dispatcher/cron

@@ -301,6 +301,28 @@ node -e 'const e=process.env;const gates=["PRIVACY_DELETION_ENABLED","PRIVACY_FU
 
 ## Providers and logs
 
+### Receipt provenance and tax preparation — owner-confirmed 2026-10-27
+
+Robert uses **TurboTax to prepare and file taxes**. Before digital receipts began
+with the current dispatcher, all receipts were **physical paper**, and those older
+receipts remain paper. No scanning/import of the older originals is established.
+This confirmation does **not** establish that TurboTax stores customer profiles or
+receipt copies; do not describe it as a confirmed recipient of those records.
+The earlier description of separate spreadsheets/accounting records is superseded.
+
+The technical receipt mapping covers the current dispatcher's `Order`, `OrderItem`
+and `DigitalReceipt` data, from which a readable receipt is reconstructed; it does
+not establish an immutable rendered original or a digital copy of historical paper.
+Paper originals remain outside backend redaction. Their storage/access, additional
+copies/uploads and applicable holds are separate operator facts, not code evidence.
+Do not assume database retention replaces paper originals or authorize their disposal.
+No accountant signature, new retention period or digitization project is required
+by this clarification. Preserve the approved six-year-after-last-related-tax-year
+rule with longer holds, `12-31`, normal 30-day commitment and both 24-month **review**
+dates; none is changed. See the iOS retention mapping and unpublished policy handoff.
+
+### Existing provider evidence
+
 - Resend is demonstrably configured for the existing B&D operational-email feature:
   its database toggle is enabled and 60 provider-accepted receipts existed, most
   recently 2026-10-23. This establishes neither a privacy-verification sender/domain
@@ -323,14 +345,87 @@ node -e 'const e=process.env;const gates=["PRIVACY_DELETION_ENABLED","PRIVACY_FU
 - Twilio pricing/taxes, spend controls and privacy/retention/location terms remain
   account checks. The Render read API still does not expose secret values, and no
   credential value was read or printed.
-- No live API log matched `privacy`, `Twilio` or `Resend` in the inspected seven-day
-  window. This is consistent with the undeployed privacy branch but is not proof of
-  a provider-retention practice.
+- Historical pre-deployment inspection: no live API log matched `privacy`, `Twilio`
+  or `Resend` in that inspected seven-day window. This was not proof of a provider-
+  retention practice and must not be read as a current undeployed-branch claim.
 - Render log retention depends on the workspace plan (currently documented as 7,
   14 or 30 days). The connector does not expose the workspace plan or log-stream
   configuration. Six-day-old cron logs were readable; 13-day-old cron logs were not.
   That observation does not justify publishing an exact retention claim. Confirm the
   Billing plan and any external log streams in the Render Dashboard.
+
+### Read-only follow-up — 2026-10-27; no account settings inferred from source
+
+Render metadata still identifies production API `srv-d7ntlnpkh4rs73bev9q0`, live
+`dep-dbg3m4afngtc738jad20` at `4ac2ba372ae23972ee665a77ce241c3d267ea107`, Auto-Deploy
+Off, and the exact production database below as available in Ohio. Reviewed provider/
+logging files are unchanged from that deployed source. This is not a fresh secret-
+environment read; reuse the passing owner-run gate/configuration evidence above.
+
+- `src/services/privacyDelivery.service.ts`: Twilio Verify uses SMS, Account SID/
+  Auth Token authentication and a ten-second timeout; Resend sends verification mail.
+  The start diagnostic permits only provider/operation/outcome/HTTP status/numeric
+  error code, not destination, credentials, OTP or raw response. A successful Verify
+  check is not logged. Neither adapter configures provider retention/location or
+  removes provider-held records. This inspection sent no delivery or check request.
+- `aiOrderDraft.service.ts`, `productWebVerification.service.ts` and
+  `dispatcherHelp.service.ts` send OpenAI Responses requests with `store:false`.
+  This is a source setting, not evidence of account-level Zero Data Retention,
+  abuse-monitoring exclusions, processing region or opt-in controls. Official
+  [OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data)
+  distinguish application state from abuse monitoring; no account-specific period
+  is asserted here. No provider account credential/settings were retrieved.
+- `src/app.ts` uses request ID/method/route-template/status/length/time in production
+  HTTP logs; `requestDiagnostics.ts` excludes raw URL/query/headers/params and
+  sanitizes server-error classification. `errorHandler.ts` suppresses development
+  stack/meta output in production. Prisma still permits warn/error logging outside
+  development: these controls are not proof that every application log is free of
+  personal information. Ten existing production health-readiness application log
+  entries were inspected through a bounded filtered read; **10/10 matched the
+  expected redacted route-template format**. Only count/pass metadata was retained,
+  no raw lines. No health request, customer-route request or extra test was sent.
+- Render platform HTTP request logs are separate from application stdout and can
+  include requested URLs. Their availability/retention and any external sink must
+  be checked independently; the above sample does not prove either. Current
+  [Render logging documentation](https://render.com/docs/logging) describes
+  plan-dependent retention, not this workspace's observed settings.
+- A targeted source/config search of `src`, `scripts`, `.github` and `package.json`
+  found no TurboTax/Intuit integration, `pg_dump`/`pg_restore` automation or the
+  searched external log-agent integrations. This is a bounded code finding, not
+  proof of absent manual uploads, downloaded exports, dashboard streams or external
+  automation. Backend completion still requires the existing external-copy review
+  (`externalSystems` in `privacyDeletion.service.ts`); no new system is introduced.
+- Available service/database metadata expose no recovery-window, export inventory,
+  log-stream or log-retention fields/read operation. This limitation does not mean
+  those facilities are absent. The known owner-observed recovery windows, qualified
+  rehearsal and confirmed clone deletion below remain valid and unchanged.
+
+**Remaining account facts — read only; never provide tokens, endpoints containing
+credentials, download URLs or customer information:**
+
+1. Render workspace Billing: record the workspace plan (not the database instance
+   plan). Workspace **Integrations > Observability > Log Streams**: report only
+   whether a default destination exists and its provider name; then inspect each
+   production service's **Settings > Log Stream** for inheritance/exclusion/override.
+   Do not edit/save. [Render's log-stream instructions](https://render.com/docs/log-streams)
+   identify these screens. If a sink exists, its own retention/removal controls are
+   separate facts. Never infer workspace plan from the known three-day PITR window.
+2. Exact production database **Recovery**: inspect existing export entries only;
+   record count/date/status, or an owner-observed empty list. Do not create/download
+   an export, expose a download URL or repeat the completed restore rehearsal.
+   [Render backup documentation](https://render.com/docs/postgresql-backups) explains
+   recovery/exports; it cannot establish this account's export inventory or offsite
+   copies. Do not ask again for the already confirmed three-day/seven-day facts.
+3. Twilio/Resend actual account/service data controls and processing-location terms;
+   OpenAI organization/project Data controls (including inheritance) and region;
+   privacy-specific Resend sender/domain readiness. Existing delivery successes and
+   source settings do not close these account facts. No secret access is needed in
+   a shared report. Provider periods remain unclaimed until supported.
+
+These are technical/account-access gaps, distinct from Robert's receipt/tax-tool
+practice. Paper storage/access and manual copies need owner knowledge only where
+not otherwise observable. Durable post-snapshot privacy reconciliation also remains
+a fulfillment prerequisite; an available PITR window is not proof of that behavior.
 
 ## Database, backups and restore
 
