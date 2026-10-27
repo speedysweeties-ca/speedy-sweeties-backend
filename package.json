@@ -17,6 +17,9 @@
     "retention:90": "node dist/jobs/retention90.job.js",
     "audit:app-only-loyalty": "npm run build && node dist/jobs/auditAppOnlyLoyalty.job.js",
     "backfill:delivery-locations": "npm run build && node dist/jobs/backfillOrderDeliveryLocations.job.js",
+    "privacy:isolated:prepare-render": "node tests/preparePrivacyRenderDatabase.cjs",
+    "privacy:isolated:server": "node tests/privacyIsolatedServer.cjs",
+    "privacy:isolated:client": "node tests/privacyIsolatedClient.cjs",
     "test": "npm run build && node --test --test-concurrency=1 tests/*.test.js",
     "check": "npm run prisma:generate && npx prisma validate && npm test",
     "check:dispatcher-help": "node scripts/checkDispatcherHelp.cjs"

@@ -99,3 +99,142 @@ References:
 - https://helmet.js.org/
 - https://render.com/docs/deploys
 - https://render.com/docs/health-checks
+
+## PR 96 runtime/certificate closeout — owner-provided pass
+
+This closeout supersedes the historical advisory assessment below. Security PR 96
+was separately approved, merged and freshly built in order API, dispatcher, then
+retention cron at `c5f249fc079f2faa5ff99c61b193a0626eccc3aa`. Its reviewed head was
+`0b05562d7c92f94fd55878e63e1b5f7c56defcdd`; post-merge CI run `40433751318` passed.
+All three builds selected Node 24.22.1 and passed their exact-version guards.
+Existing API health and dispatcher HTML/asset/source-blocking checks passed.
+
+Robert subsequently supplied these results from both production Render Shells:
+
+| Check | API | Dispatcher |
+| --- | --- | --- |
+| Reported commit | `c5f249fc079f2faa5ff99c61b193a0626eccc3aa` | Same commit |
+| Node / OpenSSL | `v24.22.1` / `3.5.9` | Same versions |
+| `ca-certificates` | `20250419~deb12u2` | Same package version |
+| All five reported trust-override flags | false | false |
+| Ordinary HTTPS through `fetch` and `https` | 307 / 307 | 307 / 307 |
+| Both compromised endpoints, through both clients | `CERT_REVOKED` in all four checks | `CERT_REVOKED` in all four checks |
+
+- [x] API running-runtime and certificate-verification items closed on
+  **owner-provided production Shell evidence**.
+- [x] Dispatcher running-runtime and certificate-verification items closed on
+  **owner-provided production Shell evidence**.
+- [x] Cron artifact **build-verified only**. No extra cron run occurred; running
+  cron TLS behavior is not claimed or inferred from the web-service results.
+
+The five flags are `nodeOptionsPresent`, `extraCAPresent`, `certFilePresent`,
+`certDirPresent` and `tlsValidationDisabled`. Robert referred to screenshots, but
+image attachments were not available in the recording session; this is a sanitized
+transcription of his supplied results, not independent image inspection or a new
+agent-run probe. No screenshot file, secret, customer field or raw response body is
+stored here. Earlier agent SSH authentication failures remain historical evidence;
+they do not negate the subsequent owner-operated Shell passes.
+
+Auto-Deploy remains Off for API, dispatcher and cron. The source pins control Node;
+no `NODE_VERSION` override was added. Secrets, privacy gates, start commands and cron
+schedule were preserved. This closeout changes documentation only: no application
+change, rebuild, redeployment or test rerun. The approved retention decisions,
+PR 93's unmerged state and protected restore exercise remain unchanged.
+
+Follow-up integration: deployed main is now merged into PR 93's existing review
+branch with the pinned runtime, dispatcher-help validation and privacy database
+validation preserved. Combined CI evidence belongs in the release checklist and
+`docs/privacy-technical-configuration.md`; it must not be inferred from PR 96 alone.
+Production remains on the security-only commit above; PR 93 remains draft/unmerged.
+
+## Historical 2026-10-26 runtime advisory assessment — before PR 96
+
+The findings and proposed actions below describe the pre-remediation state only;
+use the closeout above for current status, not the obsolete environment-pin proposal.
+
+Render's email "Important advisory on recent industry security disclosures" was
+received on 2026-10-26 at 18:12:42 UTC. The linked eMudhra advisory was initially
+published October 22; the email date is not a new patch date. Assessment used the
+actual live deploys and narrowly filtered build logs, not a package-audit result.
+No production configuration, service, database or application source was changed.
+
+### Observed production runtime
+
+Both native Node services remain on main
+`7bcaaf7cfff6f8e45ab0b912f35d61ffd56c7e39`:
+
+- API `srv-d7ntlnpkh4rs73bev9q0`, live deploy `dep-dbej0hks728c73clt3gg`:
+  `Using Node.js version 24.14.1 (default)` at
+  `2026-10-24T22:25:28.119021204Z`.
+- Dispatcher `srv-d7m4hgpkh4rs73agsfc0`, live deploy
+  `dep-dbej0hks728c73clt41g`: the same version at
+  `2026-10-24T22:25:31.313220566Z`.
+
+These are provider build records tied to the live revisions; an in-container
+`process.version` read-back was not obtained. The API uses `node dist/server.js`;
+dispatcher uses `node server.mjs`. Neither deployed package manifest has an engines
+pin, and main contains no `.node-version` or `.nvmrc`. Render's default is tied to
+service creation date, not the date of the latest deploy: the observed 24.14.1 is
+consistent with these April-created services. Merely rebuilding without a version
+pin must not be assumed to select the new default.
+
+### Conclusion and certificate evidence limit
+
+**Action is required:** 24.14.1 is below the advisory's patched 24.22.1 threshold
+for Node 24. The Node 24.22.1 security release includes TLS/Brotli fixes, updated
+root certificates and blocked compromised certificate keys. This establishes a
+runtime version gap, not that Speedy Sweeties was exploited or that every listed
+vulnerability is reachable in this application. The separate PHP instructions are
+not applicable to these inspected native Node entrypoints.
+
+The system CA package/update status and effective running-process trust overrides
+remain **unverified**. Narrow build-log searches returned no CA-update entry; that
+absence proves neither patched nor unpatched system certificates. Repository search
+found no custom CA/Node trust overrides, but production environment values were not
+retrieved. A read-only API SSH attempt verified Render's published Ohio host key,
+then failed `Permission denied (publickey)` before running commands. Browser/Shell
+access was unavailable. No credentials or full environment were printed.
+
+Render says a fresh native-runtime build updates the system trust store. Node can
+use its own trust material, so an October 24 build or a system package update does
+not substitute for the Node upgrade. Healthy HTTP responses and the earlier
+zero-runtime-npm-advisory result do not prove this advisory resolved. CI's Node 22
+runner also does not establish the production Node 24 patch level.
+
+### Smallest proposed remediation (requires separate approval)
+
+1. Pin `NODE_VERSION=24.22.1` on **each named production Node service**, or a later
+   reviewed patched Node 24 version. Review existing runtime/trust overrides
+   privately; do not dump environment values. Do not disable certificate validation
+   or use a custom-trust workaround to avoid the runtime security fixes.
+2. Validate the same-major runtime change with focused build/start checks, then make
+   a **fresh build and deploy**, not a restart, of the exact approved current-main
+   revision on each service. Keep this independent of draft PR 93; no privacy merge,
+   activation or new migration is needed. Recheck main's migration history before
+   the API's existing `prisma migrate deploy` hook runs. Do not select "latest" if
+   main has moved beyond the separately reviewed revision.
+3. Read back the new deploy ID/source and Node version from its build and running
+   process; record system CA package version if available. Dashboard Shell commands
+   `node -p 'JSON.stringify({node:process.version,openssl:process.versions.openssl})'`
+   and `dpkg-query -W ca-certificates` print no application secrets. Package version
+   alone still does not prove effective trust. Do not create a paid ephemeral shell.
+4. With approved running-service access, test certificate rejection using the
+   application's Node HTTP client against the two benign test endpoints linked in
+   Render's advisory. A certificate-verification rejection is the expected result;
+   timeout/DNS failure is inconclusive, and any HTTP response means trust remains.
+   Never attach provider credentials, customer data or auth headers. A Mac/curl test
+   is not equivalent to the production application's trust configuration.
+5. Check API readiness/liveness and dispatcher HTML/assets with no orders, dispatch,
+   verification, notifications or other live mutations. If regression requires code
+   recovery, preserve the patched runtime where compatible; restoring an old build
+   can restore vulnerable runtime/certificates and must not be labelled remediation.
+
+Sources inspected 2026-10-26:
+
+- [Render eMudhra advisory](https://render.com/docs/advisory-emudhra)
+- [Render Node version precedence and defaults](https://render.com/docs/node-version)
+- [Node 24.22.1 security release](https://nodejs.org/en/blog/release/v24.22.1)
+
+The protected restore proposal remains in `docs/privacy-technical-configuration.md`.
+Neither that proposal nor this assessment grants deployment/resource-creation
+approval. No certificate test, runtime change or production rebuild was performed.

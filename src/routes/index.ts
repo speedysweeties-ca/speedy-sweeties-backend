@@ -1,4 +1,5 @@
 import { Router } from "express";
+import privacyRoutes from "./privacy.routes";
 import orderRoutes from "./orders";
 import authRoutes from "./auth.routes";
 import customerRoutes from "./customer.routes";
@@ -22,6 +23,7 @@ import addressRoutes from "./address.routes";
 import { getReadiness } from "../services/readiness.service";
 
 const router = Router();
+router.use("/privacy/deletion", privacyRoutes);
 
 router.get("/health", getReadiness);
 router.get("/health/ready", getReadiness);

@@ -31,8 +31,23 @@ for (const directory of [root, resolve(root, 'speedy-dispatcher')]) {
 
 test('CI uses the checked-in pin, including its help and isolated-database checks', () => {
   const workflow = readFileSync(resolve(root, '.github/workflows/backend-ci.yml'), 'utf8');
-  assert.match(workflow, /node-version-file: \.node-version/);
   assert.doesNotMatch(workflow, /^\s*node-version:/m);
-  assert.ok(workflow.indexOf('uses: actions/setup-node@') < workflow.indexOf('run: node scripts/checkDispatcherHelp.cjs'));
-  assert.match(workflow, /node tests\/prepareEditPauseDatabase\.cjs/);
+  const jobs = Object.fromEntries(
+    [...workflow.matchAll(/^  ([\w-]+):\n([\s\S]*?)(?=^  [\w-]+:\n|(?![\s\S]))/gm)]
+      .map(([, name, body]) => [name, body])
+  );
+  for (const name of ['validate', 'privacy-database']) {
+    const job = jobs[name];
+    assert.ok(job, `Required CI job: ${name}`);
+    assert.match(job, /node-version-file: \.node-version/);
+    assert.match(job, /fetch-depth: 0/);
+    assert.match(job, /node --test --test-concurrency=1 tests\/runtimeVersion\.test\.js/);
+    assert.ok(job.indexOf('uses: actions/setup-node@') < job.indexOf('run: node --test'));
+  }
+  assert.ok(jobs.validate.indexOf('uses: actions/setup-node@') < jobs.validate.indexOf('run: node scripts/checkDispatcherHelp.cjs'));
+  assert.match(jobs.validate, /node tests\/prepareEditPauseDatabase\.cjs/);
+  assert.match(jobs.validate, /CHECK_EDIT_PAUSE_DATABASE=1 node --test --test-concurrency=1 tests\/orderEditPause\.database\.test\.js/);
+  assert.match(jobs.validate, /CHECK_BND_HISTORY_DATABASE=1 node --test --test-concurrency=1 tests\/bndWaitingHistory\.database\.test\.js/);
+  assert.match(jobs['privacy-database'], /node tests\/preparePrivacyDatabase\.cjs/);
+  assert.match(jobs['privacy-database'], /node --test --test-concurrency=1 tests\/privacyBaseline\.test\.js tests\/privacyDeletion\.database\.test\.js tests\/privacyRoutes\.database\.test\.js tests\/privacyDelivery\.test\.js/);
 });

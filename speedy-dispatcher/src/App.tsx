@@ -5,16 +5,18 @@ import { API_BASE_URL, API_V1_BASE_URL } from "./apiConfig";
 import { DispatcherHelp } from "./DispatcherHelp";
 import { LoadPreviousOrder } from "./LoadPreviousOrder";
 import { useIncomingOrderAlarm } from "./useIncomingOrderAlarm";
-import { IncomingOrderAlarmControls, IncomingOrderAlarmPopup, UnacceptedOrderAlarmPopup } from "./IncomingOrderAlarm";
+import { IncomingOrderAlarmControls, IncomingOrderAlarmPopup, UnacceptedOrderAlarmPopup } from "./IncomingOrderAlarmPanels";
 import { isUnacceptedOrderLate } from "./incomingOrderAlarm";
 import { useBndOrderAlerts } from "./useBndOrderAlerts";
-import { BndOrderAlertControls, BndOrderAlertPopup } from "./BndOrderAlerts";
+import { BndOrderAlertControls, BndOrderAlertPopup } from "./BndOrderAlertPanels";
 import { BndEmailControls } from "./BndEmailControls";
 import { DispatchToggleControl } from "./DispatchToggleControl";
 import { DispatcherPinboard } from "./DispatcherPinboard";
 import { DispatcherStandards } from "./DispatcherStandards";
 import { CustomerCare, CheckInResults } from "./CustomerCare";
 import { StaffManagement } from "./StaffManagement";
+import { PrivacyRequests } from "./PrivacyRequests";
+import { receiptChargeAmount, receiptEvidenceDate, receiptExtraStops, type ReceiptChargeEvidence } from "./receiptEvidence";
 import { LogoutLog } from "./LogoutLog";
 import { DispatcherLogout } from "./DispatcherLogout";
 import { StaffPasswordPage } from "./StaffPasswordPage";
@@ -113,6 +115,7 @@ type DigitalReceipt = {
   taxOrFees?: number | string | null;
   grandTotal?: number | string | null;
   notes?: string | null;
+  retainedChargeEvidence?: ReceiptChargeEvidence | null;
   createdAt?: string | null;
   updatedAt?: string | null;
 };
@@ -221,6 +224,7 @@ type Order = {
 };
 
 type ActiveTab =
+  | "PRIVACY_REQUESTS"
   | "LOGOUT_LOG"
   | "HELP"
   | "LIVE_ORDERS"
@@ -1862,26 +1866,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     });
   };
 
-  const getReceiptNoteAmount = (notes: string | null | undefined, label: string) => {
-    if (!notes) return 0;
-
-    const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-    const match = notes.match(new RegExp(`${escapedLabel}: \\$?([0-9]+(?:\\.[0-9]{1,2})?)`, "i"));
-    const amount = Number(match?.[1] || 0);
-
-    return Number.isFinite(amount) ? amount : 0;
-  };
-
-  const getReceiptExtraStops = (notes: string | null | undefined) => {
-    if (!notes) return 0;
-
-    const match = notes.match(/Extra stops:\s*([0-9]+)/i);
-    const stopCount = Number(match?.[1] || 0);
-
-    return Number.isFinite(stopCount) ? stopCount : 0;
-  };
-
   const buildReceiptText = (order: Order) => {
     const receipt = order.digitalReceipt;
 
@@ -1896,11 +1880,9 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
             .join("\n")
         : "No item details available";
 
-    const deliveryAmount = 4.0;
-    const hstAmount = 0.52;
-    const driverTipAmount = 7.5;
-    const extraStopCharge = getReceiptNoteAmount(receipt.notes, "Extra stop charge");
-    const distanceSurcharge = getReceiptNoteAmount(receipt.notes, "Distance surcharge");
+    const extraStops = receiptExtraStops(receipt);
+    const extraStopCharge = receiptChargeAmount(receipt, "extraStopCharge", "Extra stop charge");
+    const distanceSurcharge = receiptChargeAmount(receipt, "distanceSurcharge", "Distance surcharge");
 
     return [
       "Speedy Sweeties Digital Receipt",
@@ -1909,18 +1891,18 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       `Order #: ${order.orderNumber}`,
       `Customer: ${order.customerName}`,
       `Driver: ${getDriverDisplayName(order.assignedDriver)}`,
-      `Date: ${formatDateTime(order.deliveredAt || order.updatedAt || order.createdAt)}`,
+      `Date: ${formatDateTime(receiptEvidenceDate(order))}`,
       "HST #: 822528436RT0001",
       "",
       "Items:",
       itemLines,
       "",
       `Item Total: ${formatReceiptMoney(receipt.itemTotal)}`,
-      `Delivery: ${formatReceiptMoney(deliveryAmount)}`,
-      `HST: ${formatReceiptMoney(hstAmount)}`,
-      `Driver Tip: ${formatReceiptMoney(driverTipAmount)}`,
-      extraStopCharge > 0 ? `Extra Stop Charge: ${formatReceiptMoney(extraStopCharge)}` : "",
-      `Distance Surcharge: ${formatReceiptMoney(distanceSurcharge)}`,
+      `Delivery / service charge: ${formatReceiptMoney(receipt.deliveryCharge)}`,
+      `Tax / fees: ${formatReceiptMoney(receipt.taxOrFees)}`,
+      extraStops > 0 ? `Recorded extra stops: ${extraStops}` : "",
+      extraStopCharge > 0 ? `Recorded extra stop charge: ${formatReceiptMoney(extraStopCharge)}` : "",
+      distanceSurcharge > 0 ? `Recorded distance surcharge: ${formatReceiptMoney(distanceSurcharge)}` : "",
       `Grand Total: ${formatReceiptMoney(receipt.grandTotal)}`,
       "",
       "I hereby acknowledge receipt of all mentioned goods, any cost of service, and certify I am of the full age of 19 years.",
@@ -7287,9 +7269,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
                           <div className="space-y-2 min-w-[150px]">
                             <p className="font-semibold text-green-300 whitespace-nowrap">
                               Final Receipt: {formatReceiptMoney(order.digitalReceipt.grandTotal)}
-                              {getReceiptExtraStops(order.digitalReceipt.notes) > 0 && (
+                              {receiptExtraStops(order.digitalReceipt) > 0 && (
                                 <span className="ml-1 text-xs font-semibold text-zinc-300">
-                                  • {getReceiptExtraStops(order.digitalReceipt.notes)} stops
+                                  • {receiptExtraStops(order.digitalReceipt)} stops
                                 </span>
                               )}
                             </p>
@@ -8183,6 +8165,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
       <div hidden={activeTab !== "DRIVERS"} className="max-w-7xl mx-auto px-6 py-6">
         {renderDriversPage()}
       </div>
+      {currentUser?.role === "ADMIN" && <div className="max-w-7xl mx-auto px-6 py-2"><button onClick={() => setActiveTab("PRIVACY_REQUESTS")}>Privacy requests</button></div>}
+      {activeTab === "PRIVACY_REQUESTS" && currentUser?.role === "ADMIN" && <div className="max-w-7xl mx-auto px-6 py-6"><PrivacyRequests token={token} /></div>}
       {activeTab === "LOGOUT_LOG" && currentUser?.role === "ADMIN" && <div className="max-w-7xl mx-auto px-6 py-6"><LogoutLog token={token} /></div>}
       <div key={activeTab} className="max-w-7xl mx-auto px-6 py-6">
         {activeTab === "LIVE_ORDERS" ? (
@@ -8519,7 +8503,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             onPresetDays={applyDispatcherPerformanceDatePreset}
             onRefresh={() => token && void fetchDispatcherPerformance(token, true)}
           />
-        ) : activeTab === "LOGOUT_LOG" || activeTab === "HELP" || activeTab === "CUSTOMER_FOLLOW_UPS" || activeTab === "DRIVERS" || activeTab === "DISPATCHER_PINBOARD" || activeTab === "DISPATCHER_STANDARDS" ? null : activeTab === "CATALOG" ? (
+        ) : activeTab === "PRIVACY_REQUESTS" || activeTab === "LOGOUT_LOG" || activeTab === "HELP" || activeTab === "CUSTOMER_FOLLOW_UPS" || activeTab === "DRIVERS" || activeTab === "DISPATCHER_PINBOARD" || activeTab === "DISPATCHER_STANDARDS" ? null : activeTab === "CATALOG" ? (
           renderCatalogAdmin()
         ) : activeTab === "PICKUP_LOCATIONS" ? (
           renderPickupLocations()

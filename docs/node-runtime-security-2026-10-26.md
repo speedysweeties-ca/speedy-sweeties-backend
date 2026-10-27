@@ -1,4 +1,20 @@
-# Node 24.22.1 security update — review only
+# Node 24.22.1 security update — original plan and deployment closeout
+
+## Current status
+
+PR 96 was separately approved, merged and freshly deployed at
+`c5f249fc079f2faa5ff99c61b193a0626eccc3aa` in API → dispatcher → cron-build order.
+API/dispatcher runtime and certificate verification is CLOSED on owner-provided
+production Shell evidence; cron remains BUILD-VERIFIED ONLY, with no extra run.
+Auto-Deploy is Off on all three. The exact sanitized results and evidence boundaries
+are in `docs/production-security-maintenance.md`.
+
+The sections below preserve the original pre-deployment observations, proposal and
+verification commands, not a current claim that production is unpatched or that
+Auto-Deploy is On. The security source is now being integrated into draft PR 93;
+that does not deploy privacy or authorize the protected restore exercise.
+
+## Original review scope (historical)
 
 Prepared 2026-10-26 from current main
 `7bcaaf7cfff6f8e45ab0b912f35d61ffd56c7e39`, on
