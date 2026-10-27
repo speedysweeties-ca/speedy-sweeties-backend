@@ -10,9 +10,53 @@ only and does not activate privacy behavior. The approved gates-off PR 93 rollou
 below supersedes earlier undeployed/draft status statements; it does not authorize
 customer initiation, verification delivery or fulfillment.
 
-## Production rollout — API correction redeployed; runtime verification open
+## Production rollout — initial-key correction deployed; runtime read-back open
 
-**Latest execution, 2026-10-27:** Robert reported "Saved; existing key preserved."
+**Latest execution, 2026-10-27:** Robert corrected the earlier key-preservation
+report: the original clipboard-only key was not retained. He generated and saved a
+fresh **initial** `PRIVACY_DIGEST_KEY`, retained a secure backup, and corrected the
+completion timeframe. Key generation/backup are owner-reported, not agent-inspected;
+no key value was retrieved, printed, logged or committed. This supersedes the
+earlier "existing key preserved" claim. It is not evidence that rotating a key
+after privacy state exists is safe.
+
+Before redeployment, independent read-only inspection of exact production resource
+`dpg-d7m33g2qqhas73f58hrg-a` / `speedy_sweeties_db` found **zero rows in each of all
+six privacy tables**, zero Customers with either privacy-verification field set,
+zero Orders with either privacy-erasure/retention field set, and zero DigitalReceipts
+with retainedChargeEvidence. There were 48 completed and zero unresolved migrations.
+This corroborates the owner's no-existing-privacy-state report for initial key setup.
+
+Under the existing approval, **only speedy-api** was redeployed as
+`dep-dbg3m4afngtc738jad20`, exact unchanged approved source
+`4ac2ba372ae23972ee665a77ce241c3d267ea107`, live at
+`2026-10-27T05:49:16.234906Z`. Current main, Auto-Deploy Off and the unchanged build
+-> `npx prisma migrate deploy` -> start commands were checked before triggering.
+Logs identify Node 24.22.1, successful build at `05:48:33.502136223Z`, no pending
+migrations at `05:48:49.873683327Z`, pre-deploy completion at `05:48:54.272076836Z`,
+then the application start command at `05:49:06.820733579Z`.
+
+Post-live read-only checks passed: liveness/readiness HTTP 200, database `ok`,
+disabled privacy admin GET HTTP 503 / `PRIVACY_SERVICE_UNAVAILABLE` / `no-store`;
+48 completed/zero unresolved migrations, all four privacy migrations complete,
+four enabled protection triggers, and all privacy-state counts above still zero.
+The observed post-live error-level query returned no entries. Reused unchanged
+schema and exact-merge CI evidence; no application change, local build/test or iOS
+rebuild. Dispatcher/cron/staging/SMS were not deployed or reconfigured. Auto-Deploy
+was independently rechecked Off on API, dispatcher and cron.
+
+**Running configuration is not yet verified for this deployment.** A NEW API Shell
+session must run the sanitized boolean command below; expected source is `4ac2ba3`
+and every boolean must be true, including all four gates exactly false. Saved
+settings and passing health do not substitute for this result. No further dispatcher
+action before that check passes. Existing-session staff reads remain unavailable.
+Preserve the newly established key; future key changes require assessment of all
+persisted privacy state. No activation, messaging, production data mutation test,
+website publication or app-store action is included.
+
+### Historical correction attempts (superseded by the initial-key update above)
+
+**Earlier execution, 2026-10-27:** Robert reported "Saved; existing key preserved."
 The existing approval was used for only speedy-api redeploy
 `dep-dbg38ld9fdbs73cl4gag`, source
 `4ac2ba372ae23972ee665a77ce241c3d267ea107`, live at
@@ -38,7 +82,7 @@ a deploy/run; ordering staging/SMS are untouched. Auto-Deploy independently rema
 Off on all three production services. No code/secret rotation, production mutation
 smoke test, website publication or app-store action occurred.
 
-**Superseding owner-provided runtime result, 2026-10-27:** Shell identified the
+**Historical owner-provided failed runtime result, 2026-10-27:** Shell identified the
 expected `4ac2ba372ae23972ee665a77ce241c3d267ea107` and
 `allFourGatesExactlyFalse=true`, but returned `false` for
 `dedicatedDigestKeyPresent`, `digestKeyDistinctFromJWT`, `adminMatches`,
@@ -55,7 +99,7 @@ action remains paused pending a passing fresh API runtime-configuration read-bac
 Keep all four gates false and Auto-Deploy Off; no rollback, key rotation, application
 change, migration retry or data mutation is authorized by this correction step.
 
-Consolidated Dashboard correction: open ONLY speedy-api
+Historical Dashboard correction instructions (not a new action request): open ONLY speedy-api
 `srv-d7ntlnpkh4rs73bev9q0` -> Environment. Confirm exact key names and separate
 single-line values. Correct only the admin, policy, timeframe and fiscal rows to
 the approved values in the configuration section below. Preserve all four already
@@ -151,7 +195,7 @@ proof of no real privacy state. Preserve the digest key and all protection state
 The completed recovery exercise remains **QUALIFIED**, with cleanup confirmed and
 the separate production enum-order assessment non-blocking; no new copy was created.
 
-Next: correct and reverify the failed running-configuration checks, then existing-session
+Next: obtain the fresh running-configuration read-back after the latest deployment, then existing-session
 staff reads when available, then complete final website/provider prerequisites
 before separately approved initiation/channel activation and the controlled iOS
 flow. All gates remain off; Apple case `103005572330` and Android deferral remain.
