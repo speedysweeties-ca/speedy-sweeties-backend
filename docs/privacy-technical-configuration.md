@@ -1,6 +1,6 @@
 # Privacy deletion technical configuration and isolated evidence
 
-Updated 2026-10-26. The production findings came from repository inspection plus
+Updated 2026-10-27. The production findings came from repository inspection plus
 read-only Render/PostgreSQL and mailbox access. The isolated-test update separately
 used the authorized disposable service/database reset and deploy sequence; no secret
 value was requested or displayed and no message was sent. Ordering staging, backups
@@ -113,10 +113,10 @@ maximum lifetime of 24 hours. No repeat approval is needed for that same scope.
 - Exact clone: `dpg-dbg14b59el5s73bj1sm0-a`,
   `speedy-privacy-restore-rehearsal-20261026`, database `speedy_sweeties_db_fxnr`,
   workspace `tea-d7loaul7vvec73cme5d0`; Ohio, PostgreSQL 18, `0.1c-256mb`, 1 GB.
-- Owner-selected restore point: `2026-10-26T21:45:00Z`. The resource API confirms
-  Available, creation at `2026-10-27T02:53:32.568628Z`, no HA, replicas, pool or
-  storage autoscaling. Recovery-source/time selection is owner-provided evidence;
-  this resource-detail API does not expose those fields.
+- Owner-selected restore point: `2026-10-26T21:45:00Z`. Before cleanup, the resource
+  API confirmed Available, creation at `2026-10-27T02:53:32.568628Z`, no HA, replicas,
+  pool or storage autoscaling. Recovery-source/time selection is owner-provided
+  evidence; this resource-detail API does not expose those fields.
 - Owner deadline: **2026-10-27 22:53 Toronto / 2026-10-28T02:53:00Z**, slightly
   earlier than 24 hours after the API creation timestamp. Delete immediately after
   checks or an unresolved blocker, not at the deadline by default.
@@ -140,10 +140,10 @@ maximum lifetime of 24 hours. No repeat approval is needed for that same scope.
   target/unsafe-URL rejections, syntax, and pinned-source inventory (44 migrations,
   24 application tables, 296 scalar columns, 13 enums, 80 named indexes and 21
   migration-defined foreign keys). This is preparation evidence, not a restore pass.
-- SQL verification has now completed with the qualified result below. Cleanup is
-  pending owner Dashboard deletion and independent read-back. No customer fields,
-  financial totals, receipt text, dump or connection string were retained; only
-  sanitized metadata/counts/pass-fail results belong here.
+- SQL verification completed with the qualified result below. Cleanup is confirmed
+  by owner Dashboard deletion and independent API/inventory read-back. No customer
+  fields, financial totals, receipt text, dump or connection string were retained;
+  only sanitized metadata/counts/pass-fail results belong here.
 - The first owner-run local attempt stopped with the generic target/URL rejection
   before opening a connection. No SQL result file existed at that point. Its original
   failing rule cannot be recovered because the private input and per-rule diagnostics
@@ -166,7 +166,7 @@ maximum lifetime of 24 hours. No repeat approval is needed for that same scope.
   `2026-10-27T03:50:42.743Z`; `databaseConnectionOpened=false`. That input result alone
   was not treated as a recovery-verification pass.
 
-### Executed read-only result — qualified; cleanup pending
+### Executed read-only result — qualified; cleanup confirmed 2026-10-27
 
 Robert ran the prepared checker privately. Its sanitized report records
 `2026-10-27T03:52:24.397Z` through `2026-10-27T03:52:27.885Z` (October 26,
@@ -223,14 +223,30 @@ from the report (SHA-256):
 - Original sanitized result file: `6f7714521a053f9bbb8ea61c8cd127223c1aefb25a7fc848f51e6c2897caeb99`.
 - Temporary checker used for this run: `fd2f6be1ab35ccb705e308f8493da1f948582c13d077baf94465fb7a4bd23d80`.
 
-Cleanup is already authorized and must not wait for another broad investigation.
-The connector still offers no PostgreSQL deletion operation. Robert was directed to
-delete only `dpg-dbg14b59el5s73bj1sm0-a` from its Info page's **Delete Database** action,
-confirming `speedy-privacy-restore-rehearsal-20261026`. At this evidence update the
-copy still exists and deletion/cessation of future charges is **not yet confirmed**.
-No export is requested. Production, ordering staging and the SMS database remain
-untouched. Verify removal through the resource API/inventory after owner deletion;
-record the actual time and any observed charge rather than inventing an invoice.
+Robert reported deletion of only `dpg-dbg14b59el5s73bj1sm0-a` through its Dashboard
+**Delete Database** action. The connector has no PostgreSQL deletion operation;
+the deletion itself is owner-performed. Independent verification completed by
+`2026-10-27T04:01:22Z` (**October 27, 00:01 Toronto**):
+
+- Exact-resource lookup returns **HTTP 404**.
+- Workspace `tea-d7loaul7vvec73cme5d0` database inventory contains only the existing
+  production `dpg-d7m33g2qqhas73f58hrg-a`, ordering staging
+  `dpg-davbqnhsrm7s73bd3uq0-a` and SMS-test `dpg-dbe37v59fdbs73961o3g-a` databases,
+  all **Available**. The recovery resource/name is absent; no replacement was made.
+- Removal was verified less than 68 minutes after API creation, well before the
+  maximum 24-hour lifetime/deadline. This is the verification time, not an invented
+  exact deletion timestamp. No active recovery-copy database remains to incur
+  further instance charges; the actual prorated invoice/amount was not observed.
+- No additional resource, application attachment, export or customer-data dump was
+  created in this rehearsal. Source, ordering staging and SMS resources were not
+  modified by the verification/cleanup workflow. No claim of immediate physical
+  erasure or provider backup expiry follows merely from resource removal.
+
+**Cleanup is closed; the read-only result remains QUALIFIED.** Preserve the
+sanitized evidence above. The enum discrepancy still needs a narrow source/catalog
+investigation; deleting the copy neither resolves it nor proves data loss. The
+deleted clone cannot be queried again. Do not recreate it or treat this closeout as
+approval for another paid resource, a production migration or deployment.
 
 ## Original protected PITR proposal and verification plan (historical approval state)
 
@@ -628,7 +644,7 @@ Subsequent evidence edits are documentation only. Final pushed-head CI links bel
 in PR 93's review description; the links above identify the exact tested code merge.
 The protected restore exercise was subsequently approved and executed with the
 qualified result above: record readability is verified, one enum comparison remains
-unresolved, and exact-copy deletion still needs independent confirmation. Do not
+unresolved, and exact-copy deletion is independently confirmed. Do not
 request the same approval again. Recovery's three-day PITR and at-least-seven-day
 export retention remain established owner observations, not unknown settings.
 
