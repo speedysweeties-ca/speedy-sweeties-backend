@@ -54,8 +54,10 @@ no application change, local build/test, simulator or live mutation test.
   at `c5f249f`, build-verified only; no manual run. Ordering staging/SMS untouched.
 - Saved configuration was owner-observed; the final sanitized runtime check passes
   every required boolean above, superseding the historical failed checks.
-  Authenticated existing-session staff reads were
-  unavailable, not passed. See `docs/privacy-technical-configuration.md` for exact
+  Authenticated staff reads remain pending: Robert's production Safari session is
+  present, but Apple Events JavaScript is disabled and was left unchanged. The
+  one-time owner-run, sanitized Console result has not yet been returned. No staff
+  API call was sent by the agent. See `docs/privacy-technical-configuration.md` for exact
   evidence, timestamps, commands and rollback boundary. No rollback was required.
 - Recovery exercise/cleanup are complete; original result stays **QUALIFIED**.
   Production enum ordering is assessed/non-blocking; no new restore copy or migration.
@@ -63,6 +65,18 @@ no application change, local build/test, simulator or live mutation test.
   before separately approved activation
   and controlled in-app verification. Apple case 103005572330 remains unresolved;
   Android deferred. No website publication, iOS rebuild/archive/upload/submission.
+
+Website handoff update, 2026-10-27: `webflow/README.md`, unpublished
+`webflow/account-deletion-page.html` and the iOS `PRIVACY_POLICY_PROPOSED.txt` now
+distinguish the deployed gates-off API from unverified production initiation/
+fulfillment, and preserve the successful isolated Twilio result without calling it
+an in-app pass. Android draft controls are not advertised as already released.
+Effective date is the actual publication date, not a new business decision.
+Read-only Webflow inventory still contains only Home; no remote page write or
+publication. The policy candidate's EDITOR RELEASE GATES is the finite remaining
+provider/external-copy/restore-operation fact list. Preserve Home and all gates off.
+Focused review-HTML assertions pass (labelled heading, contact-only links, no form/
+script/API call, adopted retention terms). No application suite/build was repeated.
 
 ## Node 24.22.1 advisory update (2026-10-26; deployed separately as PR 96)
 

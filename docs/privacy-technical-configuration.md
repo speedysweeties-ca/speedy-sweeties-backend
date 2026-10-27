@@ -74,6 +74,27 @@ activation, messaging, production data mutation test, website publication or
 app-store action is included. The gates-off rollout/configuration closeout is complete;
 account-deletion activation and Apple submission readiness are not.
 
+### Staff-read follow-up — 2026-10-27, execution pending
+
+Robert confirmed an existing signed-in production dispatcher Safari tab on his
+MacBook. Read-only tab discovery found the exact production origin, but Safari
+returned `JAVASCRIPT_FROM_APPLE_EVENTS_DISABLED` for an origin-only JavaScript probe.
+That setting was left unchanged; no token, customer response or browser storage
+value was extracted and no staff API request was sent by the agent. A signed-in
+session being present is not a passing authenticated API check.
+
+The owner was given a one-time local Console checker for exactly `GET /api/v1/auth/me`
+then `GET /api/v1/orders?status=DELIVERED&page=1`. It keeps the token and response
+bodies in Safari, returns only status/schema booleans, refuses a wrong origin or
+missing/expired/non-staff session, and stops on the first failure without retrying.
+Eleven serial mocked cases passed, including success/empty lists, origin/session
+guards, HTTP/schema/network failures and output-leak rejection. No live request was
+used by those tests. This is a temporary diagnostic, not application code or a new
+verification system. Until its sanitized result is returned, both staff checks
+remain **PENDING**, not passed; no re-login, token copying or security-setting change
+is requested. Successful API/dispatcher health and runtime configuration above
+remain valid independent evidence. All four gates stay false.
+
 ### Historical correction attempts (superseded by the initial-key update above)
 
 **Earlier execution, 2026-10-27:** Robert reported "Saved; existing key preserved."
