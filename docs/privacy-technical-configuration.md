@@ -10,7 +10,33 @@ only and does not activate privacy behavior. The approved gates-off PR 93 rollou
 below supersedes earlier undeployed/draft status statements; it does not authorize
 customer initiation, verification delivery or fulfillment.
 
-## Production rollout — deployments live; configuration verification failed
+## Production rollout — API correction redeployed; runtime verification open
+
+**Latest execution, 2026-10-27:** Robert reported "Saved; existing key preserved."
+The existing approval was used for only speedy-api redeploy
+`dep-dbg38ld9fdbs73cl4gag`, source
+`4ac2ba372ae23972ee665a77ce241c3d267ea107`, live at
+`2026-10-27T05:20:26.657456Z`. Main/source and API Auto-Deploy Off were checked
+before triggering; no secret value was retrieved or changed by the agent. The
+existing build -> `npx prisma migrate deploy` -> start lifecycle was preserved.
+Logs identify Node 24.22.1, successful build, **no pending migrations to apply**
+at `05:19:55.957935552Z`, then pre-deploy completion at `05:20:00.548970081Z`.
+
+Post-redeploy read-only checks: liveness/readiness HTTP 200 with database `ok`;
+privacy admin GET HTTP 503 / `PRIVACY_SERVICE_UNAVAILABLE` / `no-store`;
+48 completed migrations, zero unresolved, four enabled protection triggers,
+all six privacy tables and erased-order state empty. No error-level log entries
+were returned in the observed post-live window. Unchanged schema/application CI
+was reused; no application changes, local builds/tests, simulator or new migrations.
+
+This is **not yet a passing runtime-configuration result**. A newly opened Shell
+session must run the existing sanitized command below after this deployment;
+retain the earlier failed result as history. Dispatcher remains unchanged at
+`dep-dbg2mgkipgvc73ease2g` / the same SHA, with no further action until the API
+configuration passes. Cron remains `dep-dbg083uk1f9s73aunkd0` / `c5f249f` without
+a deploy/run; ordering staging/SMS are untouched. Auto-Deploy independently remains
+Off on all three production services. No code/secret rotation, production mutation
+smoke test, website publication or app-store action occurred.
 
 **Superseding owner-provided runtime result, 2026-10-27:** Shell identified the
 expected `4ac2ba372ae23972ee665a77ce241c3d267ea107` and
@@ -24,7 +50,8 @@ key is absent/empty or equals JWT. No secret was retrieved; no cause is guessed.
 
 The dispatcher had already become live before this asynchronous result arrived.
 That deployment is recorded below, not described as paused before it occurred.
-Further deployments are paused pending the targeted API configuration correction.
+The targeted API correction/redeploy is now recorded above; further dispatcher
+action remains paused pending a passing fresh API runtime-configuration read-back.
 Keep all four gates false and Auto-Deploy Off; no rollback, key rotation, application
 change, migration retry or data mutation is authorized by this correction step.
 
@@ -41,7 +68,7 @@ uncertain, or the retained original cannot be recovered, report only that catego
 and stop before replacing it. Choose **Save only**; no secret file/environment
 group change, dispatcher setting change or automatic deployment.
 
-After Robert confirms the correction is saved, the existing approval covers an
+Robert's saved confirmation and execution above used the existing approval for an
 API redeploy of exactly `4ac2ba372ae23972ee665a77ce241c3d267ea107`. Recheck source,
 Auto-Deploy and the migration state; preserve build -> migrate deploy -> start.
 Require a fresh Shell/session read-back after it becomes live, all original checks

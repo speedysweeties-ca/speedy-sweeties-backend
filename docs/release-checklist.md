@@ -5,6 +5,16 @@ a separate release and requires its own signed build and store submission.
 
 ## PR 93 production closeout — 2026-10-27
 
+LATEST: Robert confirmed corrections saved with the existing key preserved. API-only
+redeploy `dep-dbg38ld9fdbs73cl4gag` is live at `2026-10-27T05:20:26.657456Z`, same
+approved merge `4ac2ba372ae23972ee665a77ce241c3d267ea107`. Pre-deploy reported no
+pending migrations. Health/readiness and disabled privacy GET passed; read-only
+database checks show 48 complete/zero unresolved migrations, four enabled guards
+and zero privacy/erased-order state. Auto-Deploy remains Off on all three services.
+Dispatcher/cron deployments are unchanged; no new dispatcher action before the
+fresh sanitized API Shell check passes. Configuration closeout remains open, not
+passed merely because a redeploy succeeded. Existing tests/schema evidence reused.
+
 **CONFIGURATION CLOSEOUT BLOCKED:** Robert's subsequent sanitized API Shell result
 identifies deployed `4ac2ba3` and all four gates exactly false, but both digest-key
 checks and admin/policy/timeframe/fiscal matches fail. This supersedes the earlier
@@ -15,7 +25,8 @@ is paused for API-only Dashboard correction, preserving the existing key and all
 four false gates. After Save only, the existing approval covers an exact-`4ac2ba3`
 API redeploy and mandatory fresh runtime read-back before further dispatcher action.
 See the technical configuration document for the consolidated correction. No new
-deployment, configuration write, migration or test occurred in recording this result.
+deployment, configuration write, migration or test occurred in recording that
+initial failed result; the later authorized API redeploy is recorded immediately above.
 
 - **Merged and deployed, all privacy gates off.** Robert approved review head
   `d8291bbba745fbac62e0ff25816e51dd384d4b87` and privately confirmed the eight exact
