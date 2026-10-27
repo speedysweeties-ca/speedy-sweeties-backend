@@ -69,12 +69,12 @@ After the pass, the agent independently confirmed the dispatcher remains live on
 the same SHA at `dep-dbg2mgkipgvc73ease2g`; its page and referenced JavaScript asset
 both returned HTTP 200. **No repeat dispatcher deployment was necessary or made.**
 Cron remains unchanged on `c5f249f` / `dep-dbg083uk1f9s73aunkd0`, build-verified only.
-Authenticated existing-session staff reads remain unavailable, not passed. No
+Authenticated existing-session staff reads subsequently passed on owner-run evidence below. No
 activation, messaging, production data mutation test, website publication or
 app-store action is included. The gates-off rollout/configuration closeout is complete;
 account-deletion activation and Apple submission readiness are not.
 
-### Staff-read follow-up — 2026-10-27, execution pending
+### Staff-read follow-up — 2026-10-27, owner-run production PASS
 
 Robert confirmed an existing signed-in production dispatcher Safari tab on his
 MacBook. Read-only tab discovery found the exact production origin, but Safari
@@ -90,10 +90,34 @@ missing/expired/non-staff session, and stops on the first failure without retryi
 Eleven serial mocked cases passed, including success/empty lists, origin/session
 guards, HTTP/schema/network failures and output-leak rejection. No live request was
 used by those tests. This is a temporary diagnostic, not application code or a new
-verification system. Until its sanitized result is returned, both staff checks
-remain **PENDING**, not passed; no re-login, token copying or security-setting change
-is requested. Successful API/dispatcher health and runtime configuration above
-remain valid independent evidence. All four gates stay false.
+verification system. Robert then returned the following sanitized result from the
+production Safari session (format normalized; no response rows or tokens supplied):
+
+```json
+{
+  "check": "SPEEDY_STAFF_READONLY",
+  "profileStatus": 200,
+  "profileSchemaPass": true,
+  "ordersStatus": 200,
+  "ordersSchemaPass": true,
+  "deliveredRowsPresent": true,
+  "passed": true
+}
+```
+
+Both authorized staff reads are now **PASSED — owner-run production evidence**,
+not agent-executed requests. Profile status/schema and delivered-orders status/
+pagination/row structure pass; the list is nonempty, so this is not only an empty-
+array contract check. No customer identifiers, contacts, amounts, record counts,
+response bodies or auth tokens were supplied or retained. The checker uses only
+the two GETs; no login, mutation, message or retry endpoint is included. The result
+does not exercise order creation, dispatch, iOS verification or privacy fulfillment.
+It does not independently report a deployment SHA: the separately verified rollout
+baseline remains `4ac2ba372ae23972ee665a77ce241c3d267ea107`. No redeploy, live rerun,
+application test/build or browser-setting change was made to record this result.
+All four gates stay false; Auto-Deploy stays Off. The remaining release work is the
+unpublished website/provider/external-copy handoff, then separately approved
+activation and controlled in-app verification; Apple eligibility remains unresolved.
 
 ### Historical correction attempts (superseded by the initial-key update above)
 
@@ -236,7 +260,7 @@ proof of no real privacy state. Preserve the digest key and all protection state
 The completed recovery exercise remains **QUALIFIED**, with cleanup confirmed and
 the separate production enum-order assessment non-blocking; no new copy was created.
 
-Next: complete existing-session staff reads when available and final website/provider prerequisites
+Next: complete final website/provider/external-copy prerequisites
 before separately approved initiation/channel activation and the controlled iOS
 flow. All gates remain off; Apple case `103005572330` and Android deferral remain.
 

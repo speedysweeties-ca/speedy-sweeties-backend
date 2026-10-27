@@ -54,14 +54,16 @@ no application change, local build/test, simulator or live mutation test.
   at `c5f249f`, build-verified only; no manual run. Ordering staging/SMS untouched.
 - Saved configuration was owner-observed; the final sanitized runtime check passes
   every required boolean above, superseding the historical failed checks.
-  Authenticated staff reads remain pending: Robert's production Safari session is
-  present, but Apple Events JavaScript is disabled and was left unchanged. The
-  one-time owner-run, sanitized Console result has not yet been returned. No staff
-  API call was sent by the agent. See `docs/privacy-technical-configuration.md` for exact
+  Authenticated staff reads **PASS on owner-run production evidence**: Robert's
+  `SPEEDY_STAFF_READONLY` result reports profile/orders HTTP 200, both schema checks
+  true, deliveredRowsPresent=true and passed=true. The two documented GETs ran in
+  his existing production Safari session; no token or response rows were shared.
+  Apple Events JavaScript stayed disabled. No agent-run request, live retry or
+  application test rerun. See `docs/privacy-technical-configuration.md` for exact
   evidence, timestamps, commands and rollback boundary. No rollback was required.
 - Recovery exercise/cleanup are complete; original result stays **QUALIFIED**.
   Production enum ordering is assessed/non-blocking; no new restore copy or migration.
-- NEXT: available existing-session reads and final website/provider prerequisites
+- NEXT: final website/provider/external-copy prerequisites
   before separately approved activation
   and controlled in-app verification. Apple case 103005572330 remains unresolved;
   Android deferred. No website publication, iOS rebuild/archive/upload/submission.
