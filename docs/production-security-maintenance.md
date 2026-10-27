@@ -141,10 +141,11 @@ schedule were preserved. This closeout changes documentation only: no applicatio
 change, rebuild, redeployment or test rerun. The approved retention decisions,
 PR 93's unmerged state and protected restore exercise remain unchanged.
 
-Next engineering action: integrate deployed main into PR 93's existing review
-branch and obtain combined CI with the pinned runtime, dispatcher-help validation
-and privacy database validation preserved. That integration is not performed by
-this documentation update, and its future CI must not be claimed from PR 96 alone.
+Follow-up integration: deployed main is now merged into PR 93's existing review
+branch with the pinned runtime, dispatcher-help validation and privacy database
+validation preserved. Combined CI evidence belongs in the release checklist and
+`docs/privacy-technical-configuration.md`; it must not be inferred from PR 96 alone.
+Production remains on the security-only commit above; PR 93 remains draft/unmerged.
 
 ## Historical 2026-10-26 runtime advisory assessment — before PR 96
 

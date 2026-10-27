@@ -3,6 +3,24 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## Node 24.22.1 advisory update (2026-10-26; deployed separately as PR 96)
+
+- Follow `docs/node-runtime-security-2026-10-26.md` for observed API/dispatcher/cron
+  versions, owner-observed absence of `NODE_VERSION`, exact source pins, compatibility
+  evidence, and the separately approved fresh-build/certificate verification plan.
+- Require exact-head Linux CI, including the dispatcher production build and two
+  isolated PostgreSQL timing-history checks. Do not confuse the documented local
+  Mac case-collision build limitation with a successful production build.
+- No dependency graph, application workflow or migration change. Never bring the
+  privacy branch into this security merge. Preserve its existing recovery evidence.
+- Production Auto-Deploy is Off for API, dispatcher **and retention cron** after
+  the separately approved security rollout. Keep it Off. API/dispatcher runtime and
+  certificate checks are closed on owner-provided Shell evidence; cron remains
+  build-verified only. See `docs/production-security-maintenance.md`.
+- Runtime/CA verification and no-order/no-message smoke checks replace live mutation
+  tests for this update. Do not Trigger Run on the cron: DRY_RUN still writes audit
+  records. Existing staged/SMS resources are not security test targets.
+
 ## Before opening the pull request
 
 - Confirm the worktree contains only the intended release.
@@ -35,17 +53,17 @@ Current security prerequisite: PR 96 is merged and deployed at
 items are CLOSED on Robert's owner-provided production Shell results; cron remains
 BUILD-VERIFIED ONLY with no extra run. See the sanitized closeout in
 `docs/production-security-maintenance.md`. Auto-Deploy is Off for all three.
-Next engineering action is to integrate that main revision into this existing
-privacy review branch, preserving the Node pin/guards, dispatcher-help checks and
-serial privacy database validation, then obtain combined CI. No application merge,
-test rerun or production change is part of this documentation update.
-Its commit skips CI/deploy triggers; earlier passing evidence remains attached to
-the tested revisions, not relabelled as a new exact-head integration pass.
+That security main is now integrated into this existing privacy review branch,
+preserving both Node pins/guards, full-history dispatcher-help validation, serial
+timing-history and privacy database validation. Both CI jobs select `.node-version`.
+Combined exact-head CI is required before this integration is considered verified;
+earlier passes are not evidence for the new combination. No production change is
+part of this review-branch integration.
 
 Preserved privacy integration evidence (2026-10-26): integrated application
 revision `4aa373e7a50c1f79c047a7fa7e9260be9a3c431f` passed both CI jobs in PR run
 `40406476683` and push run `40406469607`. Its then-current main was `7bcaaf7`;
-that evidence does not cover the later security integration still to be done.
+that evidence does not cover the later security integration by itself.
 Documentation head `770ef237e83ff886b78c9eace2a65e0ef55ff536` subsequently passed
 both CI jobs in PR run `40408519711` and push run `40408512266` (automatic CI;
 application content unchanged). Production health and pre-privacy schema were
@@ -60,8 +78,8 @@ services on the evidence above; the protected restore gate is still open. Follow
 exact configuration, protected restore exercise and no-order/no-message
 smoke plan in `docs/privacy-technical-configuration.md`; historical isolated reset
 evidence below is not a backup-restore pass. All four production gates must be false
-for the separately approved deployment. No application tests are required locally
-for this documentation-only update.
+for the separately approved deployment. Full combined validation runs in Linux CI;
+do not duplicate unchanged suites or launch simulators on the resource-limited Mac.
 
 - Keep `speedy-api`, `speedy-sweeties-db`, `speedy-ordering-staging` and its database
   unchanged. Do not use either existing service as the privacy API test target.

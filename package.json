@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "description": "Phase 1 backend for Speedy Sweeties local delivery ordering app",
   "main": "dist/server.js",
+  "engines": {
+    "node": "24.22.1"
+  },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "prebuild": "node -e \"require('node:assert/strict').equal(process.versions.node, require('./package.json').engines.node, 'Use the pinned Node.js runtime before building')\"",
     "build": "tsc",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
@@ -16,7 +20,7 @@
     "privacy:isolated:prepare-render": "node tests/preparePrivacyRenderDatabase.cjs",
     "privacy:isolated:server": "node tests/privacyIsolatedServer.cjs",
     "privacy:isolated:client": "node tests/privacyIsolatedClient.cjs",
-    "test": "npm run build && node --test tests/*.test.js",
+    "test": "npm run build && node --test --test-concurrency=1 tests/*.test.js",
     "check": "npm run prisma:generate && npx prisma validate && npm test",
     "check:dispatcher-help": "node scripts/checkDispatcherHelp.cjs"
   },

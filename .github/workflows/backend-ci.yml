@@ -36,8 +36,10 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: npm
+      - name: Verify runtime pins before privacy checks
+        run: node --test --test-concurrency=1 tests/runtimeVersion.test.js
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
       - run: npm run build
@@ -71,16 +73,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            speedy-dispatcher/package-lock.json
+
+      - name: Verify runtime pins before application checks
+        run: node --test --test-concurrency=1 tests/runtimeVersion.test.js
+
       - name: Require dispatcher help review with workflow changes
         env:
           HELP_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: node scripts/checkDispatcherHelp.cjs
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
 
       - name: Install backend dependencies
         run: npm ci
@@ -106,8 +114,8 @@ jobs:
       - name: Validate timing history against isolated PostgreSQL
         run: |
           node tests/prepareEditPauseDatabase.cjs
-          CHECK_EDIT_PAUSE_DATABASE=1 node --test tests/orderEditPause.database.test.js
-          CHECK_BND_HISTORY_DATABASE=1 node --test tests/bndWaitingHistory.database.test.js
+          CHECK_EDIT_PAUSE_DATABASE=1 node --test --test-concurrency=1 tests/orderEditPause.database.test.js
+          CHECK_BND_HISTORY_DATABASE=1 node --test --test-concurrency=1 tests/bndWaitingHistory.database.test.js
 
       - name: Install dispatcher dependencies
         working-directory: speedy-dispatcher

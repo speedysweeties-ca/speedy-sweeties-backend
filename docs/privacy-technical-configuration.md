@@ -293,9 +293,9 @@ sheet; no production environment values were read or changed in this review.
 - Preserve the deployed PR 96 Node 24.22.1 source pins and exact-version build
   guards. API/dispatcher runtime and CA verification passed on owner-provided Shell
   evidence; see `docs/production-security-maintenance.md`. `NODE_VERSION` remains
-  absent; do not add the old proposed override. Integrate the security commit into
-  this review branch and verify combined CI before a privacy rollout. That work is
-  still pending and is not authorized by this documentation-only closeout.
+  absent; do not add the old proposed override. The security commit is integrated
+  into this review branch; require its own combined CI evidence before a privacy
+  rollout, rather than relying on the security-only or older privacy results.
 - Apply all four migrations before startup. Ordinary create/update calls
   `assertPrivacyOrderAllowed` even with the public gates off. The health endpoint's
   `SELECT 1` alone does **not** prove these tables/triggers exist.
@@ -375,9 +375,11 @@ through another account or portal.
   also preserves the dispatcher-help and isolated-test package scripts; the
   overlapping dependency refresh required no lockfile conflict resolution.
   Current deployed main is now `c5f249fc079f2faa5ff99c61b193a0626eccc3aa` from
-  security PR 96. Integrating those runtime/CI changes into this review branch is
-  the next unfinished engineering action; do not deploy the old review head or
-  silently claim the earlier integration tests cover the new combination.
+  security PR 96. Those runtime/CI changes are now integrated into this review
+  branch. Both jobs use the checked-in Node 24.22.1 pin; the package conflict was
+  resolved by keeping all isolated-test commands and serial backend tests. The
+  privacy dependency graphs/lockfiles, four migrations and test tooling are
+  preserved. Require combined CI for this revision, not the older evidence below.
 - Read-only production schema inspection found every migration through
   `20261022170000_bnd_waiting_history` completed and no privacy table, target privacy
   column or partially applied privacy migration. A historical rolled-back
@@ -413,7 +415,7 @@ through another account or portal.
   `PRIVACY_COMPLETION_TIMEFRAME`, and `PRIVACY_FISCAL_YEAR_END_MM_DD=12-31`. Retain
   Twilio/Resend credentials only for their separately gated channels; never copy the
   isolated control or synthetic JWT secrets into production.
-- After Recovery/restore facts, the pending security-main integration/combined CI
+- After Recovery/restore evidence, successful security-main combined CI
   and a current schema read-back are recorded, manually
   deploy only the reviewed combined commit. The pre-deploy hook must apply exactly the
   four migrations above. Stop on any drift or failed migration; do not resolve a
