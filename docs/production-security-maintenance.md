@@ -100,7 +100,56 @@ References:
 - https://render.com/docs/deploys
 - https://render.com/docs/health-checks
 
-## 2026-10-26 runtime advisory assessment — action required, not remediated
+## PR 96 runtime/certificate closeout — owner-provided pass
+
+This closeout supersedes the historical advisory assessment below. Security PR 96
+was separately approved, merged and freshly built in order API, dispatcher, then
+retention cron at `c5f249fc079f2faa5ff99c61b193a0626eccc3aa`. Its reviewed head was
+`0b05562d7c92f94fd55878e63e1b5f7c56defcdd`; post-merge CI run `40433751318` passed.
+All three builds selected Node 24.22.1 and passed their exact-version guards.
+Existing API health and dispatcher HTML/asset/source-blocking checks passed.
+
+Robert subsequently supplied these results from both production Render Shells:
+
+| Check | API | Dispatcher |
+| --- | --- | --- |
+| Reported commit | `c5f249fc079f2faa5ff99c61b193a0626eccc3aa` | Same commit |
+| Node / OpenSSL | `v24.22.1` / `3.5.9` | Same versions |
+| `ca-certificates` | `20250419~deb12u2` | Same package version |
+| All five reported trust-override flags | false | false |
+| Ordinary HTTPS through `fetch` and `https` | 307 / 307 | 307 / 307 |
+| Both compromised endpoints, through both clients | `CERT_REVOKED` in all four checks | `CERT_REVOKED` in all four checks |
+
+- [x] API running-runtime and certificate-verification items closed on
+  **owner-provided production Shell evidence**.
+- [x] Dispatcher running-runtime and certificate-verification items closed on
+  **owner-provided production Shell evidence**.
+- [x] Cron artifact **build-verified only**. No extra cron run occurred; running
+  cron TLS behavior is not claimed or inferred from the web-service results.
+
+The five flags are `nodeOptionsPresent`, `extraCAPresent`, `certFilePresent`,
+`certDirPresent` and `tlsValidationDisabled`. Robert referred to screenshots, but
+image attachments were not available in the recording session; this is a sanitized
+transcription of his supplied results, not independent image inspection or a new
+agent-run probe. No screenshot file, secret, customer field or raw response body is
+stored here. Earlier agent SSH authentication failures remain historical evidence;
+they do not negate the subsequent owner-operated Shell passes.
+
+Auto-Deploy remains Off for API, dispatcher and cron. The source pins control Node;
+no `NODE_VERSION` override was added. Secrets, privacy gates, start commands and cron
+schedule were preserved. This closeout changes documentation only: no application
+change, rebuild, redeployment or test rerun. The approved retention decisions,
+PR 93's unmerged state and protected restore exercise remain unchanged.
+
+Next engineering action: integrate deployed main into PR 93's existing review
+branch and obtain combined CI with the pinned runtime, dispatcher-help validation
+and privacy database validation preserved. That integration is not performed by
+this documentation update, and its future CI must not be claimed from PR 96 alone.
+
+## Historical 2026-10-26 runtime advisory assessment — before PR 96
+
+The findings and proposed actions below describe the pre-remediation state only;
+use the closeout above for current status, not the obsolete environment-pin proposal.
 
 Render's email "Important advisory on recent industry security disclosures" was
 received on 2026-10-26 at 18:12:42 UTC. The linked eMudhra advisory was initially

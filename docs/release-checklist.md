@@ -30,9 +30,22 @@ a separate release and requires its own signed build and store submission.
 
 ## Draft PR 93 isolated Twilio gate
 
-Current production-deployment preparation (2026-10-26): integrated application
+Current security prerequisite: PR 96 is merged and deployed at
+`c5f249fc079f2faa5ff99c61b193a0626eccc3aa`. API and dispatcher runtime/certificate
+items are CLOSED on Robert's owner-provided production Shell results; cron remains
+BUILD-VERIFIED ONLY with no extra run. See the sanitized closeout in
+`docs/production-security-maintenance.md`. Auto-Deploy is Off for all three.
+Next engineering action is to integrate that main revision into this existing
+privacy review branch, preserving the Node pin/guards, dispatcher-help checks and
+serial privacy database validation, then obtain combined CI. No application merge,
+test rerun or production change is part of this documentation update.
+Its commit skips CI/deploy triggers; earlier passing evidence remains attached to
+the tested revisions, not relabelled as a new exact-head integration pass.
+
+Preserved privacy integration evidence (2026-10-26): integrated application
 revision `4aa373e7a50c1f79c047a7fa7e9260be9a3c431f` passed both CI jobs in PR run
-`40406476683` and push run `40406469607`. Main and production remain `7bcaaf7`.
+`40406476683` and push run `40406469607`. Its then-current main was `7bcaaf7`;
+that evidence does not cover the later security integration still to be done.
 Documentation head `770ef237e83ff886b78c9eace2a65e0ef55ff536` subsequently passed
 both CI jobs in PR run `40408519711` and push run `40408512266` (automatic CI;
 application content unchanged). Production health and pre-privacy schema were
@@ -42,10 +55,8 @@ It did not establish an existing export, exact selectable point or completed res
 The protected one-clone exercise now proposes `2026-10-26T21:45:00Z`, read-only
 verification and deletion within 24 hours; selector acceptance and the total
 compute-plus-storage Dashboard quote still require confirmation before approval.
-No clone is authorized or created. API and dispatcher deployment logs show Node
-24.14.1, below Render's patched 24.22.1 minimum for Node 24; system CA update status
-is unverified. See `docs/production-security-maintenance.md` for the separate runtime
-remediation proposal; no production setting/build was changed. Follow the
+No clone is authorized or created. Runtime remediation is complete for the two web
+services on the evidence above; the protected restore gate is still open. Follow the
 exact configuration, protected restore exercise and no-order/no-message
 smoke plan in `docs/privacy-technical-configuration.md`; historical isolated reset
 evidence below is not a backup-restore pass. All four production gates must be false

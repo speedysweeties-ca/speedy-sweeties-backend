@@ -3,8 +3,10 @@
 Updated 2026-10-26. The production findings came from repository inspection plus
 read-only Render/PostgreSQL and mailbox access. The isolated-test update separately
 used the authorized disposable service/database reset and deploy sequence; no secret
-value was requested or displayed and no message was sent. Production, ordering
-staging, backups and customer records were not changed.
+value was requested or displayed and no message was sent. Ordering staging, backups
+and customer records were not changed. The later, separately authorized PR 96
+security rollout is recorded below; this evidence update itself is documentation-
+only and does not activate privacy behavior.
 
 ## Confirmed configuration facts
 
@@ -15,8 +17,10 @@ staging, backups and customer records were not changed.
   immediately before rollout in case staff records change.
 - Confirmed privacy contact: Robert Stubbings, `speedysweeties@hotmail.com`,
   `519-826-8097`.
-- The live API is `main` commit `7bcaaf7cfff6f8e45ab0b912f35d61ffd56c7e39`.
-  Render reported live deploy `dep-dbej0hks728c73clt3gg` at that revision. The
+- The live API and dispatcher now use security PR 96's `main` merge
+  `c5f249fc079f2faa5ff99c61b193a0626eccc3aa`. Runtime/certificate items are closed
+  on Robert's owner-provided Shell evidence in `docs/production-security-maintenance.md`;
+  cron evidence remains build-only. Auto-Deploy is Off for all three. The
   privacy routes/migrations in draft PR 93 are not deployed, so no live
   `PRIVACY_*` setting or request behavior is claimed.
 - The production 90-day retention cron remains a marketing `DRY_RUN`. Read-only
@@ -286,11 +290,12 @@ sheet; no production environment values were read or changed in this review.
   by `src/config/env.ts`; production also requires CORS, and Firebase initialization
   parses/validates its service-account JSON. Do not rotate the existing JWT or copy
   synthetic secrets. Preserve all unrelated provider/dispatch/background-job settings.
-- Separately address the observed Node 24.14.1 advisory before calling the runtime
-  patched: propose `NODE_VERSION=24.22.1` and a fresh build, with runtime/CA read-back.
-  This is not a setting change or deployment authorization. See the dated assessment
-  in `docs/production-security-maintenance.md`; both API and dispatcher are affected
-  by the version mismatch. Ordinary HTTP health does not prove certificate updates.
+- Preserve the deployed PR 96 Node 24.22.1 source pins and exact-version build
+  guards. API/dispatcher runtime and CA verification passed on owner-provided Shell
+  evidence; see `docs/production-security-maintenance.md`. `NODE_VERSION` remains
+  absent; do not add the old proposed override. Integrate the security commit into
+  this review branch and verify combined CI before a privacy rollout. That work is
+  still pending and is not authorized by this documentation-only closeout.
 - Apply all four migrations before startup. Ordinary create/update calls
   `assertPrivacyOrderAllowed` even with the public gates off. The health endpoint's
   `SELECT 1` alone does **not** prove these tables/triggers exist.
@@ -361,7 +366,7 @@ through another account or portal.
 
 ## PR 93 rollout boundary
 
-- Draft PR 93 remains unmerged. Current `main`
+- Draft PR 93 remains unmerged. The previous `main`
   (`7bcaaf7cfff6f8e45ab0b912f35d61ffd56c7e39`) was merged into the privacy review
   branch by integration commit `99bc51b907380c274af8f98fe0b0aabad0db4f62`,
   whose parents are privacy head `9c657dd3cb3c59d5b9f6649eebf0e48abfacb44e`
@@ -369,6 +374,10 @@ through another account or portal.
   dispatcher-help validation and PR 93's serial PostgreSQL privacy validation. It
   also preserves the dispatcher-help and isolated-test package scripts; the
   overlapping dependency refresh required no lockfile conflict resolution.
+  Current deployed main is now `c5f249fc079f2faa5ff99c61b193a0626eccc3aa` from
+  security PR 96. Integrating those runtime/CI changes into this review branch is
+  the next unfinished engineering action; do not deploy the old review head or
+  silently claim the earlier integration tests cover the new combination.
 - Read-only production schema inspection found every migration through
   `20261022170000_bnd_waiting_history` completed and no privacy table, target privacy
   column or partially applied privacy migration. A historical rolled-back
@@ -388,13 +397,14 @@ through another account or portal.
   Initially the marker table is empty, so existing Android ordering behavior remains
   unchanged; after a verified deletion, blocking recreation from an old client is
   intentional.
-- Production currently auto-deploys `main`. Its observed lifecycle is build command
+- Production Auto-Deploy is now Off following the authorized security rollout;
+  keep it Off. Its observed lifecycle is build command
   `npm ci --include=dev && node ./node_modules/prisma/build/index.js generate && npm run build`,
   then pre-deploy command `npx prisma migrate deploy`, then start command
   `npm run start`. Render runs the pre-deploy command before starting the new
   application, enforcing migration-before-start ordering. Before any future merge,
-  turn auto-deploy off and record the last healthy deploy/commit so merge cannot
-  apply migrations implicitly. Then set and read back all four gates as false:
+  confirm auto-deploy remains off and record the last healthy deploy/commit so a
+  merge cannot apply migrations implicitly. Then read back all four gates as false:
   `PRIVACY_DELETION_ENABLED=false`, `PRIVACY_FULFILLMENT_ENABLED=false`,
   `PRIVACY_VERIFICATION_EMAIL_ENABLED=false` and
   `PRIVACY_VERIFICATION_PHONE_ENABLED=false`.
@@ -403,8 +413,8 @@ through another account or portal.
   `PRIVACY_COMPLETION_TIMEFRAME`, and `PRIVACY_FISCAL_YEAR_END_MM_DD=12-31`. Retain
   Twilio/Resend credentials only for their separately gated channels; never copy the
   isolated control or synthetic JWT secrets into production.
-- After Recovery/restore facts, runtime-security remediation and a current schema
-  read-back are recorded, manually
+- After Recovery/restore facts, the pending security-main integration/combined CI
+  and a current schema read-back are recorded, manually
   deploy only the reviewed combined commit. The pre-deploy hook must apply exactly the
   four migrations above. Stop on any drift or failed migration; do not resolve a
   failed migration as successful without establishing the actual schema state.
@@ -426,8 +436,8 @@ through another account or portal.
   drop privacy objects or reverse migrations. Read back all four gates as false after
   rollback because platform rollback behavior must not be assumed to preserve the
   intended configuration.
-- Once any real privacy state exists, do not roll back to pre-privacy `7bcaaf7` code,
-  which cannot maintain status, revocation and anti-reactivation behavior. Keep the
+- Once any real privacy state exists, do not roll back to pre-privacy `c5f249f` or
+  older code, which cannot maintain status, revocation and anti-reactivation. Keep the
   privacy-capable code with gates off or deploy a reviewed forward fix. Preserve the
   digest key, revoked credentials, completed decisions, protection triggers and
   deleted-identity markers. A restore must reconcile post-snapshot requests/markers
