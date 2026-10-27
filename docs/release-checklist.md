@@ -22,13 +22,15 @@ four privacy migrations complete, four enabled guards, all privacy-state counts
 still zero. Observed post-live error-level logs returned no entries. Auto-Deploy
 remains Off on all three production services; dispatcher/cron/staging/SMS unchanged.
 
-**CONFIGURATION CLOSEOUT OPEN:** require the sanitized command in a NEW API Shell
-after this deployment, expected `4ac2ba3` and every boolean true, including all four
-gates exactly false. Do not infer this from saved settings or health. No further
-dispatcher action before that result. The earlier failing Shell and prior redeploy
-`dep-dbg38ld9fdbs73cl4gag` remain historical evidence in the technical document;
-neither establishes the latest runtime result. Reused tests/schema evidence; no
-application change, local build/test, simulator or live mutation test.
+**CONFIGURATION CLOSEOUT PASSED:** Robert returned new-Shell sanitized JSON after
+this deployment: exact `4ac2ba3`, all four gates exactly false, dedicated key length
+>=32/distinct from JWT, and admin/policy/timeframe/fiscal matches all true. This is
+owner-provided runtime evidence, not agent inspection of secret/backup contents.
+The earlier failures/prior redeploy remain historical in the technical document.
+After the pass, independent read-only checks confirmed dispatcher still live at
+`dep-dbg2mgkipgvc73ease2g` on the same SHA; page/JavaScript asset both HTTP 200.
+No additional dispatcher deploy was needed or made. Reused tests/schema evidence;
+no application change, local build/test, simulator or live mutation test.
 
 - **Merged and deployed, all privacy gates off.** Robert approved review head
   `d8291bbba745fbac62e0ff25816e51dd384d4b87` and privately confirmed the eight exact
@@ -50,15 +52,15 @@ application change, local build/test, simulator or live mutation test.
   `4ac2ba3`: [run 40450819956](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40450819956).
 - Auto-Deploy independently **Off on API, dispatcher and cron**. Cron unchanged
   at `c5f249f`, build-verified only; no manual run. Ordering staging/SMS untouched.
-- Saved configuration was owner-observed; the later sanitized runtime check passes
-  the four false gates but fails key/admin/policy/timeframe/fiscal checks above.
+- Saved configuration was owner-observed; the final sanitized runtime check passes
+  every required boolean above, superseding the historical failed checks.
   Authenticated existing-session staff reads were
   unavailable, not passed. See `docs/privacy-technical-configuration.md` for exact
   evidence, timestamps, commands and rollback boundary. No rollback was required.
 - Recovery exercise/cleanup are complete; original result stays **QUALIFIED**.
   Production enum ordering is assessed/non-blocking; no new restore copy or migration.
-- NEXT: finish runtime-configuration read-back and available existing-session reads,
-  then final website/provider prerequisites before separately approved activation
+- NEXT: available existing-session reads and final website/provider prerequisites
+  before separately approved activation
   and controlled in-app verification. Apple case 103005572330 remains unresolved;
   Android deferred. No website publication, iOS rebuild/archive/upload/submission.
 

@@ -10,7 +10,7 @@ only and does not activate privacy behavior. The approved gates-off PR 93 rollou
 below supersedes earlier undeployed/draft status statements; it does not authorize
 customer initiation, verification delivery or fulfillment.
 
-## Production rollout — initial-key correction deployed; runtime read-back open
+## Production rollout — initial-key correction deployed; runtime read-back passed
 
 **Latest execution, 2026-10-27:** Robert corrected the earlier key-preservation
 report: the original clipboard-only key was not retained. He generated and saved a
@@ -45,14 +45,34 @@ schema and exact-merge CI evidence; no application change, local build/test or i
 rebuild. Dispatcher/cron/staging/SMS were not deployed or reconfigured. Auto-Deploy
 was independently rechecked Off on API, dispatcher and cron.
 
-**Running configuration is not yet verified for this deployment.** A NEW API Shell
-session must run the sanitized boolean command below; expected source is `4ac2ba3`
-and every boolean must be true, including all four gates exactly false. Saved
-settings and passing health do not substitute for this result. No further dispatcher
-action before that check passes. Existing-session staff reads remain unavailable.
-Preserve the newly established key; future key changes require assessment of all
-persisted privacy state. No activation, messaging, production data mutation test,
-website publication or app-store action is included.
+**Runtime configuration PASSED on owner-provided new-Shell evidence.** After this
+deployment, Robert returned the sanitized output below (not an agent-run Shell):
+
+```json
+{
+  "commit": "4ac2ba372ae23972ee665a77ce241c3d267ea107",
+  "allFourGatesExactlyFalse": true,
+  "dedicatedDigestKeyPresent": true,
+  "digestKeyDistinctFromJWT": true,
+  "adminMatches": true,
+  "policyMatches": true,
+  "timeframeMatches": true,
+  "fiscalYearMatches": true
+}
+```
+
+This closes the configuration read-back, including key length >=32/distinct from
+JWT and exact approved admin, policy, timeframe and fiscal values. It does not
+inspect backup storage or establish key entropy. All four gates remain exactly
+false. Preserve this initial key; future changes require a persisted-state assessment.
+After the pass, the agent independently confirmed the dispatcher remains live on
+the same SHA at `dep-dbg2mgkipgvc73ease2g`; its page and referenced JavaScript asset
+both returned HTTP 200. **No repeat dispatcher deployment was necessary or made.**
+Cron remains unchanged on `c5f249f` / `dep-dbg083uk1f9s73aunkd0`, build-verified only.
+Authenticated existing-session staff reads remain unavailable, not passed. No
+activation, messaging, production data mutation test, website publication or
+app-store action is included. The gates-off rollout/configuration closeout is complete;
+account-deletion activation and Apple submission readiness are not.
 
 ### Historical correction attempts (superseded by the initial-key update above)
 
@@ -195,12 +215,11 @@ proof of no real privacy state. Preserve the digest key and all protection state
 The completed recovery exercise remains **QUALIFIED**, with cleanup confirmed and
 the separate production enum-order assessment non-blocking; no new copy was created.
 
-Next: obtain the fresh running-configuration read-back after the latest deployment, then existing-session
-staff reads when available, then complete final website/provider prerequisites
+Next: complete existing-session staff reads when available and final website/provider prerequisites
 before separately approved initiation/channel activation and the controlled iOS
 flow. All gates remain off; Apple case `103005572330` and Android deferral remain.
 
-### Remaining private runtime read-back (no application/database call)
+### Retained runtime read-back command (passed above; no repeat needed)
 
 Open only [speedy-api Shell](https://dashboard.render.com/web/srv-d7ntlnpkh4rs73bev9q0/shell)
 and run the following. It returns the public commit identifier and booleans, never
@@ -230,7 +249,7 @@ node -e 'const e=process.env;const gates=["PRIVACY_DELETION_ENABLED","PRIVACY_FU
   on Robert's owner-provided Shell evidence in `docs/production-security-maintenance.md`;
   cron evidence remains build-only. Auto-Deploy is Off for all three. The
   privacy routes/migrations are deployed with initiation/delivery/fulfillment
-  disabled. Configuration evidence and remaining runtime-read-back limits are above.
+  disabled. Passing owner-provided runtime evidence and its limits are above.
 - The production 90-day retention cron remains a marketing `DRY_RUN`. Read-only
   logs on 2026-10-23 reported `SMS messages sent: 0`; it is not an inactive-profile
   deletion or privacy-expiry worker.
