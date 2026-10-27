@@ -196,8 +196,9 @@ PostgreSQL 18, 1 GB and sole approved Mac `/32`. The source comparison remains
   The checker retained only the mismatch count, not the enum name/labels. It cannot
   distinguish a label difference from order-only drift from this report. Do not
   infer restore corruption, waive the discrepancy, or call the full schema check
-  passed. A narrow catalog comparison remains needed to close this qualification;
-  no repair, migration, extra clone or automatic rerun was performed.
+  passed. The separate fresh-production compatibility assessment below does not
+  establish the deleted clone's exact mismatch or change this historical result.
+  No repair, migration, extra clone or automatic rerun was performed.
 
 | Sanitized aggregate | Restored count | Verification |
 | --- | ---: | --- |
@@ -243,10 +244,82 @@ the deletion itself is owner-performed. Independent verification completed by
   erasure or provider backup expiry follows merely from resource removal.
 
 **Cleanup is closed; the read-only result remains QUALIFIED.** Preserve the
-sanitized evidence above. The enum discrepancy still needs a narrow source/catalog
-investigation; deleting the copy neither resolves it nor proves data loss. The
-deleted clone cannot be queried again. Do not recreate it or treat this closeout as
-approval for another paid resource, a production migration or deployment.
+sanitized evidence above. The deleted clone's exact enum discrepancy cannot now be
+proven; deletion neither resolves it nor proves data loss. The fresh-production
+assessment below is separate evidence. Do not recreate the copy or treat this
+closeout as approval for another paid resource, a production migration or deployment.
+
+### Fresh production enum assessment — 2026-10-27
+
+**Conclusion: the observed production `OrderStatus` ordering difference does not
+block PR 93's planned deployment with all four privacy gates false.** No dependency
+on its PostgreSQL sort order was found in the reviewed production/PR code or four
+privacy migrations. No enum reorder, replacement type, corrective migration or
+application change is warranted by this finding. This is a bounded compatibility
+assessment, not an unconditional restoration pass or deployment authorization.
+
+Evidence is deliberately separated:
+
+- Robert supplied a fresh read-only production inspection: all **13 enum names and
+  label sets** match pinned source `7bcaaf7cfff6f8e45ab0b912f35d61ffd56c7e39`; only
+  `OrderStatus` order differs. No production SQL was repeated for this assessment,
+  and the supplied observation has no retained query timestamp in this report.
+- Source order: `PLACED, DISPATCHED, ACCEPTED, OUT_FOR_DELIVERY, DELIVERED, CANCELLED`.
+  Observed production order: `PLACED, ACCEPTED, OUT_FOR_DELIVERY, DELIVERED, CANCELLED, DISPATCHED`.
+- Read-only Render deployment metadata still identifies API, dispatcher and cron
+  builds as `c5f249fc079f2faa5ff99c61b193a0626eccc3aa` (latest deploy status `live`).
+  This confirms the code baseline, not a new health/certificate test or cron run.
+  Fetched main matches that SHA; draft/unmerged PR 93 started this assessment at
+  cleanup commit `1815085301233464361129f85fdb084491deb664`.
+- Local source comparison confirms all 13 enum declarations, including their order,
+  are identical at the pinned source, current production source and PR review head.
+  Production's ordering therefore is not introduced by PR 93. Its historical cause
+  is not established here. The deleted copy's saved mismatch count cannot be
+  retrospectively identified as this same `OrderStatus` difference.
+
+PostgreSQL enum order matters for enum sorting, range comparisons and `MIN`/`MAX`;
+equal label sets alone would not prove compatibility if those operations were used.
+See [PostgreSQL 18 enum ordering](https://www.postgresql.org/docs/18/datatype-enum.html#DATATYPE-ENUM-ORDERING).
+The scoped source review covered `orderStatus`/`cancelledFromStatus`, Prisma
+`orderBy`/range/aggregate inputs, raw SQL, enum-catalog helpers, application sorting,
+and the production-to-PR diff. Results:
+
+| Area and source | Actual dependency / conclusion |
+| --- | --- |
+| `src/controllers/orderList.controller.ts`, `driverOrders.controller.ts`; `speedy-dispatcher/src/App.tsx` | Database order lists sort by timestamps/IDs, not status. Active-order priority is explicitly HIGH before NORMAL, then oldest; history uses timestamps. This is an application priority map, not `OrderStatus` ordinal order. |
+| `src/services/orderStateTransition.service.ts`; assignment, driver-action, receipt and stats controllers | Named-label equality, `in`/`notIn`, sets and explicit transition pairs. Optimistic update guards match the existing label. Stats arrays pair explicit labels with their counts; no database ordinal lookup or range is used. |
+| Raw queries in `undispatchedOrderAlert.service.ts`, `autoDispatchPickupPlan.service.ts`, `receipt.controller.ts`, `deliveryCheckIn.routes.ts` | Status selection/equality or row locks. Alert ordering uses creation time/ID. The delivery report's `MIN` is on `deliveredAt`, not the enum. No enum `ORDER BY`, range, `MIN`/`MAX`, or `enum_first`/`enum_last`/`enum_range` dependency was found. |
+| `privacyDeletion.service.ts`, `privacyGuards.service.ts`, `privacy.routes.ts` | Active-order hold is `!['DELIVERED', 'CANCELLED'].includes(orderStatus)`, so DISPATCHED remains active in either order. Subject orders sort by ID; source lookup by creation time/ID. Anti-reactivation uses identity digests, not status order. Request lifecycle states are TEXT and explicit labels, separate from `OrderStatus`. |
+| Four `20261023*` privacy migrations | No `OrderStatus` alteration, cast, comparison or ordinal assertion. Added fields/tables/indexes and retained-record triggers depend on IDs and `privacyErasedAt`. Due-date backfill uses request creation time. Existing status labels/columns/indexes are left intact. |
+
+The API's documented pre-deploy command remains **`npx prisma migrate deploy`**
+with the locked Prisma 6 version, not `npm run prisma:migrate` (which invokes the
+development-only `migrate dev`), `db push`, or synthetic baseline/reset tooling.
+It applies pending migration files; it does not regenerate SQL to reconcile enum
+declaration order or detect general schema drift. Applied historical migrations
+must not be replayed or edited. See [Prisma 6 production migration behavior](https://www.prisma.io/docs/orm/v6/prisma-migrate/workflows/development-and-production#production-and-testing-environments).
+Keep the four ordered migrations before application start; gates-off ordinary
+order writes still require the privacy identity tables. The production schema/
+migration and private configuration read-back remains a pre-deployment requirement.
+
+Validation was source inspection plus local enum-declaration comparison and diff
+checks only. Application, migrations, dependencies and test tooling are unchanged
+from the exact CI-tested documentation head `b3d6b1280f41770ab951aa7086c678b23c59fda9`
+(both jobs passed in PR run `40438700778` / push run `40438694962`). Reuse that
+combined evidence; it is not relabelled as a test of the production enum ordering.
+No concrete order-dependent behavior was found to justify another application
+test, database exercise, build or simulator run. No customer values were inspected.
+
+**Deployment implication:** this enum finding is not a remaining technical blocker
+for the proposed gates-off rollout, which still needs separate approval. Preserve
+the original recovery report as **QUALIFIED**, its readability passes and confirmed cleanup. No new clone
+is needed for this enum assessment. Full workflow restoration and post-snapshot
+privacy-decision reconciliation remain unproven and still gate later fulfillment
+activation. A future change that sorts/ranges/aggregates this enum must explicitly
+review its database order or use a deliberate application/SQL priority mapping.
+Next: obtain the separate PR 93 merge/gates-off rollout approval under the existing
+configuration, ordered migration, read-only smoke and rollback plan; this assessment
+does not authorize execution or reopen approved retention/contact decisions.
 
 ## Original protected PITR proposal and verification plan (historical approval state)
 
@@ -643,9 +716,11 @@ Production remains on security-only `c5f249f`; this review was not deployed.
 Subsequent evidence edits are documentation only. Final pushed-head CI links belong
 in PR 93's review description; the links above identify the exact tested code merge.
 The protected restore exercise was subsequently approved and executed with the
-qualified result above: record readability is verified, one enum comparison remains
-unresolved, and exact-copy deletion is independently confirmed. Do not
-request the same approval again. Recovery's three-day PITR and at-least-seven-day
+qualified result above: record readability is verified and exact-copy deletion is
+independently confirmed. The deleted clone's exact enum mismatch remains unknown;
+the separate fresh-production assessment finds no ordering dependency or gates-off
+deployment blocker. Do not request the same recovery approval again.
+Recovery's three-day PITR and at-least-seven-day
 export retention remain established owner observations, not unknown settings.
 
 ## Earlier main integration verification (preserved evidence)

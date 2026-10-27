@@ -65,8 +65,17 @@ build; privacy database: 22 passes, none skipped. Exact final documentation-head
 is recorded in PR 93; no older run is relabelled as that head. No production change
 is part of this review-branch integration.
 
-NEXT: resolve the single enum qualification through narrow source/catalog review;
-do not repeat the broad audit or recreate the deleted recovery copy. Cleanup of
+NEXT: obtain separate approval for PR 93's documented **all-four-gates-false**
+merge/rollout, with final source/CI, migration-state and private configuration
+read-back before execution. The narrow enum assessment is complete: Robert's
+fresh production inspection found matching names/label sets for all 13 enums and
+only `OrderStatus` ordering differs. Review of deployed `c5f249f` and PR source
+`1815085` found no status ordinal sorting/range/aggregate dependency; explicit
+equality/membership and application priority/date sorting are independent of it.
+All four privacy migrations leave `OrderStatus` untouched. **This difference does
+not block the gates-off deployment and requires no reorder/migration.** Details
+and evidence limits are in `docs/privacy-technical-configuration.md`.
+Do not repeat the broad audit or recreate the deleted recovery copy. Cleanup of
 `dpg-dbg14b59el5s73bj1sm0-a` is **CLOSED**: Robert reported deletion, exact-resource
 lookup returned HTTP 404, and the workspace inventory omitted it by
 `2026-10-27T04:01:22Z` (October 27, 00:01 Toronto). Production, ordering staging and
@@ -78,13 +87,17 @@ invoice charges were not observed. The owner-selected point was
 The private read-only run at `2026-10-27T03:52:24.397Z`
 completed: all 44 migrations, 24 application tables/296 columns, expected indexes/
 foreign keys and financial-record readability checks passed; no tested orphan join.
-Result is **QUALIFIED** because one of 13 ordered enum comparisons differs; the
-saved report cannot establish whether labels or only order differ. Do not claim
-full schema equivalence or an unconditional restore-gate pass. The same TLS,
-REPEATABLE READ READ ONLY connection used 15-second statement/two-second lock
+Original result stays **QUALIFIED** because one of 13 ordered enum comparisons
+differs; the saved report cannot establish whether labels or only order differed
+in that deleted clone. Fresh production evidence does not prove its exact mismatch.
+Do not claim full clone schema equivalence or an unconditional restore pass. The
+same TLS, REPEATABLE READ READ ONLY connection used 15-second statement/two-second lock
 timeouts and rolled back/disconnected. No migrations or customer mutations ran.
-The closed copy cannot be queried again; cleanup does not resolve that qualification
-or authorize another paid resource. See the completed rehearsal/cleanup entry in
+The closed copy cannot be queried again; cleanup and the production assessment do
+not resolve that historical evidence limit or authorize another paid resource.
+Full workflow restoration and post-snapshot reconciliation remain later activation
+requirements. No application change/test rerun is needed for this documentation-only
+assessment; unchanged combined CI evidence is preserved. See the rehearsal/cleanup entry in
 `docs/privacy-technical-configuration.md`.
 Keep PR 93 draft/unmerged and Auto-Deploy Off. Apple eligibility, website publication
 and later in-app/fulfillment checks remain separate open gates.
@@ -102,8 +115,9 @@ It did not establish an existing export, exact selectable point or completed res
 The later protected one-clone exercise above records owner approval, the selected
 `2026-10-26T21:45:00Z` point, actual qualified verification and confirmed cleanup;
 the earlier no-approval/no-clone status is superseded. Runtime remediation is
-complete for the two web services on the evidence above; only the restore schema
-qualification remains open from this rehearsal. Follow the
+complete for the two web services on the evidence above. The historical clone
+qualification remains recorded, while the separate production enum assessment
+establishes no blocker from this difference for gates-off deployment. Follow the
 exact configuration, protected restore exercise and no-order/no-message
 smoke plan in `docs/privacy-technical-configuration.md`; historical isolated reset
 evidence below is not a backup-restore pass. All four production gates must be false
