@@ -65,11 +65,16 @@ build; privacy database: 22 passes, none skipped. Exact final documentation-head
 is recorded in PR 93; no older run is relabelled as that head. No production change
 is part of this review-branch integration.
 
-NEXT: complete the existing protected restore exercise preparation: confirm the
-accepted PITR timestamp/timezone and displayed compute-plus-storage quote, then
-obtain separate creation/verification/deletion approval. No clone is authorized by
-this integration. Keep PR 93 draft/unmerged and Auto-Deploy Off. Apple eligibility,
-website publication and later in-app/fulfillment checks remain separate open gates.
+NEXT: finish the now owner-approved protected restore rehearsal on the exact
+recovery copy `dpg-dbg14b59el5s73bj1sm0-a`, then verify its deletion. Robert approved
+US$6.30/month including storage, prorated, maximum 24 hours; the selected point is
+`2026-10-26T21:45:00Z`. The copy is independently Available and restricted to only
+the verified Mac IPv4 `/32`; local hidden-input read-only verification is prepared
+but no SQL pass or cleanup is yet recorded. Deadline: `2026-10-28T02:53:00Z`
+(October 27, 22:53 Toronto). Do not ask again for that same approval or create a
+second copy. See the active rehearsal entry in `docs/privacy-technical-configuration.md`.
+Keep PR 93 draft/unmerged and Auto-Deploy Off. Apple eligibility, website publication
+and later in-app/fulfillment checks remain separate open gates.
 
 Preserved privacy integration evidence (2026-10-26): integrated application
 revision `4aa373e7a50c1f79c047a7fa7e9260be9a3c431f` passed both CI jobs in PR run

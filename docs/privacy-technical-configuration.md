@@ -99,7 +99,52 @@ only and does not activate privacy behavior.
   `preparePrivacyRenderDatabase.cjs` rebuilds a synthetic baseline. Neither proves
   recovery from a backup. The exercise below is prepared, **not executed**.
 
-## Prepared protected PITR exercise (not authorized or executed)
+## Owner-approved protected PITR rehearsal — 2026-10-26
+
+This update supersedes the older proposal's price ceiling and pending-approval
+language. Robert approved one temporary recovery copy at **US$6.30/month including
+storage, prorated**, restricted access, read-only verification and deletion, with a
+maximum lifetime of 24 hours. No repeat approval is needed for that same scope.
+
+- Exact clone: `dpg-dbg14b59el5s73bj1sm0-a`,
+  `speedy-privacy-restore-rehearsal-20261026`, database `speedy_sweeties_db_fxnr`,
+  workspace `tea-d7loaul7vvec73cme5d0`; Ohio, PostgreSQL 18, `0.1c-256mb`, 1 GB.
+- Owner-selected restore point: `2026-10-26T21:45:00Z`. The resource API confirms
+  Available, creation at `2026-10-27T02:53:32.568628Z`, no HA, replicas, pool or
+  storage autoscaling. Recovery-source/time selection is owner-provided evidence;
+  this resource-detail API does not expose those fields.
+- Owner deadline: **2026-10-27 22:53 Toronto / 2026-10-28T02:53:00Z**, slightly
+  earlier than 24 hours after the API creation timestamp. Delete immediately after
+  checks or an unresolved blocker, not at the deadline by default.
+- The empty external IP allowlist was independently read back. Robert's screenshot
+  says all internet traffic is blocked. The hosted connector cannot reach the
+  restricted copy and has no fixed address to allow; no hosted SQL check succeeded.
+- The Mac's current public IPv4 was confirmed by two independent HTTPS endpoints.
+  Robert saved only that address as `/32` on this clone, independently read back as
+  exactly one matching entry. No broad rule, source or workspace rule was changed.
+  The address itself is deliberately omitted from committed evidence.
+- Existing checkout/database client only: installed Prisma 6.19.3; no `psql` binary
+  was found in the inspected installed-tool locations. No package installation,
+  build, simulator, application import/startup, migration, seed or reset is needed.
+  The bounded local checker uses a hidden terminal URL prompt and rejects any
+  hostname/database other than this clone. Credentials stay in process memory/IPC,
+  never command arguments, files, logs or chat. It uses one TLS connection with
+  strict certificate checking, default read-only sessions and a REPEATABLE READ
+  READ ONLY transaction, 15-second statement and two-second lock timeouts, then
+  rolls back/disconnects. Raw client errors/output are suppressed.
+- Preparation checks passed without opening a database connection: eight wrong-
+  target/unsafe-URL rejections, syntax, and pinned-source inventory (44 migrations,
+  24 application tables, 296 scalar columns, 13 enums, 80 named indexes and 21
+  migration-defined foreign keys). This is preparation evidence, not a restore pass.
+- SQL verification and cleanup results are pending the private local run. No
+  customer fields, financial totals, receipt text, dump or connection string will
+  be retained; only sanitized metadata/counts/pass-fail results belong here.
+
+## Original protected PITR proposal and verification plan (historical approval state)
+
+The approval, exact created resource and US$6.30 total above supersede the old
+pre-creation instructions below. The read-only checks and cleanup safeguards remain
+applicable. Do not create another copy or ask again for the already approved scope.
 
 The current request is **create, restrict, read-only verify, then delete one clone**.
 It does not authorize migration/seed/reset commands, an application deployment,
