@@ -12,7 +12,7 @@ Missing: original provisioning evidence or existing attributable provider metada
 with exact key/org/project identifiers. Stop that investigation; preserve all model
 and dashboard evidence and policy caveats. No repeat Shell/dashboard check or AI call.
 
-## Post-snapshot recovery safeguard — review preparation, 2026-10-28
+## Post-snapshot recovery safeguard — synthetic verification passed, 2026-10-28
 
 - Added independent authenticated intent/result journal protocol and minimized case
   snapshots to the existing privacy flow; missing history/store or unfinished work
@@ -20,16 +20,31 @@ and dashboard evidence and policy caveats. No repeat Shell/dashboard check or AI
 - Added guarded synthetic-only offline reconciliation reusing preview/erasure and
   financial/ownership guards; original dates and later cancellations/holds survive;
   completed-request retry logic cannot skip restored-data erasure. No new migration.
-- Added serial PostgreSQL 18 actual dump/restore cases and focused failure tests.
-  Local type-only and dispatcher-help checks pass; CI results pending. Existing
-  `validate`/`privacy-database`, Node 24.22.1 and timing-history checks remain.
+- Tested source: `357a552ab98bcd705385d2aa2ed5446065a6d3e8`, existing
+  `review/customer-account-deletion` branch. Both jobs PASS in
+  [CI 40702995563](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40702995563).
+  Node 24.22.1 / PostgreSQL 18: actual snapshot recovery 4/4 (parent + three cases),
+  existing privacy/baseline/delivery 22/22; backend 492 passes / 5 database-only
+  skips / zero failures, two timing-history database checks and dispatcher 69/69.
+  Five new journal/target/failure unit cases are included in the backend passes.
+  Final review added explicit refusal of missing scoped financial records and newer
+  external-retention decisions, with database regressions included in this run.
+  Local type-only, dispatcher-help and whitespace checks pass. No Mac application
+  build, database suite or simulator duplicated Linux evidence.
 - Storage selection + durable adapter/witness verification, reviewed unfinished-intent
   handling and separately authorized production-target wiring remain activation
   dependencies. Synthetic memory state is not a verified production backup solution.
-- NEXT: review the implementation/CI and choose the protected checkpoint store's
-  existing access/durability boundary. Do not provision, deploy, restore or enable gates.
+- NEXT: select/review the existing protected store and its independent current-head
+  boundary, then implement/test that durable adapter before any activation proposal.
+  No approved production store is established here. Do not provision, deploy,
+  restore or enable gates. Existing isolated SMS tooling is unchanged; rerunning
+  it with this new source also requires a reviewed journal integration, not a bypass.
 - Prior SMS/email-Junk, physical-device, staff, model, QUALIFIED recovery/cleanup and
   business approvals are unchanged. Apple case remains unresolved; Android deferred.
+- Handoff closeout: 15/15 focused cross-repository consistency assertions and both
+  whitespace checks pass. Proposed customer-facing policy body is unchanged; only
+  its review gates were reconciled. Subsequent evidence commits are docs-only and
+  reuse the exact tested source above; no extra application run or deployment.
 
 The following OpenAI screen/model details remain completed evidence:
 
@@ -50,10 +65,10 @@ reviewed fallback rules. Target/revision/production/no-local-dotenv/key-presence
 all-four-gates-false checks are true; result SHELL_ENVIRONMENT_READ_ONLY. This is
 owner-provided deployment-Shell evidence, not a live AI request or agent inspection
 of application memory. NOT_ESTABLISHED is an evidence-limit label, not a mismatch.
-NEXT: examine existing credential setup/provenance or attributable provider metadata
-to establish the exact production organization/project/key identity. Do not repeat
-the completed account-screen/model checks, retrieve
-keys, call AI, deploy or enable privacy. Global is not Canada-only/US-only and
+The bounded existing-record investigation is now closed as unconfirmed, with no
+mismatch found; see the evidence limit above. No further identity search is queued.
+Do not repeat completed account-screen/model checks, retrieve keys, call AI, deploy
+or enable privacy. Global is not Canada-only/US-only and
 store:false is not ZDR. Existing Resend delivery-only/Junk, SMS, deployment, physical
 device, staff and QUALIFIED recovery evidence is unchanged. All four privacy gates
 false and Auto-Deploy Off remain the required operating state.
@@ -212,23 +227,26 @@ The unpublished iOS policy now includes supported processing/removal facts witho
 claiming account defaults are verified settings. Paper/TurboTax provenance and all
 approved retention/review rules remain unchanged.
 
-Restore-protection scope is now concrete: the same-database markers can be lost in
+Historical October 27 restore assessment (implementation status superseded by the
+October 28 tested review change at the top): same-database markers can be lost in
 an older snapshot, and blindly importing completed requests would make `fulfill`
 return before erasing restored data. The technical document proposes a minimized
 independent decision checkpoint, offline reconciliation using the existing flow,
 and a serial synthetic-only restore test preserving original dates, later holds/
-cancellations and financial evidence. **Not implemented/tested; fulfillment remains
-blocked.** Completed QUALIFIED recovery/cleanup and production enum findings are
+cancellations and financial evidence. That implementation and synthetic verification
+are now complete in review; durable production storage/wiring remain unimplemented
+and fulfillment remains blocked. Completed QUALIFIED recovery/cleanup and production enum findings are
 preserved. No new production-data clone or broader recovery audit is needed.
 
-This update changes documentation only. Reuse deployed-commit CI 40450819956.
+That October 27 update changed documentation only, reusing deployed-commit CI 40450819956.
 Focused documentation consistency checks passed **16/16**, and `git diff --check`
 passed in both checkouts. The disposable checker normalized Markdown emphasis
 after an initial literal-text mismatch; no application assertion was changed.
-Tracked source/tests/workflows match deployed `4ac2ba3`; no application suite/build.
+At that update source/tests/workflows matched deployed `4ac2ba3`; the later October
+28 review source and its separate CI evidence are recorded above, not deployed.
 All four gates remain false and Auto-Deploy Off; no settings, customer data, messages,
-resource operations, publication or Apple upload. Next: return the consolidated
-account facts and separately implement/test the bounded restore reconciliation.
+resource operations, publication or Apple upload. The older next-action wording is
+superseded by the tested review change and remaining storage dependency above.
 
 ## Node 24.22.1 advisory update (2026-10-26; deployed separately as PR 96)
 

@@ -864,7 +864,7 @@ previously closed retention/contact/Render/recovery question is being reopened.
 | --- | --- | --- |
 | Twilio Verify records and onward copies | Console **Verify > Services > Speedy Sweeties > General**: report only whether **Verify Events Subscribed** is on/off. If on, **Event Streams > Manage**: whether a Verify subscription/sink exists and its destination service type, not its URL. Use the existing account's Support Center/contract records for any Verify-specific retention/removal/location answer; if absent, prepare one question covering destination/event/fraud records, early removal and residual carrier/legal copies. Do not send it automatically. | MTL/query visibility are not an erasure limit. Forwarding changes the external-copy inventory. The [official screen guide](https://www.twilio.com/docs/verify/verify-events-webhook-onboarding-guide) is for navigation only: do not enable, create or test a sink. |
 | Resend Inbox placement and actual removal | **CLOSED on October 27 owner evidence:** existing account recovered, Free, verified ready domain, tracking unconfigured, enforced TLS, existing sending/all-domains key and SAVE ONLY sender; single owner-only delivery PASS (one attempt, HTTP 200, providerAccepted=true, received in Junk). Do not repeat those checks, resend or redeploy. Inbox placement remains unresolved; no cause or DNS correction is evidenced. Remaining account/support facts are any custom retention/content-storage exception and removal process; sending region was not reported and is not storage residency. | Saved configuration is not running configuration. The delivery-only pass does not establish Inbox placement, retention/removal, the normal verification-code email or the in-app privacy flow. |
-| OpenAI production identity | **Screen checks CLOSED for the shown Personal / Default project** on October 27 owner evidence: Global, all three sharing controls Disabled, per-call API logging, audit logging not enabled, no ZDR/custom period displayed, existing named key. **Model check CLOSED on October 28 owner Shell evidence:** all three overrides UNSET/effective gpt-5.6-luna, target/revision/production/no-local-dotenv/key-presence/gates-false checks true. Do not repeat these checks. Exact production key/project mapping still requires an existing attributable setup/provenance record or provider metadata, not a name, usage date or masked ending. | Account observations cannot yet be assigned to production. The explicit NOT_ESTABLISHED label is not a detected mismatch. `store:false` does not establish ZDR and Global is not a country-only guarantee. No new key or live AI request. |
+| OpenAI production identity — bounded investigation CLOSED | Screen and model checks remain closed on owner evidence. The bounded existing-record search also ended October 28: Production organization/project identity remains unconfirmed; no mismatch found. Missing is an attributable provisioning record or existing provider metadata tying the deployed credential to exact key/org/project identifiers, not a display name, date or masked ending. No further search or repeat account/model check is queued. | Account observations cannot yet be assigned to production. Preserve the evidence limitation and policy caveats; `store:false` does not establish ZDR and Global is not a country-only guarantee. No new key or live AI request. |
 | Operator-held copies and recovery checkpoint storage | One concise inventory of existing request mailbox/synced contacts, manual downloads/exports and paper-original storage/access, who removes eligible copies, and whether an existing restricted store outside the database rollback boundary can hold minimized privacy-decision checkpoints. Report additional tax-tool uploads only if they actually occur. | Account APIs cannot establish manual practice. TurboTax tax filing is not evidence of receipt/profile storage; no new retention period or accountant sign-off is requested. |
 
 After these facts, reconcile the unpublished iOS policy and existing external-task
@@ -1330,7 +1330,8 @@ and hashes are still restricted personal information, not anonymous data.
 `privacyRecovery.service.ts` provides a synthetic-only offline entry point: exact
 loopback database/role/environment checks, actual database identity and four enabled
 protection triggers precede writes. It validates independent history, refuses newer
-DB decisions/holds, changed ownership/financial evidence and unknown scope, then
+DB decisions/holds, newer external-retention decisions, missing scoped financial
+records, changed ownership/financial evidence and unknown scope, then
 reuses the existing preview/erasure implementation in one transaction. It does NOT
 use `fulfill`'s completed-request shortcut. Terminal metadata is restored only after
 erasure, including original marker/request review dates. Later cancellations/holds
@@ -1338,13 +1339,23 @@ are not deletion instructions. Replay is idempotent and never authorizes reopeni
 historical external outcome digests require operator review of actual external copies.
 No public replay/reset route, startup replay or production restore command was added.
 
-**Verification at preparation:** local type-only check and dispatcher-help review
-pass. Added serial Linux PostgreSQL 18 tests take real custom-format pg_dump snapshots
+**Verification PASS, October 28:** reviewed source
+`357a552ab98bcd705385d2aa2ed5446065a6d3e8`; both `validate` and `privacy-database`
+passed [CI run 40702995563](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40702995563).
+Local type-only check and dispatcher-help review also pass. Serial Linux Node
+24.22.1 / PostgreSQL 18 tests take real custom-format pg_dump snapshots
 before requests and before fulfillment, restore without reseeding, and exercise the
 negative marker control, replay, original dates, financial evidence, old credentials,
 unrelated customers, later cancellations/holds and storage-failure boundaries.
-CI execution/result is recorded in the release checklist when available; not yet
-claimed passed here. Existing runtime pins, four migrations, guards and both CI jobs
+Final regressions also verify missing non-source financial records and newer
+external-retention holds stop before erasure. These cannot be silently reconstructed
+or overwritten from the minimized journal; an operator must resolve the discrepancy.
+Recovery tests: 4 passes (parent plus before-request, before-fulfillment, and storage
+failure cases); existing privacy/baseline/delivery: 22 passes. Backend suite: 492
+passes, 5 database-only skips, zero failures, including five new journal/target
+unit cases; both separate timing-history DB checks and 69 dispatcher tests pass.
+Database tests run serially with one worker; no local database, simulator, install,
+application build or repeated broad Mac suite. Existing runtime pins, four migrations, guards and both CI jobs
 remain intact. The only storage implementation is a clearly labelled synthetic
 memory test double, retained across database restore, NOT a production recovery store.
 
@@ -1357,7 +1368,9 @@ under the already-approved justified-need/review rules, and operator resolution 
 unfinished intents (never blindly mark them committed). Separately authorize/wire
 the exact protected production recovery target and offline procedure; there is no
 production target adapter in this change. A periodic export or temporary local file
-does not meet these requirements. No service provisioning, production restore,
+does not meet these requirements. The existing isolated SMS server is unchanged;
+any future use with this review source also needs a reviewed journal integration,
+not disabling the guard. No service provisioning, production restore,
 deployment, gate activation or retention-period change is authorized or performed.
 
 The October 27 assessment/proposal below remains the rationale and acceptance scope;
@@ -1378,7 +1391,7 @@ order contacts or revoke restored credentials. Replaying at a later date must no
 restart the original request due date, closure or 24-month review anchors. Existing
 ownership/preview/hold checks and financial-evidence guards must remain effective.
 
-**Smallest remaining work — proposed, not implemented or verified:**
+**Historical October 27 acceptance scope — implementation status superseded above:**
 
 1. Define one minimized, access-restricted recovery case/checkpoint format outside
    this database's rollback boundary, using an existing approved protected store if
@@ -1412,7 +1425,7 @@ ownership/preview/hold checks and financial-evidence guards must remain effectiv
    authorize reopening. Apply the already-approved review/justified-need rules to
    these checkpoints, not a new indefinite or minimum retention period.
 
-**Synthetic-only verification proposal; no new test run needed for this doc change:**
+**Historical synthetic-only verification plan — now exercised as recorded above:**
 
 - Extend the existing serial PostgreSQL 18 privacy lifecycle test setup with
   `tests/privacyBaseline.cjs`, existing synthetic fixture and delivery mocks. Use
