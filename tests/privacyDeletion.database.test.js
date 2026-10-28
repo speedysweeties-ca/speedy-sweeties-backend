@@ -23,7 +23,8 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
   const timeframe = 'within 30 days (synthetic test wording only)';
   const fiscalYearEnd = `${new Date().getUTCFullYear()}-12-31`;
   const financialRetainUntil = `${new Date().getUTCFullYear() + 6}-12-31T23:59:59.999Z`;
-  const service = new PrivacyDeletionService(db, process.env.JWT_SECRET, delivery, () => true, timeframe, '12-31');
+  const recovery = await require('./privacyRecoveryFixture.cjs').syntheticJournal(process.env.JWT_SECRET);
+  const service = new PrivacyDeletionService(db, process.env.JWT_SECRET, delivery, () => true, timeframe, '12-31', recovery);
   const decision = () => ({ policyReference: 'SYNTHETIC-TEST-ONLY', justification: 'Synthetic fixture financial retention; not a business policy.', taxYearEnd: fiscalYearEnd,
     financialRetainUntil, personalFields: [], financialFields: [...retainedFinancialFields], unlinkedRecordsReviewed: true, confirmed: true });
   const seed = async ({ email = true } = {}) => {
@@ -115,7 +116,7 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
     await t.test('durable per-contact limit cannot be bypassed across service instances', async () => {
       const c = await seed(), source = await ordered(c);
       for (let n = 0; n < 5; n++) await service.challenge({ trackingToken: source.trackingToken }, randomUUID());
-      const other = new PrivacyDeletionService(db, process.env.JWT_SECRET, delivery, () => false, timeframe, '12-31');
+      const other = new PrivacyDeletionService(db, process.env.JWT_SECRET, delivery, () => false, timeframe, '12-31', recovery);
       await assert.rejects(other.challenge({ trackingToken: source.trackingToken }, randomUUID()), /TRY_LATER/);
     });
 

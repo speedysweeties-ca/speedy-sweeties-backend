@@ -5,6 +5,34 @@ a separate release and requires its own signed build and store submission.
 
 ## Bounded OpenAI privacy follow-up — 2026-10-28
 
+IDENTITY SEARCH CLOSED: Production organization/project identity remains unconfirmed;
+no mismatch found. The bounded retained-record search found source setup and
+synthetic test references, not an attributable deployed-key-to-project record.
+Missing: original provisioning evidence or existing attributable provider metadata
+with exact key/org/project identifiers. Stop that investigation; preserve all model
+and dashboard evidence and policy caveats. No repeat Shell/dashboard check or AI call.
+
+## Post-snapshot recovery safeguard — review preparation, 2026-10-28
+
+- Added independent authenticated intent/result journal protocol and minimized case
+  snapshots to the existing privacy flow; missing history/store or unfinished work
+  fails closed before further decisions. No production adapter is configured.
+- Added guarded synthetic-only offline reconciliation reusing preview/erasure and
+  financial/ownership guards; original dates and later cancellations/holds survive;
+  completed-request retry logic cannot skip restored-data erasure. No new migration.
+- Added serial PostgreSQL 18 actual dump/restore cases and focused failure tests.
+  Local type-only and dispatcher-help checks pass; CI results pending. Existing
+  `validate`/`privacy-database`, Node 24.22.1 and timing-history checks remain.
+- Storage selection + durable adapter/witness verification, reviewed unfinished-intent
+  handling and separately authorized production-target wiring remain activation
+  dependencies. Synthetic memory state is not a verified production backup solution.
+- NEXT: review the implementation/CI and choose the protected checkpoint store's
+  existing access/durability boundary. Do not provision, deploy, restore or enable gates.
+- Prior SMS/email-Junk, physical-device, staff, model, QUALIFIED recovery/cleanup and
+  business approvals are unchanged. Apple case remains unresolved; Android deferred.
+
+The following OpenAI screen/model details remain completed evidence:
+
 Robert's October 27 screenshot findings are recorded in
 `docs/privacy-technical-configuration.md`: Personal / Default project, Global;
 feedback, evaluation/fine-tuning and input/output sharing Disabled; API logging

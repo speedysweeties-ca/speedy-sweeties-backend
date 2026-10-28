@@ -37,7 +37,8 @@ test('real privacy routes complete a mocked phone request while fulfillment stay
     delivery,
     () => false,
     ADOPTED_COMPLETION_TIMEFRAME,
-    '12-31'
+    '12-31',
+    await require('./privacyRecoveryFixture.cjs').syntheticJournal('synthetic-route-digest-key-distinct-from-jwt')
   );
   const app = express();
   app.use(express.json({ limit: '16kb' }));

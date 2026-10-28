@@ -3,6 +3,8 @@ import { Prisma, PrismaClient, Customer } from "@prisma/client";
 import { z } from "zod";
 import { verifyCustomerLoyaltyToken } from "../utils/jwt";
 import type { VerificationChannel, VerificationDelivery } from "./privacyDelivery.service";
+import { canonical, PrivacyRecoveryJournal, RecoveryError } from "./privacyRecoveryJournal";
+import { recoveryState, type RecoveryState } from "./privacyRecoveryState";
 
 export class PrivacyError extends Error {
   constructor(public status: number, public code: string) { super(code); }
@@ -78,9 +80,36 @@ export async function privacyLock(tx: Tx) {
 export class PrivacyDeletionService {
   constructor(readonly db: PrismaClient, private key: string, private delivery: VerificationDelivery,
     private canFulfill: (decision?: RetentionDecision) => boolean = () => false,
-    private completionTimeframe = "", private fiscalYearEndMonthDay = "") {
+    private completionTimeframe = "", private fiscalYearEndMonthDay = "", readonly recovery?: PrivacyRecoveryJournal) {
     if (key.length < 16) throw new Error("Privacy digest key is not configured");
     if (!completionTimeframe.trim() || completionTimeframe.length > 200) throw new Error("Privacy completion timeframe is not configured");
+  }
+  private async transition<T>(id: string, event: string, work: (tx: Tx) => Promise<T>): Promise<T> {
+    if (!this.recovery) throw new PrivacyError(503, "PRIVACY_RECOVERY_STORE_REQUIRED");
+    let intent: Awaited<ReturnType<PrivacyRecoveryJournal["intent"]>> | undefined;
+    try {
+      const result = await this.atomic(async tx => {
+        const history = await this.recovery!.ready();
+        const previous = history.cases.get(id) as RecoveryState | undefined;
+        const before = await recoveryState(tx, id, s => this.hash(s), c => this.fingerprint(c), previous?.scope);
+        if (before && (!previous || canonical(before.request) !== canonical(previous.request) || canonical(before.tasks) !== canonical(previous.tasks)))
+          throw new RecoveryError("RECOVERY_UNRECORDED_DECISION");
+        const result = await work(tx);
+        const actualId = (result as any)?.id || id;
+        const state = await recoveryState(tx, actualId, s => this.hash(s), c => this.fingerprint(c), before?.scope || previous?.scope);
+        if (!state) throw new RecoveryError("RECOVERY_STATE_REQUIRED");
+        // All DB writes are still uncommitted. An independent durable intent must
+        // be acknowledged before DB commit; a crash on either side remains open.
+        intent = await this.recovery!.intent(history.head, event, state);
+        return result;
+      });
+      await this.recovery.committed(intent!);
+      return result;
+    } catch (error) {
+      if (error instanceof PrivacyError) throw error;
+      // Never auto-abort an intent: the DB commit outcome may be uncertain.
+      throw new PrivacyError(503, error instanceof RecoveryError ? error.code : "PRIVACY_RECOVERY_UNAVAILABLE");
+    }
   }
   private validateFinancialExpiry(orders: { createdAt: Date }[], decision: RetentionDecision) {
     if (!/^\d{2}-\d{2}$/.test(this.fiscalYearEndMonthDay)) throw new PrivacyError(503, "FISCAL_YEAR_END_REQUIRED");
@@ -164,6 +193,8 @@ export class PrivacyDeletionService {
     }
   }
   async challenge(credential: ChallengeCredential, requester: string) {
+    if (!this.recovery) throw new PrivacyError(503, "PRIVACY_RECOVERY_STORE_REQUIRED");
+    await this.recovery.ready();
     const id = randomUUID(), code = String(randomInt(10000000, 100000000));
     const requesterHash = this.hash(`ip:${requester}`);
     const target = await this.atomic(async tx => {
@@ -206,6 +237,8 @@ export class PrivacyDeletionService {
       message: `A verification code was sent to ${maskDestination(target.channel, target.destination)}. No account has been deleted.` };
   }
   async verify(id: string, code: string, accessToken?: string) {
+    if (!this.recovery) throw new PrivacyError(503, "PRIVACY_RECOVERY_STORE_REQUIRED");
+    await this.recovery.ready();
     const prepared = await this.atomic(async tx => {
       const c = await tx.privacyChallenge.findUnique({ where: { id } });
       if (!c || c.expiresAt <= new Date() || c.consumedAt || c.attempts >= 5 || c.delivery !== "SENT" ||
@@ -265,7 +298,7 @@ export class PrivacyDeletionService {
     return { proof: this.hash(`proof:${id}`) };
   }
   async submit(input: { id: string; token: string; challengeId: string; proof: string; accessToken: string }) {
-    return this.atomic(async tx => {
+    return this.transition(input.id, "SUBMIT", async tx => {
       const existing = await tx.privacyDeletionRequest.findUnique({ where: { id: input.id } });
       if (existing) {
         this.authorize(existing.tokenHash, input.token);
@@ -276,6 +309,12 @@ export class PrivacyDeletionService {
       const sourceOrder = c?.sourceOrderId && await tx.order.findUnique({ where: { id: c.sourceOrderId } });
       const access = c?.accessId && await tx.privacyAccessCredential.findUnique({ where: { tokenHash: digest(input.accessToken) } });
       const active = customer && await tx.privacyDeletionRequest.findUnique({ where: { activeSubject: customer.id } });
+      if (active) {
+        const recorded = (await this.recovery!.ready()).cases.get(active.id) as RecoveryState | undefined;
+        const current = await recoveryState(tx, active.id, s => this.hash(s), c => this.fingerprint(c), recorded?.scope);
+        if (!recorded || !current || canonical(current.request) !== canonical(recorded.request) || canonical(current.tasks) !== canonical(recorded.tasks))
+          throw new RecoveryError("RECOVERY_UNRECORDED_DECISION");
+      }
       if (active && secureEqual(active.tokenHash, digest(input.token))) return this.publicStatus(active);
       if (!c || !c.verifiedAt || c.consumedAt || c.expiresAt <= new Date() || !customer || !sourceOrder ||
           sourceOrder.customerId !== customer.id || sourceOrder.privacyErasedAt || !access || access.revokedAt || access.id !== c.accessId ||
@@ -313,7 +352,7 @@ export class PrivacyDeletionService {
     this.authorize(r.tokenHash, token); return this.publicStatus(r);
   }
   async cancel(id: string, token: string) {
-    return this.atomic(async tx => {
+    return this.transition(id, "CANCEL", async tx => {
       const r = await tx.privacyDeletionRequest.findUnique({ where: { id } });
       if (!r) throw new PrivacyError(404, "REQUEST_UNAVAILABLE");
       this.authorize(r.tokenHash, token);
@@ -324,6 +363,16 @@ export class PrivacyDeletionService {
         status: "CANCELLED", activeSubject: null, version: { increment: 1 }, closedAt,
         requestAuditReviewAt: addCalendarMonths(closedAt, ADOPTED_REQUEST_AUDIT_REVIEW_MONTHS),
         audit: { create: { actorId: "customer", event: "CANCELLED" } }
+      } }));
+    });
+  }
+  // Offline/operator integration only: no new public HTTP route or UI control.
+  async hold(id: string, actor: string) {
+    return this.transition(id, "HOLD", async tx => {
+      const r = await tx.privacyDeletionRequest.findUniqueOrThrow({ where: { id } });
+      if (!cancellable.includes(r.status) || r.databaseErasedAt) throw new PrivacyError(409, "INVALID_STATE");
+      return this.publicStatus(await tx.privacyDeletionRequest.update({ where: { id }, data: {
+        status: "HOLD", version: { increment: 1 }, audit: { create: { actorId: actor, event: "HOLD" } }
       } }));
     });
   }
@@ -367,10 +416,11 @@ export class PrivacyDeletionService {
     if (!parsed.success) throw new PrivacyError(400, "VALIDATED_RETENTION_DECISION_REQUIRED");
     const decision = parsed.data;
     if (!this.canFulfill(decision)) throw new PrivacyError(503, "FULFILLMENT_DISABLED");
-    return this.atomic(async tx => {
+    return this.transition(id, "FULFILL", async tx => {
       const r = await tx.privacyDeletionRequest.findUniqueOrThrow({ where: { id } });
       // Retry after a lost successful response cannot run deletion twice.
       if (r.databaseErasedAt) return this.publicStatus(r);
+      if (r.status === "HOLD") throw new PrivacyError(409, "REQUEST_ON_HOLD");
       if (!cancellable.includes(r.status) || r.version !== version) throw new PrivacyError(409, "STALE_REQUEST");
       const p = await this.preview(tx, id);
       if (p.hash !== previewHash) throw new PrivacyError(409, "STALE_PREVIEW");
@@ -378,7 +428,17 @@ export class PrivacyDeletionService {
       if (p.unlinkedOrderIds.length) throw new PrivacyError(409, "UNLINKED_RECORDS_REQUIRE_REVIEW");
       if (p.conflictingLinkedOrderIds.length) throw new PrivacyError(409, "HISTORICAL_SCOPE_REVIEW_REQUIRED");
       this.validateFinancialExpiry(p.orders, decision);
-      const now = new Date(), ids = p.orders.map(o => o.id);
+      return this.eraseScoped(tx, p, decision, new Date(), actor);
+    });
+  }
+  // Shared with offline recovery AFTER its independent-history/ownership checks.
+  // This intentionally has no completed-request short circuit.
+  async eraseScoped(tx: Tx, p: Awaited<ReturnType<PrivacyDeletionService["preview"]>>, decision: RetentionDecision, now: Date, actor: string) {
+      if (p.activeOrders.length) throw new PrivacyError(409, "ACTIVE_ORDERS_HOLD");
+      if (p.unlinkedOrderIds.length) throw new PrivacyError(409, "UNLINKED_RECORDS_REQUIRE_REVIEW");
+      if (p.conflictingLinkedOrderIds.length) throw new PrivacyError(409, "HISTORICAL_SCOPE_REVIEW_REQUIRED");
+      this.validateFinancialExpiry(p.orders, decision);
+      const id = p.request.id, ids = p.orders.map(o => o.id);
       const suppressionReviewAt = addCalendarMonths(now, ADOPTED_ANTI_REACTIVATION_REVIEW_MONTHS);
       await tx.orderItem.updateMany({ where: { orderId: { in: ids } }, data: { itemCatalogId: null } });
       for (const order of p.orders) {
@@ -419,12 +479,11 @@ export class PrivacyDeletionService {
         tasks: { create: externalSystems.map(system => ({ system })) },
         audit: { create: { actorId: actor, event: "DATABASE_ERASED_EXTERNAL_PENDING" } }
       } }));
-    });
   }
   async resolveExternal(id: string, actor: string, system: string, evidence: string, retainUntil?: string) {
     if (!externalSystems.includes(system as typeof externalSystems[number]) || evidence.trim().length < 12 || evidence.length > 600 ||
         (retainUntil && !future.safeParse(retainUntil).success)) throw new PrivacyError(400, "EVIDENCE_REQUIRED");
-    return this.atomic(async tx => {
+    return this.transition(id, "EXTERNAL", async tx => {
       const r = await tx.privacyDeletionRequest.findUniqueOrThrow({ where: { id } });
       if (r.status !== "FULFILLING") throw new PrivacyError(409, "INVALID_STATE");
       const existing = await tx.privacyExternalTask.findUniqueOrThrow({ where: { requestId_system: { requestId: id, system } } });
@@ -442,7 +501,7 @@ export class PrivacyDeletionService {
     });
   }
   async complete(id: string, actor: string) {
-    return this.atomic(async tx => {
+    return this.transition(id, "COMPLETE", async tx => {
       const r = await tx.privacyDeletionRequest.findUniqueOrThrow({ where: { id }, include: { tasks: true } });
       if (r.status === "COMPLETED") return this.publicStatus(r);
       if (r.status !== "FULFILLING" || r.tasks.length !== externalSystems.length || r.tasks.some(t => t.status === "PENDING"))

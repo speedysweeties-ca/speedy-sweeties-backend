@@ -8,6 +8,17 @@ and `docs/release-checklist.md`. Recovery remains **QUALIFIED**, cleanup confirm
 Robert's October 27 account evidence records Hobby/no default log stream and an
 empty current production logical-export list; these do not prove all-copy erasure.
 
+October 28 review-branch follow-up: decision changes require an independently
+protected recovery journal, with durable pre-commit intent and post-commit outcome.
+Missing coverage/storage or an unfinished operation stops processing; a HOLD cannot
+be fulfilled. There is no production store adapter yet, so activation remains blocked.
+The offline reconciler is restricted to synthetic CI targets and reuses existing
+ownership/financial erasure protections without the completed-request retry shortcut.
+Tests exercise actual synthetic dump/restore; see the single release checklist for
+execution results. No new route, migration, service or production restore is included.
+Example guide questions: "Why did privacy processing stop?" and "Can I fulfill a
+request on hold?" Guide ID: `privacy-requests`; existing receipt controls are unchanged.
+
 Updated 2026-10-23 on `review/customer-account-deletion` for draft PR 93. This
 branch must not be merged into an automatically deploying branch until the owner
 decisions, provider checks, isolated-database CI and rollout review below pass.
@@ -268,7 +279,8 @@ is part of the current iOS/backend scope.
   decision checkpoint/offline reconciliation and synthetic-only test. In particular,
   do not import a completed request then expect `fulfill` to redact older records:
   `databaseErasedAt` deliberately causes an early return. Preserve original due/
-  review anchors and later cancellations/holds. This work is proposed, not verified;
+  review anchors and later cancellations/holds. The October 28 implementation above
+  supersedes the proposal-only status, not the production storage/activation block;
   keep fulfillment disabled. The completed QUALIFIED restore rehearsal and cleanup
   are unchanged; no new production-data copy is required.
 

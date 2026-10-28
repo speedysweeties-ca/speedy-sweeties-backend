@@ -727,7 +727,24 @@ shown, created **2026-09-14**, last used **2026-10-26**. No setting or key chang
 These observations close the requested screen checks for that selected project;
 do not request them again or infer that unshown controls are absent everywhere.
 
-**Production identity match: NOT ESTABLISHED.** The Render read-only deploy listing
+**Bounded identity investigation closed, October 28:**
+**Production organization/project identity remains unconfirmed; no mismatch found.**
+Git history identifies `700da85b66327784f447d2eef78021c5a1d4cea7` (September 14,
+PR 35) as the original OpenAI order-draft integration: environment-key consumption,
+not account/key creation or assignment evidence. A bounded scan of 23 retained
+September Codex / VS Code workspace chat-transcript files found three relevant
+files: September 17 `01a0af6d...` and September 23 `01a0cf2f...` / `01a0d104...`.
+Their relevant entries contain caller/configuration code and synthetic unit-test
+keys, not attributable production provisioning records. No credential content is
+retained here. Available provider metadata remains the owner-supplied account
+screens and production Shell booleans; neither binds the exact credential identity.
+Missing evidence: an attributable original setup record or existing provider
+request/account metadata linking the deployed credential to the exact key identifier
+and its organization/project identifiers. Display names, dates or masked endings
+do not supply that link. Investigation stopped without a new key, AI request,
+settings change or repeat dashboard/Shell check. Continue independent release work.
+
+**Production identity evidence boundary.** The Render read-only deploy listing
 on October 28 still reports API `srv-d7ntlnpkh4rs73bev9q0`, live deployment
 `dep-dbg3m4afngtc738jad20`, commit `4ac2ba372ae23972ee665a77ce241c3d267ea107`.
 All three callers and `src/config/env.ts` are unchanged from that deployed source.
@@ -832,10 +849,9 @@ sanitized read errors and gate reporting. Only mocked filesystem/environment obj
 were exposed; no network or application imports. Both documentation diffs pass
 whitespace checks; the earlier owner-email command is byte-for-byte unchanged.
 The owner-run read-back now closes the model/presence check; no test rerun was needed
-to record it. The remaining OpenAI release action is to examine an existing credential
-setup/provenance record that links the deployed credential to the exact project/key,
-or existing attributable provider metadata, without exposing secrets. Do not repeat
-the screen/model checks or create a key, make an AI request, activate privacy or upload.
+to record it. The bounded provenance investigation above is now exhausted and stopped.
+Keep its precise missing-evidence limitation; do not repeat screen/model checks or
+create a key, make an AI request, activate privacy or upload to resolve it by inference.
 
 ### One consolidated factual handoff — inspect only, save/change nothing
 
@@ -1294,6 +1310,58 @@ rehearsal stays **QUALIFIED**, and its deleted clone's exact enum mismatch remai
 unprovable; the separate production enum assessment is not retroactive clone proof.
 
 #### Post-snapshot privacy decisions — bounded source assessment, 2026-10-27
+
+**October 28 implementation update (review branch only; not deployed):**
+`privacyRecoveryJournal.ts` defines an authenticated, sequenced decision protocol
+and a protected-store interface. It requires an explicitly enrolled empty decision
+baseline, a durable compare-and-append intent before DB commit and a durable result
+after commit. Missing/invalid history, wrong key/scope, stale high-water or unfinished
+operations fail closed. `submit`, status-credential recovery, cancellation, hold,
+fulfillment, external outcomes and completion use it. Challenges also require ready
+history before any provider call. No production adapter is selected or wired, so
+these transitions fail closed without one; gates-off ordinary ordering is unchanged.
+
+The checkpoint preserves bounded request identifiers/hashes, scope/ownership and
+financial-evidence digests, original deadlines/closure/review/retention dates,
+marker metadata and external-outcome evidence digests. It excludes contacts, raw
+tokens/OTPs, receipt originals, actor notes and provider credentials. Identifiers
+and hashes are still restricted personal information, not anonymous data.
+
+`privacyRecovery.service.ts` provides a synthetic-only offline entry point: exact
+loopback database/role/environment checks, actual database identity and four enabled
+protection triggers precede writes. It validates independent history, refuses newer
+DB decisions/holds, changed ownership/financial evidence and unknown scope, then
+reuses the existing preview/erasure implementation in one transaction. It does NOT
+use `fulfill`'s completed-request shortcut. Terminal metadata is restored only after
+erasure, including original marker/request review dates. Later cancellations/holds
+are not deletion instructions. Replay is idempotent and never authorizes reopening;
+historical external outcome digests require operator review of actual external copies.
+No public replay/reset route, startup replay or production restore command was added.
+
+**Verification at preparation:** local type-only check and dispatcher-help review
+pass. Added serial Linux PostgreSQL 18 tests take real custom-format pg_dump snapshots
+before requests and before fulfillment, restore without reseeding, and exercise the
+negative marker control, replay, original dates, financial evidence, old credentials,
+unrelated customers, later cancellations/holds and storage-failure boundaries.
+CI execution/result is recorded in the release checklist when available; not yet
+claimed passed here. Existing runtime pins, four migrations, guards and both CI jobs
+remain intact. The only storage implementation is a clearly labelled synthetic
+memory test double, retained across database restore, NOT a production recovery store.
+
+**Activation dependencies, not new business-policy decisions:** select an existing
+approved restricted store and implement/verify its durable linearizable append/CAS,
+independently protected current head, coverage enrollment and key continuity outside
+the DB rollback boundary. A restored/truncated head cannot be used as its own proof
+of completeness. Define access, operational availability, reviewed compaction/removal
+under the already-approved justified-need/review rules, and operator resolution of
+unfinished intents (never blindly mark them committed). Separately authorize/wire
+the exact protected production recovery target and offline procedure; there is no
+production target adapter in this change. A periodic export or temporary local file
+does not meet these requirements. No service provisioning, production restore,
+deployment, gate activation or retention-period change is authorized or performed.
+
+The October 27 assessment/proposal below remains the rationale and acceptance scope;
+its not-implemented status is superseded only by the bounded review-branch work above.
 
 `PrivacyDeletedIdentity`, requests, audit, external tasks and access/challenge state
 are in the **same database** as Customer/Order. `assertPrivacyOrderAllowed` rejects
