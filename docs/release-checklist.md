@@ -3,6 +3,31 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## Bounded OpenAI privacy follow-up — 2026-10-28
+
+Robert's October 27 screenshot findings are recorded in
+`docs/privacy-technical-configuration.md`: Personal / Default project, Global;
+feedback, evaluation/fine-tuning and input/output sharing Disabled; API logging
+Enabled per call; audit logging not enabled; no ZDR approval/custom retention period
+displayed. One active Speedy Sweeties Render key, created September 14 / last used
+October 26. No settings/keys changed. These screen checks are closed for that project,
+not evidence of an exact match to production's credential. Name/date/masked-ending
+evidence alone cannot establish identity.
+
+Read-only Render metadata still identifies API dep-dbg3m4afngtc738jad20 at 4ac2ba3.
+The three callers/configuration match deployed source and still use one key with
+store:false, no organization/project headers. Runtime model variables are NOT READ,
+not reported unset. The technical document contains one no-network, safe-output Shell
+command with target/revision checks and exact source fallbacks. NEXT: obtain that
+sanitized read-back; production identity remains unconfirmed without attributable
+existing provenance/provider metadata. Do not repeat account-screen checks, retrieve
+keys, call AI, deploy or enable privacy. Global is not Canada-only/US-only and
+store:false is not ZDR. Existing Resend delivery-only/Junk, SMS, deployment, physical
+device, staff and QUALIFIED recovery evidence is unchanged. All four privacy gates
+false and Auto-Deploy Off remain the required operating state.
+The documented command passed 15 synthetic no-network cases; no application suite,
+build, simulator or live check was repeated. Documentation whitespace checks passed.
+
 ## PR 93 production closeout — 2026-10-27
 
 LATER OWNER RESEND UPDATE, October 27: existing account recovered, no new account/

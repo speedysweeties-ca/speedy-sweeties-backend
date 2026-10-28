@@ -1,6 +1,6 @@
 # Privacy deletion technical configuration and isolated evidence
 
-Updated 2026-10-27. The production findings came from repository inspection plus
+Updated 2026-10-28. The production findings came from repository inspection plus
 read-only Render/PostgreSQL and mailbox access. The isolated-test update separately
 used the authorized disposable service/database reset and deploy sequence; no secret
 value was requested or displayed and no message was sent. Ordering staging, backups
@@ -711,8 +711,115 @@ OTP or credential is needed in the shared reply; this review sends no support me
   [delete operation](https://developers.openai.com/api/reference/resources/responses/methods/delete)
   is not erasure of every abuse-monitoring/cache copy. Provider assistance under the
   [business DPA](https://cdn.openai.com/pdf/openai-data-processing-addendum.pdf)
-  is distinct from deleting Robert's ChatGPT account. No ZDR approval, sharing opt-in,
-  residence setting or successful provider erasure is asserted for this account.
+  is distinct from deleting Robert's ChatGPT account. No ZDR approval, sharing opt-in
+  or successful provider erasure is asserted. The later owner-observed residency and
+  sharing findings below supersede the earlier missing-screen status only.
+
+#### OpenAI owner screenshots and bounded production check — 2026-10-28
+
+**Owner-provided screenshot findings dated October 27, not an agent account login:**
+organization **Personal**, project **Default project**, residency **Global**;
+feedback sharing **Disabled**, evaluation/fine-tuning sharing **Disabled**, and
+input/output sharing **Disabled**. API call logging displays **Enabled per call**;
+audit logging is **not enabled**. No Zero Data Retention approval or custom retention
+period was displayed. One active project key named **Speedy Sweeties Render** was
+shown, created **2026-09-14**, last used **2026-10-26**. No setting or key changed.
+These observations close the requested screen checks for that selected project;
+do not request them again or infer that unshown controls are absent everywhere.
+
+**Production identity match: NOT ESTABLISHED.** The Render read-only deploy listing
+on October 28 still reports API `srv-d7ntlnpkh4rs73bev9q0`, live deployment
+`dep-dbg3m4afngtc738jad20`, commit `4ac2ba372ae23972ee665a77ce241c3d267ea107`.
+All three callers and `src/config/env.ts` are unchanged from that deployed source.
+They share `env.OPENAI_API_KEY`, make direct Responses requests, and send no
+organization/project headers. No key-to-project identity is embedded in that source.
+The name, single-key count, creation/last-used dates, or a masked key-ending match
+would be circumstantial, not proof that the production credential is this key.
+No masked-ending comparison was performed. No raw key, digest or suffix is needed
+in chat. A confirmed match requires independently attributable existing credential
+provenance or provider request/account metadata tying production to the exact key
+and organization/project, not just their display names. Such evidence is not
+available in this bounded review; no live API request or key replacement is justified.
+
+**Runtime model settings: NOT READ, not UNSET.** Available Render connector operations
+expose deployment metadata, not a Shell/exec or running-environment read operation.
+The source's nullish fallback rules (including preserving an explicitly empty string)
+are:
+
+| Variable | Effective source rule if unset | Production observation |
+| --- | --- | --- |
+| `OPENAI_ORDER_DRAFT_MODEL` | `gpt-5.6-luna` | Pending safe Shell output |
+| `OPENAI_PRODUCT_WEB_LOOKUP_MODEL` | `OPENAI_ORDER_DRAFT_MODEL`, otherwise `gpt-5.6-luna` | Pending safe Shell output |
+| `OPENAI_DISPATCHER_HELP_MODEL` | `OPENAI_ORDER_DRAFT_MODEL`, otherwise `gpt-5.6-luna` | Pending safe Shell output |
+
+**One consolidated read-only Shell check.** Open a NEW
+[production speedy-api Shell](https://dashboard.render.com/web/srv-d7ntlnpkh4rs73bev9q0/shell)
+on the live deployment above. Paste once and return only its JSON. It inspects the
+deployment Shell environment, not application memory; it does not import application
+code, dotenv, Prisma or an SDK, read secret files, contact a provider or change any
+value. It checks for a local `.env` file's existence only and stops if present rather
+than inventing dotenv-derived effective values. Target/revision mismatch also stops.
+Models are narrowly allowlisted for output; unexpected values are withheld, not
+echoed. `UNSET` is reported only after actual inspection of that Shell variable;
+`EMPTY` is not replaced by a fallback. The identity result deliberately remains
+`NOT_ESTABLISHED` even if a key is present. Saved-only dashboard values do not establish
+the running configuration; [Render's save semantics](https://render.com/docs/configure-environment-variables)
+remain unchanged. Do not redeploy or edit any setting for this check.
+
+<!-- BEGIN OPENAI_PRIVACY_READONLY_COMMAND -->
+```sh
+cd /opt/render/project/src && node <<'SPEEDY_OPENAI_READONLY'
+const e = process.env;
+const r = {
+  check: 'SPEEDY_OPENAI_PRIVACY_READONLY',
+  targetMatches: e.RENDER_SERVICE_ID === 'srv-d7ntlnpkh4rs73bev9q0',
+  revisionMatches: e.RENDER_GIT_COMMIT === '4ac2ba372ae23972ee665a77ce241c3d267ea107',
+  productionEnvironmentMatches: e.NODE_ENV === 'production',
+  organizationProjectKeyMatch: 'NOT_ESTABLISHED'
+};
+try {
+  if (!r.targetMatches || !r.revisionMatches || !r.productionEnvironmentMatches) {
+    r.result = 'STOP_TARGET_OR_REVISION';
+  } else {
+    r.localDotEnvAbsent = !require('node:fs').existsSync('.env');
+    if (!r.localDotEnvAbsent) r.result = 'STOP_DOTENV_REQUIRES_REVIEW';
+    else {
+      r.keyPresent = typeof e.OPENAI_API_KEY === 'string' && e.OPENAI_API_KEY.trim().length > 0;
+      r.allFourPrivacyGatesFalse = ['PRIVACY_DELETION_ENABLED', 'PRIVACY_FULFILLMENT_ENABLED', 'PRIVACY_VERIFICATION_EMAIL_ENABLED', 'PRIVACY_VERIFICATION_PHONE_ENABLED'].every(k => e[k] === 'false');
+      const safe = v => v === undefined ? 'UNSET' : v === '' ? 'EMPTY' :
+        v !== e.OPENAI_API_KEY && /^(?:gpt-[a-z0-9][a-z0-9._-]{0,79}|o[1-9][a-z0-9._-]{0,79}|chatgpt-[a-z0-9][a-z0-9._-]{0,79})$/.test(v) ? v : 'WITHHELD_NON_MODEL_VALUE';
+      const draft = e.OPENAI_ORDER_DRAFT_MODEL ?? 'gpt-5.6-luna';
+      r.models = Object.fromEntries(['OPENAI_ORDER_DRAFT_MODEL', 'OPENAI_PRODUCT_WEB_LOOKUP_MODEL', 'OPENAI_DISPATCHER_HELP_MODEL'].map(k => [k, { configured: safe(e[k]), effective: safe(e[k] ?? draft) }]));
+      r.result = 'SHELL_ENVIRONMENT_READ_ONLY';
+    }
+  }
+} catch { r.result = 'STOP_READ_ERROR'; }
+console.log(JSON.stringify(r, null, 2));
+SPEEDY_OPENAI_READONLY
+```
+<!-- END OPENAI_PRIVACY_READONLY_COMMAND -->
+
+**Privacy interpretation:** the three source requests still set `store:false`.
+The displayed per-call logging option does not demonstrate that these calls were
+stored, nor does disabled audit logging establish zero provider logs. Sharing
+Disabled is evidence for the shown account/project, not yet a verified production
+mapping. Global is not a Canada-only or US-only commitment. `store:false` is not
+ZDR approval and does not settle abuse-monitoring or model/tool cache retention;
+the [official data-controls reference](https://developers.openai.com/api/docs/guides/your-data)
+keeps those categories separate. No new duration, region guarantee or provider
+erasure pass is adopted. Preserve the existing public-policy caveats until the
+production mapping and effective models are corroborated.
+
+This documentation/command preparation changes no application source, credentials,
+settings or gates. Reuse prior application/CI evidence; no broad tests or AI requests.
+The exact documented command passed **15 synthetic VM cases** serially: defaults,
+inheritance/overrides, empty/unset values, missing key, invalid/secret-shaped model
+values, key-equality suppression, wrong target/revision/environment, dotenv stop,
+sanitized read errors and gate reporting. Only mocked filesystem/environment objects
+were exposed; no network or application imports. Both documentation diffs pass
+whitespace checks; the earlier owner-email command is byte-for-byte unchanged.
+The next concrete release action is the single safe Shell read-back above, not
+provider reconfiguration, privacy activation or Apple upload.
 
 ### One consolidated factual handoff — inspect only, save/change nothing
 
@@ -725,7 +832,7 @@ previously closed retention/contact/Render/recovery question is being reopened.
 | --- | --- | --- |
 | Twilio Verify records and onward copies | Console **Verify > Services > Speedy Sweeties > General**: report only whether **Verify Events Subscribed** is on/off. If on, **Event Streams > Manage**: whether a Verify subscription/sink exists and its destination service type, not its URL. Use the existing account's Support Center/contract records for any Verify-specific retention/removal/location answer; if absent, prepare one question covering destination/event/fraud records, early removal and residual carrier/legal copies. Do not send it automatically. | MTL/query visibility are not an erasure limit. Forwarding changes the external-copy inventory. The [official screen guide](https://www.twilio.com/docs/verify/verify-events-webhook-onboarding-guide) is for navigation only: do not enable, create or test a sink. |
 | Resend Inbox placement and actual removal | **CLOSED on October 27 owner evidence:** existing account recovered, Free, verified ready domain, tracking unconfigured, enforced TLS, existing sending/all-domains key and SAVE ONLY sender; single owner-only delivery PASS (one attempt, HTTP 200, providerAccepted=true, received in Junk). Do not repeat those checks, resend or redeploy. Inbox placement remains unresolved; no cause or DNS correction is evidenced. Remaining account/support facts are any custom retention/content-storage exception and removal process; sending region was not reported and is not storage residency. | Saved configuration is not running configuration. The delivery-only pass does not establish Inbox placement, retention/removal, the normal verification-code email or the in-app privacy flow. |
-| OpenAI effective project controls | For the organization/project already used by the backend key, **Settings > Organization > Data controls > Sharing**: all three sharing settings and whether this project is included. **Data retention**: organization setting and project override/inheritance, or not available. Existing **project > General**: displayed residency/region or not visible. In Render Environment report only the model names or unset for `OPENAI_ORDER_DRAFT_MODEL`, `OPENAI_PRODUCT_WEB_LOOKUP_MODEL`, `OPENAI_DISPATCHER_HELP_MODEL`. Do not create a project/key or reveal the existing key. | Source `store:false` does not settle monitoring, training opt-in, location or model-specific state. [Data-retention screen](https://platform.openai.com/settings/organization/data-controls/data-retention). |
+| OpenAI production identity and models | **Screen checks CLOSED for the shown Personal / Default project** on October 27 owner evidence: Global, all three sharing controls Disabled, per-call API logging, audit logging not enabled, no ZDR/custom period displayed, existing named key. Do not repeat them. Run the one safe Shell command above for deployment-environment model names/unset and key presence. Exact production key/project mapping still requires attributable existing provenance/provider metadata, not a name, usage date or masked ending. | The account observations cannot yet be assigned to production. `store:false` does not establish ZDR, Global is not a country-only guarantee, and source defaults are not runtime observations. No new key or live AI request. |
 | Operator-held copies and recovery checkpoint storage | One concise inventory of existing request mailbox/synced contacts, manual downloads/exports and paper-original storage/access, who removes eligible copies, and whether an existing restricted store outside the database rollback boundary can hold minimized privacy-decision checkpoints. Report additional tax-tool uploads only if they actually occur. | Account APIs cannot establish manual practice. TurboTax tax filing is not evidence of receipt/profile storage; no new retention period or accountant sign-off is requested. |
 
 After these facts, reconcile the unpublished iOS policy and existing external-task
