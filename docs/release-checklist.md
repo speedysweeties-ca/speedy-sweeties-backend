@@ -12,10 +12,19 @@ Existing Onboarding key has Sending access / All domains. Robert preserved that 
 and used SAVE ONLY for `PRIVACY_VERIFICATION_FROM=Speedy Sweeties <no-reply@notify.speedysweeties.ca>`.
 All gates false / Auto-Deploy Off. This is saved, not active runtime configuration;
 an absent/old running sender is expected and does not warrant another deployment.
-No email delivery, retention/removal or full in-app privacy pass is claimed.
+Dashboard readiness alone establishes no delivery, retention/removal or full in-app
+privacy pass; the subsequent owner-only delivery result is recorded separately below.
 
-Prepared, UNSENT owner-only email test: exact preview/command and receipt procedure
-in `docs/privacy-technical-configuration.md`, section Resend owner closeout and
+OWNER-PROVIDED DELIVERY PASS, October 27: one send attempt; HTTP 200;
+`providerAccepted=true`. Robert separately confirms actual receipt at
+speedysweeties@hotmail.com in **Junk, not Inbox**. Inbox placement remains unresolved;
+no cause is inferred and no DNS change is justified by this observation alone.
+No separate provider dashboard delivery event is claimed. Normal verification-code
+email, full in-app privacy flow, fulfillment and provider retention/removal remain
+unverified. Do not resend, deploy or enable gates to close this documentation item.
+
+Completed owner-only email test: exact preview/command retained as a do-not-rerun
+artifact in `docs/privacy-technical-configuration.md`, section Resend owner closeout and
 single-email preparation. Reuses the deployed pure delivery adapter in an existing
 authenticated API Shell, with a process-local sender and test subject/body; no
 app/database startup, gate mutation, real OTP or customer write. Exact recipient
@@ -25,7 +34,8 @@ fixed idempotency and instance attempt marker; never automatically retry.
 with zero transport calls/marker writes. Mac harness Node 22.20.0 is not a new
 production-runtime verification; command requires existing verified Node 24.22.1.
 Application source and prior CI/SMS/deployment/physical-iPad evidence are unchanged.
-No provider message, deployment, settings change, publication or Apple submission.
+This evidence-only update sends no message and makes no deployment, settings change,
+publication or Apple submission; all four gates remain false and Auto-Deploy Off.
 
 LATEST: Robert corrected the earlier "existing key preserved" report: the original
 clipboard-only key was not retained. He generated/saved a fresh initial dedicated
@@ -136,8 +146,10 @@ and unresolved effective account controls in `docs/privacy-technical-configurati
 Its **One consolidated factual handoff** is the single remaining dashboard/owner
 request; no provider/account secret was read and no delivery was attempted. Resend
 saved sender/domain setup was subsequently closed by the owner evidence at the top;
-actual delivery/runtime activation remain open. Eligible email is preferred and
-email-off does not trigger SMS fallback. OpenAI `store:false` is not account-level ZDR.
+the subsequent owner-only delivery pass is recorded above. Inbox placement, normal
+verification-code email, full in-app flow and runtime activation remain open.
+Eligible email is preferred and email-off does not trigger SMS fallback.
+OpenAI `store:false` is not account-level ZDR.
 The unpublished iOS policy now includes supported processing/removal facts without
 claiming account defaults are verified settings. Paper/TurboTax provenance and all
 approved retention/review rules remain unchanged.

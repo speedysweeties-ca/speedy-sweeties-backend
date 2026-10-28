@@ -474,9 +474,20 @@ The known Free plan can now be mapped to the published standard arrangements in
 the provider review below; no account-specific removal exception, observed expiry,
 provider-retention compliance or email delivery pass follows from dashboard readiness.
 Keep earlier SMS, production deployment, physical-iPad, staff and QUALIFIED recovery
-evidence unchanged. No email has been sent in this preparation.
+evidence unchanged. The preparation itself sent nothing; Robert's subsequent test
+result is recorded separately below.
 
-**Bounded delivery test, prepared but not executed.** Use the existing authenticated
+**Owner-provided delivery result — October 27: PASS (delivery only).** Robert reports
+one send attempt, HTTP **200**, and **`providerAccepted=true`** from the controlled
+test. He separately confirms actual receipt at **speedysweeties@hotmail.com** in
+**Junk, not Inbox**. Terminal acceptance and mailbox receipt are distinct evidence;
+no separate Resend dashboard delivery-event inspection is claimed. **Inbox placement
+remains unresolved.** The cause of Junk placement is not established; do not infer
+one or change DNS without evidence. Do not resend. This documentation update makes
+no provider request, deployment, configuration change or privacy activation.
+
+**Completed bounded delivery test — historical procedure, do not rerun.** The test
+was prepared for the existing authenticated
 [speedy-api Shell](https://dashboard.render.com/web/srv-d7ntlnpkh4rs73bev9q0/shell),
 not the local Mac, dispatcher, staging or isolated SMS service. The command pins
 service ID, deployed commit and Node runtime, and requires all four gate strings
@@ -506,10 +517,9 @@ No action or reply is required. Please report whether it arrived in Inbox or Jun
 Test reference: SS-EMAIL-20261027-01
 ```
 
-**Do not send yet.** When Robert chooses to perform this exact test, paste the whole
-command once into that Shell. It displays the preview and stops for the exact phrase
-`SEND ONE EMAIL`; any other answer cancels. The command is retained here as review
-material, not an instruction for the agent to run a live send.
+**Completed test artifact — do not run again.** The exact command is retained for
+review and its existing mocked safety checks. It displayed the preview and required
+`SEND ONE EMAIL`; any other answer cancelled. It is not authorization for another send.
 
 <!-- BEGIN OWNER_RESEND_COMMAND -->
 ```sh
@@ -582,20 +592,13 @@ does not make that permanent across instance replacement or expiry. This is not
 authorization for a later resend. No secret or private response body is printed.
 The allowlisted message UUID is delivery metadata, not an authentication credential.
 
-Check outcomes separately, without sending again:
+Recorded outcomes remain separate: owner-provided terminal acceptance (one attempt,
+HTTP 200, `providerAccepted=true`) and owner-observed mailbox receipt (Junk). A
+separate provider delivery-event report was not supplied and is not inferred.
+No reply, link click, code entry, repeat mailbox check or further message is needed
+to record this delivery-only pass.
 
-1. Return only the `SPEEDY_OWNER_EMAIL` JSON. `PROVIDER_ACCEPTED` requires HTTP
-   success and a valid message UUID; it is **not inbox receipt**. Timeout/network
-   failure or malformed success remains unknown, never an automatic retry.
-2. In existing **Resend > Emails**, locate this exact subject/reference/message UUID
-   and inspect its status/events read-only. Report only accepted/sent/delivered/
-   delayed/bounced/failed and safe error classification; no raw body or headers.
-   A sending-only key may not permit retrieval, so do not broaden key permissions
-   or create a key for this step. Mail-server acceptance is not Robert seeing it.
-3. Robert separately checks Hotmail **Inbox and Junk** and reports arrival folder/
-   time or not received. No reply, link click, code entry or further message needed.
-
-Even an inbox pass verifies only this owner/sender delivery. It does not verify
+This pass verifies only this owner/sender delivery, not Inbox placement. It does not verify
 the unmodified OTP template, customer/source-order binding, challenge/check/status/
 cancellation, full iOS flow, production activation or fulfillment, provider removal/
 retention, or every destination. The running app sender remains unchanged until a
@@ -613,7 +616,9 @@ stream with `terminal:false`, never require a terminal-security setting change.
 The small harness ran on installed Mac Node 22.20.0; the production command explicitly
 requires the already-verified Node 24.22.1. The local compiled adapter was verified
 byte-identical to one-file transpilation of current source; no application rebuild,
-dependency installation, simulator, database or live provider test was performed.
+dependency installation, simulator, database or live provider test was performed
+during preparation. Robert's later live delivery result is recorded above; the
+unchanged command/source needs no test rerun for this evidence-only update.
 Production application source remains unchanged; reuse deployed-commit CI 40450819956.
 
 **Earlier consolidated review evidence boundary (superseded only by the owner
@@ -719,7 +724,7 @@ previously closed retention/contact/Render/recovery question is being reopened.
 | Outstanding fact | Exact read-only screen / information needed | Why it matters |
 | --- | --- | --- |
 | Twilio Verify records and onward copies | Console **Verify > Services > Speedy Sweeties > General**: report only whether **Verify Events Subscribed** is on/off. If on, **Event Streams > Manage**: whether a Verify subscription/sink exists and its destination service type, not its URL. Use the existing account's Support Center/contract records for any Verify-specific retention/removal/location answer; if absent, prepare one question covering destination/event/fraud records, early removal and residual carrier/legal copies. Do not send it automatically. | MTL/query visibility are not an erasure limit. Forwarding changes the external-copy inventory. The [official screen guide](https://www.twilio.com/docs/verify/verify-events-webhook-onboarding-guide) is for navigation only: do not enable, create or test a sink. |
-| Resend delivery and actual removal | **CLOSED on later October 27 owner evidence:** existing account recovered, Free, verified ready domain, tracking unconfigured, enforced TLS, existing sending/all-domains key and SAVE ONLY sender. Do not repeat those dashboard checks or redeploy. The prepared owner-only test above is unsent. Remaining account/support facts are any custom retention/content-storage exception and removal process; sending region was not reported and is not storage residency. | Saved configuration is not running configuration. A delivery-only pass will not establish retention/removal or the in-app privacy flow. |
+| Resend Inbox placement and actual removal | **CLOSED on October 27 owner evidence:** existing account recovered, Free, verified ready domain, tracking unconfigured, enforced TLS, existing sending/all-domains key and SAVE ONLY sender; single owner-only delivery PASS (one attempt, HTTP 200, providerAccepted=true, received in Junk). Do not repeat those checks, resend or redeploy. Inbox placement remains unresolved; no cause or DNS correction is evidenced. Remaining account/support facts are any custom retention/content-storage exception and removal process; sending region was not reported and is not storage residency. | Saved configuration is not running configuration. The delivery-only pass does not establish Inbox placement, retention/removal, the normal verification-code email or the in-app privacy flow. |
 | OpenAI effective project controls | For the organization/project already used by the backend key, **Settings > Organization > Data controls > Sharing**: all three sharing settings and whether this project is included. **Data retention**: organization setting and project override/inheritance, or not available. Existing **project > General**: displayed residency/region or not visible. In Render Environment report only the model names or unset for `OPENAI_ORDER_DRAFT_MODEL`, `OPENAI_PRODUCT_WEB_LOOKUP_MODEL`, `OPENAI_DISPATCHER_HELP_MODEL`. Do not create a project/key or reveal the existing key. | Source `store:false` does not settle monitoring, training opt-in, location or model-specific state. [Data-retention screen](https://platform.openai.com/settings/organization/data-controls/data-retention). |
 | Operator-held copies and recovery checkpoint storage | One concise inventory of existing request mailbox/synced contacts, manual downloads/exports and paper-original storage/access, who removes eligible copies, and whether an existing restricted store outside the database rollback boundary can hold minimized privacy-decision checkpoints. Report additional tax-tool uploads only if they actually occur. | Account APIs cannot establish manual practice. TurboTax tax filing is not evidence of receipt/profile storage; no new retention period or accountant sign-off is requested. |
 
