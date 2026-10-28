@@ -56,6 +56,10 @@ test('post-snapshot decisions survive actual serial synthetic PostgreSQL dump/re
   try {
     assert.equal(await db.order.count(), 0); assert.equal(await db.customer.count(), 0);
     const a = await seed(1), b = await seed(2), c = await seed(3), unrelated = await seed(4);
+    const extra = await db.order.create({ data: { customerId: a.c.id, customerName: a.c.fullName, phone: a.c.phone,
+      email: a.c.email, addressLine1: a.c.addressLine1, city: a.c.city, province: a.c.province,
+      itemsText: 'Synthetic second transaction', paymentMethod: 'CASH', orderStatus: 'DELIVERED' } });
+    fixtures.orders.add(extra.id);
     const unrelatedBefore = await order(unrelated.o.id);
     const initial = await dump(db, fixtures); // T0 before verification/request creation.
     cleanupSnapshot = initial;
@@ -95,12 +99,24 @@ test('post-snapshot decisions survive actual serial synthetic PostgreSQL dump/re
         await db.orderItem.update({ where: { id: item.id }, data: { price: '9.00' } });
         await assert.rejects(reconcileSyntheticRestore(service, process.env.DATABASE_URL, key), /FINANCIAL_EVIDENCE_CHANGED/);
         await db.orderItem.update({ where: { id: item.id }, data: { price: '3.50' } });
+        await db.order.delete({ where: { id: extra.id } });
+        try {
+          await assert.rejects(reconcileSyntheticRestore(service, process.env.DATABASE_URL, key), /FINANCIAL_SCOPE_INCOMPLETE/);
+          assert.ok(await db.customer.findUnique({ where: { id: a.c.id } }), 'Missing evidence must not erase');
+        } finally { await db.order.create({ data: extra }); }
         if (name === 'before-fulfillment') {
           // Regression: even an erroneously pre-imported completed request must
           // not let fulfill's normal retry shortcut skip restored-data erasure.
           await db.privacyDeletionRequest.update({ where: { id: ia.id }, data: { ...original, status: 'HOLD', version: original.version + 1 } });
           await assert.rejects(reconcileSyntheticRestore(service, process.env.DATABASE_URL, key), /NEWER_DATABASE_DECISION/);
           await db.privacyDeletionRequest.update({ where: { id: ia.id }, data: original });
+          const later = await db.privacyExternalTask.create({ data: { requestId: ia.id, system: externalSystems[0],
+            status: 'RETAINED_WITH_EXPIRY', evidence: 'Synthetic later external hold',
+            retainUntil: new Date(`${year + 7}-12-31T23:59:59.999Z`), reviewedAt: new Date(Date.now() + 60000) } });
+          try {
+            await assert.rejects(reconcileSyntheticRestore(service, process.env.DATABASE_URL, key), /NEWER_EXTERNAL_DECISION/);
+            assert.ok(await db.customer.findUnique({ where: { id: a.c.id } }), 'Newer external hold must not erase');
+          } finally { await db.privacyExternalTask.delete({ where: { id: later.id } }); }
         }
         const result = await reconcileSyntheticRestore(service, process.env.DATABASE_URL, key);
         assert.equal(result.erased, 1); assert.equal(result.trafficMayReopen, false);

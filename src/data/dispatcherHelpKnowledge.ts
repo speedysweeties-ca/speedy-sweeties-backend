@@ -43,6 +43,9 @@ export interface HelpArticle {
 // identity guards and all existing dispatch/notification controls are preserved.
 // 2026-10-28 recovery review: existing controls and receipt redaction are unchanged;
 // privacy decisions now fail closed without complete independent recovery history.
+// 2026-10-28 follow-up: offline recovery additionally stops for missing scoped
+// financial records or newer external-retention decisions. The privacy-requests
+// guide's offline/operator-review instructions and existing controls stay accurate.
 export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "navigation",

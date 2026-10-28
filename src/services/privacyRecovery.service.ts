@@ -33,8 +33,20 @@ export async function reconcileSyntheticRestore(service: PrivacyDeletionService,
       const current = await tx.privacyDeletionRequest.findUnique({ where: { id: r.id } });
       if (current && (current.version > r.version || current.updatedAt > r.updatedAt)) throw new RecoveryError("RECOVERY_NEWER_DATABASE_DECISION");
       if (current && ["CANCELLED", "HOLD"].includes(current.status) && r.databaseErasedAt) throw new RecoveryError("RECOVERY_DATABASE_HOLD_OR_CANCELLATION");
+      for (const task of await tx.privacyExternalTask.findMany({ where: { requestId: r.id } })) {
+        const recorded = state.tasks.find(t => t.system === task.system);
+        // External outcomes do not advance the parent request's updatedAt/version.
+        // Never overwrite an unrecorded or newer retention/review decision.
+        if (!recorded ||
+            (task.reviewedAt && (!recorded.reviewedAt || task.reviewedAt > recorded.reviewedAt)) ||
+            (task.retainUntil && (!recorded.retainUntil || task.retainUntil > recorded.retainUntil)))
+          throw new RecoveryError("RECOVERY_NEWER_EXTERNAL_DECISION");
+      }
       const customer = await tx.customer.findUnique({ where: { id: state.scope.subjectId } });
       const orders = await tx.order.findMany({ where: { id: { in: state.scope.orders.map(o => o.id) } }, include: { items: true, digitalReceipt: true } });
+      // A snapshot may predate a later transaction, or a retained record may be
+      // missing. A minimized checkpoint cannot recreate that financial evidence.
+      if (orders.length !== state.scope.orders.length) throw new RecoveryError("RECOVERY_FINANCIAL_SCOPE_INCOMPLETE");
       if (customer && service.hash(customerIdentity(customer)) !== state.scope.ownerHash) throw new RecoveryError("RECOVERY_OWNERSHIP_CHANGED");
       const ids = orders.map(o => o.id);
       if (await tx.order.count({ where: { customerId: state.scope.subjectId, id: { notIn: state.scope.orders.map(o => o.id) } } }))
