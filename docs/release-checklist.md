@@ -16,17 +16,22 @@ evidence alone cannot establish identity.
 
 Read-only Render metadata still identifies API dep-dbg3m4afngtc738jad20 at 4ac2ba3.
 The three callers/configuration match deployed source and still use one key with
-store:false, no organization/project headers. Runtime model variables are NOT READ,
-not reported unset. The technical document contains one no-network, safe-output Shell
-command with target/revision checks and exact source fallbacks. NEXT: obtain that
-sanitized read-back; production identity remains unconfirmed without attributable
-existing provenance/provider metadata. Do not repeat account-screen checks, retrieve
+store:false, no organization/project headers. OWNER SHELL READ-BACK PASS, October 28:
+all three model overrides are UNSET; each effective model is gpt-5.6-luna by the
+reviewed fallback rules. Target/revision/production/no-local-dotenv/key-presence and
+all-four-gates-false checks are true; result SHELL_ENVIRONMENT_READ_ONLY. This is
+owner-provided deployment-Shell evidence, not a live AI request or agent inspection
+of application memory. NOT_ESTABLISHED is an evidence-limit label, not a mismatch.
+NEXT: examine existing credential setup/provenance or attributable provider metadata
+to establish the exact production organization/project/key identity. Do not repeat
+the completed account-screen/model checks, retrieve
 keys, call AI, deploy or enable privacy. Global is not Canada-only/US-only and
 store:false is not ZDR. Existing Resend delivery-only/Junk, SMS, deployment, physical
 device, staff and QUALIFIED recovery evidence is unchanged. All four privacy gates
 false and Auto-Deploy Off remain the required operating state.
 The documented command passed 15 synthetic no-network cases; no application suite,
-build, simulator or live check was repeated. Documentation whitespace checks passed.
+build, simulator or agent-run live check was repeated. Robert's subsequent read-back
+is recorded above without rerunning the command/tests. Documentation whitespace checks passed.
 
 ## PR 93 production closeout — 2026-10-27
 
