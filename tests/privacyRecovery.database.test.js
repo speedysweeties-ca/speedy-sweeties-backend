@@ -20,7 +20,10 @@ test('post-snapshot decisions survive actual serial synthetic PostgreSQL dump/re
   const key = 'synthetic-recovery-digest-not-jwt';
   const priorKey = process.env.PRIVACY_DIGEST_KEY;
   process.env.PRIVACY_DIGEST_KEY = key;
-  const store = await require('./privacyRecoveryFixture.cjs').syntheticJournal(key, db);
+  // Same real PostgreSQL restore fixtures, now backed by the proposed adapter
+  // with controlled S3 responses. This is not AWS cloud verification.
+  const { journal: store, transport: s3 } = await require('./privacyRecoveryS3Fixture.cjs').syntheticS3Journal(key, db);
+  const { keyOf } = require('./privacyRecoveryS3Fixture.cjs');
   const sent = new Map();
   const delivery = { async start(m) { sent.set(m.id, m.code); return {}; }, async check() { throw Error('No phone delivery'); } };
   const service = new PrivacyDeletionService(db, key, delivery, () => true, 'Synthetic 30-day commitment', '12-31', store);
@@ -84,10 +87,10 @@ test('post-snapshot decisions survive actual serial synthetic PostgreSQL dump/re
         assert.equal(await db.privacyDeletedIdentity.count(), 0, 'Negative control: older DB lost marker');
         assert.ok(await db.customer.findUnique({ where: { id: a.c.id } }));
         await db.$transaction(tx => assertPrivacyOrderAllowed(tx, a.c.phone));
-        const frozen = await store.store.read();
-        store.store.entries.pop();
+        const frozen = new Map(s3.objects);
+        s3.objects.delete(keyOf(2));
         await assert.rejects(reconcileSyntheticRestore(service, process.env.DATABASE_URL, key), /INCOMPLETE/);
-        store.store.entries = structuredClone(frozen.entries);
+        s3.objects = new Map(frozen);
         const wrongJournal = new PrivacyRecoveryJournal(store.store, store.scope, 'synthetic-wrong-digest-key');
         const wrong = new PrivacyDeletionService(db, key, delivery, () => false, 'Synthetic', '12-31', wrongJournal);
         await assert.rejects(reconcileSyntheticRestore(wrong, process.env.DATABASE_URL, key), /HISTORY_INVALID/);
@@ -154,13 +157,13 @@ test('post-snapshot decisions survive actual serial synthetic PostgreSQL dump/re
       });
     }
     await t.test('intent failure rolls DB back; lost post-commit acknowledgement blocks future decisions', async () => {
-      store.store.failKind = 'INTENT';
-      await assert.rejects(service.cancel(ic.id, ic.token), /RECOVERY_UNAVAILABLE/);
+      s3.failKind = 'INTENT';
+      await assert.rejects(service.cancel(ic.id, ic.token), /RECOVERY_WRITE_UNCERTAIN/);
       assert.equal((await service.status(ic.id, ic.token)).status, 'HOLD');
-      store.store.failKind = 'COMMIT';
-      await assert.rejects(service.cancel(ic.id, ic.token), /RECOVERY_UNAVAILABLE/);
+      s3.failKind = 'COMMIT';
+      await assert.rejects(service.cancel(ic.id, ic.token), /RECOVERY_WRITE_UNCERTAIN/);
       assert.equal((await service.status(ic.id, ic.token)).status, 'CANCELLED');
-      store.store.failKind = null;
+      s3.failKind = null;
       await assert.rejects(store.ready(), /UNFINISHED_OPERATION/);
       await assert.rejects(reconcileSyntheticRestore(service, process.env.DATABASE_URL, key), /UNFINISHED_OPERATION/);
       await assert.rejects(service.cancel(ic.id, ic.token), /UNFINISHED_OPERATION/);

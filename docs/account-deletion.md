@@ -19,6 +19,13 @@ execution results. No new route, migration, service or production restore is inc
 Example guide questions: "Why did privacy processing stop?" and "Can I fulfill a
 request on hold?" Guide ID: `privacy-requests`; existing receipt controls are unchanged.
 
+October 28 S3 preparation: `docs/privacy-s3-storage.md` and three adjacent policy
+templates describe the proposed Canada Central store, current-head trust boundary,
+credential path, pricing, synthetic-only cloud exercise and remaining activation
+dependencies. The adapter uses conditional immutable entry writes; there is no
+separate head write or assumed cross-object transaction. It is not wired into the
+application or AWS-verified. Operator controls and receipt erasure remain unchanged.
+
 Updated 2026-10-23 on `review/customer-account-deletion` for draft PR 93. This
 branch must not be merged into an automatically deploying branch until the owner
 decisions, provider checks, isolated-database CI and rollout review below pass.
