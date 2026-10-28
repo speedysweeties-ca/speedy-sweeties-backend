@@ -263,6 +263,25 @@ pricing. Recalculate using actual usage before requesting provisioning approval.
 
 ## Verification record
 
-Pending CI for this source preparation. Tests use controlled SDK responses and the
-existing serial PostgreSQL 18 restore fixtures. No mocked/emulated result is AWS
-production verification. See `docs/release-checklist.md` for final source/run links.
+Tested source `5a222be5bb4e18c1afdeec9c025bd4a247b8c653` on the existing review
+branch. Both `validate` and `privacy-database` passed under Node 24.22.1 in
+[CI 40727353624](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40727353624).
+The 11 new S3 cases passed, including actual official-SDK header serialization,
+fixed endpoint/single attempt, empty LIST XML, races, uncertain acceptance/late
+arrival, idempotence/restart, missing/tampered history, stale heads, permissions,
+pagination and the explicit privileged-suffix-removal evidence limit.
+
+The existing serial PostgreSQL 18 suite now uses this adapter with controlled S3
+responses: 4/4 recovery tests (parent plus before-request, before-fulfillment and
+storage-failure cases). Original dates, later holds/cancellations, financial guards,
+missing financial evidence/newer external holds, old access revocation and unrelated
+customers pass unchanged. Existing privacy/baseline/delivery suite: 22/22. Backend:
+503 passes, 5 database-only skips, zero failures; separate timing-history DB checks
+and dispatcher 69/69 pass. Local type-only/help/whitespace checks pass; no Mac
+application build, DB suite or simulator duplicated Linux verification.
+
+The prior `357a552`/`e998189` results are preserved. These controlled-response and
+synthetic database results are **not AWS cloud or production verification**. Bucket
+configuration, policy evaluation, account/credential path, live latency, removal/
+successor coverage and production wiring/enrollment remain unverified prerequisites.
+Subsequent documentation-only evidence commits reuse this exact tested source.

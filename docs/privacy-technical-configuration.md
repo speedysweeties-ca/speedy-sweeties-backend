@@ -1311,6 +1311,20 @@ unprovable; the separate production enum assessment is not retroactive clone pro
 
 #### Post-snapshot privacy decisions — bounded source assessment, 2026-10-27
 
+**Later October 28 S3 preparation:**
+[`privacy-s3-storage.md`](privacy-s3-storage.md) is the concrete proposed Canada
+Central resource/security/pricing/setup handoff. The official-SDK adapter uses one
+create-only object per authenticated entry, with no separate head write. Ordered
+current reads and enforced no-delete/no-overwrite policies protect the head outside
+PostgreSQL; versioning alone does not establish completeness. A privileged policy
+bypass followed by coherent suffix deletion is outside that trust boundary.
+Production configuration/startup are unchanged. Controlled S3-response tests reuse
+the serial PostgreSQL restore fixtures; see the release checklist for their exact
+source/results. These are not AWS verification. Account/resource/credential access,
+provisioning costs, live policy/latency checks, reviewed successor-coverage/removal,
+offline production wiring and enrollment remain prerequisites. No AWS account,
+resource, credential, deployment or new business retention period was created.
+
 **October 28 implementation update (review branch only; not deployed):**
 `privacyRecoveryJournal.ts` defines an authenticated, sequenced decision protocol
 and a protected-store interface. It requires an explicitly enrolled empty decision
@@ -1356,11 +1370,12 @@ passes, 5 database-only skips, zero failures, including five new journal/target
 unit cases; both separate timing-history DB checks and 69 dispatcher tests pass.
 Database tests run serially with one worker; no local database, simulator, install,
 application build or repeated broad Mac suite. Existing runtime pins, four migrations, guards and both CI jobs
-remain intact. The only storage implementation is a clearly labelled synthetic
-memory test double, retained across database restore, NOT a production recovery store.
+remain intact. Those original tests used a clearly labelled synthetic memory
+double retained across database restore. The later S3 adapter and controlled-
+response verification are recorded above; neither is a verified production store.
 
-**Activation dependencies, not new business-policy decisions:** select an existing
-approved restricted store and implement/verify its durable linearizable append/CAS,
+**Activation dependencies, not new business-policy decisions:** review the proposed
+S3 store and verify its durable linearizable append/CAS in authorized cloud tests,
 independently protected current head, coverage enrollment and key continuity outside
 the DB rollback boundary. A restored/truncated head cannot be used as its own proof
 of completeness. Define access, operational availability, reviewed compaction/removal

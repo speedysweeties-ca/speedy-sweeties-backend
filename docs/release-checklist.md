@@ -3,6 +3,35 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## S3 recovery-storage preparation — 2026-10-28, review only
+
+- Proposed adapter and single setup handoff: `docs/privacy-s3-storage.md`, with
+  three IAM/bucket-policy review templates. Canada Central, private S3 Standard,
+  owner-enforced ACLs, all public blocks, SSE-S3, versioning; no automatic deletion
+  or irreversible Object Lock. Official regional pricing gives about US$0.30/month
+  under the explicit 20-request/month, 4-KiB-entry, existing-history assumptions;
+  actual volume/account/transfer allowances are not established. No spend approved.
+- One conditional immutable object per entry; independent current S3 listing,
+  pinned enrollment and enforced no-delete/no-overwrite policies preserve the head
+  across PostgreSQL rollback. Versioning is not completeness proof; no head-object
+  transaction or privileged-administrator rollback guarantee is assumed.
+- Existing 357a552/e998189 evidence remains preserved below. Tested S3 source:
+  `5a222be5bb4e18c1afdeec9c025bd4a247b8c653`; both jobs PASS in
+  [CI 40727353624](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40727353624).
+  Node 24.22.1: 11 new S3 cases; PostgreSQL 18 actual recovery 4/4 using the adapter
+  with controlled storage responses; existing privacy checks 22/22. Backend 503
+  passes / 5 database-only skips / zero failures; two separate timing DB checks and
+  dispatcher 69/69 pass. Local type-only/help/whitespace checks pass. Three policy
+  templates parse as JSON; actual AWS evaluation is pending. No AWS verification
+  or production wiring. No Mac build/DB suite/simulator duplicated CI.
+- NEXT: review this concrete bucket/policy/cost proposal and establish the existing
+  AWS account/credential path before any resource/spending authorization. Controlled
+  synthetic cloud verification, reviewed successor coverage/removal, exact offline
+  production wiring and explicit enrollment must pass before activation.
+- All completed OpenAI/model, device, deployment, SMS/email-Junk and QUALIFIED
+  recovery/cleanup evidence stays closed. Four false gates/Auto-Deploy Off preserved;
+  no AWS setup, production change, messages, new clone, publication or Apple upload.
+
 ## Bounded OpenAI privacy follow-up — 2026-10-28
 
 IDENTITY SEARCH CLOSED: Production organization/project identity remains unconfirmed;
@@ -34,9 +63,8 @@ and dashboard evidence and policy caveats. No repeat Shell/dashboard check or AI
 - Storage selection + durable adapter/witness verification, reviewed unfinished-intent
   handling and separately authorized production-target wiring remain activation
   dependencies. Synthetic memory state is not a verified production backup solution.
-- NEXT: select/review the existing protected store and its independent current-head
-  boundary, then implement/test that durable adapter before any activation proposal.
-  No approved production store is established here. Do not provision, deploy,
+- The subsequent S3 proposal is recorded above. No approved/configured production
+  store is established here. Do not provision, deploy,
   restore or enable gates. Existing isolated SMS tooling is unchanged; rerunning
   it with this new source also requires a reviewed journal integration, not a bypass.
 - Prior SMS/email-Junk, physical-device, staff, model, QUALIFIED recovery/cleanup and
