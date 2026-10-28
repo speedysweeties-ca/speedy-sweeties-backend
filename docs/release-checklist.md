@@ -5,6 +5,28 @@ a separate release and requires its own signed build and store submission.
 
 ## PR 93 production closeout — 2026-10-27
 
+LATER OWNER RESEND UPDATE, October 27: existing account recovered, no new account/
+key. Transactional Free; notify.speedysweeties.ca DKIM and both sending CNAME records
+Verified; domain ready to send; open/click tracking unconfigured; TLS Enforced.
+Existing Onboarding key has Sending access / All domains. Robert preserved that key
+and used SAVE ONLY for `PRIVACY_VERIFICATION_FROM=Speedy Sweeties <no-reply@notify.speedysweeties.ca>`.
+All gates false / Auto-Deploy Off. This is saved, not active runtime configuration;
+an absent/old running sender is expected and does not warrant another deployment.
+No email delivery, retention/removal or full in-app privacy pass is claimed.
+
+Prepared, UNSENT owner-only email test: exact preview/command and receipt procedure
+in `docs/privacy-technical-configuration.md`, section Resend owner closeout and
+single-email preparation. Reuses the deployed pure delivery adapter in an existing
+authenticated API Shell, with a process-local sender and test subject/body; no
+app/database startup, gate mutation, real OTP or customer write. Exact recipient
+speedysweeties@hotmail.com. Explicit SEND ONE EMAIL confirmation, one request,
+fixed idempotency and instance attempt marker; never automatically retry.
+33/33 focused mocked command checks passed serially; real-PTY cancellation exited
+with zero transport calls/marker writes. Mac harness Node 22.20.0 is not a new
+production-runtime verification; command requires existing verified Node 24.22.1.
+Application source and prior CI/SMS/deployment/physical-iPad evidence are unchanged.
+No provider message, deployment, settings change, publication or Apple submission.
+
 LATEST: Robert corrected the earlier "existing key preserved" report: the original
 clipboard-only key was not retained. He generated/saved a fresh initial dedicated
 key, retained a secure backup, and corrected the timeframe. Backup/generation are
@@ -113,8 +135,9 @@ Verify, Resend and OpenAI arrangements are now separated from source observation
 and unresolved effective account controls in `docs/privacy-technical-configuration.md`.
 Its **One consolidated factual handoff** is the single remaining dashboard/owner
 request; no provider/account secret was read and no delivery was attempted. Resend
-privacy sender readiness is still open: eligible email is preferred and email-off
-does not trigger SMS fallback. OpenAI `store:false` is not account-level ZDR.
+saved sender/domain setup was subsequently closed by the owner evidence at the top;
+actual delivery/runtime activation remain open. Eligible email is preferred and
+email-off does not trigger SMS fallback. OpenAI `store:false` is not account-level ZDR.
 The unpublished iOS policy now includes supported processing/removal facts without
 claiming account defaults are verified settings. Paper/TurboTax provenance and all
 approved retention/review rules remain unchanged.

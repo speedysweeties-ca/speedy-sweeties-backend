@@ -326,8 +326,9 @@ dates; none is changed. See the iOS retention mapping and unpublished policy han
 - Resend is demonstrably configured for the existing B&D operational-email feature:
   its database toggle is enabled and 60 provider-accepted receipts existed, most
   recently 2026-10-23. This establishes neither a privacy-verification sender/domain
-  nor Resend deletion, retention, location or inbox-delivery outcomes. Those remain
-  separate account/dashboard checks before enabling privacy email.
+  nor Resend deletion, retention, location or inbox-delivery outcomes. The later
+  October 27 owner closeout below now establishes the Free plan, verified sender
+  domain and saved sender; delivery and effective retention/removal remain separate.
 - The existing instrumented Twilio integration is now deployed but production
   privacy flags remain disabled. Robert confirmed the Speedy Sweeties Verify service, SMS enabled with
   Fraud Guard Standard, and Canada SMS & RCS Geo Permission `Allow All Traffic`.
@@ -444,7 +445,179 @@ environment read; reuse the passing owner-run gate/configuration evidence above.
 
 ### Consolidated provider review — 2026-10-27
 
-**Evidence boundary.** The provider callers, privacy guards/lifecycle and database
+#### Resend owner closeout and single-email preparation — later on October 27
+
+**Owner-confirmed dashboard/configuration evidence, not an agent account inspection:**
+Robert recovered the **existing** Resend account; no replacement account or API key
+was created. Transactional plan **Free**. Domain **notify.speedysweeties.ca**:
+DKIM and both displayed sending CNAME records **Verified**; Resend reports ready to
+send. Open/click tracking was left **unconfigured** (do not relabel that as a tested
+tracking-disabled outcome). TLS shows **Enforced**. Existing key **Onboarding**:
+**Sending access / All domains**. Existing `RESEND_API_KEY` preserved; no key value
+was requested, read into the handoff or displayed. The recovered-account report
+does not retrospectively identify its original creator, login method or setup date.
+
+Robert saved ONLY this non-secret production `speedy-api` setting with **SAVE ONLY**:
+
+```dotenv
+PRIVACY_VERIFICATION_FROM=Speedy Sweeties <no-reply@notify.speedysweeties.ca>
+```
+
+All four privacy gates remain false and Auto-Deploy Off on owner confirmation.
+**Saved is not running:** Render [Save only](https://render.com/docs/configure-environment-variables)
+does not apply the sender to the current deployment. An absent/old value in an
+existing Shell is expected, not another setup failure. Do not redeploy merely to
+load it. The next separately approved deployment must read back the saved sender;
+this preparation changes neither the running app nor operational-alert settings.
+
+The known Free plan can now be mapped to the published standard arrangements in
+the provider review below; no account-specific removal exception, observed expiry,
+provider-retention compliance or email delivery pass follows from dashboard readiness.
+Keep earlier SMS, production deployment, physical-iPad, staff and QUALIFIED recovery
+evidence unchanged. No email has been sent in this preparation.
+
+**Bounded delivery test, prepared but not executed.** Use the existing authenticated
+[speedy-api Shell](https://dashboard.render.com/web/srv-d7ntlnpkh4rs73bev9q0/shell),
+not the local Mac, dispatcher, staging or isolated SMS service. The command pins
+service ID, deployed commit and Node runtime, and requires all four gate strings
+to stay exactly `false`. It loads only the import-free compiled privacy delivery
+adapter, never `server`, routes, Prisma, dotenv or background jobs. Sender and the
+adapter's email-enabled option are local constructor values for this one-off
+process only; **no environment variable or application feature gate is changed**.
+The injected transport replaces only the subject/text with the preview below while
+preserving the adapter's authenticated Resend request, ten-second timeout and
+idempotency header. No real challenge/code or customer record is created.
+
+Exact preview:
+
+- From: `Speedy Sweeties <no-reply@notify.speedysweeties.ca>`
+- To: `speedysweeties@hotmail.com` (Robert's confirmed address only)
+- Subject: `[TEST ONLY] Speedy Sweeties email delivery check`
+- Text:
+
+```text
+Robert,
+
+This is a single owner-authorized Speedy Sweeties delivery test.
+No customer record was created or changed.
+This message contains no verification code and cannot authorize account access, an order, or deletion.
+No action or reply is required. Please report whether it arrived in Inbox or Junk.
+
+Test reference: SS-EMAIL-20261027-01
+```
+
+**Do not send yet.** When Robert chooses to perform this exact test, paste the whole
+command once into that Shell. It displays the preview and stops for the exact phrase
+`SEND ONE EMAIL`; any other answer cancels. The command is retained here as review
+material, not an instruction for the agent to run a live send.
+
+<!-- BEGIN OWNER_RESEND_COMMAND -->
+```sh
+cd /opt/render/project/src && node <<'SPEEDY_OWNER_EMAIL'
+const fs = require('node:fs');
+const { ReadStream } = require('node:tty');
+const { createInterface } = require('node:readline/promises');
+const result = { check: 'SPEEDY_OWNER_EMAIL', attempts: 0, outcome: 'NOT_SENT', httpStatus: null, providerAccepted: null, messageId: null, inboxReceipt: 'NOT_VERIFIED' };
+const stop = outcome => { result.outcome = outcome; throw new Error('Stopped'); };
+async function main() {
+  const e = process.env;
+  const gates = ['PRIVACY_DELETION_ENABLED', 'PRIVACY_FULFILLMENT_ENABLED', 'PRIVACY_VERIFICATION_EMAIL_ENABLED', 'PRIVACY_VERIFICATION_PHONE_ENABLED'];
+  if (e.RENDER_SERVICE_ID !== 'srv-d7ntlnpkh4rs73bev9q0' || e.RENDER_GIT_COMMIT !== '4ac2ba372ae23972ee665a77ce241c3d267ea107') stop('WRONG_TARGET_OR_REVISION');
+  if (process.versions.node !== '24.22.1' || !gates.every(k => e[k] === 'false')) stop('RUNTIME_OR_GATE_MISMATCH');
+  if (typeof e.RESEND_API_KEY !== 'string' || !e.RESEND_API_KEY.trim()) stop('EXISTING_KEY_UNAVAILABLE');
+  const { privacyVerificationDelivery } = require('./dist/services/privacyDelivery.service');
+  const from = 'Speedy Sweeties <no-reply@notify.speedysweeties.ca>';
+  const to = 'speedysweeties@hotmail.com';
+  const subject = '[TEST ONLY] Speedy Sweeties email delivery check';
+  const text = 'Robert,\n\nThis is a single owner-authorized Speedy Sweeties delivery test.\nNo customer record was created or changed.\nThis message contains no verification code and cannot authorize account access, an order, or deletion.\nNo action or reply is required. Please report whether it arrived in Inbox or Junk.\n\nTest reference: SS-EMAIL-20261027-01';
+  console.log(JSON.stringify({ from, to, subject, text }, null, 2));
+  const input = new ReadStream(fs.openSync('/dev/tty', 'r'));
+  const confirmation = new AbortController();
+  input.on('error', () => confirmation.abort());
+  let prompt, answer;
+  try {
+    prompt = createInterface({ input, output: process.stdout, terminal: false });
+    answer = await prompt.question('Type SEND ONE EMAIL to authorize this single test; anything else cancels: ', { signal: confirmation.signal });
+  } finally { prompt?.close(); input.destroy(); }
+  if (answer !== 'SEND ONE EMAIL') { result.outcome = 'CANCELLED_NO_SEND'; return; }
+  try { fs.closeSync(fs.openSync('/tmp/speedy-owner-resend-20261027-01.used', 'wx', 0o600)); }
+  catch { stop('ATTEMPT_LOCK_EXISTS_OR_UNAVAILABLE'); }
+  const transport = async (url, options) => {
+    if (result.attempts !== 0) stop('SECOND_ATTEMPT_BLOCKED');
+    const body = JSON.parse(options.body);
+    if (url !== 'https://api.resend.com/emails' || options.method !== 'POST' ||
+        body.from !== from || JSON.stringify(body.to) !== JSON.stringify([to]) ||
+        Object.keys(body).sort().join(',') !== 'from,subject,text,to' ||
+        options.headers.Authorization !== `Bearer ${e.RESEND_API_KEY}` ||
+        options.headers['Idempotency-Key'] !== 'privacy-owner-email-20261027-01' || !options.signal) stop('REQUEST_GUARD_FAILED');
+    result.attempts = 1;
+    result.outcome = 'NETWORK_OR_TIMEOUT_OUTCOME_UNKNOWN';
+    const response = await fetch(url, { ...options, redirect: 'error', body: JSON.stringify({ from, to: [to], subject, text }) });
+    result.httpStatus = response.status;
+    result.outcome = response.ok ? 'SUCCESS_RESPONSE_UNCONFIRMED' : 'PROVIDER_REJECTED';
+    result.providerAccepted = response.ok ? null : false;
+    try {
+      const payload = await response.clone().json();
+      if (response.ok && typeof payload.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payload.id)) {
+        result.messageId = payload.id; result.providerAccepted = true; result.outcome = 'PROVIDER_ACCEPTED';
+      }
+    } catch {}
+    return response;
+  };
+  const delivery = privacyVerificationDelivery({ resendApiKey: e.RESEND_API_KEY, resendFrom: from, emailEnabled: true,
+    twilioAccountSid: '', twilioAuthToken: '', twilioVerifyServiceSid: '', phoneEnabled: false }, transport, () => {});
+  await delivery.start({ channel: 'EMAIL', to, code: 'NOT-A-VERIFICATION-CODE', id: 'owner-email-20261027-01' });
+}
+main().catch(() => { process.exitCode = 1; }).finally(() => console.log(JSON.stringify(result)));
+SPEEDY_OWNER_EMAIL
+```
+<!-- END OWNER_RESEND_COMMAND -->
+
+No retry loop, redirect-following or second transport call is allowed. A private,
+empty exclusive-create marker blocks another attempt on the same instance, including
+after failure. Do not delete the marker or rerun after a timeout/uncertain result.
+The fixed Resend idempotency value provides an additional **24-hour** duplicate
+guard; [provider documentation](https://resend.com/docs/dashboard/emails/idempotency-keys)
+does not make that permanent across instance replacement or expiry. This is not
+authorization for a later resend. No secret or private response body is printed.
+The allowlisted message UUID is delivery metadata, not an authentication credential.
+
+Check outcomes separately, without sending again:
+
+1. Return only the `SPEEDY_OWNER_EMAIL` JSON. `PROVIDER_ACCEPTED` requires HTTP
+   success and a valid message UUID; it is **not inbox receipt**. Timeout/network
+   failure or malformed success remains unknown, never an automatic retry.
+2. In existing **Resend > Emails**, locate this exact subject/reference/message UUID
+   and inspect its status/events read-only. Report only accepted/sent/delivered/
+   delayed/bounced/failed and safe error classification; no raw body or headers.
+   A sending-only key may not permit retrieval, so do not broaden key permissions
+   or create a key for this step. Mail-server acceptance is not Robert seeing it.
+3. Robert separately checks Hotmail **Inbox and Junk** and reports arrival folder/
+   time or not received. No reply, link click, code entry or further message needed.
+
+Even an inbox pass verifies only this owner/sender delivery. It does not verify
+the unmodified OTP template, customer/source-order binding, challenge/check/status/
+cancellation, full iOS flow, production activation or fulfillment, provider removal/
+retention, or every destination. The running app sender remains unchanged until a
+later separately approved deployment. Preserve all existing operational alerts.
+
+**Preparation verification:** `tests/privacyOwnerEmailRunbook.test.js` executes this
+exact documented command in a VM with the existing pure adapter and synthetic
+environment, filesystem, terminal and fetch substitutes. **33/33 passed serially**:
+target/revision/runtime/gates, missing/stale saved sender, consent, exclusive marker,
+fixed request envelope/idempotency, single attempt, malformed success, rejection and
+network/timeout/error redaction. A separate real-PTY cancellation check passed with
+zero transport calls and zero marker writes, exiting normally. That check identified
+and corrected the initial generic-stream hang/raw-mode issue: use a native TTY
+stream with `terminal:false`, never require a terminal-security setting change.
+The small harness ran on installed Mac Node 22.20.0; the production command explicitly
+requires the already-verified Node 24.22.1. The local compiled adapter was verified
+byte-identical to one-file transpilation of current source; no application rebuild,
+dependency installation, simulator, database or live provider test was performed.
+Production application source remains unchanged; reuse deployed-commit CI 40450819956.
+
+**Earlier consolidated review evidence boundary (superseded only by the owner
+Resend findings above).** The provider callers, privacy guards/lifecycle and database
 tests reviewed here are unchanged from deployed `4ac2ba3`; no application test,
 delivery, account-setting change or secret read was needed. Available connectors
 cannot read Twilio/Resend account controls or OpenAI organization/project controls.
@@ -490,8 +663,10 @@ OTP or credential is needed in the shared reply; this review sends no support me
   primary US processing. It documents 30-day email/log retention for Free/Pro/Scale
   and customizable Enterprise retention; early removal of a particular message
   goes through support. [Security documentation](https://resend.com/security)
-  states seven-day backups. These are published arrangements, not this account's
-  verified plan/exception or a tested all-copy deletion guarantee.
+  states seven-day backups. Robert subsequently confirmed the Free plan, so its
+  published standard applies as documentation-based evidence. Actual expiry/removal,
+  exceptions and all-copy deletion remain unverified; dashboard readiness is not
+  a provider-retention test.
 - A domain's [sending region](https://resend.com/docs/dashboard/domains/regions)
   does not relocate storage. An existing content-storage exception must be verified,
   not inferred from source; [that optional feature](https://resend.com/docs/knowledge-base/how-do-i-ensure-sensitive-data-isnt-stored-on-resend)
@@ -500,9 +675,9 @@ OTP or credential is needed in the shared reply; this review sends no support me
   it does not fall back to `UNDISPATCHED_ALERT_FROM`. The operational source default
   `onboarding@resend.dev` is not a production environment observation and is
   [restricted to test sending to the account owner's email](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain).
-  Previously accepted operational alerts prove neither a verified privacy sender
-  nor permission to email arbitrary customers. Verify the intended domain's sending
-  status/SPF/DKIM and existing key's domain permission without revealing the key.
+  Previously accepted operational alerts alone prove neither a verified privacy
+  sender nor permission to email arbitrary customers. Robert's later domain/key
+  confirmation closes the reported sender prerequisites above, not actual delivery.
 - `contactFor` prefers an eligible matching email **before** consulting channel
   flags. When email is disabled it fails closed at delivery; it does not silently
   switch to SMS. Therefore phone-only isolated success does not close email-capable
@@ -544,7 +719,7 @@ previously closed retention/contact/Render/recovery question is being reopened.
 | Outstanding fact | Exact read-only screen / information needed | Why it matters |
 | --- | --- | --- |
 | Twilio Verify records and onward copies | Console **Verify > Services > Speedy Sweeties > General**: report only whether **Verify Events Subscribed** is on/off. If on, **Event Streams > Manage**: whether a Verify subscription/sink exists and its destination service type, not its URL. Use the existing account's Support Center/contract records for any Verify-specific retention/removal/location answer; if absent, prepare one question covering destination/event/fraud records, early removal and residual carrier/legal copies. Do not send it automatically. | MTL/query visibility are not an erasure limit. Forwarding changes the external-copy inventory. The [official screen guide](https://www.twilio.com/docs/verify/verify-events-webhook-onboarding-guide) is for navigation only: do not enable, create or test a sink. |
-| Resend privacy sender and actual retention | Existing Resend team **Settings > Billing**: plan; **Domains > intended sender domain**: verified/sending status, SPF/DKIM, region, open/click tracking. **API Keys**: whether the existing backend key's metadata permits that domain, no key value. Existing support/account records: any custom retention/content-storage exception, or none known. In **Render > speedy-api > Environment**, report only `PRIVACY_VERIFICATION_FROM` (non-secret sender address, or unset), without saving. | Confirm deliverability prerequisites and whether standard retention applies. Sender readiness is not proven by B&D alerts; sending region is not storage residency. |
+| Resend delivery and actual removal | **CLOSED on later October 27 owner evidence:** existing account recovered, Free, verified ready domain, tracking unconfigured, enforced TLS, existing sending/all-domains key and SAVE ONLY sender. Do not repeat those dashboard checks or redeploy. The prepared owner-only test above is unsent. Remaining account/support facts are any custom retention/content-storage exception and removal process; sending region was not reported and is not storage residency. | Saved configuration is not running configuration. A delivery-only pass will not establish retention/removal or the in-app privacy flow. |
 | OpenAI effective project controls | For the organization/project already used by the backend key, **Settings > Organization > Data controls > Sharing**: all three sharing settings and whether this project is included. **Data retention**: organization setting and project override/inheritance, or not available. Existing **project > General**: displayed residency/region or not visible. In Render Environment report only the model names or unset for `OPENAI_ORDER_DRAFT_MODEL`, `OPENAI_PRODUCT_WEB_LOOKUP_MODEL`, `OPENAI_DISPATCHER_HELP_MODEL`. Do not create a project/key or reveal the existing key. | Source `store:false` does not settle monitoring, training opt-in, location or model-specific state. [Data-retention screen](https://platform.openai.com/settings/organization/data-controls/data-retention). |
 | Operator-held copies and recovery checkpoint storage | One concise inventory of existing request mailbox/synced contacts, manual downloads/exports and paper-original storage/access, who removes eligible copies, and whether an existing restricted store outside the database rollback boundary can hold minimized privacy-decision checkpoints. Report additional tax-tool uploads only if they actually occur. | Account APIs cannot establish manual practice. TurboTax tax filing is not evidence of receipt/profile storage; no new retention period or accountant sign-off is requested. |
 
@@ -1148,8 +1323,12 @@ they are code constants anchored to closure and `databaseErasedAt`.
   this review does not attest to their current production presence or validity.
   They are unused with phone/deletion disabled. Enable no channel in this deployment.
 - Email requires the existing `RESEND_API_KEY` plus a verified, approved
-  `PRIVACY_VERIFICATION_FROM`. Do not overwrite a Resend key used by operational
-  email or guess a sender. Email stays disabled pending that separate review.
+  `PRIVACY_VERIFICATION_FROM`. Robert confirmed and saved
+  `Speedy Sweeties <no-reply@notify.speedysweeties.ca>` with SAVE ONLY on October 27;
+  the running deployment is not expected to load it yet. Existing key preserved.
+  No redeploy for this test; use the guarded one-off process above. Email remains
+  disabled pending separate delivery/activation approval and runtime read-back at
+  the next authorized deployment.
 - Channel selection prefers eligible email before phone; with email disabled an
   email-eligible customer does not automatically fall back to SMS. The successful
   isolated phone-only fixture does not prove this broader in-app path. Evaluate the
