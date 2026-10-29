@@ -11,4 +11,4 @@ assert.ok(['127.0.0.1', 'localhost'].includes(url.hostname));
 assert.equal(url.pathname, '/speedy_privacy_synthetic');
 // The pre-feature schema is pinned, not derived from a possibly advancing main.
 const path = materializePinnedBaselineSchema();
-applyPinnedBaselineAndPrivacyMigrations(path);
+applyPinnedBaselineAndPrivacyMigrations(path, { recordExecutedSql: true });

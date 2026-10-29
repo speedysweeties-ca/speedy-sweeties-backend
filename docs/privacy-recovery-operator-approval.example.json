@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "operation": "enrollment",
+  "workspaceId": "tea-d7loaul7vvec73cme5d0",
+  "serviceId": "srv-d7ntlnpkh4rs73bev9q0",
+  "resourceId": "dpg-d7m33g2qqhas73f58hrg-a",
+  "hostname": "dpg-d7m33g2qqhas73f58hrg-a.ohio-postgres.render.com",
+  "databaseName": "speedy_sweeties_db",
+  "databaseUser": "OWNER_CONFIRMED_PROVIDER_ROLE",
+  "sourceRevision": "REPLACE_WITH_REVIEWED_RELEASE_SHA",
+  "ownerAccountId": "080413009273",
+  "bucket": "speedy-sweeties-privacy-decisions-080413009273",
+  "region": "ca-central-1",
+  "prefix": "production/epoch-0001/",
+  "scope": "speedy-privacy-production-epoch-0001",
+  "operatorArn": "OWNER_APPROVED_MFA_SESSION_ARN",
+  "awsProfile": "owner-existing-temporary-profile",
+  "mfa": {
+    "reference": "protected:actual-mfa-evidence-reference",
+    "verifiedAt": "1970-01-01T00:00:00Z",
+    "expiresAt": "1970-01-01T00:10:00Z"
+  },
+  "exclusion": {
+    "reference": "protected:actual-all-writers-exclusion-reference",
+    "allWritersStopped": false,
+    "verifiedAt": "1970-01-01T00:00:00Z",
+    "expiresAt": "1970-01-01T00:10:00Z"
+  },
+  "pinRecordReference": "protected:owner-confirmed-durable-pin-record",
+  "approvedAt": "1970-01-01T00:00:00Z",
+  "expiresAt": "1970-01-01T00:10:00Z"
+}

@@ -54,28 +54,54 @@ Google Maps continue to receive only the civic street address.
 
 The second analytics script on the page is separate and should remain in place.
 
-## Account-deletion page — review artifact, not published
+## Privacy/account-deletion handoff — unpublished, reconciled 2026-10-27
 
-`account-deletion-page.html` is accessible, customer-facing copy for a stable
+`account-deletion-page.html` is accessible, customer-facing activation copy for a stable
 `/account-deletion` website path. It is deliberately a review artifact: publishing
 it requires Robert's separate approval and must follow a functioning reviewed
-backend flow and monitored support mailbox. The page uses the existing support
+backend flow and monitored support mailbox. The deployed API/dispatcher are now
+`4ac2ba372ae23972ee665a77ce241c3d267ea107`; migration/schema/guard and runtime
+configuration checks pass, **all four privacy gates false**. Deployment is not
+activation. The successful isolated Twilio retest is not an in-app/production
+verification or fulfillment pass. The page uses the existing support
 email as an initiation path for customers without the app; it does not call the
 privacy API, collect secrets, or treat emailed order facts as proof of ownership.
 
 The proposed production URL is
-`https://www.speedysweeties.ca/account-deletion`. On 2026-10-24, connected
-read-only Webflow access identified the Speedy Sweeties site and a page inventory
-containing only Home; both this path and proposed
-`https://www.speedysweeties.ca/privacy-policy` returned HTTP 404. Connected site
+`https://www.speedysweeties.ca/account-deletion`; policy is proposed at
+`https://www.speedysweeties.ca/privacy-policy`. Read-only Webflow inventory on
+2026-10-27 confirms site `668d7e5e9dff3dff6a9a593c` still contains only Home
+(`668d7e5e9dff3dff6a9a595a`, last updated 2026-10-16); site/domain last-published
+metadata remains 2026-10-16. No site-specific agent instructions were returned.
+The retained 2026-10-24 HTTP results for both paths are 404. Connected site
 access exists and exposes page/publish operations, but write
 permission was not exercised and the pages have not been created. The exact policy
 candidate is maintained in the iOS release branch at
 `ReleaseNotes/PRIVACY_POLICY_PROPOSED.txt`; do not publish either page until all
 editor markers are resolved and the described production behavior is deployed and
-verified.
+verified. Do not change Home, its footer/order form or analytics. No Webflow write
+or publication was performed for this handoff update.
+
+The iOS policy candidate's **EDITOR RELEASE GATES** is the finite outstanding-facts
+list; keep markers and unverified-practice notes in review materials only. The
+effective date is already settled: **actual publication date**, when the statements
+match verified deployed behavior. Do not reopen the approved contact, fiscal
+`12-31`, normal 30 days or 24-month review decisions. Keep receipt descriptions and
+required transaction evidence; do not claim all personal details need six years.
+This launch copy describes iPhone/iPad controls. Android remains deferred; the
+website's manual request path covers customers whose app lacks the control.
+
+Do not create a circular activation/publication gate: stage and review accurate
+copy first; a separately approved coordinated release must specify which behavior
+is verified when each claim goes live. If a public page is needed before activation,
+it must state the in-app flow is not yet available and describe only a separately
+verified monitored manual request path. This task neither authorizes publication
+nor changes any gate. Before fulfillment, resolve external-copy handling and durable
+post-snapshot deletion reconciliation; the deleted recovery copy's QUALIFIED result
+does not prove those procedures end-to-end.
 
 When it is authorized for publication, place the content in a Webflow page whose
 public URL remains stable, set the final privacy-policy link, publish staging first,
 and verify keyboard navigation, the email link, mobile layout, HTTPS, and the live
-URL while signed out. Only then enter that verified URL in Google Play Console.
+URL while signed out. Configure the verified policy URL in iOS/App Store Connect
+only after publication verification. Google Play changes remain deferred.

@@ -44,6 +44,10 @@ jobs:
       - run: npx prisma generate
       - run: npm run build
       - run: node tests/preparePrivacyDatabase.cjs
+      - name: Reconcile actual synthetic snapshots serially before lifecycle fixtures
+        env:
+          RECOVERY_POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: node --test --test-concurrency=1 tests/privacyRecovery.database.test.js tests/privacyRecoveryOperator.database.test.js
       - run: node --test --test-concurrency=1 tests/privacyBaseline.test.js tests/privacyDeletion.database.test.js tests/privacyRoutes.database.test.js tests/privacyDelivery.test.js
   validate:
     runs-on: ubuntu-latest

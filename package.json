@@ -20,6 +20,8 @@
     "privacy:isolated:prepare-render": "node tests/preparePrivacyRenderDatabase.cjs",
     "privacy:isolated:server": "node tests/privacyIsolatedServer.cjs",
     "privacy:isolated:client": "node tests/privacyIsolatedClient.cjs",
+    "privacy:operator": "node scripts/privacyRecoveryOperator.cjs",
+    "privacy:operator:prepare": "npm run build && node scripts/privacyRecoveryOperatorBuild.cjs",
     "test": "npm run build && node --test --test-concurrency=1 tests/*.test.js",
     "check": "npm run prisma:generate && npx prisma validate && npm test",
     "check:dispatcher-help": "node scripts/checkDispatcherHelp.cjs"
@@ -34,6 +36,7 @@
   "author": "Speedy Sweeties",
   "license": "UNLICENSED",
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1158.0",
     "@prisma/client": "^6.0.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",

@@ -1,0 +1,44 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TLSRequired",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": ["arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273", "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/*"],
+      "Condition": { "Bool": { "aws:SecureTransport": "false" } }
+    },
+    {
+      "Sid": "RequireCreateOnlyWrites",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/*",
+      "Condition": { "StringNotEquals": { "s3:if-none-match": "*" } }
+    },
+    {
+      "Sid": "RequireExplicitSSES3",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/*",
+      "Condition": { "StringNotEquals": { "s3:x-amz-server-side-encryption": "AES256" } }
+    },
+    {
+      "Sid": "NoDeletionOfActiveProductionHistory",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": ["s3:DeleteObject", "s3:DeleteObjectVersion"],
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/production/*"
+    },
+    {
+      "Sid": "RuntimeAndMaintenanceCannotChangeTrustControls",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": ["s3:PutBucket*", "s3:DeleteBucket*", "s3:PutEncryptionConfiguration", "s3:PutLifecycleConfiguration", "s3:PutReplicationConfiguration"],
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273",
+      "Condition": { "ArnEquals": { "aws:PrincipalArn": ["arn:aws:iam::080413009273:role/SpeedyPrivacyJournalApplication", "arn:aws:iam::080413009273:role/SpeedyPrivacyJournalOperator", "arn:aws:iam::080413009273:user/SpeedyPrivacyJournalApplication"] } }
+    }
+  ]
+}

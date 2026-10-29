@@ -1,4 +1,55 @@
-# Customer account deletion — review implementation, not deployed
+# Customer account deletion — implementation and rollout history
+
+October 29 operator implementation (review source only):
+`scripts/privacyRecoveryOperator.cjs` supplies explicit preflight/enroll,
+read-only dry-run/authorized offline apply and evidence-backed unfinished-operation
+resolution. Exact resource/provider/STS/plan/exclusion guards are documented in
+`docs/privacy-s3-storage.md`; synthetic-only entry point remains protected.
+New format-2 intent evidence and additive RESOLVE records preserve compatible old
+history, but old readers cannot interpret RESOLVE; downgrade after real activity
+is unsafe. No public route, migration or dispatcher control changed. No production
+command, enrollment, restore, message or activation was executed. Missing MFA-backed
+operator/session, protected external pins or attributable outcome evidence remains
+a future execution stop, not a reason to invent an identity/hash or repeat cloud tests.
+Guide `privacy-requests` re-reviewed October 29; examples: "Why does my privacy
+request need an offline operator?" and "Can I retry an uncertain operation?"
+
+Current status, 2026-10-27: PR 93 is merged and deployed at `4ac2ba3` with all four
+privacy gates false. The original implementation/rollout plan below is historical;
+it is not a request to repeat the deployment or recovery exercise. Current evidence
+and remaining activation gates are in `docs/privacy-technical-configuration.md`
+and `docs/release-checklist.md`. Recovery remains **QUALIFIED**, cleanup confirmed.
+Robert's October 27 account evidence records Hobby/no default log stream and an
+empty current production logical-export list; these do not prove all-copy erasure.
+
+October 28 review-branch follow-up: decision changes require an independently
+protected recovery journal, with durable pre-commit intent and post-commit outcome.
+Missing coverage/storage or an unfinished operation stops processing; a HOLD cannot
+be fulfilled. There is no production store adapter yet, so activation remains blocked.
+The offline reconciler is restricted to synthetic CI targets and reuses existing
+ownership/financial erasure protections without the completed-request retry shortcut.
+Tests exercise actual synthetic dump/restore; see the single release checklist for
+execution results. No new route, migration, service or production restore is included.
+Example guide questions: "Why did privacy processing stop?" and "Can I fulfill a
+request on hold?" Guide ID: `privacy-requests`; existing receipt controls are unchanged.
+
+Later October 28 integration: main/production `007cba9` is merged into this review
+branch, preserving the dispatcher-standards update. Privacy uses the existing IAM
+user on Hobby with lazy, exact S3/enrollment pins and no JWT/storage fallback.
+Gates-off ordinary traffic requires no S3 connection. All privacy reads/transitions
+stop for unavailable history; sealed scopes and unfinished successor coverage stop
+until offline review. Signed successor checkpoints preserve reviewed latest cases,
+dates and holds; retirement permission requires verified coverage and external
+cutover pins. No public maintenance/enrollment/delete route was added. The existing
+guide `privacy-requests` was reviewed; operator controls and receipt erasure remain
+unchanged. Example: "Why must I stop if privacy history was sealed?"
+
+Earlier October 28 S3 preparation: `docs/privacy-s3-storage.md` and adjacent policy
+templates describe the proposed Canada Central store, current-head trust boundary,
+credential path, pricing, synthetic-only cloud exercise and remaining activation
+dependencies. The adapter uses conditional immutable entry writes; there is no
+separate head write or assumed cross-object transaction. It is not wired into the
+application or AWS-verified. Operator controls and receipt erasure remain unchanged.
 
 Updated 2026-10-23 on `review/customer-account-deletion` for draft PR 93. This
 branch must not be merged into an automatically deploying branch until the owner
@@ -122,8 +173,11 @@ descriptions, quantities, prices, receipt totals/charges/tax and the recognized
 receipt-charge evidence. It does not retain customer contact or delivery details
 merely because financial evidence is retained. Retained erased orders, receipts and
 items have database write/delete guards. Customer/order creation shares the privacy
-advisory lock, and a keyed deleted-identity marker prevents old clients/restores
-from recreating the profile. Unplanned key rotation fails closed.
+advisory lock, and a keyed deleted-identity marker prevents old clients from
+recreating the profile **while that marker exists**. A snapshot predating erasure
+can lose the marker; restore reconciliation is a separate activation prerequisite,
+not a protection already established by these guards. Unplanned key rotation with
+existing markers fails closed; an empty restored marker table cannot detect loss.
 
 After the database transaction, status is `FULFILLING`. Durable tasks cover phones/
 synced contacts, messages/email, staff notes/exports, logs/providers and backups/
@@ -210,14 +264,13 @@ is part of the current iOS/backend scope.
    for that environment only; keep production phone disabled until the staged
    production configuration and in-app flow are explicitly authorized. Record only
    non-secret configuration names/status in release evidence.
-3. Complete the protected restore exercise: Robert has observed three-day PITR and
-   an at-least-seven-day export-retention statement; exact recovery-point acceptance,
-   available exports and a completed restore are not yet established. The prepared
-   read-only exercise requires a separately approved recovery clone and total cost
-   quote; the existing SMS database must never receive customer backup data. Address
-   the observed Node 24.14.1 runtime advisory separately (see
-   `docs/production-security-maintenance.md`). Disable production auto-deploy before
-   any approved merge.
+3. **Completed — do not repeat:** the protected PITR exercise remains QUALIFIED and
+   clone cleanup is confirmed; exact limits are in the technical document. Robert
+   observed three-day PITR/at-least-seven-day export retention and later reported
+   an empty current export list. Past/offsite copies and post-snapshot privacy
+   reconciliation remain separate checks. The SMS database must never receive
+   customer backups. The separate Node security rollout is also complete; preserve
+   its evidence in `docs/production-security-maintenance.md` and Auto-Deploy Off.
 4. Stage the stable dedicated digest key, exact approved timeframe/policy/fiscal
    year-end and Robert allowlist through secret/config management. Set all four
    privacy gates false and read back presence/equality only. Preserve existing
@@ -253,8 +306,15 @@ is part of the current iOS/backend scope.
   customer-typed contact or treat provider acceptance as receipt.
 - A database restore must restore/reapply deleted-identity markers, revoked access,
   erased-order guards and completed decisions before traffic resumes. Reconcile
-  requests received after the restored snapshot. Never test rollback on production
-  customer data without an approved recovery exercise.
+  requests received after the restored snapshot. The 2026-10-27 bounded assessment
+  in `docs/privacy-technical-configuration.md` specifies the remaining independent
+  decision checkpoint/offline reconciliation and synthetic-only test. In particular,
+  do not import a completed request then expect `fulfill` to redact older records:
+  `databaseErasedAt` deliberately causes an early return. Preserve original due/
+  review anchors and later cancellations/holds. The October 28 implementation above
+  supersedes the proposal-only status, not the production storage/activation block;
+  keep fulfillment disabled. The completed QUALIFIED restore rehearsal and cleanup
+  are unchanged; no new production-data copy is required.
 
 ## Verification
 

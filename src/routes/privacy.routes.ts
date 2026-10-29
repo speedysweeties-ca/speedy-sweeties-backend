@@ -6,6 +6,7 @@ import { env } from "../config/env";
 import { requireAuth } from "../middleware/auth.middleware";
 import { ADOPTED_COMPLETION_TIMEFRAME, ADOPTED_FISCAL_YEAR_END_MM_DD, ADOPTED_RETENTION_POLICY, PrivacyDeletionService, PrivacyError } from "../services/privacyDeletion.service";
 import { privacyVerificationDelivery } from "../services/privacyDelivery.service";
+import { configuredPrivacyRecovery } from "../services/privacyRecoveryConfiguration";
 
 const uuid = z.string().uuid();
 const token = z.string().regex(/^[a-f0-9]{64}$/);
@@ -41,7 +42,7 @@ export function privacyRouter(service?: PrivacyDeletionService) {
   const injected = service !== undefined;
   router.use(privacyEnabledOnly(injected));
   router.use(rateLimit({ windowMs: 15 * 60000, limit: 60, standardHeaders: "draft-8", legacyHeaders: false }));
-  const get = () => service ??= new PrivacyDeletionService(prisma, process.env.PRIVACY_DIGEST_KEY || env.JWT_SECRET, privacyVerificationDelivery({
+  const get = () => service ??= new PrivacyDeletionService(prisma, process.env.PRIVACY_DIGEST_KEY || "", privacyVerificationDelivery({
     resendApiKey: env.RESEND_API_KEY,
     resendFrom: process.env.PRIVACY_VERIFICATION_FROM || "",
     emailEnabled: process.env.PRIVACY_VERIFICATION_EMAIL_ENABLED === "true",
@@ -57,7 +58,7 @@ export function privacyRouter(service?: PrivacyDeletionService) {
     decision?.policyReference === process.env.PRIVACY_APPROVED_RETENTION_POLICY,
     process.env.PRIVACY_COMPLETION_TIMEFRAME === ADOPTED_COMPLETION_TIMEFRAME
       ? ADOPTED_COMPLETION_TIMEFRAME : "",
-    process.env.PRIVACY_FISCAL_YEAR_END_MM_DD || "");
+    process.env.PRIVACY_FISCAL_YEAR_END_MM_DD || "", configuredPrivacyRecovery());
   router.post("/challenges", safe(async (req, res) => {
     const input = body(z.object({
       trackingToken: z.string().min(32).max(128).optional(),
@@ -77,6 +78,7 @@ export function privacyRouter(service?: PrivacyDeletionService) {
   router.post("/requests/:id/cancel", safe(async (req, res) => { res.json(await get().cancel(id(req), bearer(req))); }));
   router.use("/admin", requireAuth, privacyAdminOnly);
   router.get("/admin/requests", safe(async (req, res) => {
+    await get().assertRecoveryReady();
     const after = req.query.after === undefined ? undefined : body(uuid, req.query.after);
     const rows = await get().db.privacyDeletionRequest.findMany({ take: 101, orderBy: { id: "asc" },
       ...(after ? { cursor: { id: after }, skip: 1 } : {}), select: {

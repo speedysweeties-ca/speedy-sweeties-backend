@@ -3,6 +3,541 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## October 29 guarded production operator implementation — review source, not executed
+
+- Implemented `npm run privacy:operator -- preflight|enroll|dry-run|apply|resolve`,
+  explicit reviewed-build preparation, exact provider/STS/DB target checks,
+  nine-indicator empty enrollment, evidence/expiry/exclusion requirements and
+  signed stale-plan guards. Read-only modes make no DB/S3 writes; apply/enrollment/
+  resolution require `--authorize` and a protected reviewed plan. No auto-enrollment.
+- Existing synthetic-only entry point retains its original target guard. Shared
+  reconciliation keeps financial/ownership/cancellation/hold/date/revocation guards
+  and avoids terminal-request early return. Actual serial PostgreSQL operator cases
+  are added to the existing privacy-database CI step; no new workflow/service/migration.
+- New intent format 2 contains before/after scoped transaction HMACs. Exact proven
+  original-DB outcomes can append authenticated RESOLVE; no deletion rerun or DB
+  rewrite. Legacy/ambiguous/changed outcomes remain stopped. Existing history stays
+  readable; old readers cannot interpret RESOLVE and must not be rollback targets.
+- Operator command/reference/minimum permissions/owner prerequisites and production
+  approval package: [privacy-s3-storage.md](privacy-s3-storage.md#implemented-offline-operator-commands--source-only-october-29).
+  Actual MFA-backed non-app identity, existing temporary profile/Render read access,
+  durable protected pin location and future all-writer exclusion remain owner-only
+  execution facts. STS identity is not MFA proof; no secrets retrieved/changed.
+- Source `cef843aa9c944ff9bacf0e331c69e33432582f62`, draft PR 99. Both required jobs
+  PASS in PR CI 40900890000 and push CI 40900873587. Serial recovery/operator DB
+  9/9, lifecycle/baseline/delivery 23/23; backend 532 pass/6 DB-only skips/zero fail,
+  both timing-history DB checks and dispatcher 69/69 pass; runtime/help/build/audits pass.
+  Local exact-Node operator/build-boundary 15/15 and corrected fixture/mock 8/8 pass.
+  Initial 96d8d78 CI failed on synthetic missing ledger/Python cache; fixed without
+  relaxing production guards. Only successfully executed SQL on a fresh guarded
+  loopback database gets test migration evidence; no failed migration is marked
+  successful. Python mock tests suppress bytecode. Full required CI now passes.
+  Final handoff-only head/check results are recorded in PR 99. Do not treat preparation as
+  a production enrollment/runtime/restore pass. Cloud 40878909548 and completed
+  37-version/marker/credential/grant cleanup remain closed; no live repeat.
+- Handoff consistency 15/15, dispatcher-help and whitespace checks pass. Public
+  policy file and runtime/test tree are unchanged by evidence closeout; no local
+  application-suite or iOS build rerun. Required final review-head CI is recorded
+  in PR 99, not guessed from an earlier SHA.
+- Next production package is reviewed integration/API-only gates-off deployment,
+  then explicitly approved bounded initial enrollment/config-load/read-only access
+  only if all execution prerequisites and actual empty baseline pass. No dispatcher
+  deployment/cron action/paid resource/customer activation is part of that package.
+
+## Earlier October 29 production recovery review package — no execution
+
+- Ordered actions, owners, exact private dashboard navigation, configuration,
+  safe verification commands and rollback stops are consolidated in
+  [privacy-s3-storage.md](privacy-s3-storage.md#production-deployment-enrollment-and-operator-reconciliation-package).
+- Fresh metadata: API/dispatcher live `007cba9`; main `ac1a69b`; current review
+  candidate `0230095` has executable tree identical to source `a692b0d`. Source
+  validate/privacy-database CI 40811316279 and current-main CI 40811821631 both pass.
+  0230095 itself is skip-CI documentation; no new test claim. No broad rerun.
+- Step A proposal: reviewed main integration/new PR and required checks, then
+  **API-only** specific-release-SHA deployment, all four gates false. No new
+  migration, dispatcher build, cron run/deploy or staging/SMS change. Main's two
+  ancestry-only workflow-registration commits have the same workflow blob as review;
+  no executable integration conflict. PR 93 is merged, not open. No merge here.
+- Step B enrollment is blocked by missing production-target guarded operator
+  enrollment/dry-run/reconciliation wrappers and unfinished-operation resolution;
+  actual MFA-backed non-app principal and protected external pin-record location
+  also need private confirmation. Existing tested libraries are not a production CLI.
+  First observe the complete actual privacy baseline and exact prefix under exclusion;
+  no empty GENESIS for nonempty history, no invented enrollment hash, no purge.
+- The package separates reviewed code deployment, explicit one-time enrollment /
+  external pins / normal same-SHA API config-load / read-only app access, then later
+  customer activation. Restore reconciliation keeps all writers/traffic offline,
+  protects financial evidence/holds/cancellations/dates and fails on uncertainty.
+- NEXT source work: guarded wrappers using existing libraries and synthetic tests,
+  not another cloud run/inventory/clone or retention decision. No source change,
+  production action, AWS write, secret retrieval, iOS rebuild or activation here.
+- Reuse cloud run 40878909548 (5/5) and completed cleanup below. Preserve stable
+  digest/AWS pair, all four false gates and Auto-Deploy Off. Provider, device,
+  OpenAI, QUALIFIED PITR and deferred Android findings remain unchanged.
+
+## October 29 live synthetic S3 PASS — cleanup complete
+
+- Exact [run 40878909548](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40878909548),
+  attempt 1, review head `5e0791d4bc217252aa37425d32340811a3abe8b1`, SUCCESS.
+  Job `123464857969` finished 09:10:17 Toronto; all steps/container shutdown passed.
+- Earlier dispatch 40878666189 was SKIPPED with zero job steps. Two dispatch records,
+  one executed AWS test job; no rerun by the agent. Do not erase the skipped entry
+  or claim there was only one dispatch across sessions.
+- AWS account/exact app identity, allowed/denied permissions, conditional overwrite,
+  concurrent winner, deliberately uncertain accepted-write recovery and restart PASS.
+  Actual S3-backed serial PostgreSQL restore/successor suite 5/5, zero skips/failures:
+  dates, newer holds/cancellations, financial evidence, anti-reactivation and unrelated
+  records protected. Failure injections remain controlled, not real AWS outages.
+- Full-read latency 438 ms; instrumented probe transport p95 249 ms / max 253 ms,
+  44 calls / 5 puts. Those counts exclude recovery/direct permission calls and are
+  not total billing. Aggregate guards passed; actual invoice unverified. No rerun.
+- Independent environment metadata PASS: sole Robert reviewer, self-review allowed,
+  administrator bypass false, exactly one allowed review branch. Owner confirms
+  existing secrets entered privately; no agent secret retrieval or key rotation.
+- Cleanup: owner-supplied authenticated JSON `CLEANUP_CONFIRMED`, deletedVersions=37,
+  emptyVersionInventory=true. Exact bucket/test-prefix/manifest guards and final
+  empty listing passed. No repeated deletion/inventory needed.
+- Temporary IAM grant removal is owner-confirmed (`done` to explicit cleanup steps),
+  not independently read through IAM. Do not invent whether the conditional operator
+  cleanup grant was created. Independent GitHub metadata confirms the exact test
+  environment HTTP 404 while the public repository remains HTTP 200, closing the
+  active CI-secret-copy cleanup. Permanent policies/original key preserved by scope;
+  no physical-backup deletion claim. CI/container job finished, no ongoing test
+  compute or synthetic-version storage; actual invoice not independently observed.
+- NEXT at closeout (now prepared above): gated production recovery rollout,
+  enrollment/external pins and offline reconciliation/operator review. No
+  production deployment/enrollment/activation follows automatically. Keep all four
+  privacy gates false/Auto-Deploy Off; in-app privacy flow and fulfillment remain
+  separate tests. Apple case/website/Android/provider/business decisions unchanged.
+
+## Earlier approved preparation — preserved evidence, now executed once
+
+- Robert approved the complete one-run/test/cleanup package, US$0.10 AWS before
+  tax/FX; no repeated approval request. No production deployment/enrollment/gates,
+  customer changes, messages or publication authorized. Configuration inventory
+  remains owner-supplied authenticated PASS and is not rerun.
+- Cleanup fix tested at `a692b0da41fe3c0d4a0bd8d4e6e3f13a349d16fa`: focused groups
+  5/5, actual subprocess/private-file/version/partial-failure regressions PASS.
+  Both jobs PASS in [CI 40811316279](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40811316279).
+- Render read-back immediately before merge: API/dispatcher/cron Auto-Deploy Off
+  (`autoDeploy=no`, `autoDeployTrigger=off`); no setting changed.
+- Workflow-only [PR 98](https://github.com/speedysweeties-ca/speedy-sweeties-backend/pull/98)
+  merged at `ac1a69b13211b8612213ade951a3db15b5142a90`, adding only the approved manual
+  workflow. PR/push CI both jobs PASS (40811599544 / 40811582646). No application
+  code/migration merged, production deployment or automatic cloud trigger.
+- The earlier pre-run query found no manual runs; the subsequent one-run result
+  supersedes that status above. No newly provisioned resource; existing bucket only.
+- The earlier private setup/ready/dispatch action is completed, not another request
+  to repeat it. Test versions/markers, temporary IAM grants and CI copies are now
+  cleaned up as recorded above; no production-prefix removal or permanent operator grant.
+
+## Earlier authenticated AWS configuration PASS; approval subsequently granted
+
+- Robert supplied corrected CloudShell result
+  `READBACK_PASS_LIVE_APPLICATION_ACCESS_UNVERIFIED`: accountMatches true, all
+  reported configuration checks true, one active application key, operator policy
+  unattached, objectsRead 0 / writes 0. This is owner-supplied authenticated AWS
+  configuration evidence. Do not rerun it. Application access is untested, not failed;
+  no running Render connection, production enrollment or cloud-test pass implied.
+- One consolidated approval package is in `docs/privacy-s3-storage.md`: exact
+  reserved-prefix app/conditional cleanup grants, private existing-key GitHub
+  environment copies, reviewed workflow-only registration merge to main, one
+  US$0.10-before-tax/FX bounded test and same-session cleanup (within 24 hours),
+  test versions/markers/temporary IAM grants/CI-secret copies removed afterward.
+  No new identity, key, role, resource or paid runner. Original app privileges and
+  the risk of an extra same-identity credential copy are explicitly disclosed.
+- Required before any cloud write after approval: fix the existing cleanup helper's
+  now-evidenced incompatible stdin input using the tested private-file path, with
+  synthetic actual-subprocess/cleanup regressions and CI. Do not present its current
+  AWS invocation as verified cleanup. This source prerequisite is part of the one
+  proposed package, not permission to execute now. Unknown contents/identity or
+  incomplete cleanup stops the run; no automatic rerun or broader deletion.
+- No cloud/IAM/CI-secret/workflow registration change was made while recording this
+  evidence. This is documentation only; reuse passing source/CI evidence. Four false
+  privacy gates/Auto-Deploy Off and all completed provider/device/recovery/business
+  decisions remain unchanged. Production deployment/enrollment/activation, customer
+  changes, website publication and Apple upload remain outside the test approval.
+
+## Earlier shared AWS inventory input correction — preserved evidence, 2026-10-28
+
+- Robert's revised CloudShell output: accountMatches true; primary/direct identity
+  SUCCESS, exit 0; legacy stdin JSON and all parameterized S3/IAM checks failed
+  `CLI_INPUT_JSON_OR_STDIN`, exit 252. REVIEW_REQUIRED, objectsRead 0 / writes 0.
+  Account passes are preserved; bucket configuration/application access remain
+  unverified. Do not attribute this shared input-path failure to IAM or credentials.
+- Source `0dc48786e82be413bb70cedac57bc35b26787040` replaces every parameterized
+  checker call with owner-only, completely written/closed temporary JSON files,
+  removes them in finally blocks and stops on cleanup failure. Parameterless calls
+  stay parameterless. Legacy stdin diagnostic removed; no credential/permission,
+  account/owner restriction, read-only allowlist or timeout was weakened.
+- Focused serial regression 4/4 PASS, including seven real synthetic child processes
+  for IAM/S3 file input, permissions/ownership, full contents, closed write handles,
+  cleanup, timeout, interruption, preparation/CLI/malformed-output errors and
+  redaction. Dispatcher-help and whitespace checks PASS; no staff behavior changed.
+  No AWS call, dependency install, application build, local DB or simulator.
+- Both normal Linux Node 24.22.1 CI jobs (`validate`, `privacy-database`) PASS at
+  `0dc48786e82be413bb70cedac57bc35b26787040` in
+  [CI 40808636607](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40808636607).
+  Revised immutable artifact download HTTP 200/checksum PASS, not executed against
+  AWS. Documentation-only command/evidence commit reuses that exact tested source.
+- The earlier NEXT action (now completed): run the pinned private-file inventory command in
+  `docs/privacy-s3-storage.md` and return sanitized JSON only. No legacy comparison,
+  key change, production deployment/enrollment, S3 write, gate activation or message.
+  All four false gates/Auto-Deploy Off and all prior approvals/evidence preserved.
+
+## Earlier account-only AWS checker follow-up — preserved evidence, 2026-10-28
+
+- Robert's direct CloudShell STS command returned account `080413009273`:
+  owner-observed PASS. The old checker at `c94fb78` returned
+  `STOP_ACCOUNT_UNVERIFIED` without its cause; no IAM/credential fault established.
+  Bucket configuration and restricted application credentials remain unverified.
+- Small checker-only correction: omit unnecessary stdin/JSON input for parameterless
+  STS, keep private parameter stdin for metadata operations, preserve all target/
+  expected-owner/read-only restrictions, and retain safe categories/exit codes.
+  No application/runtime/privacy workflow changed; dispatcher help remains accurate.
+- Revised checker source: `f71a990fcd59d9b04039e1998757cb53f841c00b`.
+  Immutable public download HTTP 200/checksum match confirmed without execution.
+  Both normal branch CI jobs (`validate`, `privacy-database`) PASS at that exact
+  source in [CI 40807298550](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40807298550).
+  Pinned Node 24.22.1 Linux validation supplements the focused Node 22.20.0 Mac
+  checks; no duplicate local application/database suite. Later docs-only commit
+  pins the same executable; no source retest needed for that documentation update.
+- No installed AWS CLI/authenticated CloudShell here, so original failure is not
+  reproduced. Revised pinned command in `docs/privacy-s3-storage.md` includes bounded
+  identity-only comparisons (at most three calls, one attempt/25 seconds each).
+  Diagnostics cannot override a failed target check or trigger a write/retry.
+- Focused serial local regression: `tests/privacyAwsReadOnly.test.js` 3/3 PASS,
+  including actual child-pipe/EOF handling, invocation shapes, timeouts, CLI exit
+  categories, malformed responses, secret redaction and mismatch/failure stops.
+  Dispatcher-help review and whitespace checks PASS. No AWS call, installation,
+  app build, local DB or simulator. Existing application/recovery CI evidence below
+  remains valid; no broad local suite repeated.
+- NEXT: run the revised checksum-pinned CloudShell command once and return only
+  its sanitized JSON. No key/permission changes, production deploy, enrollment,
+  gate activation, S3 object write or message authorized by this correction.
+
+## S3 integration closeout — 2026-10-28 Toronto, review only
+
+- Final tested source `649c93884364277322bab21fec27885c708209ca`; both `validate`
+  and `privacy-database` PASS in
+  [CI 40803657852](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40803657852)
+  (completed October 29 UTC / October 28 Toronto). Node 24.22.1 / PostgreSQL 18:
+  recovery 5/5, existing privacy/baseline/delivery 22/22, backend 513 passes /
+  5 database-only skips / zero failures, both separate timing DB checks and
+  dispatcher 69/69. Mac ran only the focused metadata/cleanup/cloud-budget guards,
+  type-only and help checks; no local DB, app build or simulator.
+- Merged latest main `007cba9` into this review branch at `77a84a5`, preserving
+  dispatcher standards. A final fetch found no newer main. Render metadata reports
+  API `dep-dbh39puc6qcc73cfb0d0` and dispatcher `dep-dbh39q8u01pc73fg6ufg` live at
+  `007cba92ce38132946283f1d67155e809aa9588b`; no fresh runtime/secret read claimed.
+  Review changes add no migrations. Production was not merged/deployed by this work.
+- Robert confirms AWS account `080413009273`, the private Canada Central bucket,
+  versioning/public blocks/SSE-S3/no Object Lock/owner-enforced ACLs, actual bucket
+  policy including the IAM-user ARN, and the app user with only its application
+  policy. Operator policy exists but remains unattached; no operator role assumed.
+  Saved AWS keys on production API are **Save only**, not running-access evidence.
+- Runtime source is complete: exact external S3/scope/enrollment pins, dedicated
+  stable digest and IAM-user credentials, lazy gates-off startup, no JWT/memory/
+  automatic enrollment fallback. All affected privacy reads/transitions fail closed
+  for invalid/unavailable/unfinished/sealed history; ordinary gates-off traffic
+  remains available. No Pro/OIDC upgrade; Hobby's existing IAM user is preserved.
+- Maintenance source is complete: signed source sealing, nonempty CHECKPOINT/CASE/
+  COVERED successor state, state-bound reviewed minimization, original dates/holds/
+  financial protection and verified retirement permission. Operator-only removal
+  verifies the externally pinned active configuration and full retired-version
+  manifest before deletion, rejects active/unknown targets and stops on interruption.
+  Existing AWS denies remain; no real retirement or enrollment was executed.
+- `docs/privacy-s3-storage.md` is the single current resource/configuration/test/
+  cost/operator handoff. Actual metadata is still **unverified in AWS**. The new
+  read-only checker and reserved-prefix cloud workflow/cleanup are prepared and
+  mocked, not executed. Cloud tests need temporary exact-prefix permissions and
+  an authorized private CI credential path; expected cost <$0.05, bounded <$0.10
+  plus existing included CI only. New manual workflow needs default-branch
+  registration under separate review; no automatic trigger is installed.
+- NEXT ROBERT ACTION: run the pinned/checksum-verified read-only AWS CloudShell
+  command at the end of that handoff; return only its sanitized JSON. It cannot
+  prove the application's actual restricted credentials or saved Render settings
+  work. Cloud verification, operator identity/maintenance permissions, actual runtime
+  read-back, enrollment/cutover and activation remain separate execution dependencies.
+- Existing OpenAI/model/provider/device/receipt/QUALIFIED PITR/cleanup evidence and
+  retention approvals remain closed. Four false gates/Auto-Deploy Off preserved.
+  No AWS setting/write, production data/configuration, messaging, new resource,
+  website publication, Android implementation or Apple upload changed.
+
+## Earlier S3 recovery-storage preparation — preserved evidence, 2026-10-28
+
+- Proposed adapter and single setup handoff: `docs/privacy-s3-storage.md`, with
+  three IAM/bucket-policy review templates. Canada Central, private S3 Standard,
+  owner-enforced ACLs, all public blocks, SSE-S3, versioning; no automatic deletion
+  or irreversible Object Lock. Official regional pricing gives about US$0.30/month
+  under the explicit 20-request/month, 4-KiB-entry, existing-history assumptions;
+  actual volume/account/transfer allowances are not established. No spend approved.
+- One conditional immutable object per entry; independent current S3 listing,
+  pinned enrollment and enforced no-delete/no-overwrite policies preserve the head
+  across PostgreSQL rollback. Versioning is not completeness proof; no head-object
+  transaction or privileged-administrator rollback guarantee is assumed.
+- Existing 357a552/e998189 evidence remains preserved below. Tested S3 source:
+  `5a222be5bb4e18c1afdeec9c025bd4a247b8c653`; both jobs PASS in
+  [CI 40727353624](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40727353624).
+  Node 24.22.1: 11 new S3 cases; PostgreSQL 18 actual recovery 4/4 using the adapter
+  with controlled storage responses; existing privacy checks 22/22. Backend 503
+  passes / 5 database-only skips / zero failures; two separate timing DB checks and
+  dispatcher 69/69 pass. Local type-only/help/whitespace checks pass. Three policy
+  templates parse as JSON; actual AWS evaluation is pending. No AWS verification
+  or production wiring. No Mac build/DB suite/simulator duplicated CI.
+- The earlier NEXT action (superseded by owner setup/current closeout above) was
+  to review this concrete bucket/policy/cost proposal and establish the existing
+  AWS account/credential path before any resource/spending authorization. Controlled
+  synthetic cloud verification, reviewed successor coverage/removal, exact offline
+  production wiring and explicit enrollment must pass before activation.
+- All completed OpenAI/model, device, deployment, SMS/email-Junk and QUALIFIED
+  recovery/cleanup evidence stays closed. Four false gates/Auto-Deploy Off preserved;
+  no AWS setup, production change, messages, new clone, publication or Apple upload.
+
+## Bounded OpenAI privacy follow-up — 2026-10-28
+
+IDENTITY SEARCH CLOSED: Production organization/project identity remains unconfirmed;
+no mismatch found. The bounded retained-record search found source setup and
+synthetic test references, not an attributable deployed-key-to-project record.
+Missing: original provisioning evidence or existing attributable provider metadata
+with exact key/org/project identifiers. Stop that investigation; preserve all model
+and dashboard evidence and policy caveats. No repeat Shell/dashboard check or AI call.
+
+## Post-snapshot recovery safeguard — synthetic verification passed, 2026-10-28
+
+- Added independent authenticated intent/result journal protocol and minimized case
+  snapshots to the existing privacy flow; missing history/store or unfinished work
+  fails closed before further decisions. No production adapter is configured.
+- Added guarded synthetic-only offline reconciliation reusing preview/erasure and
+  financial/ownership guards; original dates and later cancellations/holds survive;
+  completed-request retry logic cannot skip restored-data erasure. No new migration.
+- Tested source: `357a552ab98bcd705385d2aa2ed5446065a6d3e8`, existing
+  `review/customer-account-deletion` branch. Both jobs PASS in
+  [CI 40702995563](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40702995563).
+  Node 24.22.1 / PostgreSQL 18: actual snapshot recovery 4/4 (parent + three cases),
+  existing privacy/baseline/delivery 22/22; backend 492 passes / 5 database-only
+  skips / zero failures, two timing-history database checks and dispatcher 69/69.
+  Five new journal/target/failure unit cases are included in the backend passes.
+  Final review added explicit refusal of missing scoped financial records and newer
+  external-retention decisions, with database regressions included in this run.
+  Local type-only, dispatcher-help and whitespace checks pass. No Mac application
+  build, database suite or simulator duplicated Linux evidence.
+- Storage selection + durable adapter/witness verification, reviewed unfinished-intent
+  handling and separately authorized production-target wiring remain activation
+  dependencies. Synthetic memory state is not a verified production backup solution.
+- The subsequent S3 proposal is recorded above. No approved/configured production
+  store is established here. Do not provision, deploy,
+  restore or enable gates. Existing isolated SMS tooling is unchanged; rerunning
+  it with this new source also requires a reviewed journal integration, not a bypass.
+- Prior SMS/email-Junk, physical-device, staff, model, QUALIFIED recovery/cleanup and
+  business approvals are unchanged. Apple case remains unresolved; Android deferred.
+- Handoff closeout: 15/15 focused cross-repository consistency assertions and both
+  whitespace checks pass. Proposed customer-facing policy body is unchanged; only
+  its review gates were reconciled. Subsequent evidence commits are docs-only and
+  reuse the exact tested source above; no extra application run or deployment.
+
+The following OpenAI screen/model details remain completed evidence:
+
+Robert's October 27 screenshot findings are recorded in
+`docs/privacy-technical-configuration.md`: Personal / Default project, Global;
+feedback, evaluation/fine-tuning and input/output sharing Disabled; API logging
+Enabled per call; audit logging not enabled; no ZDR approval/custom retention period
+displayed. One active Speedy Sweeties Render key, created September 14 / last used
+October 26. No settings/keys changed. These screen checks are closed for that project,
+not evidence of an exact match to production's credential. Name/date/masked-ending
+evidence alone cannot establish identity.
+
+Read-only Render metadata still identifies API dep-dbg3m4afngtc738jad20 at 4ac2ba3.
+The three callers/configuration match deployed source and still use one key with
+store:false, no organization/project headers. OWNER SHELL READ-BACK PASS, October 28:
+all three model overrides are UNSET; each effective model is gpt-5.6-luna by the
+reviewed fallback rules. Target/revision/production/no-local-dotenv/key-presence and
+all-four-gates-false checks are true; result SHELL_ENVIRONMENT_READ_ONLY. This is
+owner-provided deployment-Shell evidence, not a live AI request or agent inspection
+of application memory. NOT_ESTABLISHED is an evidence-limit label, not a mismatch.
+The bounded existing-record investigation is now closed as unconfirmed, with no
+mismatch found; see the evidence limit above. No further identity search is queued.
+Do not repeat completed account-screen/model checks, retrieve keys, call AI, deploy
+or enable privacy. Global is not Canada-only/US-only and
+store:false is not ZDR. Existing Resend delivery-only/Junk, SMS, deployment, physical
+device, staff and QUALIFIED recovery evidence is unchanged. All four privacy gates
+false and Auto-Deploy Off remain the required operating state.
+The documented command passed 15 synthetic no-network cases; no application suite,
+build, simulator or agent-run live check was repeated. Robert's subsequent read-back
+is recorded above without rerunning the command/tests. Documentation whitespace checks passed.
+
+## PR 93 production closeout — 2026-10-27
+
+LATER OWNER RESEND UPDATE, October 27: existing account recovered, no new account/
+key. Transactional Free; notify.speedysweeties.ca DKIM and both sending CNAME records
+Verified; domain ready to send; open/click tracking unconfigured; TLS Enforced.
+Existing Onboarding key has Sending access / All domains. Robert preserved that key
+and used SAVE ONLY for `PRIVACY_VERIFICATION_FROM=Speedy Sweeties <no-reply@notify.speedysweeties.ca>`.
+All gates false / Auto-Deploy Off. This is saved, not active runtime configuration;
+an absent/old running sender is expected and does not warrant another deployment.
+Dashboard readiness alone establishes no delivery, retention/removal or full in-app
+privacy pass; the subsequent owner-only delivery result is recorded separately below.
+
+OWNER-PROVIDED DELIVERY PASS, October 27: one send attempt; HTTP 200;
+`providerAccepted=true`. Robert separately confirms actual receipt at
+speedysweeties@hotmail.com in **Junk, not Inbox**. Inbox placement remains unresolved;
+no cause is inferred and no DNS change is justified by this observation alone.
+No separate provider dashboard delivery event is claimed. Normal verification-code
+email, full in-app privacy flow, fulfillment and provider retention/removal remain
+unverified. Do not resend, deploy or enable gates to close this documentation item.
+
+Completed owner-only email test: exact preview/command retained as a do-not-rerun
+artifact in `docs/privacy-technical-configuration.md`, section Resend owner closeout and
+single-email preparation. Reuses the deployed pure delivery adapter in an existing
+authenticated API Shell, with a process-local sender and test subject/body; no
+app/database startup, gate mutation, real OTP or customer write. Exact recipient
+speedysweeties@hotmail.com. Explicit SEND ONE EMAIL confirmation, one request,
+fixed idempotency and instance attempt marker; never automatically retry.
+33/33 focused mocked command checks passed serially; real-PTY cancellation exited
+with zero transport calls/marker writes. Mac harness Node 22.20.0 is not a new
+production-runtime verification; command requires existing verified Node 24.22.1.
+Application source and prior CI/SMS/deployment/physical-iPad evidence are unchanged.
+This evidence-only update sends no message and makes no deployment, settings change,
+publication or Apple submission; all four gates remain false and Auto-Deploy Off.
+
+LATEST: Robert corrected the earlier "existing key preserved" report: the original
+clipboard-only key was not retained. He generated/saved a fresh initial dedicated
+key, retained a secure backup, and corrected the timeframe. Backup/generation are
+owner-reported; no secret value was retrieved. Independent pre-deploy read-only
+inspection confirmed all six privacy tables empty, no Customer/Order privacy state
+and no retained receipt evidence. This is initial setup, not approval for rotation
+after privacy state exists.
+
+API-only redeploy `dep-dbg3m4afngtc738jad20` is live at
+`2026-10-27T05:49:16.234906Z`, same approved merge
+`4ac2ba372ae23972ee665a77ce241c3d267ea107`. Node 24.22.1; unchanged build -> migrate
+deploy -> start sequence; no pending migrations. Health/readiness and disabled
+privacy GET passed. Post-live DB checks: 48 complete/zero unresolved migrations,
+four privacy migrations complete, four enabled guards, all privacy-state counts
+still zero. Observed post-live error-level logs returned no entries. Auto-Deploy
+remains Off on all three production services; dispatcher/cron/staging/SMS unchanged.
+
+**CONFIGURATION CLOSEOUT PASSED:** Robert returned new-Shell sanitized JSON after
+this deployment: exact `4ac2ba3`, all four gates exactly false, dedicated key length
+>=32/distinct from JWT, and admin/policy/timeframe/fiscal matches all true. This is
+owner-provided runtime evidence, not agent inspection of secret/backup contents.
+The earlier failures/prior redeploy remain historical in the technical document.
+After the pass, independent read-only checks confirmed dispatcher still live at
+`dep-dbg2mgkipgvc73ease2g` on the same SHA; page/JavaScript asset both HTTP 200.
+No additional dispatcher deploy was needed or made. Reused tests/schema evidence;
+no application change, local build/test, simulator or live mutation test.
+
+- **Merged and deployed, all privacy gates off.** Robert approved review head
+  `d8291bbba745fbac62e0ff25816e51dd384d4b87` and privately confirmed the eight exact
+  non-secret values plus dedicated digest-key presence/secure retention. Merge:
+  `4ac2ba372ae23972ee665a77ce241c3d267ea107` (baseline `c5f249f`).
+- API `dep-dbg2lf4ipgvc73eapitg` live `04:39:20Z`; dispatcher
+  `dep-dbg2mgkipgvc73ease2g` live `04:41:20Z`, both on 2026-10-27 UTC and that SHA.
+  API passed before dispatcher deployment. All four migrations completed in order
+  before API startup; 48 total complete, zero unresolved. Six privacy tables/64
+  scalar columns and all four enabled protection triggers verified read-only.
+- Live/readiness 200 with database `ok`; disabled privacy GET 503/
+  `PRIVACY_SERVICE_UNAVAILABLE`/`no-store`; nonexistent tracking ID 404;
+  dispatcher HTML and JavaScript asset 200. Empty privacy/erased-order state.
+  Recent post-start error-level queries returned no entries. No live mutation test.
+- Reused both passing CI jobs at `b3d6b128` (PR run 40438700778; push run
+  40438694962): only two documentation files changed afterward. No required GitHub
+  check bypass, local test/build/simulator rerun or app-source change.
+  Automatic merge-push CI subsequently passed both jobs on exact deployed
+  `4ac2ba3`: [run 40450819956](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40450819956).
+- Auto-Deploy independently **Off on API, dispatcher and cron**. Cron unchanged
+  at `c5f249f`, build-verified only; no manual run. Ordering staging/SMS untouched.
+- Saved configuration was owner-observed; the final sanitized runtime check passes
+  every required boolean above, superseding the historical failed checks.
+  Authenticated staff reads **PASS on owner-run production evidence**: Robert's
+  `SPEEDY_STAFF_READONLY` result reports profile/orders HTTP 200, both schema checks
+  true, deliveredRowsPresent=true and passed=true. The two documented GETs ran in
+  his existing production Safari session; no token or response rows were shared.
+  Apple Events JavaScript stayed disabled. No agent-run request, live retry or
+  application test rerun. See `docs/privacy-technical-configuration.md` for exact
+  evidence, timestamps, commands and rollback boundary. No rollback was required.
+- Recovery exercise/cleanup are complete; original result stays **QUALIFIED**.
+  Production enum ordering is assessed/non-blocking; no new restore copy or migration.
+- NEXT: final website/provider/external-copy prerequisites
+  before separately approved activation
+  and controlled in-app verification. Apple case 103005572330 remains unresolved;
+  Android deferred. No website publication, iOS rebuild/archive/upload/submission.
+
+Website handoff update, 2026-10-27: `webflow/README.md`, unpublished
+`webflow/account-deletion-page.html` and the iOS `PRIVACY_POLICY_PROPOSED.txt` now
+distinguish the deployed gates-off API from unverified production initiation/
+fulfillment, and preserve the successful isolated Twilio result without calling it
+an in-app pass. Android draft controls are not advertised as already released.
+Effective date is the actual publication date, not a new business decision.
+Read-only Webflow inventory still contains only Home; no remote page write or
+publication. The policy candidate's EDITOR RELEASE GATES is the finite remaining
+provider/external-copy/restore-operation fact list. Preserve Home and all gates off.
+Focused review-HTML assertions pass (labelled heading, contact-only links, no form/
+script/API call, adopted retention terms). No application suite/build was repeated.
+
+Privacy fact correction, 2026-10-27: Robert uses TurboTax to prepare/file taxes.
+Older receipts remain physical paper; digital receipts began with the current
+dispatcher. Neither scanning/import of older receipts nor customer-profile/receipt-
+copy storage in TurboTax is established. The iOS policy/retention handoff and
+`docs/privacy-technical-configuration.md` distinguish those owner-confirmed practices
+from the digital field mapping; all approved retention decisions are unchanged.
+
+Scoped technical follow-up confirmed provider/logging source matches deployed
+`4ac2ba3`; ten existing health-readiness log entries match redacted route format.
+No blanket all-log redaction or provider retention claim follows. Account log-stream
+settings/export inventory remain inaccessible through the connector; exact read-only
+dashboard checks are in the technical document. The known recovery windows and
+completed **QUALIFIED** rehearsal/cleanup remain recorded, not reopened. Documentation
+only: no application tests/build, messages, new restore, publication or configuration
+change; all gates false and Auto-Deploy Off remain the operating constraints.
+
+Render follow-up, 2026-10-27: owner-provided screenshot evidence records **Speedy's
+workspace / Hobby / Log Streams default destination None configured (Set default
+displayed)**, settings unchanged. Robert separately reports production Recovery's
+logical-export list **empty**, with no settings changed. Close those specific
+account checks. The screenshots do not establish native retention or backup inventory;
+the export observation is separate evidence and does not mean PITR backups are absent.
+Current official documentation lists seven-day native log retention for Hobby and
+no Hobby per-service log-stream overrides. These are documentation-based findings,
+not an account-level purge test or an all-copy deletion guarantee. See the technical
+document for sources/limits. Remaining provider controls, operator copies and
+post-snapshot privacy reconciliation are still open. No new tests/resources/settings.
+
+Consolidated privacy-publication preparation, 2026-10-27: current official Twilio
+Verify, Resend and OpenAI arrangements are now separated from source observations
+and unresolved effective account controls in `docs/privacy-technical-configuration.md`.
+Its **One consolidated factual handoff** is the single remaining dashboard/owner
+request; no provider/account secret was read and no delivery was attempted. Resend
+saved sender/domain setup was subsequently closed by the owner evidence at the top;
+the subsequent owner-only delivery pass is recorded above. Inbox placement, normal
+verification-code email, full in-app flow and runtime activation remain open.
+Eligible email is preferred and email-off does not trigger SMS fallback.
+OpenAI `store:false` is not account-level ZDR.
+The unpublished iOS policy now includes supported processing/removal facts without
+claiming account defaults are verified settings. Paper/TurboTax provenance and all
+approved retention/review rules remain unchanged.
+
+Historical October 27 restore assessment (implementation status superseded by the
+October 28 tested review change at the top): same-database markers can be lost in
+an older snapshot, and blindly importing completed requests would make `fulfill`
+return before erasing restored data. The technical document proposes a minimized
+independent decision checkpoint, offline reconciliation using the existing flow,
+and a serial synthetic-only restore test preserving original dates, later holds/
+cancellations and financial evidence. That implementation and synthetic verification
+are now complete in review; durable production storage/wiring remain unimplemented
+and fulfillment remains blocked. Completed QUALIFIED recovery/cleanup and production enum findings are
+preserved. No new production-data clone or broader recovery audit is needed.
+
+That October 27 update changed documentation only, reusing deployed-commit CI 40450819956.
+Focused documentation consistency checks passed **16/16**, and `git diff --check`
+passed in both checkouts. The disposable checker normalized Markdown emphasis
+after an initial literal-text mismatch; no application assertion was changed.
+At that update source/tests/workflows matched deployed `4ac2ba3`; the later October
+28 review source and its separate CI evidence are recorded above, not deployed.
+All four gates remain false and Auto-Deploy Off; no settings, customer data, messages,
+resource operations, publication or Apple upload. The older next-action wording is
+superseded by the tested review change and remaining storage dependency above.
+
 ## Node 24.22.1 advisory update (2026-10-26; deployed separately as PR 96)
 
 - Follow `docs/node-runtime-security-2026-10-26.md` for observed API/dispatcher/cron
@@ -46,7 +581,9 @@ a separate release and requires its own signed build and store submission.
 - Identify the prior healthy commit so the code rollback target is known.
 - Do not run destructive or production database commands as part of validation.
 
-## Draft PR 93 isolated Twilio gate
+## PR 93 integration/recovery and isolated Twilio history
+
+The production closeout above supersedes historical draft/undeployed status below.
 
 Current security prerequisite: PR 96 is merged and deployed at
 `c5f249fc079f2faa5ff99c61b193a0626eccc3aa`. API and dispatcher runtime/certificate
@@ -65,9 +602,8 @@ build; privacy database: 22 passes, none skipped. Exact final documentation-head
 is recorded in PR 93; no older run is relabelled as that head. No production change
 is part of this review-branch integration.
 
-NEXT: obtain separate approval for PR 93's documented **all-four-gates-false**
-merge/rollout, with final source/CI, migration-state and private configuration
-read-back before execution. The narrow enum assessment is complete: Robert's
+The separately approved **all-four-gates-false** merge/rollout is now completed
+above; do not reopen that approval. The narrow enum assessment is complete: Robert's
 fresh production inspection found matching names/label sets for all 13 enums and
 only `OrderStatus` ordering differs. Review of deployed `c5f249f` and PR source
 `1815085` found no status ordinal sorting/range/aggregate dependency; explicit
@@ -99,7 +635,7 @@ Full workflow restoration and post-snapshot reconciliation remain later activati
 requirements. No application change/test rerun is needed for this documentation-only
 assessment; unchanged combined CI evidence is preserved. See the rehearsal/cleanup entry in
 `docs/privacy-technical-configuration.md`.
-Keep PR 93 draft/unmerged and Auto-Deploy Off. Apple eligibility, website publication
+PR 93 is merged; keep Auto-Deploy Off. Apple eligibility, website publication
 and later in-app/fulfillment checks remain separate open gates.
 
 Preserved privacy integration evidence (2026-10-26): integrated application
