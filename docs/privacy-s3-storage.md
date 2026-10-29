@@ -1,4 +1,12 @@
-# S3 privacy decision store — integration handoff, 2026-10-28
+# S3 privacy decision store — production review package, 2026-10-29
+
+**CURRENT REVIEW ENTRY POINT:** use [Production deployment, enrollment and operator
+reconciliation package](#production-deployment-enrollment-and-operator-reconciliation-package)
+below. This pass prepares documentation only. Completed configuration inventory,
+cloud run 40878909548 (5/5), cleanup (37 versions/markers, empty inventory), GitHub
+test-environment removal and owner-confirmed temporary IAM cleanup remain closed.
+Do not rerun them. Earlier pending/next-action statements describe their dated stage;
+the production package below supersedes them without changing the saved evidence.
 
 Latest integration supersedes the earlier proposal's unknown-account/unimplemented
 status. Robert completed the AWS setup below; these are owner-confirmed facts,
@@ -155,6 +163,480 @@ running process after a future approved deployment. Conflicting `AWS_SESSION_TOK
 All four original privacy gates stay exactly `false`; no additional activation
 flag or background enrollment is introduced. No deployment merely to load Save-only
 credentials/sender is warranted by this preparation.
+
+## Production deployment, enrollment and operator-reconciliation package
+
+### 1. Exact candidate and scope — October 29 read-only refresh
+
+| Item | Observed revision / evidence |
+| --- | --- |
+| API live | `007cba92ce38132946283f1d67155e809aa9588b`, `dep-dbh39puc6qcc73cfb0d0`, live since 2026-10-28T17:48:03Z |
+| Dispatcher live | Same `007cba9`, `dep-dbh39q8u01pc73fg6ufg`, live since 2026-10-28T17:47:07Z |
+| Cron last live build | `c5f249fc079f2faa5ff99c61b193a0626eccc3aa`, `dep-dbg083uk1f9s73aunkd0`; do not run/redeploy it |
+| Current fetched main | `ac1a69b13211b8612213ade951a3db15b5142a90` |
+| Immutable application candidate | `0230095ce0076baab30db880c7c4c3abea7fdd45`, existing `review/customer-account-deletion`; this package's later documentation commit does not alter its executable tree |
+| Tested executable source | `a692b0da41fe3c0d4a0bd8d4e6e3f13a349d16fa`; only three backend documentation files differ through `0230095` |
+| Reused Linux CI | [40811316279](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40811316279): `validate` and `privacy-database` SUCCESS on exact `a692b0d`; both jobs also SUCCESS for main `ac1a69b` in [40811821631](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40811821631) |
+| Live synthetic verification | [40878909548](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40878909548), exact `5e0791d`, code identical to `a692b0d`; 5/5 recovery tests and controlled probes PASS, cleanup complete |
+
+Render metadata was read in the previously confirmed Speedy's workspace
+`tea-d7loaul7vvec73cme5d0`. API/dispatcher/cron each still report `autoDeploy=no` /
+`autoDeployTrigger=off`. No setting, deploy, database or AWS object changed. Live
+metadata is not a new health/session test. Keep prior staff/device/provider results.
+No CI run exists for documentation-only `0230095` (`[skip ci]`); do not mislabel it
+as a newly tested head. Reuse unchanged source evidence, subject to merge protections.
+
+**Undeployed executable changes**, relative to live `007cba9`:
+
+- `privacyDeletion.service.ts` journals relevant transitions with independent INTENT
+  before DB commit and COMMIT afterward; reads/transitions fail closed on bad history.
+- `privacy.routes.ts` lazily wires the dedicated S3 journal after the deletion gate.
+- `privacyRecoveryJournal.ts`, `privacyRecoveryState.ts`, `privacyRecoveryS3.ts` and
+  `privacyRecoveryConfiguration.ts`: authenticated minimized history, conditional
+  immutable appends and exact external pins. Official SDK dependency is pinned to
+  `@aws-sdk/client-s3` **3.1158.0** with lockfile changes; Node stays **24.22.1**.
+- `privacyRecovery.service.ts`: guarded **synthetic-only** restore reconciliation;
+  `privacyRecoveryMaintenance.ts` / `privacyRecoveryRetirement.ts`: offline successor
+  and retired-history libraries, not production commands or public routes.
+- Backend-served `dispatcherHelpKnowledge.ts` documents fail-closed/operator stops;
+  no dispatcher UI/bundle change. CI adds serial restore checks; synthetic tests and
+  AWS inventory/cleanup scripts are test/operator facilities, not runtime jobs.
+- Documentation, policy templates and unpublished Webflow drafts are review assets,
+  not deployed customer-policy claims. No new Prisma schema or migration differs
+  from main/live; all four original privacy migrations remain already deployed.
+
+**Integration still required before a main release:** main is two commits ahead of
+the branch's ancestry (PR 98 workflow registration); the branch has 32 commits not
+in main at this refresh. The workflow blob is byte-identical on both sides
+(`5c32bdb415c5a879639eb55726bd29b029d4adf5`). No executable conflict is identified;
+no merge was performed. A future reviewed integration must preserve that file and
+both CI jobs/Node pins/full-history help checks. Use a **new review PR** from the
+existing branch: PR 93 is already merged, not an open deployment vehicle. Do not
+reopen/re-merge PR 93 or bypass required checks. Record the actual integration/
+merge SHA and successful required checks; never invent that future SHA. Any new
+operator source changes require their own focused checks and CI before inclusion.
+
+### 2. One consolidated approval boundary and ordered deployment
+
+**Proposed next production step A (not executed/approved by this document):** merge
+only the reviewed recovery candidate after the integration/check gate above, then
+manually deploy **speedy-api only**, with all four gates exactly false. Record the
+resulting release SHA as `RELEASE_SHA`; its application tree must equal reviewed
+`0230095` unless separately reviewed tooling is added. Dispatcher, cron, ordering
+staging and the SMS resources are excluded. No new migration, paid resource, message,
+enrollment, AWS write, website publication or Apple upload belongs to step A.
+
+**Step B (separate explicit enrollment boundary):** one initial journal entry plus
+external configuration pins/read-only application verification, only after the
+operator/tooling prerequisites in section 3 are satisfied. **Not executable-ready
+today**; do not fold it silently into step A. **Step C**, customer initiation/channel
+activation and later fulfillment, needs its own approval and final launch evidence.
+Existing retention/contact/fiscal/review decisions are not reopened by these gates.
+
+| Order | Responsible operator and exact action | Expected result / stop |
+| --- | --- | --- |
+| A0 | Release engineer: fetch refs, preserve local changes, compare approved tree/main/live revision; recheck protections and required CI on the actual integration | Stop on executable scope change, failed/pending required check or concurrent deploy; no force push |
+| A1 | Robert: Render Dashboard → Speedy's workspace → each of speedy-api, speedy-dispatcher, speedy-retention-90-day → Settings → Auto-Deploy | Off on all three; preserve schedules, operational env and secrets |
+| A2 | Robert: workspace → speedy-api → Environment; review only the configuration below, Save only if correction is separately approved | All four gates literally `false`; stable digest and original AWS pair preserved. Do not copy synthetic/CI configuration |
+| A3 | Engineer: after merge authorization, record the actual merge SHA; Robert/authorized deploy operator: speedy-api → Deploys → Manual Deploy → Deploy a specific commit → that full `RELEASE_SHA` | One API build only; not Deploy latest commit, Restart, or dispatcher/cron deployment |
+| A4 | Render build, then pre-deploy, then start in the existing sequence below | Any failed command stops rollout; no retry/mark-success workaround |
+| A5 | Engineer/Robert: perform only the safe verification below; preserve sanitized results/actual deploy ID | Exact revision, Node pin, health, expected schema/guards, false gates, disabled route. Gate-off health alone does not prove S3 access |
+| A6 | Robert: leave Auto-Deploy Off; keep all four gates false; retain config/key backup and release evidence | No customer activation; enrollment remains a recorded separate stop |
+
+Observed API commands (preserve, do not replace):
+
+```text
+Build:      npm ci --include=dev && node ./node_modules/prisma/build/index.js generate && npm run build
+Pre-deploy: npx prisma migrate deploy
+Start:      npm run start
+Health:     /api/v1/health/ready
+```
+
+No new migration is expected: require the four original completed migrations in
+order (`20261023030000_customer_privacy_requests`,
+`20261023150000_privacy_access_credentials`,
+`20261023190000_adopt_retention_policy`,
+`20261023220000_approved_privacy_review_dates`), no unresolved failure and four
+enabled protection triggers. A stale `48 completed` count is historical, not a
+hard-coded future expected total; compare the exact candidate migration inventory.
+Unexpected pending SQL is a stop before `migrate deploy`, not permission to apply it.
+
+#### Private configuration — retain, do not dump
+
+Ordinary startup still needs the existing DATABASE_URL/JWT/Firebase/CORS/port and
+operational alert settings; preserve them, not a copied test environment. Privacy
+construction is lazy and gates-off startup/ordering does not require enrollment
+or contact S3. No background recovery hook is added. Existing ordinary production
+monitors still run normally; do not start `server.ts` for an offline operator check.
+
+Keep these approved API values, verifying equality without displaying secrets:
+
+```text
+PRIVACY_DELETION_ENABLED=false
+PRIVACY_FULFILLMENT_ENABLED=false
+PRIVACY_VERIFICATION_EMAIL_ENABLED=false
+PRIVACY_VERIFICATION_PHONE_ENABLED=false
+PRIVACY_ADMIN_USER_IDS=afca21ae-4c43-4c14-a2a7-f3ad790b12dc
+PRIVACY_APPROVED_RETENTION_POLICY=SS-RETENTION-2026-10-23
+PRIVACY_COMPLETION_TIMEFRAME=Normally within 30 calendar days after verification; an ownership conflict or legal hold may require longer.
+PRIVACY_FISCAL_YEAR_END_MM_DD=12-31
+```
+
+Preserve stable PRIVACY_DIGEST_KEY (privately retained; >=32 characters, not JWT),
+existing AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY and all provider credentials. No
+rotation/retrieval into chat/logs. Saved Resend sender loads on a future normal
+deploy; that does not authorize sending. No conflicting AWS_SESSION_TOKEN,
+AWS_ROLE_ARN or AWS_WEB_IDENTITY_TOKEN_FILE may be present for this application
+IAM-user mode. Do not upgrade Hobby or attach the broad operator policy to the app.
+
+The five non-secret S3 resource pins are the exact table above: bucket, owner,
+region, `production/epoch-0001/`, `speedy-privacy-production-epoch-0001`. The sixth,
+PRIVACY_RECOVERY_ENROLLMENT_HASH, is **unknown until observed enrollment**. Leave
+it unset rather than invent one; this blocks privacy, not ordinary ordering.
+If the five pins are saved during an approved release, loading them is not enrollment.
+After B the observed hash must be saved outside PostgreSQL and a normal same-SHA
+API deployment is needed to load it; Restart does not load Save-only changes.
+
+#### Read-only post-deploy verification commands — future approved step A only
+
+In a **new** speedy-api Shell (workspace → speedy-api → Shell), first replace the
+literal `RECORDED_RELEASE_SHA` with the actual recorded SHA, not a branch name:
+
+```sh
+node <<'SPEEDY_RECOVERY_RELEASE_READONLY'
+const e=process.env;
+const gates=['PRIVACY_DELETION_ENABLED','PRIVACY_FULFILLMENT_ENABLED','PRIVACY_VERIFICATION_EMAIL_ENABLED','PRIVACY_VERIFICATION_PHONE_ENABLED'];
+const r={check:'SPEEDY_RECOVERY_RELEASE_READONLY',targetMatches:e.RENDER_SERVICE_ID==='srv-d7ntlnpkh4rs73bev9q0',revisionMatches:e.RENDER_GIT_COMMIT==='RECORDED_RELEASE_SHA',production:e.NODE_ENV==='production',nodeMatches:process.version==='v24.22.1',allFourGatesFalse:gates.every(k=>e[k]==='false'),dedicatedDigestPresent:typeof e.PRIVACY_DIGEST_KEY==='string'&&e.PRIVACY_DIGEST_KEY.length>=32,digestDistinctFromJWT:!!e.PRIVACY_DIGEST_KEY&&e.PRIVACY_DIGEST_KEY!==e.JWT_SECRET,awsPairPresent:!!e.AWS_ACCESS_KEY_ID&&!!e.AWS_SECRET_ACCESS_KEY,noConflictingAWSProvider:!e.AWS_SESSION_TOKEN&&!e.AWS_ROLE_ARN&&!e.AWS_WEB_IDENTITY_TOKEN_FILE,adminMatches:e.PRIVACY_ADMIN_USER_IDS==='afca21ae-4c43-4c14-a2a7-f3ad790b12dc',policyMatches:e.PRIVACY_APPROVED_RETENTION_POLICY==='SS-RETENTION-2026-10-23',timeframeMatches:e.PRIVACY_COMPLETION_TIMEFRAME==='Normally within 30 calendar days after verification; an ownership conflict or legal hold may require longer.',fiscalMatches:e.PRIVACY_FISCAL_YEAR_END_MM_DD==='12-31'};
+console.log(JSON.stringify(r));process.exitCode=Object.entries(r).some(([k,v])=>k!=='check'&&v!==true)?1:0;
+SPEEDY_RECOVERY_RELEASE_READONLY
+```
+
+Presence checks do not prove secret continuity or access. Robert must confirm the
+same retained digest/private AWS pair was preserved; do not publish a fingerprint
+or retrieve values to make that check. Check schema/migrations through the existing
+read-only production procedure, not `prisma migrate dev`, seed or reset commands.
+Run the following in the new Shell; it prints only safe assertions and makes three
+GETs, no retry, no customer/authentication/provider calls:
+
+```sh
+node <<'SPEEDY_RECOVERY_HTTP_READONLY'
+(async()=>{const base='https://speedy-api-lbfe.onrender.com/api/v1';const results=[];
+for(const [path,want] of [['/health/live',200],['/health/ready',200],['/privacy/deletion/admin/requests',503]]){
+ const r=await fetch(base+path,{redirect:'error',signal:AbortSignal.timeout(5000)});const j=await r.json();
+ const pass=r.status===want&&(path==='/health/ready'?j.checks?.database==='ok':path.startsWith('/privacy/')?j.code==='PRIVACY_SERVICE_UNAVAILABLE'&&r.headers.get('cache-control')==='no-store':j.success===true);
+ results.push({path,status:r.status,pass});if(!pass)break;
+}const pass=results.length===3&&results.every(x=>x.pass);console.log(JSON.stringify({check:'SPEEDY_RECOVERY_HTTP_READONLY',results,pass}));process.exitCode=pass?0:1;
+})().catch(()=>{console.log(JSON.stringify({check:'SPEEDY_RECOVERY_HTTP_READONLY',result:'STOP_NETWORK_OR_RESPONSE'}));process.exitCode=1;});
+SPEEDY_RECOVERY_HTTP_READONLY
+```
+
+No S3 request is made by the disabled route. Do not use loyalty GET (can reset
+counters), mutation endpoints, AI help, new login, order creation or codes as smoke
+tests. Existing staff-read passes are retained; a new authenticated staff read is
+optional only with an existing valid session and sanitized schema/status output.
+Dispatcher deployment is unnecessary because its bundle is byte-identical.
+
+### 3. Explicit production enrollment — tooling/principal stop, not an invented command
+
+**Named responsibility:** Robert is the owner/privacy operator and release approver;
+the engineer prepares/reviews the guarded commands. The actual authorized **AWS
+operator principal is not yet established**. Use Robert's existing MFA-backed
+non-application owner/federated session, only after privately confirming its STS
+account is `080413009273`, principal and MFA/session provenance. No operator role
+is assumed; the permanent operator policy remains unattached. Do not use the
+application identity/key to enroll (its explicit deny of key 1 must remain).
+No new account/user/key or plan upgrade is needed or authorized by this package.
+
+Minimum temporary enrollment permissions for the chosen existing operator session:
+
+| Action | Exact resource / condition |
+| --- | --- |
+| `s3:ListBucket`, `s3:ListBucketVersions` | `arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273`; `s3:prefix` exactly `production/epoch-0001/` |
+| `s3:GetObject` | That bucket's `production/epoch-0001/*`, current objects only; authenticating history stays private |
+| `s3:PutObject` | Only `production/epoch-0001/0000000000000001.json`; `s3:if-none-match=*`, `s3:x-amz-server-side-encryption=AES256` |
+
+STS identity check needs no app secret. No delete, old-version GET, wider-prefix PUT,
+IAM/bucket configuration, lifecycle or trust-control grant is required. Existing
+bucket TLS/create-only/encryption/delete denies remain. Do not attach the larger
+permanent operator policy merely for enrollment; the chosen temporary session/
+prefix grant needs review and must be removed after read-back. From AWS Console
+start → correct account → IAM → the **privately verified existing principal** →
+Permissions, review only this session-scoped grant; if there is no suitable session,
+stop and identify its actual principal before proposing a change. No permission
+change is made now. Restore reconciliation needs PostgreSQL write access separately;
+this enrollment grant never authorizes customer-data repair.
+
+**Missing executable tooling (genuine prerequisite B0):** there is no production
+enrollment CLI/target adapter, and `reconcileSyntheticRestore` rejects anything but
+the guarded synthetic localhost database/user. Do not run that test entry point
+against production or edit its guard. `enrollEmptyDatabase()` is a library, not a
+target-verified production command; its check covers four decision tables, not the
+complete production baseline below. There is also no reviewed unfinished-operation
+resolver, dry-run/apply production wrapper or production successor-maintenance CLI.
+Thus enrollment/reconciliation are not claimed runnable. The smallest remaining
+source task is narrowly guarded offline wrappers around these existing libraries,
+with synthetic guard/failure tests and CI, not another deletion/storage system.
+
+The wrappers must verify service/workspace, database **resource ID**
+`dpg-d7m33g2qqhas73f58hrg-a` and its privately resolved exact hostname/name/user via
+Render metadata, not a matching DB name alone. They must use the stable digest from
+existing private configuration and a separate ephemeral MFA operator SDK session;
+never copy either to source/arguments/logs/CI. Import only pure modules and Prisma,
+not app/server startup, delivery, alerts or jobs. Revoke temporary access/close
+connections on exit. No automatic enrollment/fallback, no blind PUT reruns.
+
+**Actual baseline before enrollment (B1, newly observed then, not old zero counts):**
+with all privacy gates false and all privacy writers excluded, use one bounded
+read-only consistent transaction first. Verify resource/schema/guards/migrations,
+then output counts only, with no IDs/rows/contacts. The production wrapper must
+hold the existing privacy advisory lock/recheck under an enrollment exclusion
+window immediately before its write; the library's separate count checks alone
+are not sufficient concurrency control. These read-only baseline queries illustrate
+the exact coverage, not a standalone enrollment authorization:
+
+```sql
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
+SET LOCAL statement_timeout = '15s';
+SET LOCAL lock_timeout = '2s';
+SELECT 'PrivacyChallenge' AS kind, count(*) AS rows FROM "PrivacyChallenge"
+UNION ALL SELECT 'PrivacyAccessCredential', count(*) FROM "PrivacyAccessCredential"
+UNION ALL SELECT 'PrivacyDeletionRequest', count(*) FROM "PrivacyDeletionRequest"
+UNION ALL SELECT 'PrivacyAudit', count(*) FROM "PrivacyAudit"
+UNION ALL SELECT 'PrivacyExternalTask', count(*) FROM "PrivacyExternalTask"
+UNION ALL SELECT 'PrivacyDeletedIdentity', count(*) FROM "PrivacyDeletedIdentity"
+UNION ALL SELECT 'CustomerPrivacyState', count(*) FROM "Customer"
+ WHERE "privacyVerifiedEmail" IS NOT NULL OR "privacyVerifiedEmailAt" IS NOT NULL
+UNION ALL SELECT 'OrderPrivacyState', count(*) FROM "Order"
+ WHERE "privacyErasedAt" IS NOT NULL OR "privacyRetainUntil" IS NOT NULL
+UNION ALL SELECT 'ReceiptRetainedEvidence', count(*) FROM "DigitalReceipt"
+ WHERE "retainedChargeEvidence" IS NOT NULL;
+COMMIT;
+```
+
+Also verify exact production-prefix version inventory is empty (no old versions,
+delete markers or unexpected keys), using expected owner and bounded pagination.
+Do not treat missing permission/403 as emptiness or rerun the completed broad AWS
+inventory. No current production baseline/S3-prefix read is asserted by this pass.
+
+- All decision indicators zero and truly empty prefix: B2 may call
+  `PrivacyRecoveryJournal.enrollEmptyDatabase()` once via the approved guarded
+  wrapper, using store mode `enrollment`. It creates exactly sequence 1, GENESIS,
+  HMAC-authenticated `{format:1,emptyDecisionBaseline:true}` with conditional
+  `IfNoneMatch:*` / AES256. The app cannot create this entry. No record is removed.
+- Any nonzero indicator: **STOP empty-baseline enrollment**, preserve state. Coverage
+  must account for every request/version/source scope, cancellation/hold/erasure,
+  external outcome, original due/closure/review/financial date, access revocation and
+  existing marker under the stable key, supported by complete attributable evidence.
+  `prepareRecoverySuccessor` only covers an already authenticated source journal;
+  it is **not** an importer for pre-journal DB decisions. No production nonempty
+  bootstrap/importer is implemented. Any required reviewed coverage importer is
+  another bounded source prerequisite; never label nonempty history GENESIS or
+  delete it to pass enrollment. Challenge/access-only state also needs an explicit
+  reviewed disposition; no automatic purge/expiry inference.
+- A lost enrollment acknowledgement is an uncertain outcome: inspect the same
+  first entry/current history privately, validate scope/key/canonical payload and
+  baseline, then record the observed result. Never recreate, overwrite, advance
+  epoch, invent a hash or treat an unreadable prefix as not enrolled.
+
+**B3 external pin:** obtain the observed first-entry HMAC from authenticated read-back
+(64 lowercase hex). Store the exact owner/bucket/region/prefix/scope/hash together
+in protected release configuration **outside PostgreSQL**, with access limited to
+Robert/release operator and the existing securely retained stable key separately.
+Do not store the only copy in a database backup or a temporary local file. Render
+Dashboard → workspace → speedy-api → Environment → add the six exact recovery
+variables from the table (hash only from B2) → Save only. Preserve all four false
+gates, the existing AWS pair and digest. Record boolean equality/pin presence, not
+secret values. Update Robert's protected config record; confirm exact pins privately.
+The proposed external pin record uses existing Render configuration plus Robert's
+protected retained release record; the latter's exact storage/access location is
+not established and must be confirmed privately. This is not a newly provisioned
+service or a claim that a temp file is durable storage.
+
+**B4 load pins and verify restricted app reads:** after separate approval, perform
+one **normal same-RELEASE_SHA API-only deployment** to load saved pins, not Restart.
+Health does not call S3; in a fresh Shell, use the following after replacing the
+literal SHA. It uses only captured existing app credentials and reads current history;
+no imports of app/server/Prisma, no journal append and no output of entry bodies:
+
+```sh
+node <<'SPEEDY_RECOVERY_APP_READONLY'
+(async()=>{const e=process.env;const gates=['PRIVACY_DELETION_ENABLED','PRIVACY_FULFILLMENT_ENABLED','PRIVACY_VERIFICATION_EMAIL_ENABLED','PRIVACY_VERIFICATION_PHONE_ENABLED'];
+if(e.RENDER_SERVICE_ID!=='srv-d7ntlnpkh4rs73bev9q0'||e.RENDER_GIT_COMMIT!=='RECORDED_RELEASE_SHA'||e.NODE_ENV!=='production'||!gates.every(k=>e[k]==='false')||require('node:fs').existsSync('.env'))throw Error('target');
+const journal=require('./dist/services/privacyRecoveryConfiguration').configuredPrivacyRecovery();
+const state=await journal.ready();const pass=journal.scope==='speedy-privacy-production-epoch-0001'&&state.enrollmentHash===e.PRIVACY_RECOVERY_ENROLLMENT_HASH&&state.head.sequence===1&&state.cases.size===0&&!state.sealed&&!state.checkpoint;
+console.log(JSON.stringify({check:'SPEEDY_RECOVERY_APP_READONLY',enrollmentMatches:state.enrollmentHash===e.PRIVACY_RECOVERY_ENROLLMENT_HASH,headSequence:state.head.sequence,caseCount:state.cases.size,pass}));process.exitCode=pass?0:1;
+})().catch(()=>{console.log(JSON.stringify({check:'SPEEDY_RECOVERY_APP_READONLY',result:'STOP_TARGET_CONFIGURATION_OR_HISTORY'}));process.exitCode=1;});
+SPEEDY_RECOVERY_APP_READONLY
+```
+
+Expected initial result: matches true, sequence 1, cases 0, pass true. A different
+head is a stop for investigation, not a reset instruction. This verifies current
+  production-prefix LIST/GET and authenticates the new deployment-Shell environment's
+  dedicated key; it is not an inspection of the application's live memory. It does not
+prove a runtime append/negative-policy denial or actual customer fulfillment.
+Reuse completed synthetic allowed/denied/conditional-write evidence and authenticated
+policy read-back; do not attempt a denied live production PUT/DELETE as a test.
+Remove the temporary operator enrollment grant/session, verify targeted absence,
+preserve policies/credentials and all four false gates. No CI credential copies
+are needed or re-created. Record actual hashes/deploy IDs only after execution.
+
+### 4. Ordered offline operator-reconciliation procedure
+
+This is the incident/operator acceptance runbook; steps requiring a production
+wrapper are explicitly **BLOCKED**, not commands to improvise today. The existing
+five synthetic cloud recovery tests prove library behavior, not production authority.
+
+1. **Declare recovery hold (Robert + incident engineer).** Keep public API traffic,
+   staff mutation access and every writer/worker/scheduled job disconnected from
+   the restored DB, including ordering and the retention cron. Privacy gates false
+   alone are insufficient: normal ordering can recreate an identity if a marker was
+   lost. Isolate the restored target/network and identify every connection before
+   any application starts. Suspension/restore changes need incident authorization;
+   none is performed now. Never restore S3 or its external pins alongside PostgreSQL.
+2. **Verify target and schema (engineer).** Record exact approved restored resource,
+   hostname/name/role and restore point privately, not merely the old production
+   name. Validate migrations, columns and the four enabled protection triggers
+   before write access. A schema discrepancy stops; only a separately reviewed
+   migration plan may resolve it. Do not run test seed/reset tools or production
+   app startup imports; no connection to ordering staging/SMS DB.
+3. **Verify independent authority (operator).** With unchanged stable digest and
+   external owner/bucket/region/active scope/enrollment hash, read current S3 entries
+   using expected owner and normal current reads. Authenticate complete contiguous
+   history, the initial pin, latest head and successor coverage if applicable.
+   Pending INTENT, unfinished CHECKPOINT/CASE/COVERED, sealed predecessor, gaps,
+   changed HMAC, permission/timeout, stale head, suspected policy bypass or uncertain
+   write keeps the system offline. Never pick an old VersionId or DB head as truth.
+4. **Dry-run complete coverage (BLOCKED on guarded production tooling).** Match all
+   restored requests/markers/decisions to the latest authenticated case set. Check
+   newer DB status/version/updatedAt, later cancellation/HOLD, external retain/review
+   dates, financial holds, marker review, ownership/source/order scope and financial
+   evidence. Unknown DB requests, missing scoped transactions/receipts, conflicting
+   owners or changed financial hashes stop, not auto-import or erase. A minimized
+   decision journal cannot recreate a missing receipt/transaction; recover verified
+   financial evidence through the authorized recovery path first. Preserve newer
+   decisions; never substitute fresh deadlines or blanket six-year personal retention.
+5. **Apply once offline (BLOCKED on exact-target wrapper/authorization).** Reuse the
+   tested reconciliation algorithm with the shared privacy advisory lock and one
+   bounded transaction (existing 15-second limit). Handle non-erasure cancellations/
+   holds without erasing. For a recorded erasure, use the existing scoped preview/
+   `eraseScoped` after verifying ownership/evidence, then restore historical request,
+   marker, revocations and external-outcome digests. Never pre-import terminal flags
+   then call `fulfill`: its completed-request early return would skip restored-data
+   erasure. Preserve created/due/erased/completed/closed/audit-review/marker-review
+   dates and justified financial expiry/holds exactly. Recheck unchanged current
+   journal head before DB commit; any discrepancy rolls back all DB changes.
+6. **Verify without customer output (engineer/operator).** Require scoped replay
+   counts, zero unresolved cases, preserved financial amounts/item descriptions/
+   quantities/recognized receipt-charge evidence, credential revocation/markers and
+   four guards; compare unaffected records privately with in-process digests/counts,
+   not exports or customer rows. No GET loyalty, real purchase, code or delivery
+   probe. Demonstrate idempotent dry-run/no work left, not repeated blind deletion.
+   Recheck head remains current. The wrapper must record trafficMayReopen=false.
+7. **Review external copies and reopening (Robert).** Historical journal task digests
+   are not current provider-erasure proof. Review actual external-copy/financial hold
+   outcomes and any newer decisions before reopening. Record reason and next review
+   for extended need; original 24-month anchors remain review dates, not automatic
+   deletion/minimums. Only Robert's explicit reviewed reopening decision releases
+   ordinary traffic/writers. Customer/privacy gates are a distinct approval and
+   remain false throughout this package. Do not claim restored production verified
+   merely because the schema/count checks passed.
+
+**Unfinished-operation resolution is not implemented:** because INTENT, DB commit
+and COMMIT are separate, any crash/uncertainty needs attributable evidence of the
+specific operation's actual DB outcome and latest holds/cancellations. The present
+library deliberately stops; no automatic ABORT/COMMIT repair protocol or production
+resolution CLI exists. Preserve both sides and sanitize incident evidence, keep
+operations offline, and prepare a narrowly reviewed forward repair with synthetic
+regressions. Never mark committed by guess, trim the suffix, reseal from an old DB,
+force enrollment or repeatedly retry an unresolved operation.
+
+**Review/minimization maintenance:** existing SEAL → CHECKPOINT/CASE/COVERED and
+`verifyRecoverySuccessor` libraries require an exact state-bound reviewed plan,
+same key, independent coverage and external successor pin before any predecessor
+retirement. There is no production maintenance CLI. The bucket still denies ALL
+production deletion; actual retired-history removal needs a separately reviewed
+retired-prefix-only exception/operator manifest, never active-prefix delete rights.
+Do not grant it during deployment/enrollment. Do not equate a 24-month review with
+automatic purge or indefinite retention. Keep justified protection while verified
+restoration/unresolved-case risk remains. Financial originals stay outside journal
+minimization; paper receipts were not scanned/imported and TurboTax is tax filing.
+
+### 5. Stop and rollback boundaries
+
+- **Before enrollment / no privacy state:** on build/start/migration/health/config
+  failure, stop further rollout. The current healthy privacy-capable `007cba9`
+  application is the recovery target, not pre-security/pre-privacy code. Use it
+  only after fresh read-only evidence confirms no real privacy state, no unknown
+  journal operation and all gates false. No DB down migration, table/trigger drop,
+  digest rotation, S3 change or failed-migration mark-success is permitted.
+- **After GENESIS but before real activity:** preserve the entry, hash/key and all
+  external pins even if the API code must roll back. Returning to `007cba9` is only
+  a temporary gates-off fallback after proving all indicators zero and history is
+  exactly the expected authenticated enrollment with no in-flight operation. Older
+  code cannot maintain the journal; do not activate it. Do not delete GENESIS to
+  pretend enrollment never occurred; repair/redeploy the reviewed recovery source.
+- **Any real privacy activity, pending operation or ambiguity:** no rollback to
+  recovery-unaware `007cba9`/`4ac2ba3` or pre-privacy/security versions. Keep recovery-
+  aware code stopped/gates-off as appropriate and use a reviewed forward fix.
+  Preserve revocation/markers/deadlines/triggers/financial evidence. A DB restore
+  is not a code rollback and must follow the complete offline procedure above.
+- Render artifact rollback reuses the target deploy's environment values and may
+  therefore load older pins/secrets/gates. Prefer a reviewed same-source normal
+  deployment with preserved current configuration; if artifact rollback is used,
+  explicitly read back all pins/gates/key-presence/continuity before traffic. It
+  never reverses database/S3 effects. Keep Auto-Deploy Off regardless of method.
+
+Current official Render references read October 29:
+[manual specific-commit deploy and build/pre-deploy/start sequence](https://render.com/docs/deploys),
+[health readiness](https://render.com/docs/health-checks),
+[rollback configuration boundaries](https://render.com/docs/rollbacks).
+No arbitrary downtime, backup/log retention or provider-period promise is added.
+
+### 6. Finite release handoff / unresolved prerequisites
+
+1. **Technical, next:** implement/review guarded production enrollment + read-only
+   preflight/dry-run and exact-target offline reconciliation wrappers, plus a reviewed
+   unfinished-operation resolution path before real privacy use. Test guards with
+   synthetic fixtures/controlled failures, reuse business logic and passing cloud
+   evidence. No repeat AWS writes/inventory/clone is required for that source work.
+2. **Release review:** integrate current main without changing executable scope,
+   new PR/required CI and actual release SHA. Step A approval can cover API-only
+   gates-off deployment; B remains blocked by tooling, actual MFA operator identity,
+   fresh baseline/prefix and durable external pin handling. No enrollment hash or
+   production baseline is asserted in advance. No new business retention approval.
+3. **Separate B execution:** once prerequisites pass, explicitly approve one empty-
+   baseline enrollment, private external pins, normal same-SHA API config-load and
+   read-only restricted-app verification, temporary operator access removal. If state
+   is nonempty, stop for the coverage requirement instead; no automatic import.
+4. **Publication/activation prerequisites:** close only genuinely pending provider/
+   external-copy facts with supported caveats; finalize unpublished privacy,
+   account-deletion and support pages, then separately authorize publication matching
+   deployed behavior, with actual publication date. Home is preserved. Configure
+   the verified public privacy URL in iOS/ASC; unavailable-policy fallback is not
+   release-ready. No invented provider retention or customer-data-location claims.
+5. **Controlled customer-flow approval:** verified channel + initiation, fulfillment
+   still off initially; exercise in-app source ownership/challenge/request/status/
+   cancellation with explicit owner-only delivery consent. Preserve successful
+   isolated SMS and owner email/Junk results, but they do not prove in-app flow or
+   Inbox placement. Fulfillment/external outcomes need separate safeguarded approval
+   after recovery/operator readiness; no real customer is a test fixture.
+6. **Apple:** case **103005572330** remains unresolved. Do not conceal regulated
+   products. Reuse completed physical iPad/permission-fallback and metadata/screenshot
+   evidence; only changed/live functionality needs further targeted checks. Finalize
+   truthful privacy answers/reviewer access/URLs and metadata against actual behavior.
+   After eligibility and launch-critical gates are resolved, separately authorize
+   final signed archive/validation/upload/submission. No archive/upload is authorized
+   here; Android remains deferred. Keep the single iOS release checklist authoritative.
+
+**Preparation verification:** 33/33 focused documentation/command assertions pass,
+including 14 mocked command cases: exact-target/revision/gate stops, read-only GET
+sequence/no retries, network/cache failures, missing/invalid history, dotenv stop,
+redaction and read-only nine-indicator baseline SQL structure. These checks make
+zero network/AWS/database calls and do not claim production command execution.
+Public-policy file unchanged; only the five named backend/iOS handoff files changed.
+Dispatcher-help review passes (zero implementation files changed) and whitespace
+checks pass. No application suite/build/simulator/cloud inventory/test/cleanup was
+rerun. Existing source CI/cloud evidence above remains the applicable evidence.
 
 ## Protocol and the current head
 
@@ -455,9 +937,10 @@ budget before tax/FX. No repeat approval is needed for that same scope.
   is empty. No new paid resource or ongoing test compute/storage remains; request
   charges/invoice are not independently reconciled. No further test, cleanup rerun,
   production action, website publication or Apple upload is authorized by this result.
-- NEXT RELEASE ACTION: prepare the exact gated production recovery rollout,
-  enrollment/external-pin and offline reconciliation/operator handoff for review,
-  using this tested source/evidence. The current source is not deployed/enrolled;
+- NEXT RELEASE ACTION at closeout (now prepared in the production package above):
+  gated production recovery rollout, enrollment/external pins and offline operator
+  handoff. Its next source prerequisite is guarded production operator wrappers;
+  the current source is not deployed/enrolled.
   production permission/runtime/restore operation, activation and in-app verification
   remain separate. Keep all four gates false/Auto-Deploy Off. No new restore clone,
   repeat provider inventory, retention decision or broad audit is needed here.

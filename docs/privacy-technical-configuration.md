@@ -1,6 +1,6 @@
 # Privacy deletion technical configuration and isolated evidence
 
-Updated 2026-10-28. The production findings came from repository inspection plus
+Updated 2026-10-29. The production findings came from repository inspection plus
 read-only Render/PostgreSQL and mailbox access. The isolated-test update separately
 used the authorized disposable service/database reset and deploy sequence; no secret
 value was requested or displayed and no message was sent. Ordering staging, backups
@@ -10,7 +10,47 @@ only and does not activate privacy behavior. The approved gates-off PR 93 rollou
 below supersedes earlier undeployed/draft status statements; it does not authorize
 customer initiation, verification delivery or fulfillment.
 
-## Production rollout — initial-key correction deployed; runtime read-back passed
+## Current production recovery review package — preparation only, October 29
+
+The single ordered package is in
+[privacy-s3-storage.md, Production deployment, enrollment and operator-reconciliation package](privacy-s3-storage.md#production-deployment-enrollment-and-operator-reconciliation-package).
+It records current live API/dispatcher `007cba92ce38132946283f1d67155e809aa9588b`,
+main `ac1a69b13211b8612213ade951a3db15b5142a90` and immutable review candidate
+`0230095ce0076baab30db880c7c4c3abea7fdd45` (executable tree identical to `a692b0d`).
+Both source CI jobs 40811316279 and current-main jobs 40811821631 pass. There is
+no CI run for skip-CI documentation head 0230095; no claim of a new tested head.
+API/dispatcher/cron Auto-Deploy Off independently read back; no state changed.
+Production metadata is not a repeated health, provider inventory or customer test.
+
+Recovery libraries/SDK/journal wiring and backend-served help remain undeployed;
+no schema, migration or dispatcher bundle change. Proposed step A is **API only**,
+after reviewed main integration/new PR/required checks and explicit execution
+approval. PR 93 is already merged. Main's workflow registration has the exact same
+blob on the review branch; no executable conflict identified. No merge now.
+
+Enrollment is a distinct step B, not executable-ready: no guarded production
+enrollment/dry-run/reconciliation wrapper or reviewed unfinished-operation resolver
+exists. `reconcileSyntheticRestore` intentionally rejects production. Do not widen
+its guard or improvise a production command. The package specifies minimal temporary
+permissions for an existing MFA-backed non-app operator (actual principal still
+unconfirmed), fresh full baseline/exact-prefix checks, one conditional GENESIS only
+for proven empty history, observed external enrollment pins, read-only application
+access and cleanup. Nonempty state needs attributable complete historical coverage;
+the existing successor function is not a pre-journal importer. No dummy hash/purge.
+Robert's precise protected external pin-record location/access also needs private
+confirmation. These are technical prerequisites, not new retention/contact decisions.
+
+The incident procedure keeps **all writers/ordinary traffic offline** on a restored
+database until complete reconciliation, preserving holds/cancellations, dates,
+financial evidence and revocations; four false gates alone cannot prevent account
+resurrection. Stop/rollback boundaries before/after enrollment and real activity
+are explicit. All four gates stay false and Auto-Deploy Off. Successful cloud
+40878909548 (5/5), 37-version/marker cleanup/empty inventory, independent GitHub
+environment removal, owner-confirmed IAM cleanup and original QUALIFIED PITR evidence
+are preserved, not repeated. Later publication/customer activation/Apple upload
+remain separate approval/dependency gates; no production execution occurred here.
+
+## Historical production rollout — initial-key correction deployed; runtime read-back passed
 
 **Latest execution, 2026-10-27:** Robert corrected the earlier key-preservation
 report: the original clipboard-only key was not retained. He generated and saved a

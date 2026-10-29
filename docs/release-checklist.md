@@ -3,6 +3,37 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## October 29 production recovery review package — prepared, not executed
+
+- Ordered actions, owners, exact private dashboard navigation, configuration,
+  safe verification commands and rollback stops are consolidated in
+  [privacy-s3-storage.md](privacy-s3-storage.md#production-deployment-enrollment-and-operator-reconciliation-package).
+- Fresh metadata: API/dispatcher live `007cba9`; main `ac1a69b`; current review
+  candidate `0230095` has executable tree identical to source `a692b0d`. Source
+  validate/privacy-database CI 40811316279 and current-main CI 40811821631 both pass.
+  0230095 itself is skip-CI documentation; no new test claim. No broad rerun.
+- Step A proposal: reviewed main integration/new PR and required checks, then
+  **API-only** specific-release-SHA deployment, all four gates false. No new
+  migration, dispatcher build, cron run/deploy or staging/SMS change. Main's two
+  ancestry-only workflow-registration commits have the same workflow blob as review;
+  no executable integration conflict. PR 93 is merged, not open. No merge here.
+- Step B enrollment is blocked by missing production-target guarded operator
+  enrollment/dry-run/reconciliation wrappers and unfinished-operation resolution;
+  actual MFA-backed non-app principal and protected external pin-record location
+  also need private confirmation. Existing tested libraries are not a production CLI.
+  First observe the complete actual privacy baseline and exact prefix under exclusion;
+  no empty GENESIS for nonempty history, no invented enrollment hash, no purge.
+- The package separates reviewed code deployment, explicit one-time enrollment /
+  external pins / normal same-SHA API config-load / read-only app access, then later
+  customer activation. Restore reconciliation keeps all writers/traffic offline,
+  protects financial evidence/holds/cancellations/dates and fails on uncertainty.
+- NEXT source work: guarded wrappers using existing libraries and synthetic tests,
+  not another cloud run/inventory/clone or retention decision. No source change,
+  production action, AWS write, secret retrieval, iOS rebuild or activation here.
+- Reuse cloud run 40878909548 (5/5) and completed cleanup below. Preserve stable
+  digest/AWS pair, all four false gates and Auto-Deploy Off. Provider, device,
+  OpenAI, QUALIFIED PITR and deferred Android findings remain unchanged.
+
 ## October 29 live synthetic S3 PASS — cleanup complete
 
 - Exact [run 40878909548](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40878909548),
@@ -32,8 +63,8 @@ a separate release and requires its own signed build and store submission.
   active CI-secret-copy cleanup. Permanent policies/original key preserved by scope;
   no physical-backup deletion claim. CI/container job finished, no ongoing test
   compute or synthetic-version storage; actual invoice not independently observed.
-- NEXT: prepare the gated production recovery rollout/enrollment/external pins and
-  offline reconciliation/operator plan for review from this tested source. No
+- NEXT at closeout (now prepared above): gated production recovery rollout,
+  enrollment/external pins and offline reconciliation/operator review. No
   production deployment/enrollment/activation follows automatically. Keep all four
   privacy gates false/Auto-Deploy Off; in-app privacy flow and fulfillment remain
   separate tests. Apple case/website/Android/provider/business decisions unchanged.
