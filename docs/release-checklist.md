@@ -8,14 +8,13 @@ a separate release and requires its own signed build and store submission.
 This section is current and supersedes dated operator/paper prerequisite statements
 in the historical evidence below.
 
-- Exact draft PR100 head `45acfd8c296d5b441d2e593f16f9107248117f8f` reviewed
-  against fetched main `bb753d4f552ed763d9045375d3c5605ea79d9b91`, merge base
-  `3a6cab9`. GitHub reports clean mergeability; current-main website/help and PR100
-  quiescence/help changes merge cleanly. PR/push head CI 40930255832/40930247322 and
-  current-main backend/website CI 40964680811/40964680791 are SUCCESS. No blocking
-  source finding. Because the PR head does not contain current main, require a
-  refreshed exact head and both required jobs before merge; future normal merge SHA
-  becomes RELEASE_SHA. No merge/deploy occurred.
+- Draft PR100 contains fetched main `bb753d4f552ed763d9045375d3c5605ea79d9b91`
+  through integration merge revision `8c376ac539605f6e5aaa6a199bf4d1ded0eef466`.
+  Main's website, CORS, human-verification and help work is preserved exactly;
+  quiescence source is unchanged from reviewed head `45acfd8` except the clean
+  combined help result. No blocking integrated-source finding. Require validate and
+  privacy-database SUCCESS on the resulting exact PR head before any main merge;
+  future normal merge SHA becomes RELEASE_SHA. No main merge/deploy occurred.
 - Existing `speedy-privacy-operator` authentication/session-loader path is confirmed.
   Owner password/passkey evidence remains distinct from STS identity. Exact temporary
   policy is unchanged/unattached; no permanent key, user replacement or password reset.

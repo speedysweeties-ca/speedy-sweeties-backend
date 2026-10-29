@@ -16,16 +16,15 @@ storage before pins are loaded or normal operation reopens. Never invent the has
 print passwords, AWS access/session keys, `PRIVACY_DIGEST_KEY`, database/Render URLs
 or credentials, customer data, or approval evidence.
 
-Current source review is read-only. Draft PR100 exact head is
-`45acfd8c296d5b441d2e593f16f9107248117f8f`; fetched current main is
-`bb753d4f552ed763d9045375d3c5605ea79d9b91`; merge base is `3a6cab9`. GitHub reports
-the draft cleanly mergeable. Exact-head PR CI 40930255832 and push CI 40930247322
-have both required jobs SUCCESS; current-main backend CI 40964680811 and website CI
-40964680791 are SUCCESS. Main's website/help work and PR100's quiescence/help work
-merge cleanly with no blocking review finding. PR100 does not yet contain current
-main, so a refreshed exact head plus both required jobs is mandatory before merge.
-The future normal merge SHA, not either current branch tip, becomes `RELEASE_SHA`.
-No merge, deployment, permission, downtime, S3 access or enrollment occurred.
+Current source review is read-only. Draft PR100 now contains fetched current main
+`bb753d4f552ed763d9045375d3c5605ea79d9b91` through integration merge revision
+`8c376ac539605f6e5aaa6a199bf4d1ded0eef466`. Main's website, CORS, human-
+verification and help work is preserved exactly; PR100's quiescence source is
+unchanged from reviewed head `45acfd8c296d5b441d2e593f16f9107248117f8f` except the clean combined help result.
+No blocking integrated-source finding was identified. Require validate and privacy-
+database SUCCESS on the resulting exact PR head before any merge. The future normal
+merge SHA, not an integration or documentation revision, becomes `RELEASE_SHA`.
+No main merge, deployment, permission, downtime, S3 access or enrollment occurred.
 
 The canonical exact temporary policy remains in the iOS release checkout at
 `ReleaseNotes/PRIVACY_OPERATOR_ENROLLMENT_POLICY_PROPOSED.json`, SHA-256
