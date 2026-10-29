@@ -57,7 +57,7 @@ def wrong_inventory(service, operation, parameters):
 assert c.cleanup(c.RUN_ID, wrong_inventory)['result']=='STOP_UNEXPECTED_SYNTHETIC_INVENTORY'
 print(json.dumps({'check':'AWS_METADATA_AND_CLEANUP_SYNTHETIC','passed':12,'cloudCalls':0}))
 `;
-  const output = execFileSync('python3', ['-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+  const output = execFileSync('python3', ['-B', '-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
   const result = JSON.parse(output); assert.equal(result.passed, 12); assert.equal(result.cloudCalls, 0);
 });
 test('CLI subprocess boundary preserves private input files and bounded, redacted identity diagnostics', () => {
@@ -156,7 +156,7 @@ with patch.object(m.subprocess,'run',side_effect=[result(),result(stdout='999999
     assert 'checks' not in out
 print(json.dumps({'check':'AWS_CLI_BOUNDARY_SYNTHETIC','passed':True,'cloudCalls':0}))
 `;
-  const output = execFileSync('python3', ['-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+  const output = execFileSync('python3', ['-B', '-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
   assert.deepEqual(JSON.parse(output), { check: 'AWS_CLI_BOUNDARY_SYNTHETIC', passed: true, cloudCalls: 0 });
 });
 test('real CLI child reads closed 0600 JSON files and cleanup/redaction survive every exit path', () => {
@@ -255,7 +255,7 @@ except m.Unverified: assert len(calls)==2
 assert children==7
 print(json.dumps({'check':'AWS_PRIVATE_FILE_REAL_BOUNDARY','realChildren':children,'passed':True,'cloudCalls':0}))
 `;
-  const output = execFileSync('python3', ['-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+  const output = execFileSync('python3', ['-B', '-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
   assert.deepEqual(JSON.parse(output), { check: 'AWS_PRIVATE_FILE_REAL_BOUNDARY', realChildren: 7, passed: true, cloudCalls: 0 });
 });
 test('standalone cleanup uses closed private files through real children and stops safely on partial failure', () => {
@@ -346,7 +346,7 @@ with tempfile.TemporaryDirectory(prefix='synthetic-cleanup-test-') as folder:
         assert 'synthetic-private-version' not in json.dumps(out);removed()
 print(json.dumps({'check':'SYNTHETIC_CLEANUP_REAL_BOUNDARY','passed':True,'cloudCalls':0}))
 `;
-  const output = execFileSync('python3', ['-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+  const output = execFileSync('python3', ['-B', '-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
   assert.deepEqual(JSON.parse(output), { check: 'SYNTHETIC_CLEANUP_REAL_BOUNDARY', passed: true, cloudCalls: 0 });
 });
 test('manual cloud harness rejects missing authorization, wrong identity and unsafe targets before cloud writes', () => {

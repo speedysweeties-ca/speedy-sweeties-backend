@@ -19,19 +19,34 @@ function materializePinnedBaselineSchema() {
   return path;
 }
 
-function applyPinnedBaselineAndPrivacyMigrations(baselinePath) {
-  execFileSync(process.execPath, [
+function applyPinnedBaselineAndPrivacyMigrations(baselinePath, { recordExecutedSql = false, execute = execFileSync } = {}) {
+  if (recordExecutedSql) {
+    assert.equal(process.env.NODE_ENV, 'test'); assert.equal(process.env.PRIVACY_SYNTHETIC_DATABASE, 'yes');
+    const url = new URL(process.env.DATABASE_URL);
+    assert.ok(['127.0.0.1', 'localhost'].includes(url.hostname));
+    assert.equal(url.pathname, '/speedy_privacy_synthetic'); assert.equal(url.username, 'privacy_test');
+    // Only a fresh synthetic setup may record its actual successful SQL. Never
+    // resolve an existing failed/partial ledger or touch production/Render resets.
+    execute(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'execute', '--schema', 'prisma/schema.prisma', '--stdin'], {
+      input: `DO $$ BEGIN IF to_regclass('public._prisma_migrations') IS NOT NULL THEN RAISE EXCEPTION 'Synthetic ledger must be absent'; END IF; END $$;`,
+      stdio: ['pipe', 'inherit', 'inherit']
+    });
+  }
+  execute(process.execPath, [
     'node_modules/prisma/build/index.js', 'db', 'push',
     '--schema', baselinePath,
     '--skip-generate',
   ], { stdio: 'inherit' });
 
   for (const migration of PRIVACY_MIGRATIONS) {
-    execFileSync(process.execPath, [
+    execute(process.execPath, [
       'node_modules/prisma/build/index.js', 'db', 'execute',
       '--schema', 'prisma/schema.prisma',
       '--file', `prisma/migrations/${migration}/migration.sql`,
     ], { stdio: 'inherit' });
+    if (recordExecutedSql) execute(process.execPath, [
+      'node_modules/prisma/build/index.js', 'migrate', 'resolve', '--applied', migration, '--schema', 'prisma/schema.prisma',
+    ], { stdio: 'inherit' }); // Reached only after that exact SQL process succeeded.
   }
 }
 

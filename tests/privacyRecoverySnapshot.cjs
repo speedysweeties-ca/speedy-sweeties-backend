@@ -24,6 +24,17 @@ async function contents(db, fixtures) {
     'PrivacyAccessCredential', 'PrivacyDeletionRequest', 'PrivacyAudit', 'PrivacyExternalTask', 'PrivacyDeletedIdentity']);
   for (const { tablename } of tables) if (!allowed.has(tablename)) {
     assert.match(tablename, /^[A-Za-z_]+$/);
+    if (tablename === '_prisma_migrations') {
+      const { PRIVACY_MIGRATIONS } = require('./privacyBaseline.cjs');
+      const { createHash } = require('node:crypto'); const { readFileSync } = require('node:fs');
+      const ledger = await db.$queryRawUnsafe('SELECT migration_name,checksum,finished_at,rolled_back_at FROM "_prisma_migrations" ORDER BY started_at');
+      assert.deepEqual(ledger.map(r => r.migration_name), PRIVACY_MIGRATIONS, 'Unknown synthetic migration ledger: STOP');
+      for (const row of ledger) {
+        assert.ok(row.finished_at && !row.rolled_back_at, 'Incomplete synthetic SQL execution: STOP');
+        assert.equal(row.checksum, createHash('sha256').update(readFileSync(`prisma/migrations/${row.migration_name}/migration.sql`)).digest('hex'));
+      }
+      continue;
+    }
     const [{ count }] = await db.$queryRawUnsafe(`SELECT count(*)::int AS count FROM "${tablename}"`);
     assert.equal(count, 0, 'Unexpected populated table: STOP');
   }
