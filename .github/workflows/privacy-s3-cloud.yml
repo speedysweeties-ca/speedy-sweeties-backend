@@ -1,0 +1,64 @@
+name: Manual synthetic S3 verification
+on:
+  workflow_dispatch:
+    inputs:
+      authorized:
+        description: Separately approved synthetic S3 writes and test permissions for recovery-integration-20261028
+        type: boolean
+        default: false
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: privacy-s3-verification
+  cancel-in-progress: false
+jobs:
+  synthetic-cloud:
+    if: inputs.authorized
+    environment: privacy-s3-verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: speedy_privacy_synthetic
+          POSTGRES_USER: privacy_test
+          POSTGRES_PASSWORD: synthetic-only
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U privacy_test -d speedy_privacy_synthetic" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_ENV: test
+      PRIVACY_SYNTHETIC_DATABASE: 'yes'
+      DATABASE_URL: postgresql://privacy_test:synthetic-only@127.0.0.1:5432/speedy_privacy_synthetic
+      JWT_SECRET: synthetic-cloud-jwt-distinct
+      FIREBASE_SERVICE_ACCOUNT_JSON: '{}'
+      AUTO_DISPATCH_ENABLED: 'false'
+      BND_MONITOR_ENABLED: 'false'
+      PRIVACY_DELETION_ENABLED: 'false'
+      PRIVACY_FULFILLMENT_ENABLED: 'false'
+      PRIVACY_VERIFICATION_EMAIL_ENABLED: 'false'
+      PRIVACY_VERIFICATION_PHONE_ENABLED: 'false'
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .node-version, cache: npm }
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - run: npm run build
+      - run: node tests/preparePrivacyDatabase.cjs
+      - name: Actual synthetic S3-backed restore and successor coverage, one worker
+        env:
+          RECOVERY_POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+          PRIVACY_S3_CLOUD_VERIFICATION_AUTHORIZED: recovery-integration-20261028
+          AWS_ACCESS_KEY_ID: ${{ secrets.PRIVACY_TEST_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.PRIVACY_TEST_AWS_SECRET_ACCESS_KEY }}
+        run: node --test --test-concurrency=1 tests/privacyRecovery.database.test.js
+      - name: Actual restricted-credential permission and failure probes, no automatic retries
+        env:
+          PRIVACY_S3_CLOUD_VERIFICATION_AUTHORIZED: recovery-integration-20261028
+          AWS_ACCESS_KEY_ID: ${{ secrets.PRIVACY_TEST_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.PRIVACY_TEST_AWS_SECRET_ACCESS_KEY }}
+        run: node tests/privacyRecoveryCloud.cjs
