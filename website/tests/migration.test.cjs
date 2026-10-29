@@ -135,11 +135,23 @@ test('build keeps previews isolated and requires owner key on the canonical prod
     vm.runInNewContext(fs.readFileSync(path.join(root, 'dist/js/site-config.js'), 'utf8'), { window, document });
     return window.speedySite.live;
   };
+  const checkLandingOutput = production => {
+    const slugs = ['beer', 'alcohol', 'vape', 'cannabis', 'convenience'].map(name => `${name}-delivery-guelph`);
+    const sitemap = fs.readFileSync(path.join(root, 'dist/sitemap.xml'), 'utf8');
+    assert.equal([...sitemap.matchAll(/<loc>/g)].length, 6);
+    for (const slug of slugs) {
+      const { document } = parseHTML(fs.readFileSync(path.join(root, `dist/${slug}/index.html`), 'utf8'));
+      assert.equal(Boolean(document.querySelector('meta[name="robots"]')), !production);
+      assert.ok(sitemap.includes(`https://www.speedysweeties.ca/${slug}/`));
+    }
+  };
   try {
     build([]);
+    checkLandingOutput(false);
     assert.equal(runConfig('www.speedysweeties.ca'), false);
     assert.match(fs.readFileSync(path.join(root, 'dist/robots.txt'), 'utf8'), /Disallow: \//);
     build(['--production']);
+    checkLandingOutput(true);
     assert.equal(runConfig('www.speedysweeties.ca'), true);
     assert.equal(runConfig('speedysweeties.ca'), false);
     assert.equal(runConfig('speedy-sweeties-website.onrender.com'), false);
