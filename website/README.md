@@ -10,6 +10,8 @@ It does not change the API, dispatcher, mobile apps or database.
 - Content and layout: `src/index.html`.
 - Current branding and downloaded public assets: `src/assets/`.
 - Form, tracking, analytics and navigation: `src/js/`.
+- Service landing-page copy: `content/services.mjs`; page template:
+  `scripts/render-service-pages.mjs`; styles: `src/assets/service-pages.css`.
 - Preview build: `node website/scripts/build.mjs` from the repository root.
 - Tests: `cd website`, then `npm ci` and `npm test`.
 - Production build, only after the cutover checks below:
@@ -20,7 +22,49 @@ are for synthetic DOM tests; none are shipped to customers. The output is
 `website/dist/`, deliberately excluded from git. All build paths resolve relative
 to the script, so the command also works from inside this folder.
 
-## Preview behavior
+## Service landing pages
+
+The build generates five separate pages from `content/services.mjs`:
+
+| Page | Path |
+| --- | --- |
+| Beer | `/beer-delivery-guelph/` |
+| Alcohol | `/alcohol-delivery-guelph/` |
+| Vape information | `/vape-delivery-guelph/` |
+| Cannabis information | `/cannabis-delivery-guelph/` |
+| Convenience | `/convenience-delivery-guelph/` |
+
+Each page has unique copy, title, description, canonical/social metadata,
+WebPage/breadcrumb structured data, a shared 19+ self-declaration and navigation
+back to the main website. The homepage service section and sitemap link all five.
+Ordering remains on the existing homepage; landing pages do not submit orders.
+The acknowledgement stores only `19-plus` in sessionStorage for the current tab
+session. It is not verified age or identity and does not replace delivery checks.
+
+Production landing-page analytics use the existing GA4 loader and add
+`landing_age_confirmation` plus `service_landing_click` with the fixed service
+category and destination type. Neither event is an accepted-order conversion.
+Previews remain noindex, make no order requests and emit no analytics.
+
+Vape and cannabis pages contain information rather than product sales. Cannabis
+copy makes no retailer-licence/partnership claim and describes Ontario's retailer
+delivery requirement. Google Ads restricts vaping; its Canadian cannabis pilot
+has specific licence/eligibility requirements. A page's existence does not mean
+an advertising platform has approved it. No campaign or ad spend is included.
+Sources checked October 29, 2026:
+- https://www.ontario.ca/laws/regulation/180468 (section 20.2)
+- https://support.google.com/adspolicy/answer/16489929
+- https://support.google.com/adspolicy/answer/16851502
+
+Release scope is website-only. It requires no API, dispatcher, mobile, database,
+environment-variable or DNS change. Use the existing website production build
+and owner-held Turnstile site key. Follow the repository's explicit merge approval
+and current-head CI requirements before publishing. Current live website source
+before this change: `7b564b6b99495948c9aff007f37bfda81e0b49ed`; rollback means a
+website-only redeploy of that prior healthy source. Backend/privacy releases
+remain separate. Dispatcher guide IDs: not applicable; no staff workflow changes.
+
+## Preview isolation
 
 Preview is the default. It displays a notice, disables real API requests and
 analytics, and includes `noindex` plus a blocking robots.txt. Customers can inspect
