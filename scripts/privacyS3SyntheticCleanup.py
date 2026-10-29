@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 
 ACCOUNT = "080413009273"
 BUCKET = "speedy-sweeties-privacy-decisions-080413009273"
@@ -22,13 +23,42 @@ def cli(service, operation, parameters):
             raise RuntimeError("STOP_PREFIX_REJECTED")
         if operation == "delete-object" and not parameters.get("Key", "").startswith(PREFIX):
             raise RuntimeError("STOP_PREFIX_REJECTED")
-    result = subprocess.run(["aws", service, operation, "--cli-input-json", "file:///dev/stdin", "--output", "json", "--no-cli-pager",
-                             "--no-cli-auto-prompt", "--region", "ca-central-1", "--cli-connect-timeout", "5", "--cli-read-timeout", "15"],
-                            input=json.dumps(parameters), capture_output=True, text=True, timeout=25,
-                            env=dict(os.environ, AWS_MAX_ATTEMPTS="1", AWS_PAGER="", AWS_IGNORE_CONFIGURED_ENDPOINT_URLS="true"), check=False)
+    command = ["aws", service, operation, "--output", "json", "--no-cli-pager", "--no-cli-auto-prompt",
+               "--region", "ca-central-1", "--cli-connect-timeout", "5", "--cli-read-timeout", "15"]
+    directory = None
+    path = None
+    try:
+        if parameters:
+            # Same closed owner-only paramfile approach as the verified inventory.
+            # Standalone cleanup must not depend on an unpinned downloaded module.
+            directory = tempfile.TemporaryDirectory(prefix="speedy-s3-cleanup-")
+            os.chmod(directory.name, 0o700)
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory.name,
+                                             prefix="parameters-", suffix=".json", delete=False) as stream:
+                path = stream.name
+                os.fchmod(stream.fileno(), 0o600)
+                json.dump(parameters, stream)
+            command += ["--cli-input-json", "file://" + path]
+        result = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=25,
+                                env=dict(os.environ, AWS_MAX_ATTEMPTS="1", AWS_PAGER="", AWS_IGNORE_CONFIGURED_ENDPOINT_URLS="true"), check=False)
+    except (OSError, subprocess.TimeoutExpired, ValueError, TypeError):
+        raise RuntimeError("STOP_OPERATOR_ACCESS_OR_REQUEST_FAILURE") from None
+    finally:
+        if directory is not None:
+            try:
+                try:
+                    if path is not None:
+                        os.unlink(path)
+                finally:
+                    directory.cleanup()
+            except OSError:
+                raise RuntimeError("STOP_PRIVATE_INPUT_CLEANUP") from None
     if result.returncode:
         raise RuntimeError("STOP_OPERATOR_ACCESS_OR_REQUEST_FAILURE")
-    return json.loads(result.stdout or "{}")
+    try:
+        return json.loads(result.stdout or "{}")
+    except (ValueError, TypeError):
+        raise RuntimeError("STOP_OPERATOR_RESPONSE_INVALID") from None
 
 
 def cleanup(authorization, run=cli):

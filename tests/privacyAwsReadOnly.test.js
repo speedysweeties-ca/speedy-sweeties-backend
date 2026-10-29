@@ -258,6 +258,97 @@ print(json.dumps({'check':'AWS_PRIVATE_FILE_REAL_BOUNDARY','realChildren':childr
   const output = execFileSync('python3', ['-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
   assert.deepEqual(JSON.parse(output), { check: 'AWS_PRIVATE_FILE_REAL_BOUNDARY', realChildren: 7, passed: true, cloudCalls: 0 });
 });
+test('standalone cleanup uses closed private files through real children and stops safely on partial failure', () => {
+  const code = String.raw`
+import importlib.util,json,os,pathlib,subprocess,sys,tempfile
+from unittest.mock import patch
+spec=importlib.util.spec_from_file_location('cleanup','scripts/privacyS3SyntheticCleanup.py')
+c=importlib.util.module_from_spec(spec);spec.loader.exec_module(c)
+real_run=subprocess.run;real_file=c.tempfile.NamedTemporaryFile;files=[];paths=[];calls=[];mode='success'
+child=r'''
+import json,os,pathlib,stat,sys,time
+mode=os.environ['SPEEDY_CLEANUP_FIXTURE_MODE']; service,operation=sys.argv[1:3]
+state=pathlib.Path(os.environ['SPEEDY_CLEANUP_FIXTURE_STATE'])
+account='080413009273';bucket='speedy-sweeties-privacy-decisions-080413009273'
+prefix='verification/recovery-integration-20261028/'
+assert sys.stdin.read()==''
+if operation=='get-caller-identity':
+    assert '--cli-input-json' not in sys.argv
+    print(json.dumps({'Account':'999999999999' if mode=='wrong-account' else account,
+                     'Arn':'arn:aws:iam::'+account+':user/'+('SpeedyPrivacyJournalApplication' if mode=='app-identity' else 'SyntheticOperator')}));sys.exit(0)
+url=sys.argv[sys.argv.index('--cli-input-json')+1];assert url.startswith('file://') and '/dev/stdin' not in url
+path=pathlib.Path(url[7:]);params=json.loads(path.read_text())
+assert stat.S_IMODE(path.stat().st_mode)==0o600 and stat.S_IMODE(path.parent.stat().st_mode)==0o700
+assert path.stat().st_uid==os.geteuid() and path.parent.stat().st_uid==os.geteuid()
+assert params['Bucket']==bucket and params['ExpectedBucketOwner']==account
+assert 'synthetic-private-version' not in '\0'.join(sys.argv)
+if mode=='error': sys.stderr.write('SYNTHETIC_PRIVATE_RESPONSE');sys.exit(252)
+if mode=='malformed': print('SYNTHETIC_PRIVATE_RESPONSE');sys.exit(0)
+if mode=='timeout': print('SYNTHETIC_PRIVATE_RESPONSE',flush=True);time.sleep(10)
+deleted=int(state.read_text())
+if operation=='list-object-versions':
+    assert params['Prefix']==prefix
+    key=('production/epoch-0001/' if mode=='unknown' else prefix+'journal/')+'0000000000000001.json'
+    print(json.dumps({'Versions':[] if deleted==2 else [{'Key':key,'VersionId':'synthetic-private-version'}],
+                     'DeleteMarkers':[] if deleted==2 else [{'Key':key,'VersionId':'synthetic-marker'}]}))
+elif operation=='delete-object':
+    assert params['Key']==prefix+'journal/0000000000000001.json' and params['VersionId'] in ['synthetic-private-version','synthetic-marker']
+    if mode=='fail-second-delete' and deleted==1: sys.stderr.write('SYNTHETIC_PRIVATE_RESPONSE');sys.exit(254)
+    state.write_text(str(deleted+1));print('{}')
+else: raise AssertionError('Unexpected operation')
+'''
+def observe_file(*args,**kw):
+    f=real_file(*args,**kw);files.append(f);paths.append(pathlib.Path(f.name));return f
+def spawn(command,**kw):
+    assert command[0]=='aws' and command[1:3] in [['sts','get-caller-identity'],['s3api','list-object-versions'],['s3api','delete-object']]
+    assert all(f.closed for f in files) and kw['stdin']==subprocess.DEVNULL and 'input' not in kw and kw['timeout']==25
+    assert 'synthetic-private-version' not in json.dumps(command);calls.append(command[2])
+    if mode=='interrupt': raise KeyboardInterrupt()
+    if mode=='spawn-error': return real_run([str(paths[-1].parent/'missing-executable')],**kw)
+    kw['env']=dict(kw['env'],SPEEDY_CLEANUP_FIXTURE_STATE=str(state),SPEEDY_CLEANUP_FIXTURE_MODE=mode)
+    if mode=='timeout':kw['timeout']=1
+    return real_run([sys.executable,'-c',child,*command[1:]],**kw)
+def removed(): assert all(f.closed for f in files) and all(not p.exists() and not p.parent.exists() for p in paths)
+with tempfile.TemporaryDirectory(prefix='synthetic-cleanup-test-') as folder:
+    state=pathlib.Path(folder)/'state';state.write_text('0')
+    with patch.object(c.tempfile,'NamedTemporaryFile',side_effect=observe_file),patch.object(c.subprocess,'run',side_effect=spawn):
+        out=c.cleanup(c.RUN_ID);assert out['result']=='CLEANUP_CONFIRMED' and out['deletedVersions']==2 and out['emptyVersionInventory'] is True
+        assert len(calls)==5;removed()
+        before=len(calls)
+        assert c.cleanup(None)['result']=='STOP_CLEANUP_AUTHORIZATION_REQUIRED' and len(calls)==before
+        bad=[('s3api','put-object',{}),('s3api','list-object-versions',{'Bucket':c.BUCKET,'ExpectedBucketOwner':'wrong','Prefix':c.PREFIX}),
+             ('s3api','list-object-versions',{'Bucket':'wrong','ExpectedBucketOwner':c.ACCOUNT,'Prefix':c.PREFIX}),
+             ('s3api','list-object-versions',{'Bucket':c.BUCKET,'ExpectedBucketOwner':c.ACCOUNT,'Prefix':'production/'}),
+             ('s3api','delete-object',{'Bucket':c.BUCKET,'ExpectedBucketOwner':c.ACCOUNT,'Key':'production/0001.json'})]
+        for args in bad:
+            try:c.cli(*args);raise AssertionError('Wrong target reached child')
+            except RuntimeError:pass
+        assert len(calls)==before
+        for mode,expected in [('app-identity','STOP_OPERATOR_ACCOUNT_REQUIRED'),('wrong-account','STOP_OPERATOR_ACCOUNT_REQUIRED'),('unknown','STOP_UNEXPECTED_SYNTHETIC_INVENTORY')]:
+            state.write_text('0');out=c.cleanup(c.RUN_ID);assert out['result']==expected and state.read_text()=='0';removed()
+        for mode in ['error','malformed','timeout','spawn-error']:
+            try:c.cli('s3api','list-object-versions',{'Bucket':c.BUCKET,'ExpectedBucketOwner':c.ACCOUNT,'Prefix':c.PREFIX});raise AssertionError('Failure accepted')
+            except RuntimeError as error:
+                assert str(error).startswith('STOP_') and 'SYNTHETIC_PRIVATE_RESPONSE' not in str(error) and str(paths[-1]) not in str(error)
+            removed()
+        mode='interrupt'
+        try:c.cli('s3api','list-object-versions',{'Bucket':c.BUCKET,'ExpectedBucketOwner':c.ACCOUNT,'Prefix':c.PREFIX});raise AssertionError('Interruption ignored')
+        except KeyboardInterrupt:pass
+        removed();before=len(calls)
+        def partial(value,stream):stream.write('SYNTHETIC_PRIVATE_RESPONSE');raise TypeError('SYNTHETIC_PRIVATE_RESPONSE')
+        with patch.object(c.json,'dump',side_effect=partial):
+            try:c.cli('s3api','list-object-versions',{'Bucket':c.BUCKET,'ExpectedBucketOwner':c.ACCOUNT,'Prefix':c.PREFIX});raise AssertionError('Partial input used')
+            except RuntimeError as error:assert str(error)=='STOP_OPERATOR_ACCESS_OR_REQUEST_FAILURE'
+        assert len(calls)==before;removed()
+        mode='fail-second-delete';state.write_text('0');before=len(calls)
+        out=c.cleanup(c.RUN_ID);assert out['result']=='STOP_PARTIAL_CLEANUP_REVIEW_REQUIRED' and out['deletedVersions']==1
+        assert out['emptyVersionInventory']=='UNVERIFIED' and state.read_text()=='1' and len(calls)==before+4
+        assert 'synthetic-private-version' not in json.dumps(out);removed()
+print(json.dumps({'check':'SYNTHETIC_CLEANUP_REAL_BOUNDARY','passed':True,'cloudCalls':0}))
+`;
+  const output = execFileSync('python3', ['-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+  assert.deepEqual(JSON.parse(output), { check: 'SYNTHETIC_CLEANUP_REAL_BOUNDARY', passed: true, cloudCalls: 0 });
+});
 test('manual cloud harness rejects missing authorization, wrong identity and unsafe targets before cloud writes', () => {
   const { guardedIdentity, RUN_ID, RUN_BUDGET: b } = require('./privacyRecoveryCloud.cjs');
   assert.ok(b.processCalls * b.phases + b.fixedProbeCalls <= 10000);
