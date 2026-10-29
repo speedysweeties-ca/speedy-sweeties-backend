@@ -13,6 +13,13 @@ a separate release and requires its own signed build and store submission.
   STS, keep private parameter stdin for metadata operations, preserve all target/
   expected-owner/read-only restrictions, and retain safe categories/exit codes.
   No application/runtime/privacy workflow changed; dispatcher help remains accurate.
+- Revised checker source: `f71a990fcd59d9b04039e1998757cb53f841c00b`.
+  Immutable public download HTTP 200/checksum match confirmed without execution.
+  Both normal branch CI jobs (`validate`, `privacy-database`) PASS at that exact
+  source in [CI 40807298550](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40807298550).
+  Pinned Node 24.22.1 Linux validation supplements the focused Node 22.20.0 Mac
+  checks; no duplicate local application/database suite. Later docs-only commit
+  pins the same executable; no source retest needed for that documentation update.
 - No installed AWS CLI/authenticated CloudShell here, so original failure is not
   reproduced. Revised pinned command in `docs/privacy-s3-storage.md` includes bounded
   identity-only comparisons (at most three calls, one attempt/25 seconds each).

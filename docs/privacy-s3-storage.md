@@ -90,6 +90,12 @@ Official references: [STS options](https://docs.aws.amazon.com/cli/latest/refere
 [AWS CLI JSON input handling](https://github.com/aws/aws-cli/blob/v2/awscli/customizations/cliinput.py)
 and [local paramfile handling](https://github.com/aws/aws-cli/blob/v2/awscli/paramfile.py).
 
+Revised source `f71a990fcd59d9b04039e1998757cb53f841c00b`: focused serial Mac
+metadata/CLI/cloud-guard groups 3/3 PASS, help and whitespace checks PASS; no AWS
+calls. Normal Linux Node 24.22.1 branch CI `validate` and `privacy-database` both
+PASS in [CI 40807298550](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40807298550).
+That CI uses only synthetic fixtures and controlled responses, not AWS credentials.
+
 ## Production startup/configuration source — implemented, not deployed
 
 The existing privacy router lazily constructs the S3 journal only after its existing
@@ -502,20 +508,23 @@ Subsequent documentation-only evidence commits reuse this exact tested source.
 Open the AWS console in account `080413009273` and open **CloudShell** using the
 existing signed-in owner session. Do not enter the application access key or change
 credentials. Copy this whole command once; return only its single sanitized JSON
-line. It downloads the immutable reviewed checker and verifies its checksum before
-executing its read-only operation allowlist. The public artifact was independently
-downloaded with HTTP 200/checksum match; the checker was not executed against AWS.
+line. It downloads the immutable revised checker and verifies its checksum before
+executing its read-only operation allowlist, including the bounded identity-only
+comparisons described above. The revised public artifact was independently
+downloaded with HTTP 200/checksum match; it has not been executed against AWS.
 
 ```sh
 python3 - <<'SPEEDY_AWS_READONLY'
-import hashlib, urllib.request
-url = "https://raw.githubusercontent.com/speedysweeties-ca/speedy-sweeties-backend/c94fb7884c7467917973ef67d0234d633a4aff71/scripts/privacyAwsReadOnly.py"
+import hashlib, sys, urllib.request
+url = "https://raw.githubusercontent.com/speedysweeties-ca/speedy-sweeties-backend/f71a990fcd59d9b04039e1998757cb53f841c00b/scripts/privacyAwsReadOnly.py"
 try:
     code = urllib.request.urlopen(url, timeout=20).read()
-    assert hashlib.sha256(code).hexdigest() == "de7a93bd3e5082eaef1f8430b3b12663b4050e81074d323a8054fdf891154f84"
+    if hashlib.sha256(code).hexdigest() != "7f70d7ee58b20fc089a387572b60dae6accab0f87161ca8b4139ace64a7d2cce":
+        raise ValueError("checksum")
 except Exception:
     print('{"check":"SPEEDY_AWS_PRIVACY_READONLY","result":"STOP_CHECKER_DOWNLOAD_OR_CHECKSUM"}')
     raise SystemExit(1)
+sys.argv = ["reviewed-aws-readonly", "--diagnose-identity"]
 exec(compile(code, "reviewed-aws-readonly", "exec"), {"__name__": "__main__"})
 SPEEDY_AWS_READONLY
 ```
@@ -524,3 +533,5 @@ Expected result is either `READBACK_PASS_LIVE_APPLICATION_ACCESS_UNVERIFIED` or 
 sanitized `REVIEW_REQUIRED`/`STOP_*`. Denied/unavailable metadata stays unverified;
 no setting is changed to make the check pass. This does not read S3 object bodies,
 prove the saved Render key is loaded or authorize the prepared cloud-write workflow.
+The command pins checker source `f71a990fcd59d9b04039e1998757cb53f841c00b`;
+later documentation-only commits do not change the executable artifact.
