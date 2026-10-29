@@ -19,7 +19,18 @@ execution results. No new route, migration, service or production restore is inc
 Example guide questions: "Why did privacy processing stop?" and "Can I fulfill a
 request on hold?" Guide ID: `privacy-requests`; existing receipt controls are unchanged.
 
-October 28 S3 preparation: `docs/privacy-s3-storage.md` and three adjacent policy
+Later October 28 integration: main/production `007cba9` is merged into this review
+branch, preserving the dispatcher-standards update. Privacy uses the existing IAM
+user on Hobby with lazy, exact S3/enrollment pins and no JWT/storage fallback.
+Gates-off ordinary traffic requires no S3 connection. All privacy reads/transitions
+stop for unavailable history; sealed scopes and unfinished successor coverage stop
+until offline review. Signed successor checkpoints preserve reviewed latest cases,
+dates and holds; retirement permission requires verified coverage and external
+cutover pins. No public maintenance/enrollment/delete route was added. The existing
+guide `privacy-requests` was reviewed; operator controls and receipt erasure remain
+unchanged. Example: "Why must I stop if privacy history was sealed?"
+
+Earlier October 28 S3 preparation: `docs/privacy-s3-storage.md` and adjacent policy
 templates describe the proposed Canada Central store, current-head trust boundary,
 credential path, pricing, synthetic-only cloud exercise and remaining activation
 dependencies. The adapter uses conditional immutable entry writes; there is no

@@ -111,6 +111,11 @@ export class PrivacyDeletionService {
       throw new PrivacyError(503, error instanceof RecoveryError ? error.code : "PRIVACY_RECOVERY_UNAVAILABLE");
     }
   }
+  async assertRecoveryReady() {
+    if (!this.recovery) throw new PrivacyError(503, "PRIVACY_RECOVERY_STORE_REQUIRED");
+    try { await this.recovery.ready(); }
+    catch (error) { throw new PrivacyError(503, error instanceof RecoveryError ? error.code : "PRIVACY_RECOVERY_UNAVAILABLE"); }
+  }
   private validateFinancialExpiry(orders: { createdAt: Date }[], decision: RetentionDecision) {
     if (!/^\d{2}-\d{2}$/.test(this.fiscalYearEndMonthDay)) throw new PrivacyError(503, "FISCAL_YEAR_END_REQUIRED");
     const taxYearEnd = new Date(`${decision.taxYearEnd}T23:59:59.999Z`);
@@ -193,8 +198,7 @@ export class PrivacyDeletionService {
     }
   }
   async challenge(credential: ChallengeCredential, requester: string) {
-    if (!this.recovery) throw new PrivacyError(503, "PRIVACY_RECOVERY_STORE_REQUIRED");
-    await this.recovery.ready();
+    await this.assertRecoveryReady();
     const id = randomUUID(), code = String(randomInt(10000000, 100000000));
     const requesterHash = this.hash(`ip:${requester}`);
     const target = await this.atomic(async tx => {
@@ -237,8 +241,7 @@ export class PrivacyDeletionService {
       message: `A verification code was sent to ${maskDestination(target.channel, target.destination)}. No account has been deleted.` };
   }
   async verify(id: string, code: string, accessToken?: string) {
-    if (!this.recovery) throw new PrivacyError(503, "PRIVACY_RECOVERY_STORE_REQUIRED");
-    await this.recovery.ready();
+    await this.assertRecoveryReady();
     const prepared = await this.atomic(async tx => {
       const c = await tx.privacyChallenge.findUnique({ where: { id } });
       if (!c || c.expiresAt <= new Date() || c.consumedAt || c.attempts >= 5 || c.delivery !== "SENT" ||
@@ -347,6 +350,7 @@ export class PrivacyDeletionService {
       completionTimeframe: r.completionTimeframe, dueAt: r.dueAt.toISOString(), retentionSummary: r.summary };
   }
   async status(id: string, token: string) {
+    await this.assertRecoveryReady();
     const r = await this.db.privacyDeletionRequest.findUnique({ where: { id } });
     if (!r) throw new PrivacyError(404, "REQUEST_UNAVAILABLE");
     this.authorize(r.tokenHash, token); return this.publicStatus(r);
@@ -401,6 +405,7 @@ export class PrivacyDeletionService {
       unlinkedOrderIds: unlinked.map(o => o.id), conflictingLinkedOrderIds };
   }
   async impact(id: string) {
+    await this.assertRecoveryReady();
     return this.atomic(async tx => {
       const p = await this.preview(tx, id);
       return { id, version: p.request.version, previewHash: p.hash, orderCount: p.orders.length,

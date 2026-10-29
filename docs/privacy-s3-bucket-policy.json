@@ -6,7 +6,7 @@
       "Effect": "Deny",
       "Principal": "*",
       "Action": "s3:*",
-      "Resource": ["arn:aws:s3:::REPLACE_BUCKET", "arn:aws:s3:::REPLACE_BUCKET/*"],
+      "Resource": ["arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273", "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/*"],
       "Condition": { "Bool": { "aws:SecureTransport": "false" } }
     },
     {
@@ -14,7 +14,7 @@
       "Effect": "Deny",
       "Principal": "*",
       "Action": "s3:PutObject",
-      "Resource": "arn:aws:s3:::REPLACE_BUCKET/*",
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/*",
       "Condition": { "StringNotEquals": { "s3:if-none-match": "*" } }
     },
     {
@@ -22,7 +22,7 @@
       "Effect": "Deny",
       "Principal": "*",
       "Action": "s3:PutObject",
-      "Resource": "arn:aws:s3:::REPLACE_BUCKET/*",
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/*",
       "Condition": { "StringNotEquals": { "s3:x-amz-server-side-encryption": "AES256" } }
     },
     {
@@ -30,15 +30,15 @@
       "Effect": "Deny",
       "Principal": "*",
       "Action": ["s3:DeleteObject", "s3:DeleteObjectVersion"],
-      "Resource": "arn:aws:s3:::REPLACE_BUCKET/production/*"
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/production/*"
     },
     {
       "Sid": "RuntimeAndMaintenanceCannotChangeTrustControls",
       "Effect": "Deny",
       "Principal": "*",
       "Action": ["s3:PutBucket*", "s3:DeleteBucket*", "s3:PutEncryptionConfiguration", "s3:PutLifecycleConfiguration", "s3:PutReplicationConfiguration"],
-      "Resource": "arn:aws:s3:::REPLACE_BUCKET",
-      "Condition": { "ArnEquals": { "aws:PrincipalArn": ["arn:aws:iam::REPLACE_ACCOUNT_ID:role/SpeedyPrivacyJournalApplication", "arn:aws:iam::REPLACE_ACCOUNT_ID:role/SpeedyPrivacyJournalOperator"] } }
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273",
+      "Condition": { "ArnEquals": { "aws:PrincipalArn": ["arn:aws:iam::080413009273:role/SpeedyPrivacyJournalApplication", "arn:aws:iam::080413009273:role/SpeedyPrivacyJournalOperator", "arn:aws:iam::080413009273:user/SpeedyPrivacyJournalApplication"] } }
     }
   ]
 }

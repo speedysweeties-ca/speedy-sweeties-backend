@@ -5,31 +5,31 @@
       "Sid": "InspectConfigurationAndCurrentHistory",
       "Effect": "Allow",
       "Action": ["s3:GetBucketLocation", "s3:GetBucketVersioning", "s3:GetEncryptionConfiguration", "s3:GetBucketPublicAccessBlock", "s3:GetBucketOwnershipControls", "s3:GetBucketPolicy", "s3:GetLifecycleConfiguration", "s3:ListBucket", "s3:ListBucketVersions"],
-      "Resource": "arn:aws:s3:::REPLACE_BUCKET"
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273"
     },
     {
       "Sid": "ReadHistoryForReviewedMaintenance",
       "Effect": "Allow",
       "Action": ["s3:GetObject", "s3:GetObjectVersion"],
-      "Resource": "arn:aws:s3:::REPLACE_BUCKET/*"
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/*"
     },
     {
       "Sid": "ExplicitInitialEnrollment",
       "Effect": "Allow",
       "Action": "s3:PutObject",
-      "Resource": "arn:aws:s3:::REPLACE_BUCKET/production/epoch-0001/0000000000000001.json"
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/production/epoch-0001/0000000000000001.json"
     },
     {
       "Sid": "SyntheticCloudVerificationAndCleanupOnly",
       "Effect": "Allow",
       "Action": ["s3:PutObject", "s3:DeleteObject", "s3:DeleteObjectVersion"],
-      "Resource": "arn:aws:s3:::REPLACE_BUCKET/verification/*"
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/verification/*"
     },
     {
       "Sid": "NoActiveHistoryDeletionOrPolicyChanges",
       "Effect": "Deny",
       "Action": ["s3:Delete*", "s3:PutBucket*", "s3:PutEncryptionConfiguration", "s3:PutLifecycleConfiguration", "s3:PutReplicationConfiguration"],
-      "Resource": ["arn:aws:s3:::REPLACE_BUCKET", "arn:aws:s3:::REPLACE_BUCKET/production/*"]
+      "Resource": ["arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273", "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/production/*"]
     }
   ]
 }

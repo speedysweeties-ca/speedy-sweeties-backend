@@ -41,14 +41,16 @@ async function syntheticS3Journal(key, db) {
   assert.equal(process.env.NODE_ENV, 'test');
   const { PrivacyRecoveryJournal } = require('../dist/services/privacyRecoveryJournal');
   const { S3ProtectedDecisionStore } = require('../dist/services/privacyRecoveryS3');
-  const transport = new ControlledS3();
-  const enrollment = new S3ProtectedDecisionStore({ ...config, mode: 'enrollment' }, transport);
-  const first = new PrivacyRecoveryJournal(enrollment, config.scope, key);
+  const cloud = process.env.PRIVACY_S3_CLOUD_VERIFICATION_AUTHORIZED ? await require('./privacyRecoveryCloud.cjs').cloudTransport() : null;
+  const target = cloud?.config || config, transport = cloud?.transport || new ControlledS3();
+  const enrollment = new S3ProtectedDecisionStore({ ...target, mode: 'enrollment' }, transport);
+  const first = new PrivacyRecoveryJournal(enrollment, target.scope, key);
   const empty = { count: async () => 0 };
   await first.enrollEmptyDatabase(db || { privacyDeletionRequest: empty, privacyDeletedIdentity: empty, privacyAudit: empty, privacyExternalTask: empty });
   const genesisHash = (await enrollment.read()).head.hash;
-  const activeConfig = { ...config, mode: 'active', genesisHash };
+  const activeConfig = { ...target, mode: 'active', genesisHash };
   const store = Object.assign(new S3ProtectedDecisionStore(activeConfig, transport), { synthetic: transport });
-  return { journal: new PrivacyRecoveryJournal(store, config.scope, key), store, transport, activeConfig };
+  return { journal: new PrivacyRecoveryJournal(store, target.scope, key), store, transport, activeConfig,
+    keyOf: n => `${target.prefix}${String(n).padStart(16, '0')}.json` };
 }
 module.exports = { ControlledS3, syntheticS3Journal, config, keyOf, error };

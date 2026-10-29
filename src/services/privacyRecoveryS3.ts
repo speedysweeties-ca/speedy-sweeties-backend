@@ -1,11 +1,11 @@
-import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client, type S3ClientConfig } from "@aws-sdk/client-s3";
 import { canonical, RecoveryError, type ProtectedDecisionStore, type RecoveryEntry, type RecoveryHead } from "./privacyRecoveryJournal";
 
 export const RECOVERY_S3_REGION = "ca-central-1";
 const MAX_ENTRIES = 10000, MAX_ENTRY_BYTES = 256 * 1024, MAX_HISTORY_BYTES = 16 * 1024 * 1024;
 export type RecoveryS3Config = {
   bucket: string; ownerAccountId: string; prefix: string; scope: string;
-  mode: "active" | "enrollment"; genesisHash?: string;
+  mode: "active" | "enrollment" | "successor"; genesisHash?: string;
 };
 // Injectable transport for synthetic tests. Production uses the official client below.
 export type RecoveryS3Transport = {
@@ -25,17 +25,17 @@ export class S3ProtectedDecisionStore implements ProtectedDecisionStore {
   constructor(config: RecoveryS3Config, private readonly client: RecoveryS3Transport) {
     this.config = { ...config };
     if (!/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(config.bucket) || !/^\d{12}$/.test(config.ownerAccountId) ||
-        !/^(?:production|verification)\/[a-z0-9-]{1,64}\/$/.test(config.prefix) || !/^[a-zA-Z0-9_-]{1,100}$/.test(config.scope) ||
-        !["active", "enrollment"].includes(config.mode) ||
+        !/^(?:production\/[a-z0-9-]{1,64}\/|verification\/[a-z0-9-]{1,64}\/(?:[a-z0-9-]{1,64}\/)?)$/.test(config.prefix) || !/^[a-zA-Z0-9_-]{1,100}$/.test(config.scope) ||
+        !["active", "enrollment", "successor"].includes(config.mode) ||
         (config.mode === "active" && !/^[a-f0-9]{64}$/.test(config.genesisHash || "")) ||
-        (config.mode === "enrollment" && config.genesisHash !== undefined)) fail("RECOVERY_S3_CONFIGURATION_REQUIRED");
+        (config.mode !== "active" && config.genesisHash !== undefined)) fail("RECOVERY_S3_CONFIGURATION_REQUIRED");
   }
   private key(sequence: number) { return `${this.config.prefix}${String(sequence).padStart(16, "0")}.json`; }
   private target() { return { Bucket: this.config.bucket, ExpectedBucketOwner: this.config.ownerAccountId }; }
   private valid(entry: any, sequence: number): entry is RecoveryEntry {
     return entry && Object.keys(entry).sort().join() === "hash,kind,operation,payload,previous,scope,sequence" &&
       entry.sequence === sequence && entry.scope === this.config.scope && /^[a-f0-9]{64}$/.test(entry.hash) &&
-      (sequence === 1 ? entry.previous === "" && entry.kind === "GENESIS" : /^[a-f0-9]{64}$/.test(entry.previous) && ["INTENT", "COMMIT"].includes(entry.kind)) &&
+      (sequence === 1 ? entry.previous === "" && ["GENESIS", "CHECKPOINT"].includes(entry.kind) : /^[a-f0-9]{64}$/.test(entry.previous) && ["INTENT", "COMMIT", "SEAL", "CASE", "COVERED"].includes(entry.kind)) &&
       typeof entry.operation === "string" && entry.operation.length > 0 && entry.operation.length <= 100;
   }
   private async get(sequence: number, signal: AbortSignal): Promise<RecoveryEntry | null> {
@@ -94,7 +94,7 @@ export class S3ProtectedDecisionStore implements ProtectedDecisionStore {
       if (page.IsTruncated && (!continuation || tokens.has(continuation))) fail("RECOVERY_HISTORY_INVALID");
       if (continuation) tokens.add(continuation);
     } while (continuation);
-    if (!keys.length && this.config.mode !== "enrollment") fail("RECOVERY_COVERAGE_REQUIRED");
+    if (!keys.length && this.config.mode === "active") fail("RECOVERY_COVERAGE_REQUIRED");
     const entries: RecoveryEntry[] = [];
     let bytes = 0;
     // Bounded read concurrency; no application/provider startup and no write retry.
@@ -123,7 +123,9 @@ export class S3ProtectedDecisionStore implements ProtectedDecisionStore {
     if (!Number.isSafeInteger(expected.sequence) || expected.sequence < 0 || expected.sequence >= MAX_ENTRIES ||
         !this.valid(entry, expected.sequence + 1) || entry.previous !== expected.hash ||
         (expected.sequence === 0 ? expected.hash !== "" : !/^[a-f0-9]{64}$/.test(expected.hash))) fail("RECOVERY_APPEND_INVALID");
-    if ((entry.kind === "GENESIS") !== (this.config.mode === "enrollment")) fail("RECOVERY_EXPLICIT_ENROLLMENT_REQUIRED");
+    if ((this.config.mode === "enrollment" && entry.kind !== "GENESIS") ||
+        (this.config.mode === "successor" && !["CHECKPOINT", "CASE", "COVERED"].includes(entry.kind)) ||
+        (this.config.mode === "active" && ["GENESIS", "CHECKPOINT", "CASE", "COVERED"].includes(entry.kind))) fail("RECOVERY_EXPLICIT_ENROLLMENT_REQUIRED");
     const body = canonical(entry);
     if (Buffer.byteLength(body) > MAX_ENTRY_BYTES) fail("RECOVERY_HISTORY_CAPACITY_REVIEW_REQUIRED");
     const signal = AbortSignal.timeout(4000);
@@ -161,8 +163,8 @@ export class S3ProtectedDecisionStore implements ProtectedDecisionStore {
 export function createRecoveryS3Store(config: RecoveryS3Config) {
   return new S3ProtectedDecisionStore(config, createRecoveryS3Client());
 }
-export function createRecoveryS3Client() {
+export function createRecoveryS3Client(credentials?: S3ClientConfig["credentials"]) {
   const client = new S3Client({ region: RECOVERY_S3_REGION, maxAttempts: 1, followRegionRedirects: false,
-    endpoint: "https://s3.ca-central-1.amazonaws.com", forcePathStyle: false, ignoreConfiguredEndpointUrls: true });
+    endpoint: "https://s3.ca-central-1.amazonaws.com", forcePathStyle: false, ignoreConfiguredEndpointUrls: true, ...(credentials ? { credentials } : {}) });
   return client;
 }

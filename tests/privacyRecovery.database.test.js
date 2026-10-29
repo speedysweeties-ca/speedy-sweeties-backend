@@ -22,11 +22,13 @@ test('post-snapshot decisions survive actual serial synthetic PostgreSQL dump/re
   process.env.PRIVACY_DIGEST_KEY = key;
   // Same real PostgreSQL restore fixtures, now backed by the proposed adapter
   // with controlled S3 responses. This is not AWS cloud verification.
-  const { journal: store, transport: s3 } = await require('./privacyRecoveryS3Fixture.cjs').syntheticS3Journal(key, db);
-  const { keyOf } = require('./privacyRecoveryS3Fixture.cjs');
+  const fixture = await require('./privacyRecoveryS3Fixture.cjs').syntheticS3Journal(key, db);
+  let store = fixture.journal;
+  const s3 = fixture.transport;
+  let keyOf = fixture.keyOf;
   const sent = new Map();
   const delivery = { async start(m) { sent.set(m.id, m.code); return {}; }, async check() { throw Error('No phone delivery'); } };
-  const service = new PrivacyDeletionService(db, key, delivery, () => true, 'Synthetic 30-day commitment', '12-31', store);
+  let service = new PrivacyDeletionService(db, key, delivery, () => true, 'Synthetic 30-day commitment', '12-31', store);
   const fixtures = { customers: new Set(), orders: new Set(), phoneHashes: new Set() };
   const year = new Date().getUTCFullYear();
   const decision = { policyReference: 'SYNTHETIC-RETENTION', justification: 'Synthetic financial evidence must remain readable.', taxYearEnd: `${year}-12-31`,
@@ -77,6 +79,25 @@ test('post-snapshot decisions survive actual serial synthetic PostgreSQL dump/re
     await assert.rejects(service.fulfill(ic.id, 'synthetic-admin', holdPreview.version, holdPreview.previewHash, decision), /REQUEST_ON_HOLD/);
     const original = await db.privacyDeletionRequest.findUnique({ where: { id: ia.id } });
     const originalMarker = await db.privacyDeletedIdentity.findFirst();
+    await t.test('reviewed successor preserves complete restore coverage and dates without empty-baseline enrollment', async () => {
+      const { S3ProtectedDecisionStore } = require('../dist/services/privacyRecoveryS3');
+      const { prepareRecoverySuccessor, authorizeRetiredHistoryRemoval } = require('../dist/services/privacyRecoveryMaintenance');
+      const source = store, state = await source.ready();
+      const targetConfig = { ...fixture.activeConfig, prefix: fixture.activeConfig.prefix.replace(/[^/]+\/$/, 'successor/'),
+        scope: 'synthetic-privacy-successor', mode: 'successor', genesisHash: undefined };
+      const target = new PrivacyRecoveryJournal(new S3ProtectedDecisionStore(targetConfig, s3), targetConfig.scope, key);
+      const plan = { reviewedAt: new Date().toISOString(), cases: [...state.cases.values()].map(s => ({
+        requestId: s.request.id, expectedStateDigest: source.evidenceDigest(s), action: 'retain',
+        justification: 'Synthetic restoration risk remains verified', nextReviewAt: new Date(Date.now() + 86400000).toISOString()
+      })) };
+      const coverage = await prepareRecoverySuccessor(source, target, plan, true);
+      store = new PrivacyRecoveryJournal(new S3ProtectedDecisionStore({ ...targetConfig, mode: 'active', genesisHash: coverage.enrollmentHash }, s3), target.scope, key);
+      assert.equal((await store.ready()).cases.size, 3);
+      assert.equal((await authorizeRetiredHistoryRemoval(source, store, { scope: store.scope, enrollmentHash: coverage.enrollmentHash }, true)).reviewedRetiredRemovalAllowed, true);
+      await assert.rejects(source.ready(), /SCOPE_SEALED/);
+      keyOf = n => `${targetConfig.prefix}${String(n).padStart(16, '0')}.json`;
+      service = new PrivacyDeletionService(db, key, delivery, () => true, 'Synthetic 30-day commitment', '12-31', store);
+    });
     const storedText = JSON.stringify(await store.store.read());
     for (const privateValue of [a.c.phone, a.c.email, a.c.addressLine1, ia.token, ia.accessToken, a.tracking, 'Synthetic private receipt text'])
       assert.ok(!storedText.includes(privateValue), 'Checkpoint must not include raw private values');
@@ -162,7 +183,8 @@ test('post-snapshot decisions survive actual serial synthetic PostgreSQL dump/re
       assert.equal((await service.status(ic.id, ic.token)).status, 'HOLD');
       s3.failKind = 'COMMIT';
       await assert.rejects(service.cancel(ic.id, ic.token), /RECOVERY_WRITE_UNCERTAIN/);
-      assert.equal((await service.status(ic.id, ic.token)).status, 'CANCELLED');
+      assert.equal((await db.privacyDeletionRequest.findUnique({ where: { id: ic.id } })).status, 'CANCELLED');
+      await assert.rejects(service.status(ic.id, ic.token), /UNFINISHED_OPERATION/);
       s3.failKind = null;
       await assert.rejects(store.ready(), /UNFINISHED_OPERATION/);
       await assert.rejects(reconcileSyntheticRestore(service, process.env.DATABASE_URL, key), /UNFINISHED_OPERATION/);
