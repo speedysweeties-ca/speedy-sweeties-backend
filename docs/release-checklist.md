@@ -3,7 +3,33 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
-## Authenticated AWS configuration PASS; synthetic test approval pending
+## Approved bounded synthetic test — cleanup/registration ready; private setup pending
+
+- Robert approved the complete one-run/test/cleanup package, US$0.10 AWS before
+  tax/FX; no repeated approval request. No production deployment/enrollment/gates,
+  customer changes, messages or publication authorized. Configuration inventory
+  remains owner-supplied authenticated PASS and is not rerun.
+- Cleanup fix tested at `a692b0da41fe3c0d4a0bd8d4e6e3f13a349d16fa`: focused groups
+  5/5, actual subprocess/private-file/version/partial-failure regressions PASS.
+  Both jobs PASS in [CI 40811316279](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40811316279).
+- Render read-back immediately before merge: API/dispatcher/cron Auto-Deploy Off
+  (`autoDeploy=no`, `autoDeployTrigger=off`); no setting changed.
+- Workflow-only [PR 98](https://github.com/speedysweeties-ca/speedy-sweeties-backend/pull/98)
+  merged at `ac1a69b13211b8612213ade951a3db15b5142a90`, adding only the approved manual
+  workflow. PR/push CI both jobs PASS (40811599544 / 40811582646). No application
+  code/migration merged, production deployment or automatic cloud trigger.
+- Cloud test NOT RUN: pre-run query found no manual runs. No S3 test objects were
+  created by this execution; no live application-access, latency or cleanup pass
+  claimed. No newly provisioned/billable resource. Actual permissions and private CI
+  secret setup need owner dashboard confirmation; connector lacks those operations.
+- NEXT: Robert completes the protected environment/private existing-key entry and
+  exact temporary app inline grant described in `docs/privacy-s3-storage.md`, then
+  replies ready without values/screenshots. Preserve review source until the single
+  dispatch; later documentation-only evidence may reuse passing code CI. No reruns.
+  Cleanup all test versions/markers, temporary IAM grants and CI copies immediately
+  after success/failure; no production-prefix removal or permanent operator grant.
+
+## Earlier authenticated AWS configuration PASS; approval subsequently granted
 
 - Robert supplied corrected CloudShell result
   `READBACK_PASS_LIVE_APPLICATION_ACCESS_UNVERIFIED`: accountMatches true, all

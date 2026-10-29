@@ -384,15 +384,74 @@ No KMS/replication/CloudTrail data events/extra log service/support plan is incl
 or provisioned. Render's own transfer allowances/billing are not verified by AWS
 pricing. Recalculate using actual usage before requesting provisioning approval.
 
-## Exact bounded cloud verification — prepared, future approval required
+## Exact bounded cloud verification — approved; private setup outstanding
 
 Existing AWS account/bucket/user setup is recorded above; do not repeat provisioning
 or create a new key/operator role. Configuration inventory is complete; execution
-steps below are **not approved or executed**.
+is covered by Robert's explicit approval of the complete package and US$0.10 AWS
+budget before tax/FX. No repeat approval is needed for that same scope.
 
-### One consolidated approval request — pending Robert
+### Execution record — cleanup/registration complete, cloud run not started
 
-Approve one synthetic run and its complete cleanup in existing account
+- Cleanup source `a692b0da41fe3c0d4a0bd8d4e6e3f13a349d16fa` replaces all standalone
+  cleanup stdin JSON with closed 0600 files/0700 directories, finally removal and
+  sanitized failures. Account/operator/prefix/manifest/version guards are unchanged.
+  Five focused serial groups PASS, including actual child-process cleanup, versions
+  and delete markers, rejected targets, timeouts/interruption, partial preparation,
+  private-response redaction and partial deletion stop without retry.
+- Both Node 24.22.1 Linux CI jobs PASS at that exact source in
+  [CI 40811316279](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40811316279).
+  No Mac application build, DB restore, simulator or dependency installation.
+- Render monitoring independently read API `srv-d7ntlnpkh4rs73bev9q0`, dispatcher
+  `srv-d7m4hgpkh4rs73agsfc0` and cron `crn-da1s3vnqj5pc73d2c63g`:
+  `autoDeploy=no`, `autoDeployTrigger=off`, checked again immediately before merge.
+  Linked ordering staging and isolated test services also read Off; none changed.
+- [Workflow-only PR 98](https://github.com/speedysweeties-ca/speedy-sweeties-backend/pull/98)
+  merged at `ac1a69b13211b8612213ade951a3db15b5142a90`. One added file only,
+  `.github/workflows/privacy-s3-cloud.yml`, exact reviewed blob
+  `5c32bdb415c5a879639eb55726bd29b029d4adf5`; no source/dependency/migration changes.
+  Both jobs PASS in PR [CI 40811599544](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40811599544)
+  and normal push [CI 40811582646](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40811582646).
+  Branch protection/mergeability checks respected. No Render deployment triggered.
+  This main registration SHA is not evidence of a changed running production SHA.
+- Manual-run baseline query returned no workflow_dispatch runs on the review branch.
+  **Cloud test NOT RUN.** No S3 writes, cloud deletions or production enrollment.
+  No test objects have been created by this execution; bucket/prefix emptiness and
+  post-test cleanup are not claimed without their actual future checks.
+- Connector access cannot manage AWS IAM or GitHub protected-environment secrets/
+  workflow dispatch. Robert has the precise dashboard steps for the approved app
+  inline policy and protected private credential copies. Their completion is
+  **pending confirmation**, not assumed and not an application credential failure.
+  No secret is requested in chat or extracted from Render. Do not dispatch until
+  the owner confirms setup and the exact reviewed branch head is recorded.
+- NEXT owner action: complete the private setup below and reply `ready` only, no
+  secret/screenshot. The later single dispatch/environment review is an execution
+  step under the existing approval, not a request for renewed business approval.
+  If the UI is unavailable or the existing secure key copy is missing, stop and
+  report that precise limitation; do not create/rotate keys or upgrade plans.
+
+### Private dashboard setup — owner action, no secret disclosure
+
+1. In AWS account `080413009273`, IAM → Users → `SpeedyPrivacyJournalApplication`
+   → Permissions → Add permissions → Create inline policy → JSON. Paste exactly
+   `docs/privacy-s3-verification-policy.json` at tested source `a692b0d`, name
+   `SpeedyPrivacyJournalSyntheticVerification`. Preserve the original app policy;
+   permanent operator policy stays unattached. No bucket-policy change.
+2. GitHub repository Settings → Environments → `privacy-s3-verification`. Required
+   reviewer `speedysweeties-ca`; Prevent self-review unchecked; administrator bypass
+   disabled. Selected deployment branches/tags: Branch `review/customer-account-deletion`
+   only. Add existing securely retained values through **Environment secrets**:
+   `PRIVACY_TEST_AWS_ACCESS_KEY_ID`, `PRIVACY_TEST_AWS_SECRET_ACCESS_KEY`. No repository-
+   wide secrets, workflow inputs, shell paste, credential retrieval or rotation.
+3. Do not click Run workflow yet. Keep the authorized AWS owner CloudShell session
+   available for immediate cleanup after the single run. Once setup is confirmed,
+   choose the review branch (never main), `authorized=true`, click Run workflow once,
+   then approve its environment gate. GitHub may call that gate Review deployments;
+   it approves this synthetic CI job, not Render production deployment. Do not retry.
+
+### Approved consolidated scope — preserved authorization
+
+Robert approved one synthetic run and its complete cleanup in existing account
 `080413009273`, bucket `speedy-sweeties-privacy-decisions-080413009273`, Canada
 Central. Writes/removals are limited to `verification/recovery-integration-20261028/`.
 Do not enroll or inspect production decision objects. No new AWS/Render resource,
@@ -434,8 +493,8 @@ account, key, role, plan upgrade, message or live AI call.
    **not** the review branch's application/privacy/recovery source or migrations.
    Render Auto-Deploy must remain Off; no deployment or automatic trigger. Then
    dispatch the review branch once with `authorized=true`, record its exact tested
-   SHA and allow Robert's environment review. GitHub currently reports this repo
-   public/default `main`; the workflow is absent from `main`. Do not dispatch `main`
+   SHA and allow Robert's environment review. At approval the public/default `main`
+   lacked the workflow; PR 98 now registers it there. Do not dispatch `main`
    (it lacks the review test source) or rerun an uncertain/partially populated prefix.
 5. **Run/budget:** one standard included Linux runner, one serial PostgreSQL 18
    worker, at most 15 minutes; no paid runner/capacity. Four gates false, delivery
@@ -472,21 +531,21 @@ account, key, role, plan upgrade, message or live AI call.
    values. If cleanup is blocked, remove CI credential/access copies promptly and
    report the exact remaining synthetic versions/access; no unattended reruns.
 
-This single proposed approval covers the prerequisite source correction, exact
+This single recorded approval covers the prerequisite source correction, exact
 temporary permissions/private CI credential copies, workflow-only registration
 merge, one test and its narrowly scoped cleanup. It does **not** cover production
 deployment, enrollment, restoration/customer changes, privacy activation, website
-publication or Apple upload. No covered action starts before approval.
+publication or Apple upload. No automatic rerun or scope expansion is authorized.
 
 GitHub documents the [default-branch dispatch requirement](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
 and [environment secret/reviewer/branch protections](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
 
-### Existing operational sequence — subject to the single approval above
+### Existing operational sequence — under the approval and current status above
 
 1. The owner-supplied authenticated configuration inventory is PASS; do not rerun
    it. Application access is untested, not failed. Complete the cleanup-helper
    private-file prerequisite above before any permitted cloud write.
-2. Review/authorize one synthetic run, expected AWS cost below **US$0.05**, bounded
+2. Already approved: one synthetic run, expected AWS cost below **US$0.05**, bounded
    below **US$0.10** before tax under 10,000 requests, 150 immutable puts and 16-KiB
    synthetic object limits. At official rates above, the worst request/transfer
    allowance is approximately $0.055 + $0.014 plus negligible stored test versions.
@@ -504,8 +563,8 @@ and [environment secret/reviewer/branch protections](https://docs.github.com/en/
 5. `.github/workflows/privacy-s3-cloud.yml` is **workflow_dispatch only**, with an
    explicit authorization input. GitHub requires this new workflow to be registered
    on the [default branch before it can be dispatched](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow): registration requires a
-   separately reviewed workflow-only merge, with Auto-Deploy Off. That merge is not
-   authorized or performed in this pass. Do not add a push/automatic trigger as a
+   separately reviewed workflow-only merge, with Auto-Deploy Off. That registration
+   is completed by PR 98 above; do not repeat it. Do not add a push/automatic trigger as a
    substitute. Then select the exact reviewed branch/revision and dispatch once
    with `authorized=true`; do not rerun an uncertain/partially populated prefix.
 6. The job verifies STS account **and exact IAM user**, zero existing test versions,
@@ -541,6 +600,40 @@ and [environment secret/reviewer/branch protections](https://docs.github.com/en/
     key, then externally pin the observed first-entry hash. Missing/dirty history
     must never auto-enroll. Configuration, deployment, production enrollment and
     gate activation require separate approval; all four gates stay false here.
+
+### Approved post-run cleanup command — do not run before the single test
+
+After the workflow is terminal, use Robert's existing authorized non-application
+CloudShell session in account `080413009273`. This standalone, checksum-pinned
+helper needs no downloaded dependencies or application key. It removes only known
+synthetic versions/markers after validating their complete inventory. It was
+downloaded with HTTP 200/checksum PASS but has not been executed against AWS.
+
+```sh
+python3 - <<'SPEEDY_SYNTHETIC_CLEANUP'
+import hashlib, sys, urllib.request
+url = "https://raw.githubusercontent.com/speedysweeties-ca/speedy-sweeties-backend/a692b0da41fe3c0d4a0bd8d4e6e3f13a349d16fa/scripts/privacyS3SyntheticCleanup.py"
+try:
+    code = urllib.request.urlopen(url, timeout=20).read()
+    if hashlib.sha256(code).hexdigest() != "c786dee4becd82f2c4a0a15e3b07623cca845c1de663a41961e9bd190f590bc4":
+        raise ValueError("checksum")
+except Exception:
+    print('{"check":"SPEEDY_S3_SYNTHETIC_CLEANUP","result":"STOP_DOWNLOAD_OR_CHECKSUM"}')
+    raise SystemExit(1)
+sys.argv = ["reviewed-synthetic-cleanup", "--authorize", "recovery-integration-20261028"]
+exec(compile(code, "reviewed-synthetic-cleanup", "exec"), {"__name__": "__main__"})
+SPEEDY_SYNTHETIC_CLEANUP
+```
+
+Return only its sanitized JSON. `CLEANUP_CONFIRMED` must include
+`emptyVersionInventory=true`. Any stop/partial result requires review, no blind
+rerun. Then delete only inline `SpeedyPrivacyJournalSyntheticVerification` from
+the app user and `SpeedyPrivacyJournalSyntheticCleanup` if it was added to the
+identified existing owner identity. Keep permanent policies and the original key.
+After the workflow is terminal, delete GitHub environment `privacy-s3-verification`,
+removing both test-secret entries and its protections; verify it is absent. Do not
+delete other environments/secrets or the existing AWS bucket. Record targeted
+absence/cleanup evidence; do not rerun the completed AWS configuration inventory.
 
 ### Earlier provisioning proposal — historical only, superseded above
 
@@ -630,8 +723,8 @@ Subsequent documentation-only evidence commits reuse this exact tested source.
 ## Completed inventory command — preserved evidence; do not rerun
 
 The command below produced Robert's owner-supplied authenticated PASS recorded
-above. Preserve it for traceability, not as another next action. Next action is
-the one consolidated test approval above. Its original instructions were:
+above. Preserve it for traceability, not as another next action. The test package
+is now approved; the next action is private dashboard setup above. Its original instructions were:
 
 Open the AWS console in account `080413009273` and open **CloudShell** using the
 existing signed-in owner session. Do not enter the application access key or change
