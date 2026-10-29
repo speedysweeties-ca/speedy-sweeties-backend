@@ -1311,6 +1311,30 @@ unprovable; the separate production enum assessment is not retroactive clone pro
 
 #### Post-snapshot privacy decisions — bounded source assessment, 2026-10-27
 
+**Current integration closeout, October 28 Toronto:** S3 configuration/startup and
+reviewed successor/minimization/retirement source is complete at
+`649c93884364277322bab21fec27885c708209ca`, incorporating main `007cba9`; both jobs
+pass [CI 40803657852](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40803657852).
+Recovery 5/5 includes a sealed successor and replay with predecessor unavailable;
+financial evidence, original dates, cancellation/holds and unrelated records pass.
+Backend 513 passes/5 DB-only skips/zero failures; privacy 22/22, timing DB checks
+and dispatcher 69/69 pass. Source adds no migration/public maintenance route.
+
+Robert's actual AWS account/bucket/user/policies and Save-only credentials are now
+recorded in `docs/privacy-s3-storage.md`; authenticated AWS metadata, restricted
+credential access and cloud latency remain unverified. Operator policy is unattached;
+no operator role assumed. Hobby uses the existing IAM user, without a Pro upgrade.
+The handoff contains exact external pins, guarded operator-only retirement, reserved
+synthetic cloud test/cleanup, temporary permissions/costs and the one read-only
+CloudShell command. No AWS write, configuration, credential rotation, enrollment,
+production deployment/data change or activation occurred. All four gates remain
+false/Auto-Deploy Off. OpenAI/model and business decisions remain closed.
+
+Fresh Render deployment metadata identifies API `dep-dbh39puc6qcc73cfb0d0` and
+dispatcher `dep-dbh39q8u01pc73fg6ufg` live at `007cba9`, not the older `4ac2ba3`.
+The sections below preserve that earlier implementation/recovery evidence; their
+unimplemented/proposed status statements are superseded only as described here.
+
 **Later October 28 S3 preparation:**
 [`privacy-s3-storage.md`](privacy-s3-storage.md) is the concrete proposed Canada
 Central resource/security/pricing/setup handoff. The official-SDK adapter uses one
@@ -1318,7 +1342,7 @@ create-only object per authenticated entry, with no separate head write. Ordered
 current reads and enforced no-delete/no-overwrite policies protect the head outside
 PostgreSQL; versioning alone does not establish completeness. A privileged policy
 bypass followed by coherent suffix deletion is outside that trust boundary.
-Production configuration/startup are unchanged. Controlled S3-response tests reuse
+At that earlier preparation, production configuration/startup source was unchanged. Controlled S3-response tests reuse
 the serial PostgreSQL restore fixtures; see the release checklist for their exact
 source/results. These are not AWS verification. Account/resource/credential access,
 provisioning costs, live policy/latency checks, reviewed successor-coverage/removal,

@@ -3,7 +3,55 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
-## S3 recovery-storage preparation — 2026-10-28, review only
+## S3 integration closeout — 2026-10-28 Toronto, review only
+
+- Final tested source `649c93884364277322bab21fec27885c708209ca`; both `validate`
+  and `privacy-database` PASS in
+  [CI 40803657852](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40803657852)
+  (completed October 29 UTC / October 28 Toronto). Node 24.22.1 / PostgreSQL 18:
+  recovery 5/5, existing privacy/baseline/delivery 22/22, backend 513 passes /
+  5 database-only skips / zero failures, both separate timing DB checks and
+  dispatcher 69/69. Mac ran only the focused metadata/cleanup/cloud-budget guards,
+  type-only and help checks; no local DB, app build or simulator.
+- Merged latest main `007cba9` into this review branch at `77a84a5`, preserving
+  dispatcher standards. A final fetch found no newer main. Render metadata reports
+  API `dep-dbh39puc6qcc73cfb0d0` and dispatcher `dep-dbh39q8u01pc73fg6ufg` live at
+  `007cba92ce38132946283f1d67155e809aa9588b`; no fresh runtime/secret read claimed.
+  Review changes add no migrations. Production was not merged/deployed by this work.
+- Robert confirms AWS account `080413009273`, the private Canada Central bucket,
+  versioning/public blocks/SSE-S3/no Object Lock/owner-enforced ACLs, actual bucket
+  policy including the IAM-user ARN, and the app user with only its application
+  policy. Operator policy exists but remains unattached; no operator role assumed.
+  Saved AWS keys on production API are **Save only**, not running-access evidence.
+- Runtime source is complete: exact external S3/scope/enrollment pins, dedicated
+  stable digest and IAM-user credentials, lazy gates-off startup, no JWT/memory/
+  automatic enrollment fallback. All affected privacy reads/transitions fail closed
+  for invalid/unavailable/unfinished/sealed history; ordinary gates-off traffic
+  remains available. No Pro/OIDC upgrade; Hobby's existing IAM user is preserved.
+- Maintenance source is complete: signed source sealing, nonempty CHECKPOINT/CASE/
+  COVERED successor state, state-bound reviewed minimization, original dates/holds/
+  financial protection and verified retirement permission. Operator-only removal
+  verifies the externally pinned active configuration and full retired-version
+  manifest before deletion, rejects active/unknown targets and stops on interruption.
+  Existing AWS denies remain; no real retirement or enrollment was executed.
+- `docs/privacy-s3-storage.md` is the single current resource/configuration/test/
+  cost/operator handoff. Actual metadata is still **unverified in AWS**. The new
+  read-only checker and reserved-prefix cloud workflow/cleanup are prepared and
+  mocked, not executed. Cloud tests need temporary exact-prefix permissions and
+  an authorized private CI credential path; expected cost <$0.05, bounded <$0.10
+  plus existing included CI only. New manual workflow needs default-branch
+  registration under separate review; no automatic trigger is installed.
+- NEXT ROBERT ACTION: run the pinned/checksum-verified read-only AWS CloudShell
+  command at the end of that handoff; return only its sanitized JSON. It cannot
+  prove the application's actual restricted credentials or saved Render settings
+  work. Cloud verification, operator identity/maintenance permissions, actual runtime
+  read-back, enrollment/cutover and activation remain separate execution dependencies.
+- Existing OpenAI/model/provider/device/receipt/QUALIFIED PITR/cleanup evidence and
+  retention approvals remain closed. Four false gates/Auto-Deploy Off preserved.
+  No AWS setting/write, production data/configuration, messaging, new resource,
+  website publication, Android implementation or Apple upload changed.
+
+## Earlier S3 recovery-storage preparation — preserved evidence, 2026-10-28
 
 - Proposed adapter and single setup handoff: `docs/privacy-s3-storage.md`, with
   three IAM/bucket-policy review templates. Canada Central, private S3 Standard,
@@ -24,7 +72,8 @@ a separate release and requires its own signed build and store submission.
   dispatcher 69/69 pass. Local type-only/help/whitespace checks pass. Three policy
   templates parse as JSON; actual AWS evaluation is pending. No AWS verification
   or production wiring. No Mac build/DB suite/simulator duplicated CI.
-- NEXT: review this concrete bucket/policy/cost proposal and establish the existing
+- The earlier NEXT action (superseded by owner setup/current closeout above) was
+  to review this concrete bucket/policy/cost proposal and establish the existing
   AWS account/credential path before any resource/spending authorization. Controlled
   synthetic cloud verification, reviewed successor coverage/removal, exact offline
   production wiring and explicit enrollment must pass before activation.
