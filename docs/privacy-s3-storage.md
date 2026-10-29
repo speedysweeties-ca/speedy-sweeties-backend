@@ -1,5 +1,44 @@
 # S3 privacy decision store — production review package, 2026-10-29
 
+## Consolidated enrollment preparation — locked paper confirmed, execution NOT authorized
+
+Robert confirms a printer and Robert-controlled locked business-record storage.
+The protected loss-of-Mac recovery copy is a printed record with exact reference
+`locked-paper:SpeedySweeties-PrivacyRecovery-epoch-0001`. The storage arrangement
+is **confirmed**; the actual record correctly remains pending enrollment. No Apple
+account, Notes synchronization, new service or paid storage work remains.
+
+After authorized enrollment, print only the six actual observed recovery pins
+emitted by the guarded tool: bucket, expected owner, region, prefix, scope and the
+observed enrollment HMAC. Robert must compare all six complete printed values with
+the protected tool output and confirm the sheet is legible and secured in the locked
+storage before pins are loaded or normal operation reopens. Never invent the hash or
+print passwords, AWS access/session keys, `PRIVACY_DIGEST_KEY`, database/Render URLs
+or credentials, customer data, or approval evidence.
+
+Current source review is read-only. Draft PR100 exact head is
+`45acfd8c296d5b441d2e593f16f9107248117f8f`; fetched current main is
+`bb753d4f552ed763d9045375d3c5605ea79d9b91`; merge base is `3a6cab9`. GitHub reports
+the draft cleanly mergeable. Exact-head PR CI 40930255832 and push CI 40930247322
+have both required jobs SUCCESS; current-main backend CI 40964680811 and website CI
+40964680791 are SUCCESS. Main's website/help work and PR100's quiescence/help work
+merge cleanly with no blocking review finding. PR100 does not yet contain current
+main, so a refreshed exact head plus both required jobs is mandatory before merge.
+The future normal merge SHA, not either current branch tip, becomes `RELEASE_SHA`.
+No merge, deployment, permission, downtime, S3 access or enrollment occurred.
+
+The canonical exact temporary policy remains in the iOS release checkout at
+`ReleaseNotes/PRIVACY_OPERATOR_ENROLLMENT_POLICY_PROPOSED.json`, SHA-256
+`040698e883b1508c1e88498d6e73c09cccbd8e46a25ae83eef3fbc601fd52567`, proposed
+inline name `SpeedyPrivacyJournalEnrollment20261029`. The complete ordered approval
+package is `ReleaseNotes/PRIVACY_RECOVERY_CONTROLLED_WINDOW_APPROVAL.txt` in that
+checkout. Remaining private confirmations are existing stable digest readability,
+exact production DB URL/role, existing Render API read credential, an owner-only
+0700/0600 local operator directory and an existing IAM admin session for attach/
+remove. Never expose or replace values. Robert still supplies the exact closed-
+business America/Toronto start/end; no window is booked. Four gates stay false and
+API/dispatcher/cron Auto-Deploy stay Off.
+
 ## API quiescent startup — implemented for review ONLY, October 29
 
 Robert authorized this narrow source/synthetic-test change, NOT another production
@@ -66,10 +105,11 @@ latch or protection against an authorized operator deliberately removing the set
 
 Use one exact approved **quiescence-capable merge SHA**, recorded as RELEASE_SHA;
 do not deploy old3a6cab9 while expecting it to recognize this new setting. Existing
-owner approval of PR99 does not cover a new executable SHA. Robert's actual non-root
-MFA temporary operator/profile, private existing digest/Render API secret, protected
-durable record and exact closed-business Toronto window remain prerequisites. No
-new identities/keys/grants or paid resources are created by this source task.
+owner approval of PR99 does not cover a new executable SHA. The non-root temporary
+operator/profile and locked-paper method/reference are confirmed. Remaining inputs
+are the private existing digest/DB/Render access, separate IAM admin session, exact
+closed-business Toronto window and refreshed PR100/CI/merge SHA. No new identity,
+permanent key, paid resource or broad grant is created by this source task.
 
 1. After new-source approval and current required CI, record main/live/schema and
    exact API resource. Keep API/dispatcher/cron Auto-Deploy Off, four gates false,
@@ -95,8 +135,11 @@ new identities/keys/grants or paid resources are created by this source task.
    operator build/preflight/enroll commands at this exact RELEASE_SHA. No changed
    identity guard, longer DB transaction, fake empty baseline or invented hash.
    Preflight plan and all nine empty indicators must pass; uncertain write stops.
-6. Preserve actual six observed pins in the CONFIRMED existing durable private
-   location; save pins in API Environment WITHOUT changing quiescent/gates/keys.
+6. Print only the actual six observed pin `NAME=value` lines. Robert compares every
+   complete printed value with protected tool output and secures the sheet under
+   `locked-paper:SpeedySweeties-PrivacyRecovery-epoch-0001`. Until he confirms exact
+   match and locked storage, remain quiescent and do not load pins or reopen. Then
+   save pins in API Environment WITHOUT changing quiescent/gates/keys.
    Normal deploy of SAME RELEASE_SHA loads pins. Every overlapping instance now
    stays quiescent; repeat mode/health checks and existing pure restricted-app S3
    read-back (replace its literal SHA with RELEASE_SHA). No app/provider import or
@@ -208,63 +251,37 @@ restore reconciliation, customer activation or an in-app privacy-flow pass.
 
 These are execution facts, not requests to reapprove the package or retention rules:
 
-1. **Existing non-app operator — current session unsuitable:** owner-supplied
-   CloudShell STS result on October 29 identifies account `080413009273`, ARN
-   `arn:aws:iam::080413009273:root`. Record account match and ROOT identity, not an
-   eligible operator/MFA pass. The existing CLI rejects root even if root used MFA;
-   do not weaken that guard, export root credentials or create root access keys.
-   No repeat STS check is needed for this session. Next read-only discovery: open
-   https://console.aws.amazon.com/ → search IAM → Roles → search
-   `SpeedyPrivacyJournalOperator`. Report only whether that role exists; template
-   ARNs/policy names do NOT prove it exists. If present, open it → Permissions and
-   Trust relationships → View policy; review non-secret principal, MFA/session
-   conditions and exact prefix/key-1 rights before assuming it. Do not edit/attach.
-   IAM → Users: check whether an EXISTING non-application owner/operator user is
-   available; do not select/change SpeedyPrivacyJournalApplication. If already using
-   IAM Identity Center, open that console → AWS accounts / permission sets to locate
-   the EXISTING operator access; do not enable/set up a new organization or service.
-   Actual temporary session ARN/profile, MFA provenance, expiry and minimum effective
-   rights remain unconfirmed. If none exists, report that exact setup gap for a
-   narrowly reviewed non-root access step; no new identity/grant/key is created here.
-2. **Protected durable pins:** open the EXISTING secure-backup/password-manager
-   application used for the retained digest. Select a separate owner/operator-only
-   item for the observed six pins, not the digest item or a PostgreSQL backup.
-   Confirm application/service name, restricted access and recovery after Mac loss
-   (backup or another trusted device). No existing store/location has yet been
-   confirmed. A temporary/local 0600 file or the mere existence of iCloud/Keychain
-   is not durable-location evidence. Do not put secrets in this record or chat.
-3. **Private access/tooling:** confirm retained digest access and an EXISTING Render
-   read credential: Render Dashboard → account menu → Account Settings → API Keys.
-   Report only availability, not its value/name/ending; a visible key entry is not
-   proof its secret is retained. Database → speedy-sweeties-db → Connect → External
-   Database URL supplies the exact target only to the hidden prompt. No URL/key was
-   retrieved here. AWS CLI and Render CLI were not found on this Mac's PATH; no
-   `~/.aws` directory was found. A usable AWS CLI v2 temporary profile/session on
-   the operator machine is still unestablished; no installation or credential copy
-   was performed. CloudShell identity access is not proof of a usable local profile.
-   Existing pinned Node is available; prepare the artifact only at the actual
-   release SHA after preserving any local changes. Later handoff commits must not
-   accidentally become the manifest's release SHA: after committing/preserving local
-   work, temporarily select `git switch --detach 3a6cab9be07dba23af8e556f8c807f91d6a018aa`
-   in this SAME checkout for artifact preparation/operator commands; do not reset,
-   remove the review branch or create a duplicate checkout. Return to
-   `review/customer-account-deletion` for documentation. Stop if switching would
-   overwrite local work. Do not run operator preparation yet while prerequisites
-   are unresolved.
-4. **All-writer exclusion/timing:** obtain Robert's explicit Toronto-time window
-   before any interruption (evidence windows at most 30 minutes), away from cron's
-   14:00 UTC daily run and only after confirming none is in flight. Proposed first
-   phase: Render → workspace → speedy-api → Settings → Suspend Service, wait for
-   API/monitor shutdown and DB connections/transactions to drain; close other direct
-   production writer sessions and verify them absent. Confirm other people/scripts
-   using this DB. No cron/dispatcher/staging/SMS change is authorized. Maintenance
-   mode alone leaves the process/background writers running. **The complete window
-   is not yet established:** resuming or normally deploying the API starts existing
-   monitors; public maintenance mode alone cannot preserve ALL-writer exclusion
-   through pin-load/application verification. Review the exact controlled re-entry
-   method before promising continuous exclusion or stopping ordering. Do not set
-   `allWritersStopped=true` from gate settings, quiet traffic, an intention to suspend
-   or an unverified restart sequence. No new runtime control is introduced here.
+1. **Existing non-app operator confirmed; exact rights still unattached:** profile
+   `speedy-privacy-operator`, region `ca-central-1`, account `080413009273` and ARN
+   `arn:aws:iam::080413009273:user/SpeedyPrivacyJournalOperator` match. Robert's
+   password/passkey browser sign-in is owner-provided MFA evidence; STS alone proves
+   identity. The existing loader consumed the `aws login` temporary session and
+   enforced token/expiry/ARN guards. Do not reset/recreate/create a permanent key.
+   An existing separate IAM admin session is needed only to attach/remove the exact
+   proposed inline policy during the controlled window; the operator cannot self-
+   administer it.
+2. **Protected durable pins confirmed; actual record pending:** print only the six
+   actual observed recovery-pin lines after enrollment, compare every complete value
+   and lock the sheet in Robert-controlled business-record storage. Exact reference:
+   `locked-paper:SpeedySweeties-PrivacyRecovery-epoch-0001`. Do not print an invented
+   hash, password, access/session key, digest, URL, credential or customer data. No
+   Apple-account synchronization or new store setup remains.
+3. **Private access/tooling still to confirm:** existing stable digest readability,
+   exact production External Database URL and provider role, and an existing Render
+   API read credential. Report only yes/no availability; do not expose, replace or
+   rotate values. Use an existing Robert-only local operator directory with mode
+   0700/files 0600; it is working storage, not the durable recovery copy. Prepare
+   the artifact only after PR100 contains current main, exact-head CI passes, a
+   separately authorized normal merge produces RELEASE_SHA, and concurrent work is
+   preserved. Never substitute either current branch tip for RELEASE_SHA.
+4. **All-writer exclusion/timing:** Robert supplies exact America/Toronto closed-
+   business start/end covering the estimated 20–30 minutes plus buffer. Evidence
+   remains <=30 minutes fresh. Use PR100's reviewed quiescent startup at exact
+   RELEASE_SHA plus public Maintenance Mode, old-instance/in-flight drain, cron-not-
+   due/in-flight confirmation and absence/control of every outside DB writer. No
+   quiescent marker, gates-false state or quiet traffic proves global exclusion by
+   itself. Follow the ordered package above through paper verification, same-SHA pin
+   load/read-back, targeted access cleanup and explicit same-SHA return to normal.
 
 The current-runtime read-back is now closed. Once the remaining facts and a tested,
 reviewed writer-exclusion method pass, preserve the already-approved bounded
@@ -366,7 +383,7 @@ expire; expiration stops execution, never authorizes auto-reopening or a blind r
 Sources: [Render maintenance](https://render.com/docs/maintenance-mode),
 [PostgreSQL transaction lock lifetime](https://www.postgresql.org/docs/18/sql-lock.html).
 
-### Locate existing private credentials and a durable record — no setup changes
+### Locate existing private credentials — no setup changes
 
 Follow privately, without sharing screens/clipboard/secret values:
 
@@ -380,46 +397,34 @@ Follow privately, without sharing screens/clipboard/secret values:
    existing different password manager was used, open that app and use its own
    search, not a filesystem/log scan. Report only application name and found/not
    found/readable, never values or account details.
-2. **If not found, Mac Notes:** Command–Space → Notes → View → Show Folders.
-   Search the same non-secret labels and open an existing locked note privately,
-   if present; then close its lock. Do not reset a forgotten Notes password: that
-   does not recover old locked notes. Do not move/upload plaintext files or
-   create shared notes. No agent search through private vaults or notes occurs.
-3. **Existing production digest:** Safari → https://dashboard.render.com/ →
+2. **Existing production digest:** Safari → https://dashboard.render.com/ →
    Speedy's workspace → speedy-api → Environment. Locate ONLY
    `PRIVACY_DIGEST_KEY`; if an existing reveal/copy control is available, Robert
    can privately establish it is retrievable. Do not click Save/Edit/Generate or
    copy into chat/commands. Merely seeing a masked field is not retrievability.
    Do not copy until an appropriate existing protected destination or the approved
    hidden terminal prompt is ready. No rotation; runtime presence already passed.
-4. **Existing Render API credential:** same dashboard → top-right account menu →
+3. **Existing Render API credential:** same dashboard → top-right account menu →
    Account Settings → API Keys. Inspect entries only; locate the corresponding
    retained secret in the EXISTING vault/note. Render displays a full API key only
    at creation: the list cannot recover an unretained secret. A key entry, browser
    sign-in or connector OAuth session is not a recoverable operator API key. If
    the retained secret is absent, report `existing Render API secret not located`;
    do not create/revoke/replace a key or scrape connector/browser credentials.
-5. **Candidate durable pin record, not yet selected:** prefer a separate private
-   item in the already-used, recoverable password manager. If none is established,
-   inspect Notes' folder sidebar for an EXISTING iCloud account (not On My Mac).
-   Notes → Settings can show existing lock configuration; do not change it. On the
-   already-trusted iPad → Notes → Folders, privately confirm that the same existing
-   account/locked item is accessible after authentication. Do not share the Apple
-   ID, note contents or device passcode. iCloud sync alone is not an independent
-   backup or proof against accidental deletion; actual recoverability and access
-   still require owner confirmation. A future separate locked TEXT note/item for
-   the six non-secret observed pins may be suitable only after this confirmation;
-   keep the stable digest separate. Do not invent the enrollment hash or create
-   the record as if enrollment occurred. A Mac-only note/file fails durability
-   without a separately established protected backup. No new account/service or
-   paid storage is proposed.
+4. **Durable pin record confirmed; actual record pending enrollment:** Robert has a
+   printer and Robert-controlled locked business-record storage. Print only the six
+   actual observed recovery-pin `NAME=value` lines after authorized enrollment and
+   use reference `locked-paper:SpeedySweeties-PrivacyRecovery-epoch-0001`. Robert
+   must compare all complete printed values to protected tool output and confirm the
+   sheet is secured before pin loading or normal reopening. Keep the stable digest
+   and every password/access key/database URL/customer value off the sheet. Do not
+   invent the enrollment hash. No Apple-account synchronization work remains.
 
-Report only: vault/application name; retained digest privately readable yes/no;
-retained Render API secret found yes/no; proposed separate protected record and
-existing backup/second-device access yes/no. These prerequisites remain OPEN.
-See official [Mac password lookup](https://support.apple.com/en-ie/105115),
-[Notes locking/recovery limits](https://support.apple.com/en-ca/guide/notes/not28c5f5468/mac)
-and [Render API-key disclosure](https://render.com/docs/api).
+Report only: retained digest privately readable yes/no and retained Render API
+secret found yes/no. Do not report values. The protected paper method/reference is
+closed; the actual sheet awaits observed pins. See official
+[Mac password lookup](https://support.apple.com/en-ie/105115) and
+[Render API-key disclosure](https://render.com/docs/api).
 
 This section supersedes earlier **undeployed/draft/proposal-only** status statements
 below, while preserving their dated test and business evidence.
@@ -619,10 +624,13 @@ These are needed for FUTURE authorized execution, not reasons to pause source wo
    restricted operator policy test is claimed. Do not run `aws configure export-credentials`
    manually: it prints credentials. The helper captures it privately with no echo,
    inherited AWS credential fallback, command-argument secrets or raw error output.
-2. Confirm protected **durable external pin-record location/reference and access**,
-   separate from DB backups and the stable digest's retained secure copy. A 0600
-   file proves local access permissions, not durability; `/tmp`/a manual export is
-   not the production recovery store. Existing S3 remains the independent journal.
+2. Protected **durable external pin-record location/reference and access are now
+   confirmed**: print only the six actual observed recovery pins and place the sheet
+   in Robert-controlled locked business-record storage, reference
+   `locked-paper:SpeedySweeties-PrivacyRecovery-epoch-0001`. The actual paper remains
+   pending enrollment. A 0600 file proves local access permissions, not durability;
+   `/tmp`/a manual export is not the production recovery record. Existing S3 remains
+   the independent journal; keep the stable digest separate. No Apple sync remains.
 3. Retain the existing stable digest and app AWS pair without rotation. Privately
    supply the existing digest, exact target External Database URL and an existing
    Render API credential with read access only to metadata/connection-info. The
