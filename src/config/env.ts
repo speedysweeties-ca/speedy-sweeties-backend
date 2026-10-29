@@ -37,6 +37,14 @@ const NODE_ENV = process.env.NODE_ENV ?? "development";
 const CORS_ORIGIN =
   process.env.CORS_ORIGIN ??
   (NODE_ENV === "production" ? requireEnv("CORS_ORIGIN") : "*");
+const WEBSITE_TURNSTILE_REQUIRED = booleanEnv("WEBSITE_TURNSTILE_REQUIRED", false);
+const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY ?? "";
+if (WEBSITE_TURNSTILE_REQUIRED && !TURNSTILE_SECRET_KEY) {
+  throw new Error("Website verification requires TURNSTILE_SECRET_KEY");
+}
+if (NODE_ENV === "production" && /^[123]x0{20,}/.test(TURNSTILE_SECRET_KEY)) {
+  throw new Error("Turnstile test secrets cannot be used in production");
+}
 
 export const env = {
   NODE_ENV,
@@ -45,6 +53,8 @@ export const env = {
   JWT_SECRET: requireEnv("JWT_SECRET"),
   FIREBASE_SERVICE_ACCOUNT_JSON: requireEnv("FIREBASE_SERVICE_ACCOUNT_JSON"),
   CORS_ORIGIN,
+  WEBSITE_TURNSTILE_REQUIRED,
+  TURNSTILE_SECRET_KEY,
 
   BND_MONITOR_ENABLED: booleanEnv("BND_MONITOR_ENABLED", false),
   BND_LOGIN_EMAIL: process.env.BND_LOGIN_EMAIL ?? "",

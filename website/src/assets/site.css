@@ -1,0 +1,21 @@
+/* Small standalone replacements for the former hosted editor runtime. */
+[hidden] { display: none !important; }
+html { scroll-behavior: smooth; scroll-padding-top: 110px; }
+#preview-notice { position: relative; z-index: 1001; background: #fff3c4; color: #202124; padding: 12px 20px; text-align: center; font: 600 14px/1.5 Arial, sans-serif; }
+#preview-notice a { color: #1737b8; text-decoration: underline; }
+.menu-button { background: transparent; color: #fff; font-size: 28px; line-height: 1; }
+.menu-button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #f7bc2b; outline-offset: 3px; }
+.w-checkbox-input, .w-radio-input { accent-color: #1737b8; }
+.cta-button-submit:disabled { cursor: wait; opacity: .65; }
+.speedy-order-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 20px; width: 100%; }
+.speedy-human-verification { flex: 1 1 300px; min-width: 0; }
+.speedy-human-verification p { color: #fff; font-size: 14px; line-height: 1.4; margin: 8px 0; }
+.speedy-human-verification button { padding: 8px 12px; background: #edf2fa; color: #182d4b; border: 1px solid #182d4b; border-radius: 4px; cursor: pointer; }
+.speedy-order-actions #speedy-order-submit-gate { flex: 1 1 200px; }
+.speedy-order-actions #speedy-order-submit-gate:disabled { opacity: .65; }
+@media (max-width: 991px) {
+  .navbar-container { position: relative; }
+  #main-navigation.is-open { display: block; position: absolute; top: 100%; left: 0; right: 0; background: #fff; box-shadow: 0 8px 20px #0003; z-index: 1000; }
+  .nav-menu.is-open .nav-link { display: block; color: #17234b; padding: 15px 24px; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
