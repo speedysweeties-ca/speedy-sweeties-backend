@@ -28,7 +28,13 @@ private existing credentials/read access and exclusion evidence remain future
 execution prerequisites. Source tests use synthetic data/controlled provider responses;
 no production/AWS command, enrollment, message or activation occurred. All four
 false gates/Auto-Deploy Off and all completed findings remain preserved.
-Required CI/evidence closeout is recorded in the release checklist/PR after source push.
+Source `cef843aa9c944ff9bacf0e331c69e33432582f62`, draft PR 99: both CI jobs PASS
+in PR 40900890000 / push 40900873587. Serial recovery/operator 9/9 and lifecycle/
+baseline/delivery 23/23; backend 532 passes/6 DB-only skips/zero failures, timing DB
+checks and dispatcher 69/69 pass. Source 96d8d78's initial harness failures (missing
+synthetic ledger/generated Python cache) are preserved; the corrected harness records
+only actually successful SQL in a fresh loopback fixture and suppresses bytecode,
+without weakening production checks. Final documentation-head checks are in PR 99.
 
 ## Earlier production recovery review package — preparation only, October 29
 

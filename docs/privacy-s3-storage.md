@@ -213,6 +213,11 @@ These are needed for FUTURE authorized execution, not reasons to pause source wo
    Source revision, exact restored resource/hostname/database/role/restore point
    and exclusion/MFA/approval evidence are recorded in a private owner-only manifest.
    Each evidence/approval window is at most 30 minutes; renew only after review.
+   The concrete exclusion method/window must be reviewed before execution. This
+   API-only package does not silently authorize cron suspension, a run or schedule
+   changes: verify none is in flight/due during the exclusion window, or stop for
+   narrowly scoped writer-exclusion authority. Restore traffic remains offline
+   regardless; never certify exclusion merely because the privacy gates are false.
 5. Authorized operator machine needs existing AWS CLI v2, exact pinned Node,
    current checkout/dependencies/Prisma client, production DB network/TLS access and
    the private approved manifest. No tool or account was installed/provisioned for
@@ -396,6 +401,28 @@ writing. No new approval substitutes for absent original-DB outcome evidence.
 
 ### Consolidated next production approval package (NOT executed)
 
+Reviewed source: **`cef843aa9c944ff9bacf0e331c69e33432582f62`** in draft
+[PR 99](https://github.com/speedysweeties-ca/speedy-sweeties-backend/pull/99).
+Both required jobs pass in [PR CI 40900890000](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40900890000)
+and [push CI 40900873587](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40900873587).
+Serial PostgreSQL recovery/operator tests **9/9**; lifecycle/baseline/delivery **23/23**.
+Backend **532 passes / 6 DB-only skips / zero failures**, both timing-history DB
+checks pass, dispatcher **69/69**, builds/audits/runtime/help checks pass. The
+PostgreSQL tests use controlled provider identity/S3 responses and guarded actual
+loopback PostgreSQL; they are not production-target/MFA/AWS verification.
+Pinned-Node local operator/build-boundary focus **15/15**, corrected fixture/mock
+focus **8/8**; earlier protocol/maintenance/hidden-input focus also passed. No broad
+Mac application suite, simulator, live AWS test/inventory/cleanup or provider check.
+
+Initial `96d8d78` CI failed on missing synthetic migration bookkeeping and generated
+Python bytecode, not a production fault. `cef843a` corrects test-only preparation:
+only a fresh guarded loopback fixture records each migration **after** its exact
+SQL process succeeds; existing/failed ledgers stop. Dump/restore verifies actual
+checksums/completion. Production migration checks are unchanged. Python mock tests
+use `-B`; the clean-build guard is not relaxed. Required checks pass on corrected
+source. Later handoff-only commits do not change that runtime/test tree; final PR
+head/check results are recorded in PR 99 without inventing a self-referential SHA.
+
 After passing required CI and review, approve only the exact reviewed integration
 and **speedy-api** deployment at its recorded merge SHA; no new migration/dispatcher/
 cron action. Keep all four gates false and Auto-Deploy Off. If also approving the
@@ -417,17 +444,17 @@ Customer activation, messages, publication and Apple upload remain excluded.
 | Dispatcher live | Same `007cba9`, `dep-dbh39q8u01pc73fg6ufg`, live since 2026-10-28T17:47:07Z |
 | Cron last live build | `c5f249fc079f2faa5ff99c61b193a0626eccc3aa`, `dep-dbg083uk1f9s73aunkd0`; do not run/redeploy it |
 | Current fetched main | `ac1a69b13211b8612213ade951a3db15b5142a90` |
-| Immutable application candidate | `0230095ce0076baab30db880c7c4c3abea7fdd45`, existing `review/customer-account-deletion`; this package's later documentation commit does not alter its executable tree |
-| Tested executable source | `a692b0da41fe3c0d4a0bd8d4e6e3f13a349d16fa`; only three backend documentation files differ through `0230095` |
-| Reused Linux CI | [40811316279](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40811316279): `validate` and `privacy-database` SUCCESS on exact `a692b0d`; both jobs also SUCCESS for main `ac1a69b` in [40811821631](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40811821631) |
+| Immutable application/operator candidate | `cef843aa9c944ff9bacf0e331c69e33432582f62`, existing `review/customer-account-deletion`; later handoff-only commits preserve its runtime/test tree |
+| New operator implementation | `96d8d7877896452c93c1421fdbd565a673ae5916`; `cef843a` fixes five synthetic test/preparation files only, not runtime behavior |
+| Required Linux CI | `validate` and `privacy-database` SUCCESS on exact `cef843a`: PR 40900890000 / push 40900873587. Earlier source `a692b0d` CI 40811316279 remains historical evidence, not proof of the new commands |
 | Live synthetic verification | [40878909548](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40878909548), exact `5e0791d`, code identical to `a692b0d`; 5/5 recovery tests and controlled probes PASS, cleanup complete |
 
-Render metadata was read in the previously confirmed Speedy's workspace
+Render metadata from the completed 9e25107 review was read in Speedy's workspace
 `tea-d7loaul7vvec73cme5d0`. API/dispatcher/cron each still report `autoDeploy=no` /
 `autoDeployTrigger=off`. No setting, deploy, database or AWS object changed. Live
-metadata is not a new health/session test. Keep prior staff/device/provider results.
-No CI run exists for documentation-only `0230095` (`[skip ci]`); do not mislabel it
-as a newly tested head. Reuse unchanged source evidence, subject to merge protections.
+metadata is not a new health/session test; it was not repeated during implementation.
+Keep prior staff/device/provider results. `0230095` / `9e25107` remain earlier
+documentation evidence, not the tested operator candidate. Respect merge protections.
 
 **Undeployed executable changes**, relative to live `007cba9`:
 
@@ -449,11 +476,11 @@ as a newly tested head. Reuse unchanged source evidence, subject to merge protec
   from main/live; all four original privacy migrations remain already deployed.
 
 **Integration still required before a main release:** main is two commits ahead of
-the branch's ancestry (PR 98 workflow registration); the branch has 32 commits not
-in main at this refresh. The workflow blob is byte-identical on both sides
+the branch's ancestry (PR 98 workflow registration); `cef843a` has 35 commits not
+in main. The workflow blob is byte-identical on both sides
 (`5c32bdb415c5a879639eb55726bd29b029d4adf5`). No executable conflict is identified;
 no merge was performed. A future reviewed integration must preserve that file and
-both CI jobs/Node pins/full-history help checks. Use a **new review PR** from the
+both CI jobs/Node pins/full-history help checks. **Draft PR 99** now reviews the
 existing branch: PR 93 is already merged, not an open deployment vehicle. Do not
 reopen/re-merge PR 93 or bypass required checks. Record the actual integration/
 merge SHA and successful required checks; never invent that future SHA. Any new
@@ -465,14 +492,15 @@ operator source changes require their own focused checks and CI before inclusion
 only the reviewed recovery candidate after the integration/check gate above, then
 manually deploy **speedy-api only**, with all four gates exactly false. Record the
 resulting release SHA as `RELEASE_SHA`; its application tree must equal reviewed
-`0230095` unless separately reviewed tooling is added. Dispatcher, cron, ordering
+`cef843a` (including the now-reviewed operator tooling). Dispatcher, cron, ordering
 staging and the SMS resources are excluded. No new migration, paid resource, message,
 enrollment, AWS write, website publication or Apple upload belongs to step A.
 
 **Step B (separate explicit enrollment boundary):** one initial journal entry plus
 external configuration pins/read-only application verification, only after the
-operator/tooling prerequisites in section 3 are satisfied. **Not executable-ready
-today**; do not fold it silently into step A. **Step C**, customer initiation/channel
+owner execution prerequisites in section 3 are satisfied. Commands are implemented/
+synthetically verified, but production execution prerequisites remain; do not fold
+it silently into step A. **Step C**, customer initiation/channel
 activation and later fulfillment, needs its own approval and final launch evidence.
 Existing retention/contact/fiscal/review decisions are not reopened by these gates.
 
@@ -579,7 +607,7 @@ tests. Existing staff-read passes are retained; a new authenticated staff read i
 optional only with an existing valid session and sanitized schema/status output.
 Dispatcher deployment is unnecessary because its bundle is byte-identical.
 
-### 3. Explicit production enrollment — tooling/principal stop, not an invented command
+### 3. Explicit production enrollment — owner/principal/access preconditions
 
 **Named responsibility:** Robert is the owner/privacy operator and release approver;
 the engineer prepares/reviews the guarded commands. The actual authorized **AWS
@@ -609,16 +637,14 @@ stop and identify its actual principal before proposing a change. No permission
 change is made now. Restore reconciliation needs PostgreSQL write access separately;
 this enrollment grant never authorizes customer-data repair.
 
-**Missing executable tooling (genuine prerequisite B0):** there is no production
-enrollment CLI/target adapter, and `reconcileSyntheticRestore` rejects anything but
-the guarded synthetic localhost database/user. Do not run that test entry point
-against production or edit its guard. `enrollEmptyDatabase()` is a library, not a
-target-verified production command; its check covers four decision tables, not the
-complete production baseline below. There is also no reviewed unfinished-operation
-resolver, dry-run/apply production wrapper or production successor-maintenance CLI.
-Thus enrollment/reconciliation are not claimed runnable. The smallest remaining
-source task is narrowly guarded offline wrappers around these existing libraries,
-with synthetic guard/failure tests and CI, not another deletion/storage system.
+**B0 source prerequisite completed:** guarded production command paths now wrap the
+existing libraries; exact commands and implemented guards are above. The original
+`reconcileSyntheticRestore` still rejects anything but its synthetic target; do not
+edit/bypass it. New operator enrollment checks the complete nine-indicator baseline,
+not just the library's four counts. Outcome resolution uses attributable format-2
+evidence; legacy/ambiguous cases still stop. No production command has run, no
+operator principal/MFA/access or protected pin location is assumed, and separate
+successor-retirement maintenance is not included in this approval package.
 
 The wrappers must verify service/workspace, database **resource ID**
 `dpg-d7m33g2qqhas73f58hrg-a` and its privately resolved exact hostname/name/user via
@@ -725,9 +751,10 @@ are needed or re-created. Record actual hashes/deploy IDs only after execution.
 
 ### 4. Ordered offline operator-reconciliation procedure
 
-This is the incident/operator acceptance runbook; steps requiring a production
-wrapper are explicitly **BLOCKED**, not commands to improvise today. The existing
-five synthetic cloud recovery tests prove library behavior, not production authority.
+This is the incident/operator acceptance runbook. Use the implemented guarded
+commands above only under exact-target incident authorization, not improvised SQL.
+Synthetic cloud/library and controlled-provider PostgreSQL command tests do not
+establish production authority or actual MFA/exclusion/recovery evidence.
 
 1. **Declare recovery hold (Robert + incident engineer).** Keep public API traffic,
    staff mutation access and every writer/worker/scheduled job disconnected from
@@ -749,7 +776,7 @@ five synthetic cloud recovery tests prove library behavior, not production autho
    Pending INTENT, unfinished CHECKPOINT/CASE/COVERED, sealed predecessor, gaps,
    changed HMAC, permission/timeout, stale head, suspected policy bypass or uncertain
    write keeps the system offline. Never pick an old VersionId or DB head as truth.
-4. **Dry-run complete coverage (BLOCKED on guarded production tooling).** Match all
+4. **Dry-run complete coverage (`privacy:operator -- dry-run`).** Match all
    restored requests/markers/decisions to the latest authenticated case set. Check
    newer DB status/version/updatedAt, later cancellation/HOLD, external retain/review
    dates, financial holds, marker review, ownership/source/order scope and financial
@@ -758,7 +785,7 @@ five synthetic cloud recovery tests prove library behavior, not production autho
    decision journal cannot recreate a missing receipt/transaction; recover verified
    financial evidence through the authorized recovery path first. Preserve newer
    decisions; never substitute fresh deadlines or blanket six-year personal retention.
-5. **Apply once offline (BLOCKED on exact-target wrapper/authorization).** Reuse the
+5. **Apply once offline (`privacy:operator -- apply`, exact-target authorization required).** Reuse the
    tested reconciliation algorithm with the shared privacy advisory lock and one
    bounded transaction (existing 15-second limit). Handle non-erasure cancellations/
    holds without erasing. For a recorded erasure, use the existing scoped preview/
@@ -784,14 +811,14 @@ five synthetic cloud recovery tests prove library behavior, not production autho
    remain false throughout this package. Do not claim restored production verified
    merely because the schema/count checks passed.
 
-**Unfinished-operation resolution is not implemented:** because INTENT, DB commit
-and COMMIT are separate, any crash/uncertainty needs attributable evidence of the
-specific operation's actual DB outcome and latest holds/cancellations. The present
-library deliberately stops; no automatic ABORT/COMMIT repair protocol or production
-resolution CLI exists. Preserve both sides and sanitize incident evidence, keep
-operations offline, and prepare a narrowly reviewed forward repair with synthetic
-regressions. Never mark committed by guess, trim the suffix, reseal from an old DB,
-force enrollment or repeatedly retry an unresolved operation.
+**Unfinished-operation resolution is implemented but evidence-gated:** INTENT, DB
+commit and COMMIT remain separate. The preflight/resolve commands above require
+the original authoritative non-restored DB and exact format-2 before/after evidence.
+Authenticated RESOLVE records never erase/rewrite prior history or rerun deletion.
+Legacy insufficient evidence, identical no-op images, changed state or ambiguous
+provenance remain stopped for a narrowly reviewed forward repair; keep both sides/
+writers offline. Never guess COMMIT, trim the suffix, reseal from an old DB, force
+enrollment or repeatedly retry an unresolved operation.
 
 **Review/minimization maintenance:** existing SEAL → CHECKPOINT/CASE/COVERED and
 `verifyRecoverySuccessor` libraries require an exact state-bound reviewed plan,
@@ -837,14 +864,12 @@ No arbitrary downtime, backup/log retention or provider-period promise is added.
 
 ### 6. Finite release handoff / unresolved prerequisites
 
-1. **Technical, next:** implement/review guarded production enrollment + read-only
-   preflight/dry-run and exact-target offline reconciliation wrappers, plus a reviewed
-   unfinished-operation resolution path before real privacy use. Test guards with
-   synthetic fixtures/controlled failures, reuse business logic and passing cloud
-   evidence. No repeat AWS writes/inventory/clone is required for that source work.
+1. **Technical source complete:** reviewed command paths and required CI now cover
+   enrollment/preflight, offline dry-run/apply and evidence-backed outcome resolution.
+   Production execution is still unverified; do not repeat completed cloud evidence.
 2. **Release review:** integrate current main without changing executable scope,
    new PR/required CI and actual release SHA. Step A approval can cover API-only
-   gates-off deployment; B remains blocked by tooling, actual MFA operator identity,
+   gates-off deployment; B still requires actual MFA operator identity/access,
    fresh baseline/prefix and durable external pin handling. No enrollment hash or
    production baseline is asserted in advance. No new business retention approval.
 3. **Separate B execution:** once prerequisites pass, explicitly approve one empty-

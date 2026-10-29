@@ -23,10 +23,22 @@ a separate release and requires its own signed build and store submission.
   Actual MFA-backed non-app identity, existing temporary profile/Render read access,
   durable protected pin location and future all-writer exclusion remain owner-only
   execution facts. STS identity is not MFA proof; no secrets retrieved/changed.
-- Focused local pinned-Node build and controlled-response tests pass. Full required
-  Linux source CI is pending this implementation push; do not treat preparation as
+- Source `cef843aa9c944ff9bacf0e331c69e33432582f62`, draft PR 99. Both required jobs
+  PASS in PR CI 40900890000 and push CI 40900873587. Serial recovery/operator DB
+  9/9, lifecycle/baseline/delivery 23/23; backend 532 pass/6 DB-only skips/zero fail,
+  both timing-history DB checks and dispatcher 69/69 pass; runtime/help/build/audits pass.
+  Local exact-Node operator/build-boundary 15/15 and corrected fixture/mock 8/8 pass.
+  Initial 96d8d78 CI failed on synthetic missing ledger/Python cache; fixed without
+  relaxing production guards. Only successfully executed SQL on a fresh guarded
+  loopback database gets test migration evidence; no failed migration is marked
+  successful. Python mock tests suppress bytecode. Full required CI now passes.
+  Final handoff-only head/check results are recorded in PR 99. Do not treat preparation as
   a production enrollment/runtime/restore pass. Cloud 40878909548 and completed
   37-version/marker/credential/grant cleanup remain closed; no live repeat.
+- Handoff consistency 15/15, dispatcher-help and whitespace checks pass. Public
+  policy file and runtime/test tree are unchanged by evidence closeout; no local
+  application-suite or iOS build rerun. Required final review-head CI is recorded
+  in PR 99, not guessed from an earlier SHA.
 - Next production package is reviewed integration/API-only gates-off deployment,
   then explicitly approved bounded initial enrollment/config-load/read-only access
   only if all execution prerequisites and actual empty baseline pass. No dispatcher
