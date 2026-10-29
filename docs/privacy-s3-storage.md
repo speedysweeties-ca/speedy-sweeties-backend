@@ -23,6 +23,11 @@ Four privacy gates remain false and Auto-Deploy Off on owner evidence.
   session. It discarded the exception category/exit code, so the original CLI
   failure is not recoverable from that output. This is not evidence of an IAM or
   credential fault. Bucket settings and application credentials remain unverified.
+- Robert's subsequent revised CloudShell run: primary identity and direct account
+  comparison PASS, exit 0, account matches. `legacyStdinJson` and every parameterized
+  S3/IAM check returned `CLI_INPUT_JSON_OR_STDIN`, exit 252; result REVIEW_REQUIRED,
+  objectsRead 0 / writes 0. This identifies the shared stdin/JSON invocation failure,
+  not an AWS bucket, credential or IAM-policy failure. No inventory pass is claimed.
 - Account `080413009273`, Speedy Sweeties; bucket
   `speedy-sweeties-privacy-decisions-080413009273`, `ca-central-1`.
 - Versioning Enabled; Block All Public Access ON; SSE-S3; Object Lock disabled;
@@ -50,47 +55,57 @@ read-back cannot establish the application's restricted credentials or saved Ren
 values work. No authenticated AWS connector/CLI session is available to this agent;
 the final handoff supplies one pinned, checksum-verified CloudShell loader command.
 
-### Bounded checker correction and evidence limit
+### Shared private-file correction and evidence limit
 
-The parameterless primary STS call now omits `--cli-input-json file:///dev/stdin`
-and closes child stdin with `DEVNULL`. Operations with parameters still receive
-private JSON through a separate subprocess pipe; no key identifiers enter command
-arguments. This is a compatibility simplification, **not a proven diagnosis** of
-the CloudShell failure. AWS CLI and authenticated CloudShell access are unavailable
-on this Mac. A real local child-process `/dev/stdin`/EOF check passed; it does not
-reproduce AWS CLI in CloudShell. No dependency installation was needed.
+Current checker source: `0dc48786e82be413bb70cedac57bc35b26787040`. Every parameterized
+S3/IAM call now uses the same secure local JSON-file path, not `/dev/stdin`:
 
-The revised checker preserves the primary account and every expected-owner check.
-Its `--diagnose-identity` mode runs at most three identity-only calls total, once
-each: current parameterless JSON, the owner's direct account-text form, and the
-original stdin/JSON form. Wrong primary account stops immediately; a wrong comparison
-account also stops before inventory. A failed primary cannot be rescued by a
-successful diagnostic. An unavailable direct comparison stops inventory too.
-The direct comparison inherits the existing CLI endpoint configuration; the primary
-and original form retain `AWS_IGNORE_CONFIGURED_ENDPOINT_URLS=true`. No environment
-or credential setting is saved or changed. Both remain credentialed STS reads.
+- Securely created random temporary directory, explicitly mode 0700; named JSON
+  file explicitly mode 0600. Parameters are UTF-8 JSON, fully written and closed
+  before starting AWS CLI. Only the random `file://` path enters arguments, never
+  JSON contents or key identifiers. Child stdin is `DEVNULL` for all calls.
+- `finally` unlinks the input file and cleans the directory on success, CLI error,
+  process-start failure, malformed output, timeout, partial preparation or interruption.
+  Cleanup failure stops inventory with sanitized `STOP_PRIVATE_INPUT` evidence;
+  it is not silently ignored. Abrupt OS termination cannot guarantee Python finally
+  blocks ran; no claim of secure physical erasure is made.
+- Parameterless STS remains parameterless and creates no input file. The failing
+  legacy stdin diagnostic is removed. The handoff command runs the normal guarded
+  inventory with one primary account call, without repeating the direct comparison.
+  Optional `--diagnose-identity` is retained with only one direct account comparison,
+  at most two identity calls total; it cannot override a failed primary target check.
+- Every expected-owner, account and read-only operation restriction remains. No
+  credential, policy, permission, bucket setting or production configuration changed.
+  `AWS_IGNORE_CONFIGURED_ENDPOINT_URLS=true` remains on normal calls; the optional
+  direct comparison inherits the CLI endpoint environment, never saved settings.
+- Each child retains its 25-second process limit, 5-second connection / 15-second
+  read limits and `AWS_MAX_ATTEMPTS=1`. No automatic retries. Sanitized diagnostics
+  retain actual exit codes (null if unavailable), allowlisted provider codes and
+  fixed failure categories. Paramfile/JSON failures now use `CLI_INPUT_JSON_OR_FILE`;
+  private preparation/removal failures have dedicated categories. No raw stdout,
+  stderr, local paths, key IDs, ARNs, credentials or object contents are printed.
 
-Each child has a 25-second process limit; normal/legacy calls also use 5-second
-connect / 15-second socket-read limits. `AWS_MAX_ATTEMPTS=1`, no automatic
-retries or write calls. Identity comparisons are bounded to 75 seconds combined;
-the later sequential metadata inventory has separate per-command limits. Sanitized
-JSON reports fixed categories, actual child exit codes (or null when no exit code
-was captured, such as a process timeout), and allowlisted provider error names. It never prints captured
-stdout/stderr, key IDs, ARNs or provider bodies. Categories distinguish syntax/input,
-stdin/JSON loading, environment/configuration, service errors, network/TLS/timeouts,
-missing executable, process-start failure, and malformed output. A parser rejection
-is not proof that an AWS request was made. Diagnostic streams are discarded.
+Focused serial local checks: 4/4 groups PASS. Seven actual synthetic child processes
+read the complete closed files, assert file/directory permissions and ownership,
+and verify IAM/S3 inputs and unchanged expected owner. Permissive/restrictive umasks,
+success, real nonzero exit, malformed output, actual subprocess timeout, start
+failure, interruption, partial JSON write, cleanup failure/stop and redaction pass.
+These are not mocked AWS responses alone; no AWS CLI or cloud call ran on this Mac.
+Authenticated bucket inventory and application access remain unverified until owner
+read-back and the separately approved restricted cloud test. No dependency installed.
+Both normal Linux Node 24.22.1 CI jobs (`validate`, `privacy-database`) PASS at
+`0dc48786e82be413bb70cedac57bc35b26787040` in
+[CI 40808636607](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40808636607).
+The immutable public artifact also returned HTTP 200 with the expected checksum;
+it was not executed against AWS. Later handoff commits change documentation only.
 
-If the legacy form fails while the direct/current forms pass, that provides a
-bounded invocation-path comparison; its category/exit code identifies the observed
-failure family, not an invented account cause. If all pass, the original cause
-remains unproven. Do not rotate keys or change permissions to make the checker pass.
+Do not rotate keys or change permissions to make the checker pass.
 Official references: [STS options](https://docs.aws.amazon.com/cli/latest/reference/sts/get-caller-identity.html),
 [CLI return codes](https://docs.aws.amazon.com/cli/latest/userguide/cli-usage-returncodes.html),
 [AWS CLI JSON input handling](https://github.com/aws/aws-cli/blob/v2/awscli/customizations/cliinput.py)
 and [local paramfile handling](https://github.com/aws/aws-cli/blob/v2/awscli/paramfile.py).
 
-Revised source `f71a990fcd59d9b04039e1998757cb53f841c00b`: focused serial Mac
+Earlier account-only source `f71a990fcd59d9b04039e1998757cb53f841c00b`: focused serial Mac
 metadata/CLI/cloud-guard groups 3/3 PASS, help and whitespace checks PASS; no AWS
 calls. Normal Linux Node 24.22.1 branch CI `validate` and `privacy-database` both
 PASS in [CI 40807298550](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40807298550).
@@ -509,22 +524,23 @@ Open the AWS console in account `080413009273` and open **CloudShell** using the
 existing signed-in owner session. Do not enter the application access key or change
 credentials. Copy this whole command once; return only its single sanitized JSON
 line. It downloads the immutable revised checker and verifies its checksum before
-executing its read-only operation allowlist, including the bounded identity-only
-comparisons described above. The revised public artifact was independently
-downloaded with HTTP 200/checksum match; it has not been executed against AWS.
+executing its read-only operation allowlist with the corrected shared private-file
+input path. The command does not rerun the legacy diagnostic. The public artifact
+was independently downloaded with HTTP 200/checksum match; it has not been executed
+against AWS.
 
 ```sh
 python3 - <<'SPEEDY_AWS_READONLY'
 import hashlib, sys, urllib.request
-url = "https://raw.githubusercontent.com/speedysweeties-ca/speedy-sweeties-backend/f71a990fcd59d9b04039e1998757cb53f841c00b/scripts/privacyAwsReadOnly.py"
+url = "https://raw.githubusercontent.com/speedysweeties-ca/speedy-sweeties-backend/0dc48786e82be413bb70cedac57bc35b26787040/scripts/privacyAwsReadOnly.py"
 try:
     code = urllib.request.urlopen(url, timeout=20).read()
-    if hashlib.sha256(code).hexdigest() != "7f70d7ee58b20fc089a387572b60dae6accab0f87161ca8b4139ace64a7d2cce":
+    if hashlib.sha256(code).hexdigest() != "46b73d9d2c1f423f303cb1e427e11467e23c2901d7a386ceec73550bb4a8ba95":
         raise ValueError("checksum")
 except Exception:
     print('{"check":"SPEEDY_AWS_PRIVACY_READONLY","result":"STOP_CHECKER_DOWNLOAD_OR_CHECKSUM"}')
     raise SystemExit(1)
-sys.argv = ["reviewed-aws-readonly", "--diagnose-identity"]
+sys.argv = ["reviewed-aws-readonly"]
 exec(compile(code, "reviewed-aws-readonly", "exec"), {"__name__": "__main__"})
 SPEEDY_AWS_READONLY
 ```
@@ -533,5 +549,5 @@ Expected result is either `READBACK_PASS_LIVE_APPLICATION_ACCESS_UNVERIFIED` or 
 sanitized `REVIEW_REQUIRED`/`STOP_*`. Denied/unavailable metadata stays unverified;
 no setting is changed to make the check pass. This does not read S3 object bodies,
 prove the saved Render key is loaded or authorize the prepared cloud-write workflow.
-The command pins checker source `f71a990fcd59d9b04039e1998757cb53f841c00b`;
+The command pins checker source `0dc48786e82be413bb70cedac57bc35b26787040`;
 later documentation-only commits do not change the executable artifact.

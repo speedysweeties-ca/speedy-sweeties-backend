@@ -3,7 +3,34 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
-## Read-only AWS checker follow-up — 2026-10-28
+## Shared AWS inventory input correction — 2026-10-28
+
+- Robert's revised CloudShell output: accountMatches true; primary/direct identity
+  SUCCESS, exit 0; legacy stdin JSON and all parameterized S3/IAM checks failed
+  `CLI_INPUT_JSON_OR_STDIN`, exit 252. REVIEW_REQUIRED, objectsRead 0 / writes 0.
+  Account passes are preserved; bucket configuration/application access remain
+  unverified. Do not attribute this shared input-path failure to IAM or credentials.
+- Source `0dc48786e82be413bb70cedac57bc35b26787040` replaces every parameterized
+  checker call with owner-only, completely written/closed temporary JSON files,
+  removes them in finally blocks and stops on cleanup failure. Parameterless calls
+  stay parameterless. Legacy stdin diagnostic removed; no credential/permission,
+  account/owner restriction, read-only allowlist or timeout was weakened.
+- Focused serial regression 4/4 PASS, including seven real synthetic child processes
+  for IAM/S3 file input, permissions/ownership, full contents, closed write handles,
+  cleanup, timeout, interruption, preparation/CLI/malformed-output errors and
+  redaction. Dispatcher-help and whitespace checks PASS; no staff behavior changed.
+  No AWS call, dependency install, application build, local DB or simulator.
+- Both normal Linux Node 24.22.1 CI jobs (`validate`, `privacy-database`) PASS at
+  `0dc48786e82be413bb70cedac57bc35b26787040` in
+  [CI 40808636607](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40808636607).
+  Revised immutable artifact download HTTP 200/checksum PASS, not executed against
+  AWS. Documentation-only command/evidence commit reuses that exact tested source.
+- NEXT: run the one pinned private-file inventory command in
+  `docs/privacy-s3-storage.md` and return sanitized JSON only. No legacy comparison,
+  key change, production deployment/enrollment, S3 write, gate activation or message.
+  All four false gates/Auto-Deploy Off and all prior approvals/evidence preserved.
+
+## Earlier account-only AWS checker follow-up — preserved evidence, 2026-10-28
 
 - Robert's direct CloudShell STS command returned account `080413009273`:
   owner-observed PASS. The old checker at `c94fb78` returned
