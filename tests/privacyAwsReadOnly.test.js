@@ -14,7 +14,7 @@ for name, doc in docs.items(): assert m.policy_hash(doc) == m.POLICY_HASHES[name
 calls = []; mode = 'pass'
 def run(service, operation, parameters):
     calls.append((service, operation, parameters))
-    if operation == 'get-caller-identity': return {'Account': 'wrong' if mode == 'wrong' else m.ACCOUNT, 'Arn': 'arn:aws:iam::'+m.ACCOUNT+':user/SyntheticOperator'}
+    if operation == 'get-caller-identity': return {'Account': '999999999999' if mode == 'wrong' else m.ACCOUNT, 'Arn': 'arn:aws:iam::'+m.ACCOUNT+':user/SyntheticOperator'}
     if mode == 'denied': raise m.Unverified('AccessDenied')
     if operation == 'get-bucket-location': return {'LocationConstraint':'ca-central-1'}
     if operation == 'get-bucket-versioning': return {'Status':'Enabled'}
@@ -59,6 +59,104 @@ print(json.dumps({'check':'AWS_METADATA_AND_CLEANUP_SYNTHETIC','passed':12,'clou
 `;
   const output = execFileSync('python3', ['-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
   const result = JSON.parse(output); assert.equal(result.passed, 12); assert.equal(result.cloudCalls, 0);
+});
+test('CLI subprocess boundary preserves private stdin and reports bounded, redacted identity diagnostics', () => {
+  const code = String.raw`
+import importlib.util, json, subprocess, sys
+from unittest.mock import patch
+spec=importlib.util.spec_from_file_location('inventory','scripts/privacyAwsReadOnly.py')
+m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+secret='SYNTHETIC_PRIVATE_IDENTIFIER_NOT_FOR_OUTPUT'
+def result(status=0, stdout=None, stderr=''):
+    return subprocess.CompletedProcess([], status, json.dumps({'Account':m.ACCOUNT}) if stdout is None else stdout, stderr)
+with patch.object(m.subprocess,'run',return_value=result()) as p:
+    assert m.cli('sts','get-caller-identity',{})['Account']==m.ACCOUNT
+    args,kw=p.call_args; assert args[0][:3]==['aws','sts','get-caller-identity']
+    assert '--cli-input-json' not in args[0] and kw['stdin']==subprocess.DEVNULL and 'input' not in kw
+    assert kw['timeout']==25 and kw['capture_output'] is True and kw['check'] is False
+    assert kw['env']['AWS_MAX_ATTEMPTS']=='1' and kw['env']['AWS_PAGER']==''
+with patch.object(m.subprocess,'run',return_value=result(stdout='{}')) as p:
+    m.cli('iam','get-access-key-last-used',{'AccessKeyId':secret})
+    args,kw=p.call_args; assert secret not in json.dumps(args)
+    assert args[0][3:5]==['--cli-input-json','file:///dev/stdin'] and 'stdin' not in kw
+    assert json.loads(kw['input'])=={'AccessKeyId':secret} and kw['text'] is True
+# Exercise a real child pipe/EOF, not just a mocked run() argument inspection.
+child=subprocess.run([sys.executable,'-c',"import json; print(json.load(open('/dev/stdin'))['AccessKeyId']=='SYNTHETIC_PRIVATE_IDENTIFIER_NOT_FOR_OUTPUT')"],
+                     input=json.dumps({'AccessKeyId':secret}),text=True,capture_output=True,timeout=5,check=True)
+assert child.stdout.strip()=='True' and child.stderr==''
+cases=[(252,'Unknown options: '+secret,'CLI_SYNTAX_OR_INPUT','CLI_FAILED'),
+       (2,'Unknown argument '+secret,'CLI_SYNTAX_OR_INPUT','CLI_FAILED'),
+       (253,'Unable to locate credentials '+secret,'CLI_ENVIRONMENT_OR_CONFIGURATION','CLI_FAILED'),
+       (254,'An error occurred (AccessDenied) when calling operation '+secret,'SERVICE_ERROR','AccessDenied'),
+       (255,'Unable to load paramfile file:///dev/stdin '+secret,'CLI_INPUT_JSON_OR_STDIN','CLI_FAILED'),
+       (255,'Invalid JSON received '+secret,'CLI_INPUT_JSON_OR_STDIN','CLI_FAILED'),
+       (255,'Read timeout on endpoint URL '+secret,'NETWORK_TIMEOUT','CLI_FAILED'),
+       (255,'Could not connect to the endpoint URL '+secret,'NETWORK_OR_TLS','CLI_FAILED'),
+       (255,'SSL validation failed '+secret,'NETWORK_OR_TLS','CLI_FAILED'),
+       (255,'An error occurred ('+secret+') when calling operation','CLI_ERROR','CLI_FAILED'),
+       (130,'Interrupted '+secret,'INTERRUPTED','CLI_FAILED')]
+for status,stderr,category,provider in cases:
+    with patch.object(m.subprocess,'run',return_value=result(status,stderr=stderr)):
+        try: m.cli('sts','get-caller-identity',{}); raise AssertionError('Failure accepted')
+        except m.Unverified as error:
+            d=error.diagnostic(); assert d=={'category':category,'exitCode':status,'code':provider}
+            assert secret not in json.dumps(d)
+for stdout,category in [('not-json '+secret,'INVALID_JSON_OUTPUT'),('[]','INVALID_RESPONSE_SHAPE'),('','INVALID_JSON_OUTPUT')]:
+    with patch.object(m.subprocess,'run',return_value=result(stdout=stdout)):
+        try: m.cli('sts','get-caller-identity',{}); raise AssertionError('Malformed success accepted')
+        except m.Unverified as error: assert error.category==category and error.exit_code==0
+for problem,category in [(FileNotFoundError(secret),'EXECUTABLE_NOT_FOUND'),(OSError(secret),'PROCESS_START_ERROR'),
+                         (subprocess.TimeoutExpired(secret,25,output=secret,stderr=secret),'PROCESS_TIMEOUT')]:
+    with patch.object(m.subprocess,'run',side_effect=problem):
+        out=m.check(); assert out['result']=='STOP_ACCOUNT_UNVERIFIED'
+        assert out['identityCheck']['category']==category and out['identityCheck']['exitCode'] is None
+        assert secret not in json.dumps(out)
+for invalid in [{},{'Account':80413009273},{'Account':'wrong'}]:
+    calls=[]
+    def invalid_run(*args): calls.append(args); return invalid
+    out=m.check(invalid_run); assert out['identityCheck']['code']=='CLI_INVALID_IDENTITY' and len(calls)==1
+    assert out['result']=='STOP_ACCOUNT_UNVERIFIED'
+# Correct primary + direct account succeeds, while the legacy pipe fails: inventory is allowed.
+def successful_run(command,**kw):
+    assert command[:3]==['aws','sts','get-caller-identity']
+    if '--cli-input-json' in command:
+        assert kw['input']=='{}'
+        return result(255,stderr='Unable to load paramfile '+secret)
+    if '--query' in command:
+        assert command==['aws','sts','get-caller-identity','--query','Account','--output','text','--region','ca-central-1','--no-cli-pager']
+        return result(stdout=m.ACCOUNT+'\n')
+    return result()
+with patch.object(m.subprocess,'run',side_effect=successful_run) as p:
+    with patch.object(m,'identity_comparison',wraps=m.identity_comparison) as comparison:
+        # Inventory behavior is covered by the first test; stop it safely after STS here.
+        def only_identity(service,op,params):
+            if service=='sts': return m.cli(service,op,params)
+            raise m.Unverified('AccessDenied','SERVICE_ERROR',254)
+        out=m.check(only_identity,diagnose_identity=True)
+        assert p.call_count==3 and comparison.call_count==1 and out['result']=='REVIEW_REQUIRED'
+        assert out['identityComparison']['directAccountText']['accountMatches'] is True
+        assert out['identityComparison']['legacyStdinJson']['category']=='CLI_INPUT_JSON_OR_STDIN'
+        assert out['diagnostics']['regionMatches']['exitCode']==254 and secret not in json.dumps(out)
+# No inventory fallback: successful direct/legacy checks cannot rescue a failed primary.
+def primary_failed(command,**kw):
+    if '--query' in command: return result(stdout=m.ACCOUNT)
+    if '--cli-input-json' in command: return result()
+    return result(252,stderr='Unknown option '+secret)
+with patch.object(m.subprocess,'run',side_effect=primary_failed) as p:
+    out=m.check(diagnose_identity=True); assert p.call_count==3 and out['result']=='STOP_ACCOUNT_UNVERIFIED'
+    assert 'checks' not in out and out['identityCheck']['exitCode']==252
+    assert secret not in json.dumps(out)
+# Wrong primary account stops before diagnostic probes or any bucket/IAM request.
+with patch.object(m.subprocess,'run',return_value=result(stdout=json.dumps({'Account':'999999999999'}))) as p:
+    out=m.check(diagnose_identity=True); assert p.call_count==1 and out['result']=='STOP_ACCOUNT_MISMATCH'
+# Wrong comparison account also stops inventory; no legacy probe after wrong direct result.
+with patch.object(m.subprocess,'run',side_effect=[result(),result(stdout='999999999999')]) as p:
+    out=m.check(diagnose_identity=True); assert p.call_count==2 and out['result']=='STOP_ACCOUNT_MISMATCH'
+    assert 'checks' not in out
+print(json.dumps({'check':'AWS_CLI_BOUNDARY_SYNTHETIC','passed':True,'cloudCalls':0}))
+`;
+  const output = execFileSync('python3', ['-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+  assert.deepEqual(JSON.parse(output), { check: 'AWS_CLI_BOUNDARY_SYNTHETIC', passed: true, cloudCalls: 0 });
 });
 test('manual cloud harness rejects missing authorization, wrong identity and unsafe targets before cloud writes', () => {
   const { guardedIdentity, RUN_ID, RUN_BUDGET: b } = require('./privacyRecoveryCloud.cjs');

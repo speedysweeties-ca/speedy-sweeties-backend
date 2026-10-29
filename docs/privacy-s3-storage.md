@@ -16,6 +16,13 @@ Four privacy gates remain false and Auto-Deploy Off on owner evidence.
 
 ## Owner-confirmed AWS setup and next read-only action
 
+- Read-only follow-up, October 28: Robert ran
+  `aws sts get-caller-identity --query Account --output text --region ca-central-1 --no-cli-pager`
+  in CloudShell and observed `080413009273`: **owner-observed account pass**.
+  The earlier `c94fb78` checker returned `STOP_ACCOUNT_UNVERIFIED` in that same
+  session. It discarded the exception category/exit code, so the original CLI
+  failure is not recoverable from that output. This is not evidence of an IAM or
+  credential fault. Bucket settings and application credentials remain unverified.
 - Account `080413009273`, Speedy Sweeties; bucket
   `speedy-sweeties-privacy-decisions-080413009273`, `ca-central-1`.
 - Versioning Enabled; Block All Public Access ON; SSE-S3; Object Lock disabled;
@@ -42,6 +49,46 @@ permissions are UNVERIFIED. Organization controls remain unverified. Administrat
 read-back cannot establish the application's restricted credentials or saved Render
 values work. No authenticated AWS connector/CLI session is available to this agent;
 the final handoff supplies one pinned, checksum-verified CloudShell loader command.
+
+### Bounded checker correction and evidence limit
+
+The parameterless primary STS call now omits `--cli-input-json file:///dev/stdin`
+and closes child stdin with `DEVNULL`. Operations with parameters still receive
+private JSON through a separate subprocess pipe; no key identifiers enter command
+arguments. This is a compatibility simplification, **not a proven diagnosis** of
+the CloudShell failure. AWS CLI and authenticated CloudShell access are unavailable
+on this Mac. A real local child-process `/dev/stdin`/EOF check passed; it does not
+reproduce AWS CLI in CloudShell. No dependency installation was needed.
+
+The revised checker preserves the primary account and every expected-owner check.
+Its `--diagnose-identity` mode runs at most three identity-only calls total, once
+each: current parameterless JSON, the owner's direct account-text form, and the
+original stdin/JSON form. Wrong primary account stops immediately; a wrong comparison
+account also stops before inventory. A failed primary cannot be rescued by a
+successful diagnostic. An unavailable direct comparison stops inventory too.
+The direct comparison inherits the existing CLI endpoint configuration; the primary
+and original form retain `AWS_IGNORE_CONFIGURED_ENDPOINT_URLS=true`. No environment
+or credential setting is saved or changed. Both remain credentialed STS reads.
+
+Each child has a 25-second process limit; normal/legacy calls also use 5-second
+connect / 15-second socket-read limits. `AWS_MAX_ATTEMPTS=1`, no automatic
+retries or write calls. Identity comparisons are bounded to 75 seconds combined;
+the later sequential metadata inventory has separate per-command limits. Sanitized
+JSON reports fixed categories, actual child exit codes (or null when no exit code
+was captured, such as a process timeout), and allowlisted provider error names. It never prints captured
+stdout/stderr, key IDs, ARNs or provider bodies. Categories distinguish syntax/input,
+stdin/JSON loading, environment/configuration, service errors, network/TLS/timeouts,
+missing executable, process-start failure, and malformed output. A parser rejection
+is not proof that an AWS request was made. Diagnostic streams are discarded.
+
+If the legacy form fails while the direct/current forms pass, that provides a
+bounded invocation-path comparison; its category/exit code identifies the observed
+failure family, not an invented account cause. If all pass, the original cause
+remains unproven. Do not rotate keys or change permissions to make the checker pass.
+Official references: [STS options](https://docs.aws.amazon.com/cli/latest/reference/sts/get-caller-identity.html),
+[CLI return codes](https://docs.aws.amazon.com/cli/latest/userguide/cli-usage-returncodes.html),
+[AWS CLI JSON input handling](https://github.com/aws/aws-cli/blob/v2/awscli/customizations/cliinput.py)
+and [local paramfile handling](https://github.com/aws/aws-cli/blob/v2/awscli/paramfile.py).
 
 ## Production startup/configuration source — implemented, not deployed
 

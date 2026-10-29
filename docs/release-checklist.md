@@ -3,6 +3,30 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## Read-only AWS checker follow-up — 2026-10-28
+
+- Robert's direct CloudShell STS command returned account `080413009273`:
+  owner-observed PASS. The old checker at `c94fb78` returned
+  `STOP_ACCOUNT_UNVERIFIED` without its cause; no IAM/credential fault established.
+  Bucket configuration and restricted application credentials remain unverified.
+- Small checker-only correction: omit unnecessary stdin/JSON input for parameterless
+  STS, keep private parameter stdin for metadata operations, preserve all target/
+  expected-owner/read-only restrictions, and retain safe categories/exit codes.
+  No application/runtime/privacy workflow changed; dispatcher help remains accurate.
+- No installed AWS CLI/authenticated CloudShell here, so original failure is not
+  reproduced. Revised pinned command in `docs/privacy-s3-storage.md` includes bounded
+  identity-only comparisons (at most three calls, one attempt/25 seconds each).
+  Diagnostics cannot override a failed target check or trigger a write/retry.
+- Focused serial local regression: `tests/privacyAwsReadOnly.test.js` 3/3 PASS,
+  including actual child-pipe/EOF handling, invocation shapes, timeouts, CLI exit
+  categories, malformed responses, secret redaction and mismatch/failure stops.
+  Dispatcher-help review and whitespace checks PASS. No AWS call, installation,
+  app build, local DB or simulator. Existing application/recovery CI evidence below
+  remains valid; no broad local suite repeated.
+- NEXT: run the revised checksum-pinned CloudShell command once and return only
+  its sanitized JSON. No key/permission changes, production deploy, enrollment,
+  gate activation, S3 object write or message authorized by this correction.
+
 ## S3 integration closeout — 2026-10-28 Toronto, review only
 
 - Final tested source `649c93884364277322bab21fec27885c708209ca`; both `validate`

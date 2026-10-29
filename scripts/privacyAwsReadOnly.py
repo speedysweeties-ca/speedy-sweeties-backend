@@ -9,6 +9,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 
 ACCOUNT = "080413009273"
 BUCKET = "speedy-sweeties-privacy-decisions-080413009273"
@@ -27,28 +28,100 @@ ALLOWED = {
     "iam": {"get-user", "get-login-profile", "list-attached-user-policies", "list-user-policies", "list-groups-for-user",
             "get-policy", "get-policy-version", "list-access-keys", "get-access-key-last-used", "get-role", "simulate-principal-policy"},
 }
+PROVIDER_CODES = {"AccessDenied", "AccessDeniedException", "UnauthorizedOperation", "InvalidClientTokenId",
+                  "ExpiredToken", "ExpiredTokenException", "SignatureDoesNotMatch", "InvalidAccessKeyId",
+                  "NoSuchEntity", "NoSuchBucket", "NoSuchLifecycleConfiguration",
+                  "ObjectLockConfigurationNotFoundError", "ReplicationConfigurationNotFoundError",
+                  "Throttling", "ThrottlingException", "RequestLimitExceeded", "ServiceUnavailable", "InternalError"}
 
 
 class Unverified(Exception):
-    def __init__(self, code="UNVERIFIED"):
+    def __init__(self, code="UNVERIFIED", category="UNVERIFIED", exit_code=None):
         self.code = code if re.fullmatch(r"[A-Za-z0-9_]{1,80}", code) else "UNVERIFIED"
+        self.category = category
+        self.exit_code = exit_code
+
+    def diagnostic(self):
+        return {"category": self.category, "exitCode": self.exit_code, "code": self.code}
+
+
+def invoke(command, parameters=None, output="json", direct_environment=False):
+    """Capture CLI streams privately; report only fixed categories and allowlisted codes."""
+    env = dict(os.environ, AWS_PAGER="", AWS_MAX_ATTEMPTS="1")
+    if not direct_environment:
+        env["AWS_IGNORE_CONFIGURED_ENDPOINT_URLS"] = "true"
+    options = {"text": True, "capture_output": True, "timeout": 25, "env": env, "check": False}
+    # subprocess.run owns a distinct pipe, not the parent Python here-document.
+    # A parameterless call needs neither a pipe nor CLI paramfile parsing.
+    if parameters is None:
+        options["stdin"] = subprocess.DEVNULL
+    else:
+        options["input"] = json.dumps(parameters)
+    try:
+        result = subprocess.run(command, **options)
+    except subprocess.TimeoutExpired:
+        raise Unverified("CLI_TIMEOUT", "PROCESS_TIMEOUT") from None
+    except FileNotFoundError:
+        raise Unverified("CLI_NOT_FOUND", "EXECUTABLE_NOT_FOUND") from None
+    except OSError:
+        raise Unverified("CLI_PROCESS_ERROR", "PROCESS_START_ERROR") from None
+    if result.returncode:
+        # Do not print arbitrary parenthesized stderr text: it may contain a key ID.
+        found = re.search(r"An error occurred \(([A-Za-z0-9_]{1,80})\)", result.stderr)
+        provider_code = found.group(1) if found and found.group(1) in PROVIDER_CODES else None
+        lowered = result.stderr.lower()
+        category = ({2: "CLI_SYNTAX_OR_INPUT", 252: "CLI_SYNTAX_OR_INPUT", 253: "CLI_ENVIRONMENT_OR_CONFIGURATION",
+                     254: "SERVICE_ERROR", 130: "INTERRUPTED"}.get(result.returncode, "CLI_ERROR"))
+        if provider_code:
+            category = "SERVICE_ERROR"
+        elif "unable to load paramfile" in lowered or "invalid json" in lowered:
+            category = "CLI_INPUT_JSON_OR_STDIN"
+        elif any(s in lowered for s in ["connect timeout", "read timeout", "timed out"]):
+            category = "NETWORK_TIMEOUT"
+        elif any(s in lowered for s in ["could not connect to the endpoint", "ssl validation failed", "proxyconnectionerror"]):
+            category = "NETWORK_OR_TLS"
+        raise Unverified(provider_code or "CLI_FAILED", category, result.returncode)
+    try:
+        value = json.loads(result.stdout) if output == "json" else result.stdout.strip()
+    except (ValueError, TypeError):
+        raise Unverified("CLI_INVALID_JSON", "INVALID_JSON_OUTPUT", 0) from None
+    if output == "json" and not isinstance(value, dict):
+        raise Unverified("CLI_INVALID_SHAPE", "INVALID_RESPONSE_SHAPE", 0)
+    return value
 
 
 def cli(service, operation, parameters):
     if operation not in ALLOWED.get(service, set()):
         raise Unverified("STOP_NON_READ_OPERATION")
-    env = dict(os.environ, AWS_PAGER="", AWS_MAX_ATTEMPTS="1", AWS_IGNORE_CONFIGURED_ENDPOINT_URLS="true")
     # No secret/key IDs in process arguments; JSON parameters are private stdin.
-    command = ["aws", service, operation, "--cli-input-json", "file:///dev/stdin", "--output", "json", "--no-cli-pager",
+    command = ["aws", service, operation]
+    if parameters:
+        command += ["--cli-input-json", "file:///dev/stdin"]
+    command += ["--output", "json", "--no-cli-pager",
                "--no-cli-auto-prompt", "--region", "ca-central-1", "--cli-connect-timeout", "5", "--cli-read-timeout", "15"]
-    try:
-        result = subprocess.run(command, input=json.dumps(parameters), text=True, capture_output=True, timeout=25, env=env, check=False)
-        if result.returncode:
-            match = re.search(r"\(([A-Za-z0-9_]{1,80})\)", result.stderr)
-            raise Unverified(match.group(1) if match else "UNVERIFIED_CLI_ERROR")
-        return json.loads(result.stdout or "{}")
-    except (OSError, ValueError, subprocess.TimeoutExpired):
-        raise Unverified("UNVERIFIED_CLI_ACCESS") from None
+    return invoke(command, parameters if parameters else None)
+
+
+def identity_comparison():
+    """Two additional identity-only probes, once each; never inventory on their behalf."""
+    probes = {}
+    direct = ["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text", "--region", "ca-central-1", "--no-cli-pager"]
+    legacy = ["aws", "sts", "get-caller-identity", "--cli-input-json", "file:///dev/stdin", "--output", "json", "--no-cli-pager",
+              "--no-cli-auto-prompt", "--region", "ca-central-1", "--cli-connect-timeout", "5", "--cli-read-timeout", "15"]
+    for name, command, parameters, output in [("directAccountText", direct, None, "text"), ("legacyStdinJson", legacy, {}, "json")]:
+        try:
+            # Match the owner's direct CLI environment; never use this comparison
+            # to authorize inventory if the pinned-endpoint primary check failed.
+            value = invoke(command, parameters, output, direct_environment=name == "directAccountText")
+            account = value if output == "text" else value.get("Account")
+            if not isinstance(account, str) or not re.fullmatch(r"[0-9]{12}", account):
+                raise Unverified("CLI_INVALID_IDENTITY", "INVALID_RESPONSE_SHAPE", 0)
+            probes[name] = {"category": "SUCCESS", "exitCode": 0, "accountMatches": account == ACCOUNT}
+            if account != ACCOUNT:
+                break  # Stop even diagnostic calls on a wrong account.
+        except Unverified as error:
+            probes[name] = error.diagnostic()
+    return probes
 
 
 def normalized(value):
@@ -70,7 +143,7 @@ def safe_date(value):
         return "UNVERIFIED"
 
 
-def check(run=cli):
+def check(run=cli, diagnose_identity=False):
     report = {"check": "SPEEDY_AWS_PRIVACY_READONLY", "applicationCredentialsVerified": False,
               "objectsRead": 0, "writes": 0, "organizationControls": "UNVERIFIED"}
     checks = {}
@@ -80,6 +153,7 @@ def check(run=cli):
             checks[name] = function()
         except Unverified as error:
             checks[name] = "UNVERIFIED_" + error.code
+            report.setdefault("diagnostics", {})[name] = error.diagnostic()
         except Exception:
             checks[name] = "UNVERIFIED_RESPONSE"
 
@@ -98,12 +172,24 @@ def check(run=cli):
 
     try:
         identity = run("sts", "get-caller-identity", {})
+        if not isinstance(identity.get("Account"), str) or not re.fullmatch(r"[0-9]{12}", identity["Account"]):
+            raise Unverified("CLI_INVALID_IDENTITY", "INVALID_RESPONSE_SHAPE", 0)
         report["accountMatches"] = identity.get("Account") == ACCOUNT
+        report["identityCheck"] = {"category": "SUCCESS", "exitCode": 0, "accountMatches": report["accountMatches"]}
         if not report["accountMatches"]:
             report["result"] = "STOP_ACCOUNT_MISMATCH"
             return report
-    except Unverified:
+    except Unverified as error:
+        report["identityCheck"] = error.diagnostic()
         report["result"] = "STOP_ACCOUNT_UNVERIFIED"
+    if diagnose_identity:
+        report["identityComparison"] = identity_comparison()
+        if any(p.get("accountMatches") is False for p in report["identityComparison"].values()):
+            report["result"] = "STOP_ACCOUNT_MISMATCH"
+        elif report["identityComparison"]["directAccountText"].get("accountMatches") is not True:
+            report["result"] = "STOP_ACCOUNT_UNVERIFIED"
+    if report.get("result"):
+        # Diagnostic success never substitutes for a failed primary target check.
         return report
 
     observe("regionMatches", lambda: s3("get-bucket-location").get("LocationConstraint") == "ca-central-1")
@@ -172,6 +258,8 @@ def check(run=cli):
 
 if __name__ == "__main__":
     try:
-        print(json.dumps(check(), sort_keys=True))
+        if sys.argv[1:] not in ([], ["--diagnose-identity"]):
+            raise ValueError("Unsupported arguments")
+        print(json.dumps(check(diagnose_identity=sys.argv[1:] == ["--diagnose-identity"]), sort_keys=True))
     except Exception:
         print(json.dumps({"check": "SPEEDY_AWS_PRIVACY_READONLY", "result": "STOP_READ_ERROR", "writes": 0}))
