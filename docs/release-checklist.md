@@ -3,7 +3,36 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
-## October 29 production recovery review package — prepared, not executed
+## October 29 guarded production operator implementation — review source, not executed
+
+- Implemented `npm run privacy:operator -- preflight|enroll|dry-run|apply|resolve`,
+  explicit reviewed-build preparation, exact provider/STS/DB target checks,
+  nine-indicator empty enrollment, evidence/expiry/exclusion requirements and
+  signed stale-plan guards. Read-only modes make no DB/S3 writes; apply/enrollment/
+  resolution require `--authorize` and a protected reviewed plan. No auto-enrollment.
+- Existing synthetic-only entry point retains its original target guard. Shared
+  reconciliation keeps financial/ownership/cancellation/hold/date/revocation guards
+  and avoids terminal-request early return. Actual serial PostgreSQL operator cases
+  are added to the existing privacy-database CI step; no new workflow/service/migration.
+- New intent format 2 contains before/after scoped transaction HMACs. Exact proven
+  original-DB outcomes can append authenticated RESOLVE; no deletion rerun or DB
+  rewrite. Legacy/ambiguous/changed outcomes remain stopped. Existing history stays
+  readable; old readers cannot interpret RESOLVE and must not be rollback targets.
+- Operator command/reference/minimum permissions/owner prerequisites and production
+  approval package: [privacy-s3-storage.md](privacy-s3-storage.md#implemented-offline-operator-commands--source-only-october-29).
+  Actual MFA-backed non-app identity, existing temporary profile/Render read access,
+  durable protected pin location and future all-writer exclusion remain owner-only
+  execution facts. STS identity is not MFA proof; no secrets retrieved/changed.
+- Focused local pinned-Node build and controlled-response tests pass. Full required
+  Linux source CI is pending this implementation push; do not treat preparation as
+  a production enrollment/runtime/restore pass. Cloud 40878909548 and completed
+  37-version/marker/credential/grant cleanup remain closed; no live repeat.
+- Next production package is reviewed integration/API-only gates-off deployment,
+  then explicitly approved bounded initial enrollment/config-load/read-only access
+  only if all execution prerequisites and actual empty baseline pass. No dispatcher
+  deployment/cron action/paid resource/customer activation is part of that package.
+
+## Earlier October 29 production recovery review package — no execution
 
 - Ordered actions, owners, exact private dashboard navigation, configuration,
   safe verification commands and rollback stops are consolidated in

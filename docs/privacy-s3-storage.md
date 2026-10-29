@@ -1,6 +1,14 @@
 # S3 privacy decision store — production review package, 2026-10-29
 
-**CURRENT REVIEW ENTRY POINT:** use [Production deployment, enrollment and operator
+**CURRENT IMPLEMENTATION ENTRY POINT:** see [Implemented offline operator commands](#implemented-offline-operator-commands--source-only-october-29)
+below. Enrollment/preflight, reconciliation dry-run/apply and evidence-backed
+unfinished-operation resolution are now implemented in review source; no command
+has been executed against production/AWS. The missing-wrapper statements in the
+earlier package are historical and superseded for those three command paths.
+Successor-retirement libraries remain separate reviewed maintenance facilities,
+not permission to delete production history or a new retirement CLI.
+
+**DEPLOYMENT REVIEW ENTRY POINT:** use [Production deployment, enrollment and operator
 reconciliation package](#production-deployment-enrollment-and-operator-reconciliation-package)
 below. This pass prepares documentation only. Completed configuration inventory,
 cloud run 40878909548 (5/5), cleanup (37 versions/markers, empty inventory), GitHub
@@ -163,6 +171,241 @@ running process after a future approved deployment. Conflicting `AWS_SESSION_TOK
 All four original privacy gates stay exactly `false`; no additional activation
 flag or background enrollment is introduced. No deployment merely to load Save-only
 credentials/sender is warranted by this preparation.
+
+## Implemented offline operator commands — source only, October 29
+
+Entry point: `npm run privacy:operator -- ...`, implemented by
+`scripts/privacyRecoveryOperator.cjs`, `privacyRecoveryOperator.ts` and the existing
+journal/reconciliation libraries. No route/startup/job calls it. No migration,
+new dependency or dispatcher bundle change; Node 24.22.1 guards remain. The original
+`reconcileSyntheticRestore` target guard is unchanged. The shared transaction
+algorithm is used only after either that guard or the new production operator guards.
+
+### Prerequisites / one owner-only execution list
+
+These are needed for FUTURE authorized execution, not reasons to pause source work:
+
+1. Robert identifies the actual existing **non-app MFA-backed operator session ARN**
+   and evidence reference, existing short-lived AWS CLI v2 profile, expiry and effective
+   narrowly scoped rights below. No operator role currently assumed; permanent
+   operator policy remains unattached. The CLI verifies actual STS account/ARN and
+   requires temporary credentials/session token/expiry, not the app key. **STS does
+   not prove MFA**: privately reviewed MFA/session provenance must be recorded and
+   enforced by the actual IAM session/grant/trust arrangement. No production MFA or
+   restricted operator policy test is claimed. Do not run `aws configure export-credentials`
+   manually: it prints credentials. The helper captures it privately with no echo,
+   inherited AWS credential fallback, command-argument secrets or raw error output.
+2. Confirm protected **durable external pin-record location/reference and access**,
+   separate from DB backups and the stable digest's retained secure copy. A 0600
+   file proves local access permissions, not durability; `/tmp`/a manual export is
+   not the production recovery store. Existing S3 remains the independent journal.
+3. Retain the existing stable digest and app AWS pair without rotation. Privately
+   supply the existing digest, exact target External Database URL and an existing
+   Render API credential with read access only to metadata/connection-info. The
+   tool uses hidden terminal prompts (including pasted text), never arguments/env
+   dumps/logs or saved credential files. Render connection-info is sensitive and
+   is compared in memory only; output is fixed codes/counts/pin-presence flags.
+   Existing production app credentials are NOT the operator profile.
+4. For the approved execution window, document **all writers stopped**, including
+   ordinary ordering/API/staff writes, monitors and cron. Four false privacy gates
+   alone are insufficient. Confirm no restore since the pending INTENT for outcome
+   resolution; restored targets cannot establish that operation's original outcome.
+   Source revision, exact restored resource/hostname/database/role/restore point
+   and exclusion/MFA/approval evidence are recorded in a private owner-only manifest.
+   Each evidence/approval window is at most 30 minutes; renew only after review.
+5. Authorized operator machine needs existing AWS CLI v2, exact pinned Node,
+   current checkout/dependencies/Prisma client, production DB network/TLS access and
+   the private approved manifest. No tool or account was installed/provisioned for
+   production here. Do not copy production credentials to CI or create another clone.
+
+Review template: `docs/privacy-recovery-operator-approval.example.json`. It is
+intentionally **invalid** (expired dates, false exclusion and owner placeholders).
+Make the reviewed actual copy outside the repository in an existing owner-only
+directory (0700), file 0600; never paste secrets into it. Template fields contain
+no credentials. `operation` selects `enrollment`, `reconcile` or `resolve`:
+
+- Enrollment is pinned to exact production resource
+  `dpg-d7m33g2qqhas73f58hrg-a` / `speedy_sweeties_db`, approved owner/bucket,
+  `production/epoch-0001/`, scope `speedy-privacy-production-epoch-0001`. Omit the
+  unknown enrollmentHash; never substitute a dummy. Database role is provider
+  read-back, not an invented example value. External host must exactly identify that
+  resource in Ohio; URL needs TLS/5432/public schema and no unsafe parameters.
+- Reconcile: `operation=reconcile`, exact approved restored resource/hostname/name/
+  role, observed active `enrollmentHash`, `restoredFromProduction=true`, actual
+  `restorePoint`. Known ordering-staging/SMS/deleted rehearsal targets are rejected.
+  No generic name-only target or production restore execution is authorized here.
+- Resolve: `operation=resolve`, exact original production resource, observed hash,
+  `originalDatabaseNotRestoredSinceIntent=true` and `outcomeEvidenceReference` to
+  attributable original-DB/transaction evidence. This is not an override for missing
+  evidence or an instruction to certify an uncertain history as true.
+
+Render identity is verified before database connection: bounded GETs only, workspace-
+filtered membership, exact resource metadata and sensitive connection-info compared
+privately to the hidden URL. Database current_database/current_user must then match.
+The four protection triggers must have the expected table/event/function body from
+the checked-in migration; failed/missing/out-of-order migrations stop. Plans bind
+the whole DB's server-side SHA-256 row aggregates, schema/trigger/constraint metadata,
+current authenticated journal head, exact approval and revision with the stable HMAC.
+No raw customer rows, hashes of individual customer details or key IDs are output.
+
+### Exact commands — FUTURE execution only after consolidated approval
+
+The paths below represent Robert's **confirmed existing protected directory**, not
+a request to create another recovery architecture. Replace `/OWNER_PROTECTED_DIR`
+only after its location/access/durability are reviewed. Never use a repository path.
+No command below has been run on production in this implementation pass.
+
+In the existing backend checkout at the exact approved release SHA, first prepare
+the offline artifact (not a deploy):
+
+```sh
+npm run privacy:operator:prepare
+```
+
+This runs the unchanged pinned-runtime build, then records hashes of tracked source
+and compiled JS in ignored dist. The CLI rejects dirty/untracked executable source,
+stale/missing/mismatched build output or revision. This build record is **not** a
+journal, pin backup or production storage mechanism. It never starts the app.
+All operator actions reject `.env`, debug/trust overrides and any non-false gate;
+private process-only test settings suppress dotenv, not target guards. Only pure
+recovery modules/Prisma are loaded; delivery is a rejecting stub and logging is off.
+
+**Enrollment read-only preflight**, after exclusion is established:
+
+```sh
+npm run privacy:operator -- preflight --approval /OWNER_PROTECTED_DIR/enrollment-approval.json --out /OWNER_PROTECTED_DIR/enrollment-plan.json
+```
+
+At each command's hidden prompts enter the approved target URL, **existing** stable
+digest, and existing Render read credential privately, never at a shell prompt/chat.
+It uses the approved existing temporary AWS profile internally. Expected summary:
+`SPEEDY_PRIVACY_OPERATOR`, `result=REVIEW_PLAN`, `planSaved=true`, `trafficMayReopen=false`.
+The read-only transaction verifies all nine baseline indicators, schema, identity
+and exact-prefix version inventory without writes. Any nonempty/ambiguous state
+stops empty enrollment; no purge/import is performed. Existing GENESIS is accepted
+only as authenticated read-only inspection of one exact current version, not recreated.
+
+Review the protected non-secret plan and approve the explicit one-time command:
+
+```sh
+npm run privacy:operator -- enroll --approval /OWNER_PROTECTED_DIR/enrollment-approval.json --plan /OWNER_PROTECTED_DIR/enrollment-plan.json --out /OWNER_PROTECTED_DIR/enrollment-pin-record.json --authorize
+```
+
+Expected `ENROLLMENT_RECORDED` (or authenticated
+`ENROLLMENT_ACKNOWLEDGEMENT_RECOVERED`), `pinRecordSaved=true`; the protected record
+contains the six actual pins, including the **observed** first-entry HMAC. It holds
+the shared advisory lock and ACCESS EXCLUSIVE locks on all public tables, rechecks
+the current baseline/plan and uses one conditional GENESIS PUT. Write transactions
+use fresh READ COMMITTED snapshots **after locks**, preventing a stale pre-lock
+snapshot from accepting changed data. Preflight/dry-run use REPEATABLE READ READ ONLY;
+all retain 15-second statement/transaction and two-second lock limits.
+
+Lost acknowledgements are authenticated by current read-back, never another PUT.
+An absent/unreadable outcome stops `RECOVERY_WRITE_UNCERTAIN`; inspect/review before
+any further action. A later preflight over the same authenticated single GENESIS
+returns `ENROLLMENT_ALREADY_RECORDED` with the existing pin record, zero writes.
+No new prefix/hash, overwrite or automatic enrollment is permitted. Existing
+nonempty decisions require complete reviewed attributable coverage, not GENESIS;
+no pre-journal importer has been added or is implied ready.
+
+Copy/retain the observed pins in the approved durable external record, then Render
+Dashboard → Speedy's workspace → speedy-api → Environment → six recovery variables
+from that record → Save only. Preserve digest/app pair and all four false gates.
+Only separately approved normal same-SHA API deployment loads saved pins. Use the
+existing read-only application check below afterward; keep Auto-Deploy Off. Remove
+only the temporary operator grant/session and confirm targeted absence. No CI
+credential copies, app/cron/dispatcher activation or message test is part of this.
+
+**Offline restored-DB dry-run**, keeping ALL writers/traffic offline:
+
+```sh
+npm run privacy:operator -- dry-run --approval /OWNER_PROTECTED_DIR/restore-approval.json --out /OWNER_PROTECTED_DIR/restore-plan.json
+```
+
+Expected `REVIEW_PLAN`, `planSaved=true`; the protected plan contains only HMAC-bound
+state/head/evidence metadata, not customer rows. It executes the shared validation
+path read-only. Financial/ownership conflicts, unknown decisions/markers, missing
+transactions, later DB holds/cancellations/external reviews and incomplete/unfinished
+history stop. Original financial dates/due/closure/review dates are never restarted.
+
+Only after reviewed dry-run and explicit target-specific customer-data repair approval:
+
+```sh
+npm run privacy:operator -- apply --approval /OWNER_PROTECTED_DIR/restore-approval.json --plan /OWNER_PROTECTED_DIR/restore-plan.json --out /OWNER_PROTECTED_DIR/restore-result.json --authorize
+```
+
+Expected `DATABASE_RECONCILED`, `trafficMayReopen=false`. It locks, rechecks the
+signed plan/whole DB/journal head, uses the existing scoped erasure/revocation/
+financial guards (not fulfill's terminal early return), and rechecks history before
+commit. A stale plan or conflict rolls the whole transaction back. No automatic
+retry. Repeat dry-run may prove zero remaining erasures; do not blindly reapply the
+old plan. External-copy outcomes still need reviewed current evidence; reopening
+traffic and customer feature gates remain separately authorized decisions.
+
+**Unfinished INTENT inspection/resolution** on the original authoritative DB only:
+
+```sh
+npm run privacy:operator -- preflight --approval /OWNER_PROTECTED_DIR/outcome-approval.json --out /OWNER_PROTECTED_DIR/outcome-plan.json
+```
+
+For new format-2 intents, the tool compares scoped whole-transaction HMAC evidence
+with the original DB after lock/exclusion. Only one exact matching before or after
+image yields `NOT_COMMITTED` or `COMMITTED`. New-request absence can establish the
+before outcome only on the attested original non-restored DB; request creation and
+its effects are in one transaction. Both/neither matches, changed state, uncertain
+provenance or legacy intent lacking these digests remain stopped with a fixed
+missing/ambiguous evidence code. No-op before=after is ambiguous and not guessed.
+
+After private attributable evidence/plan review:
+
+```sh
+npm run privacy:operator -- resolve --approval /OWNER_PROTECTED_DIR/outcome-approval.json --plan /OWNER_PROTECTED_DIR/outcome-plan.json --out /OWNER_PROTECTED_DIR/outcome-result.json --authorize
+```
+
+Expected `OPERATION_RESOLVED` and the proven outcome. It does **not** repeat deletion
+or modify any DB row. It appends one authenticated RESOLVE binding the pending intent,
+outcome, evidence and review digest. A lost accepted acknowledgement uses exact
+authenticated read-back; no blind PUT retry. Normal ready() then validates the
+complete chain; safe repeated inspection reports `NO_UNFINISHED_OPERATION` without
+writing. No new approval substitutes for absent original-DB outcome evidence.
+
+### Minimal permissions / protocol / remaining live verification
+
+- Enrollment operator: exact-prefix LIST/current GET/ListVersions and conditional
+  AES256 PUT to initial key only, as the enrollment table below. Reconciliation
+  needs current LIST/GET only (no S3 writes/version reads); DB apply needs the existing
+  approved target owner role/lock/write capability, not a new database role.
+- Outcome resolution: current LIST/GET plus conditional AES256 PUT to **only the
+  expected next sequence object** from the reviewed plan. Add that exact temporary
+  grant to the verified existing operator session only under future approval;
+  require actual MFA enforcement appropriate to that identity. Keep bucket/delete/
+  trust denies, application enrollment deny and permanent operator policy unchanged.
+  Never grant app/operator active-history deletion or unconditional overwrite.
+- Existing format-1 GENESIS/INTENT/COMMIT/checkpoint histories remain readable.
+  New INTENT payload format 2 adds only scoped before/after evidence HMACs; raw
+  scoped rows never leave memory. RESOLVE is additive authenticated history, not
+  ABORT-by-deletion or an edited COMMIT. COMMITTED advances the case; NOT_COMMITTED
+  preserves the prior case. Old readers cannot interpret RESOLVE and fail closed;
+  **no downgrade after enrollment/activity to those readers**. No migration or
+  reset is required. Legacy pending intents without attributable comparable evidence
+  remain stopped; this is a deliberate safety limit, not a complete repair claim.
+- Source/controlled-response/serial synthetic PostgreSQL verification is recorded
+  in the release checklist/PR. The completed 40878909548 live synthetic run is reused,
+  not rerun. These changes are NOT AWS production enrollment, an MFA-policy test,
+  live Render credential access, production restore or runtime verification.
+
+### Consolidated next production approval package (NOT executed)
+
+After passing required CI and review, approve only the exact reviewed integration
+and **speedy-api** deployment at its recorded merge SHA; no new migration/dispatcher/
+cron action. Keep all four gates false and Auto-Deploy Off. If also approving the
+bounded initial enrollment package, include the private owner prerequisites above,
+brief all-writer exclusion, one empty-baseline enrollment, protected observed pins,
+same-SHA API config-load/read-only app check and temporary operator access removal.
+Stop if the actual baseline/history is nonempty/ambiguous or any prerequisite fails.
+Future incident repair/apply and outcome resolution always need their exact approved
+target/plan/evidence; no production restore/customer-data change is authorized now.
+Customer activation, messages, publication and Apple upload remain excluded.
 
 ## Production deployment, enrollment and operator-reconciliation package
 

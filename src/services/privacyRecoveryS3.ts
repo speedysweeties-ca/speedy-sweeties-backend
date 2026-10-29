@@ -35,7 +35,7 @@ export class S3ProtectedDecisionStore implements ProtectedDecisionStore {
   private valid(entry: any, sequence: number): entry is RecoveryEntry {
     return entry && Object.keys(entry).sort().join() === "hash,kind,operation,payload,previous,scope,sequence" &&
       entry.sequence === sequence && entry.scope === this.config.scope && /^[a-f0-9]{64}$/.test(entry.hash) &&
-      (sequence === 1 ? entry.previous === "" && ["GENESIS", "CHECKPOINT"].includes(entry.kind) : /^[a-f0-9]{64}$/.test(entry.previous) && ["INTENT", "COMMIT", "SEAL", "CASE", "COVERED"].includes(entry.kind)) &&
+      (sequence === 1 ? entry.previous === "" && ["GENESIS", "CHECKPOINT"].includes(entry.kind) : /^[a-f0-9]{64}$/.test(entry.previous) && ["INTENT", "COMMIT", "RESOLVE", "SEAL", "CASE", "COVERED"].includes(entry.kind)) &&
       typeof entry.operation === "string" && entry.operation.length > 0 && entry.operation.length <= 100;
   }
   private async get(sequence: number, signal: AbortSignal): Promise<RecoveryEntry | null> {

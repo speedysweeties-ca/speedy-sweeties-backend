@@ -5,6 +5,7 @@ import { verifyCustomerLoyaltyToken } from "../utils/jwt";
 import type { VerificationChannel, VerificationDelivery } from "./privacyDelivery.service";
 import { canonical, PrivacyRecoveryJournal, RecoveryError } from "./privacyRecoveryJournal";
 import { recoveryState, type RecoveryState } from "./privacyRecoveryState";
+import { scopedRecoveryEvidence } from "./privacyRecoveryEvidence";
 
 export class PrivacyError extends Error {
   constructor(public status: number, public code: string) { super(code); }
@@ -94,13 +95,17 @@ export class PrivacyDeletionService {
         const before = await recoveryState(tx, id, s => this.hash(s), c => this.fingerprint(c), previous?.scope);
         if (before && (!previous || canonical(before.request) !== canonical(previous.request) || canonical(before.tasks) !== canonical(previous.tasks)))
           throw new RecoveryError("RECOVERY_UNRECORDED_DECISION");
+        const beforeEvidenceDigest = before ? await scopedRecoveryEvidence(tx, this.recovery!, id, before.scope)
+          : this.recovery!.evidenceDigest({ requestAbsent: id });
         const result = await work(tx);
         const actualId = (result as any)?.id || id;
         const state = await recoveryState(tx, actualId, s => this.hash(s), c => this.fingerprint(c), before?.scope || previous?.scope);
         if (!state) throw new RecoveryError("RECOVERY_STATE_REQUIRED");
         // All DB writes are still uncommitted. An independent durable intent must
         // be acknowledged before DB commit; a crash on either side remains open.
-        intent = await this.recovery!.intent(history.head, event, state);
+        intent = await this.recovery!.intent(history.head, event, state, {
+          beforeEvidenceDigest, afterEvidenceDigest: await scopedRecoveryEvidence(tx, this.recovery!, actualId, state.scope)
+        });
         return result;
       });
       await this.recovery.committed(intent!);

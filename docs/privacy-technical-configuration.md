@@ -10,7 +10,27 @@ only and does not activate privacy behavior. The approved gates-off PR 93 rollou
 below supersedes earlier undeployed/draft status statements; it does not authorize
 customer initiation, verification delivery or fulfillment.
 
-## Current production recovery review package — preparation only, October 29
+## Current operator source implementation — not production execution, October 29
+
+The previously missing command paths are now implemented in the existing review
+branch: exact-target preflight/explicit enrollment, read-only reconciliation dry-run
+and reviewed-plan apply, and evidence-backed original-DB unfinished-operation
+resolution. Commands, the deliberately invalid private approval example, expected
+results, minimum rights, stops and next approval boundary are in
+[privacy-s3-storage.md](privacy-s3-storage.md#implemented-offline-operator-commands--source-only-october-29).
+New format-2 intent evidence / authenticated RESOLVE records are additive; ambiguous
+or legacy insufficient evidence remains stopped. The original synthetic-only guard
+is preserved; no production startup/HTTP replay/automatic enrollment is introduced.
+The shared scoped erasure routine preserves financial evidence and original dates,
+newer holds/cancellations and revocation. No migration or dispatcher build is needed.
+Owner-only actual MFA principal/session, protected durable external pin record,
+private existing credentials/read access and exclusion evidence remain future
+execution prerequisites. Source tests use synthetic data/controlled provider responses;
+no production/AWS command, enrollment, message or activation occurred. All four
+false gates/Auto-Deploy Off and all completed findings remain preserved.
+Required CI/evidence closeout is recorded in the release checklist/PR after source push.
+
+## Earlier production recovery review package — preparation only, October 29
 
 The single ordered package is in
 [privacy-s3-storage.md, Production deployment, enrollment and operator-reconciliation package](privacy-s3-storage.md#production-deployment-enrollment-and-operator-reconciliation-package).

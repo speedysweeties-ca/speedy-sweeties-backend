@@ -6,7 +6,7 @@ import type { PrismaClient } from "@prisma/client";
 // independently protected head (never a head recovered from the database backup).
 export type RecoveryHead = { sequence: number; hash: string };
 export type RecoveryEntry = RecoveryHead & {
-  previous: string; scope: string; kind: "GENESIS" | "INTENT" | "COMMIT" | "SEAL" | "CHECKPOINT" | "CASE" | "COVERED";
+  previous: string; scope: string; kind: "GENESIS" | "INTENT" | "COMMIT" | "RESOLVE" | "SEAL" | "CHECKPOINT" | "CASE" | "COVERED";
   operation: string; payload: unknown;
 };
 export interface ProtectedDecisionStore {
@@ -58,7 +58,7 @@ export class PrivacyRecoveryJournal {
   }
   async ready() { return this.inspect(false); }
   // Offline maintenance only. Normal consumers must reject sealed predecessors.
-  async inspect(allowSealed = true) {
+  async inspect(allowSealed = true, allowPending = false) {
     const { head, entries } = await this.store.read();
     if (!entries.length || !["GENESIS", "CHECKPOINT"].includes(entries[0].kind)) throw new RecoveryError("RECOVERY_COVERAGE_REQUIRED");
     let prior: RecoveryHead = { sequence: 0, hash: "" };
@@ -110,24 +110,63 @@ export class PrivacyRecoveryJournal {
         // A subsequent DB snapshot must not lose a separately justified review.
         cases.set(state.request.id, previous?.recoveryReview && !state.recoveryReview ? { ...state, recoveryReview: previous.recoveryReview } : state);
         pending = undefined;
+      } else if (entry.kind === "RESOLVE" && pending && entry.operation === pending.operation) {
+        const p = entry.payload as any;
+        if (p?.format !== 1 || p.intentHash !== pending.hash || !["COMMITTED", "NOT_COMMITTED"].includes(p.outcome) ||
+            ![p.evidenceDigest, p.reviewDigest].every(h => /^[a-f0-9]{64}$/.test(h)))
+          throw new RecoveryError("RECOVERY_RESOLUTION_INVALID");
+        const intent = pending.payload as any;
+        const expected = p.outcome === "COMMITTED" ? intent.afterEvidenceDigest : intent.beforeEvidenceDigest;
+        if (intent.format !== 2 || !expected || expected !== p.evidenceDigest)
+          throw new RecoveryError("RECOVERY_RESOLUTION_INVALID");
+        if (p.outcome === "COMMITTED") {
+          const state = intent.state, previous = cases.get(state.request.id);
+          cases.set(state.request.id, previous?.recoveryReview && !state.recoveryReview ? { ...state, recoveryReview: previous.recoveryReview } : state);
+        }
+        pending = undefined;
       } else throw new RecoveryError("RECOVERY_HISTORY_INVALID");
       prior = { sequence: entry.sequence, hash };
     }
     if (prior.sequence !== head.sequence || prior.hash !== head.hash) throw new RecoveryError("RECOVERY_HISTORY_INCOMPLETE");
     if (checkpoint && !coverageHead) throw new RecoveryError("RECOVERY_UNFINISHED_COVERAGE");
-    if (pending) throw new RecoveryError("RECOVERY_UNFINISHED_OPERATION");
+    if (pending && !allowPending) throw new RecoveryError("RECOVERY_UNFINISHED_OPERATION");
     if (sealed && !allowSealed) throw new RecoveryError("RECOVERY_SCOPE_SEALED");
-    return { head, cases, checkpoint, coverageHead, sealed, enrollmentHash: entries[0].hash };
+    return { head, cases, checkpoint, coverageHead, sealed, pending, lastEntry: entries.at(-1), enrollmentHash: entries[0].hash };
   }
   async maintenanceAppend(head: RecoveryHead, kind: "SEAL" | "CHECKPOINT" | "CASE" | "COVERED", payload: unknown) {
     return this.append(head, kind, "reviewed-maintenance", payload);
   }
-  async intent(head: RecoveryHead, event: string, state: unknown) {
+  async intent(head: RecoveryHead, event: string, state: unknown, evidence?: {
+    beforeEvidenceDigest: string | null; afterEvidenceDigest: string;
+  }) {
     const operation = randomUUID();
-    const next = await this.append(head, "INTENT", operation, { event, state });
+    const next = await this.append(head, "INTENT", operation, { event, state,
+      ...(evidence ? { format: 2, ...evidence } : {}) });
     return { head: next, operation };
   }
   async committed(intent: { head: RecoveryHead; operation: string }) {
     await this.append(intent.head, "COMMIT", intent.operation, intent.head.hash);
+  }
+  // Offline operator only. Authorization/evidence comparison is performed by the
+  // guarded operator path. No historical entry is overwritten or removed.
+  async resolvePending(expected: RecoveryHead, outcome: "COMMITTED" | "NOT_COMMITTED", evidenceDigest: string, reviewDigest: string) {
+    if (!/^[a-f0-9]{64}$/.test(evidenceDigest) || !/^[a-f0-9]{64}$/.test(reviewDigest)) throw new RecoveryError("RECOVERY_OUTCOME_EVIDENCE_REQUIRED");
+    const current = await this.inspect(false, true);
+    if (!current.pending || canonical(current.head) !== canonical(expected)) throw new RecoveryError("RECOVERY_STALE_PLAN");
+    const intentPayload = current.pending.payload as any;
+    if (intentPayload.format !== 2 || !evidenceDigest ||
+        evidenceDigest !== (outcome === "COMMITTED" ? intentPayload.afterEvidenceDigest : intentPayload.beforeEvidenceDigest))
+      throw new RecoveryError("RECOVERY_OUTCOME_EVIDENCE_REQUIRED");
+    const payload = { format: 1, intentHash: current.pending.hash, outcome, evidenceDigest, reviewDigest };
+    try { await this.append(current.head, "RESOLVE", current.pending.operation, payload); }
+    catch {
+      // Even if the transport lost the acknowledgement, never issue another PUT.
+      // Accept only the exact authenticated resolution at the expected next head.
+      let observed;
+      try { observed = await this.inspect(false, true); } catch { throw new RecoveryError("RECOVERY_WRITE_UNCERTAIN"); }
+      if (observed.pending || observed.head.sequence !== expected.sequence + 1 || observed.lastEntry?.kind !== "RESOLVE" ||
+          observed.lastEntry.operation !== current.pending.operation || canonical(observed.lastEntry.payload) !== canonical(payload))
+        throw new RecoveryError("RECOVERY_WRITE_UNCERTAIN");
+    }
   }
 }

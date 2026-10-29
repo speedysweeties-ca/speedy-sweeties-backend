@@ -1,5 +1,19 @@
 # Customer account deletion — implementation and rollout history
 
+October 29 operator implementation (review source only):
+`scripts/privacyRecoveryOperator.cjs` supplies explicit preflight/enroll,
+read-only dry-run/authorized offline apply and evidence-backed unfinished-operation
+resolution. Exact resource/provider/STS/plan/exclusion guards are documented in
+`docs/privacy-s3-storage.md`; synthetic-only entry point remains protected.
+New format-2 intent evidence and additive RESOLVE records preserve compatible old
+history, but old readers cannot interpret RESOLVE; downgrade after real activity
+is unsafe. No public route, migration or dispatcher control changed. No production
+command, enrollment, restore, message or activation was executed. Missing MFA-backed
+operator/session, protected external pins or attributable outcome evidence remains
+a future execution stop, not a reason to invent an identity/hash or repeat cloud tests.
+Guide `privacy-requests` re-reviewed October 29; examples: "Why does my privacy
+request need an offline operator?" and "Can I retry an uncertain operation?"
+
 Current status, 2026-10-27: PR 93 is merged and deployed at `4ac2ba3` with all four
 privacy gates false. The original implementation/rollout plan below is historical;
 it is not a request to repeat the deployment or recovery exercise. Current evidence

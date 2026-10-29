@@ -3,9 +3,8 @@ import { PrivacyDeletionService, digest, privacyLock, retainedFinancialFields } 
 import { canonical, RecoveryError } from "./privacyRecoveryJournal";
 import { customerIdentity, financialEvidence, hydrateState, orderIdentity, type RecoveryState } from "./privacyRecoveryState";
 
-// No HTTP route, startup hook, remote-store configuration or production CLI. This
-// entry point is intentionally constrained to the existing synthetic CI facility.
-// A production target adapter requires separate exact-resource/offline approval.
+// Synthetic entry point remains independently protected. Production calls only
+// the shared transaction via the separately guarded offline operator tooling.
 export async function reconcileSyntheticRestore(service: PrivacyDeletionService, databaseUrl: string, digestKey: string) {
   const url = new URL(databaseUrl);
   if (process.env.NODE_ENV !== "test" || process.env.PRIVACY_SYNTHETIC_DATABASE !== "yes" ||
@@ -19,14 +18,22 @@ export async function reconcileSyntheticRestore(service: PrivacyDeletionService,
   if (guards[0]?.count !== 4) throw new RecoveryError("RECOVERY_SCHEMA_REQUIRED");
   if (!service.recovery || service.hash("key-check") !== new PrivacyDeletionService(db, digestKey, {} as any, () => false, "recovery", "12-31").hash("key-check"))
     throw new RecoveryError("RECOVERY_KEY_MISMATCH");
-  const history = await service.recovery.ready();
-  const states = [...history.cases.values()].map(s => hydrateState(s as RecoveryState));
-  return db.$transaction(async tx => {
+  return db.$transaction(tx => reconcileRecoveryTransaction(service, tx, digestKey), { timeout: 15000 });
+}
+
+export async function reconcileRecoveryTransaction(service: PrivacyDeletionService, tx: Prisma.TransactionClient,
+  digestKey: string, dryRun = false) {
+    if (!service.recovery) throw new RecoveryError("RECOVERY_KEY_MISMATCH");
     await privacyLock(tx);
+    const history = await service.recovery.ready();
+    const states = [...history.cases.values()].map(s => hydrateState(s as RecoveryState));
     const known = new Set(states.map(s => s.request.id));
     for (const r of await tx.privacyDeletionRequest.findMany({ select: { id: true } }))
       if (!known.has(r.id)) throw new RecoveryError("RECOVERY_UNRECORDED_DECISION");
     if (await tx.privacyDeletedIdentity.count({ where: { keyFingerprint: { not: digest(digestKey) } } })) throw new RecoveryError("RECOVERY_KEY_MISMATCH");
+    const markers = new Set(states.filter(s => s.marker).map(s => s.marker!.phoneHash));
+    for (const m of await tx.privacyDeletedIdentity.findMany({ select: { phoneHash: true } }))
+      if (!markers.has(m.phoneHash)) throw new RecoveryError("RECOVERY_UNRECORDED_DECISION");
     let erased = 0, preserved = 0;
     for (const state of states) {
       const r = state.request;
@@ -73,6 +80,11 @@ export async function reconcileSyntheticRestore(service: PrivacyDeletionService,
           throw new RecoveryError("RECOVERY_NEWER_MARKER_REVIEW");
         if (customer) {
           if (orders.some(o => o.privacyErasedAt) || !ids.includes(r.sourceOrderId)) throw new RecoveryError("RECOVERY_PARTIAL_SCOPE_REQUIRES_REVIEW");
+          const unlinked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Order" WHERE "customerId" IS NULL AND "privacyErasedAt" IS NULL
+            AND regexp_replace(phone, '[^0-9]', '', 'g') = ${customer.normalizedPhone}`;
+          if (unlinked.length || orders.some(o => !["DELIVERED", "CANCELLED"].includes(o.orderStatus)))
+            throw new RecoveryError("RECOVERY_SCOPE_REQUIRES_REVIEW");
+          if (!dryRun) {
           // Install only a temporary pre-erasure request. Never import terminal
           // flags and call fulfill(): its idempotent early return is inapplicable.
           const pending: Prisma.PrivacyDeletionRequestUncheckedCreateInput = { ...r, subjectId: state.scope.subjectId, activeSubject: state.scope.subjectId,
@@ -86,10 +98,12 @@ export async function reconcileSyntheticRestore(service: PrivacyDeletionService,
           await tx.privacyExternalTask.deleteMany({ where: { requestId: r.id } });
           await service.eraseScoped(tx, p, { ...state.decision, justification: "Replay of independently recorded approved financial-retention decision.",
             personalFields: [], financialFields: [...retainedFinancialFields], unlinkedRecordsReviewed: true, confirmed: true }, r.databaseErasedAt, "offline-recovery");
+          }
           erased++;
         } else if (orders.some(o => !o.privacyErasedAt)) throw new RecoveryError("RECOVERY_ORPHANED_SCOPE");
-        await tx.privacyDeletedIdentity.upsert({ where: { phoneHash: state.scope.phoneHash }, create: state.marker, update: state.marker });
+        if (!dryRun) await tx.privacyDeletedIdentity.upsert({ where: { phoneHash: state.scope.phoneHash }, create: state.marker, update: state.marker });
       }
+      if (!dryRun) {
       const final: Prisma.PrivacyDeletionRequestUncheckedCreateInput = { ...r, decision: state.decision ? { ...state.decision, personalFields: [], financialFields: [...retainedFinancialFields] } : Prisma.DbNull,
         summary: r.databaseErasedAt ? "Historical deletion decision reconciled from protected history. Financial evidence retained; external outcomes require operator verification before reopening." : null };
       await tx.privacyDeletionRequest.upsert({ where: { id: r.id }, create: final, update: final });
@@ -98,10 +112,10 @@ export async function reconcileSyntheticRestore(service: PrivacyDeletionService,
           evidence: task.evidenceHash ? `recovery-evidence-sha256:${task.evidenceHash}` : null };
         await tx.privacyExternalTask.upsert({ where: { requestId_system: { requestId: r.id, system: task.system } }, create: { ...data, requestId: r.id }, update: data });
       }
+      }
     }
     // Require the independently protected history not to advance during the offline
     // transaction. A failed/racing replay rolls back every database change.
     if (canonical((await service.recovery!.ready()).head) !== canonical(history.head)) throw new RecoveryError("RECOVERY_HISTORY_ADVANCED");
-    return { cases: states.length, erased, preserved, databaseReconciled: true, trafficMayReopen: false };
-  }, { timeout: 15000 });
+    return { cases: states.length, erased, preserved, databaseReconciled: !dryRun, trafficMayReopen: false };
 }
