@@ -1,7 +1,8 @@
 """Sanitized AWS configuration inventory. Read-only CLI operations; no object reads.
 
-Runs in Robert's existing AWS CloudShell session. Credentials, key identifiers,
-policy documents and raw CLI output remain in memory and are never printed.
+Runs in Robert's existing AWS CloudShell session. Credentials and raw CLI output
+are never printed. Parameter JSON uses private, short-lived local files; key
+identifiers never enter arguments or logs. No S3 object contents are read.
 """
 import datetime
 import hashlib
@@ -10,6 +11,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 
 ACCOUNT = "080413009273"
 BUCKET = "speedy-sweeties-privacy-decisions-080413009273"
@@ -50,21 +52,48 @@ def invoke(command, parameters=None, output="json", direct_environment=False):
     env = dict(os.environ, AWS_PAGER="", AWS_MAX_ATTEMPTS="1")
     if not direct_environment:
         env["AWS_IGNORE_CONFIGURED_ENDPOINT_URLS"] = "true"
-    options = {"text": True, "capture_output": True, "timeout": 25, "env": env, "check": False}
-    # subprocess.run owns a distinct pipe, not the parent Python here-document.
-    # A parameterless call needs neither a pipe nor CLI paramfile parsing.
-    if parameters is None:
-        options["stdin"] = subprocess.DEVNULL
-    else:
-        options["input"] = json.dumps(parameters)
+    options = {"text": True, "capture_output": True, "timeout": 25, "env": env, "check": False,
+               "stdin": subprocess.DEVNULL}
+    directory = None
+    path = None
+    preparing_input = parameters is not None
     try:
+        if parameters is not None:
+            # mkdtemp/NamedTemporaryFile create 0700/0600 respectively, independent
+            # of a permissive umask; enforce the modes even for restrictive ones.
+            # Close the complete UTF-8 JSON before the CLI opens it.
+            directory = tempfile.TemporaryDirectory(prefix="speedy-aws-readonly-")
+            os.chmod(directory.name, 0o700)
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory.name,
+                                             prefix="parameters-", suffix=".json", delete=False) as stream:
+                path = stream.name
+                os.fchmod(stream.fileno(), 0o600)
+                json.dump(parameters, stream)
+            command = [*command, "--cli-input-json", "file://" + path]
+        preparing_input = False
         result = subprocess.run(command, **options)
     except subprocess.TimeoutExpired:
         raise Unverified("CLI_TIMEOUT", "PROCESS_TIMEOUT") from None
     except FileNotFoundError:
+        if preparing_input:
+            raise Unverified("CLI_PRIVATE_INPUT_FAILED", "PRIVATE_INPUT_PREPARATION_ERROR") from None
         raise Unverified("CLI_NOT_FOUND", "EXECUTABLE_NOT_FOUND") from None
     except OSError:
+        if preparing_input:
+            raise Unverified("CLI_PRIVATE_INPUT_FAILED", "PRIVATE_INPUT_PREPARATION_ERROR") from None
         raise Unverified("CLI_PROCESS_ERROR", "PROCESS_START_ERROR") from None
+    except (ValueError, TypeError):
+        raise Unverified("CLI_PRIVATE_INPUT_FAILED", "PRIVATE_INPUT_PREPARATION_ERROR") from None
+    finally:
+        if directory is not None:
+            try:
+                try:
+                    if path is not None:
+                        os.unlink(path)
+                finally:
+                    directory.cleanup()
+            except OSError:
+                raise Unverified("CLI_TEMPFILE_CLEANUP_FAILED", "PRIVATE_INPUT_CLEANUP_ERROR") from None
     if result.returncode:
         # Do not print arbitrary parenthesized stderr text: it may contain a key ID.
         found = re.search(r"An error occurred \(([A-Za-z0-9_]{1,80})\)", result.stderr)
@@ -75,7 +104,7 @@ def invoke(command, parameters=None, output="json", direct_environment=False):
         if provider_code:
             category = "SERVICE_ERROR"
         elif "unable to load paramfile" in lowered or "invalid json" in lowered:
-            category = "CLI_INPUT_JSON_OR_STDIN"
+            category = "CLI_INPUT_JSON_OR_FILE"
         elif any(s in lowered for s in ["connect timeout", "read timeout", "timed out"]):
             category = "NETWORK_TIMEOUT"
         elif any(s in lowered for s in ["could not connect to the endpoint", "ssl validation failed", "proxyconnectionerror"]):
@@ -93,22 +122,18 @@ def invoke(command, parameters=None, output="json", direct_environment=False):
 def cli(service, operation, parameters):
     if operation not in ALLOWED.get(service, set()):
         raise Unverified("STOP_NON_READ_OPERATION")
-    # No secret/key IDs in process arguments; JSON parameters are private stdin.
+    # invoke() adds only a random local file path, never parameter JSON/key IDs.
     command = ["aws", service, operation]
-    if parameters:
-        command += ["--cli-input-json", "file:///dev/stdin"]
     command += ["--output", "json", "--no-cli-pager",
                "--no-cli-auto-prompt", "--region", "ca-central-1", "--cli-connect-timeout", "5", "--cli-read-timeout", "15"]
     return invoke(command, parameters if parameters else None)
 
 
 def identity_comparison():
-    """Two additional identity-only probes, once each; never inventory on their behalf."""
+    """One optional direct identity comparison; never inventory on its behalf."""
     probes = {}
     direct = ["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text", "--region", "ca-central-1", "--no-cli-pager"]
-    legacy = ["aws", "sts", "get-caller-identity", "--cli-input-json", "file:///dev/stdin", "--output", "json", "--no-cli-pager",
-              "--no-cli-auto-prompt", "--region", "ca-central-1", "--cli-connect-timeout", "5", "--cli-read-timeout", "15"]
-    for name, command, parameters, output in [("directAccountText", direct, None, "text"), ("legacyStdinJson", legacy, {}, "json")]:
+    for name, command, parameters, output in [("directAccountText", direct, None, "text")]:
         try:
             # Match the owner's direct CLI environment; never use this comparison
             # to authorize inventory if the pinned-endpoint primary check failed.
@@ -154,6 +179,8 @@ def check(run=cli, diagnose_identity=False):
         except Unverified as error:
             checks[name] = "UNVERIFIED_" + error.code
             report.setdefault("diagnostics", {})[name] = error.diagnostic()
+            if error.category == "PRIVATE_INPUT_CLEANUP_ERROR":
+                raise  # Do not continue inventory if private-input removal failed.
         except Exception:
             checks[name] = "UNVERIFIED_RESPONSE"
 
@@ -261,5 +288,10 @@ if __name__ == "__main__":
         if sys.argv[1:] not in ([], ["--diagnose-identity"]):
             raise ValueError("Unsupported arguments")
         print(json.dumps(check(diagnose_identity=sys.argv[1:] == ["--diagnose-identity"]), sort_keys=True))
+    except Unverified as error:
+        print(json.dumps({"check": "SPEEDY_AWS_PRIVACY_READONLY", "result": "STOP_PRIVATE_INPUT",
+                          "diagnostic": error.diagnostic(), "writes": 0, "objectsRead": 0}))
+    except KeyboardInterrupt:
+        print(json.dumps({"check": "SPEEDY_AWS_PRIVACY_READONLY", "result": "STOP_INTERRUPTED", "writes": 0, "objectsRead": 0}))
     except Exception:
         print(json.dumps({"check": "SPEEDY_AWS_PRIVACY_READONLY", "result": "STOP_READ_ERROR", "writes": 0}))

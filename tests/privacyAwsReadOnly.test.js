@@ -60,9 +60,9 @@ print(json.dumps({'check':'AWS_METADATA_AND_CLEANUP_SYNTHETIC','passed':12,'clou
   const output = execFileSync('python3', ['-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
   const result = JSON.parse(output); assert.equal(result.passed, 12); assert.equal(result.cloudCalls, 0);
 });
-test('CLI subprocess boundary preserves private stdin and reports bounded, redacted identity diagnostics', () => {
+test('CLI subprocess boundary preserves private input files and bounded, redacted identity diagnostics', () => {
   const code = String.raw`
-import importlib.util, json, subprocess, sys
+import importlib.util, json, pathlib, stat, subprocess, sys
 from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('inventory','scripts/privacyAwsReadOnly.py')
 m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
@@ -75,21 +75,24 @@ with patch.object(m.subprocess,'run',return_value=result()) as p:
     assert '--cli-input-json' not in args[0] and kw['stdin']==subprocess.DEVNULL and 'input' not in kw
     assert kw['timeout']==25 and kw['capture_output'] is True and kw['check'] is False
     assert kw['env']['AWS_MAX_ATTEMPTS']=='1' and kw['env']['AWS_PAGER']==''
-with patch.object(m.subprocess,'run',return_value=result(stdout='{}')) as p:
+paths=[]
+def inspect_input(command,**kw):
+    path=pathlib.Path(command[command.index('--cli-input-json')+1][7:]); paths.append(path)
+    assert stat.S_IMODE(path.stat().st_mode)==0o600 and stat.S_IMODE(path.parent.stat().st_mode)==0o700
+    assert json.loads(path.read_text())=={'AccessKeyId':secret}
+    return result(stdout='{}')
+with patch.object(m.subprocess,'run',side_effect=inspect_input) as p:
     m.cli('iam','get-access-key-last-used',{'AccessKeyId':secret})
     args,kw=p.call_args; assert secret not in json.dumps(args)
-    assert args[0][3:5]==['--cli-input-json','file:///dev/stdin'] and 'stdin' not in kw
-    assert json.loads(kw['input'])=={'AccessKeyId':secret} and kw['text'] is True
-# Exercise a real child pipe/EOF, not just a mocked run() argument inspection.
-child=subprocess.run([sys.executable,'-c',"import json; print(json.load(open('/dev/stdin'))['AccessKeyId']=='SYNTHETIC_PRIVATE_IDENTIFIER_NOT_FOR_OUTPUT')"],
-                     input=json.dumps({'AccessKeyId':secret}),text=True,capture_output=True,timeout=5,check=True)
-assert child.stdout.strip()=='True' and child.stderr==''
+    assert args[0][-2]=='--cli-input-json' and args[0][-1].startswith('file://')
+    assert '/dev/stdin' not in args[0][-1] and kw['stdin']==subprocess.DEVNULL and 'input' not in kw
+assert all(not p.exists() and not p.parent.exists() for p in paths)
 cases=[(252,'Unknown options: '+secret,'CLI_SYNTAX_OR_INPUT','CLI_FAILED'),
        (2,'Unknown argument '+secret,'CLI_SYNTAX_OR_INPUT','CLI_FAILED'),
        (253,'Unable to locate credentials '+secret,'CLI_ENVIRONMENT_OR_CONFIGURATION','CLI_FAILED'),
        (254,'An error occurred (AccessDenied) when calling operation '+secret,'SERVICE_ERROR','AccessDenied'),
-       (255,'Unable to load paramfile file:///dev/stdin '+secret,'CLI_INPUT_JSON_OR_STDIN','CLI_FAILED'),
-       (255,'Invalid JSON received '+secret,'CLI_INPUT_JSON_OR_STDIN','CLI_FAILED'),
+       (255,'Unable to load paramfile '+secret,'CLI_INPUT_JSON_OR_FILE','CLI_FAILED'),
+       (255,'Invalid JSON received '+secret,'CLI_INPUT_JSON_OR_FILE','CLI_FAILED'),
        (255,'Read timeout on endpoint URL '+secret,'NETWORK_TIMEOUT','CLI_FAILED'),
        (255,'Could not connect to the endpoint URL '+secret,'NETWORK_OR_TLS','CLI_FAILED'),
        (255,'SSL validation failed '+secret,'NETWORK_OR_TLS','CLI_FAILED'),
@@ -116,12 +119,10 @@ for invalid in [{},{'Account':80413009273},{'Account':'wrong'}]:
     def invalid_run(*args): calls.append(args); return invalid
     out=m.check(invalid_run); assert out['identityCheck']['code']=='CLI_INVALID_IDENTITY' and len(calls)==1
     assert out['result']=='STOP_ACCOUNT_UNVERIFIED'
-# Correct primary + direct account succeeds, while the legacy pipe fails: inventory is allowed.
+# Both parameterless identity forms succeed; no legacy stdin probe remains.
 def successful_run(command,**kw):
     assert command[:3]==['aws','sts','get-caller-identity']
-    if '--cli-input-json' in command:
-        assert kw['input']=='{}'
-        return result(255,stderr='Unable to load paramfile '+secret)
+    assert '--cli-input-json' not in command and 'input' not in kw
     if '--query' in command:
         assert command==['aws','sts','get-caller-identity','--query','Account','--output','text','--region','ca-central-1','--no-cli-pager']
         return result(stdout=m.ACCOUNT+'\n')
@@ -133,23 +134,23 @@ with patch.object(m.subprocess,'run',side_effect=successful_run) as p:
             if service=='sts': return m.cli(service,op,params)
             raise m.Unverified('AccessDenied','SERVICE_ERROR',254)
         out=m.check(only_identity,diagnose_identity=True)
-        assert p.call_count==3 and comparison.call_count==1 and out['result']=='REVIEW_REQUIRED'
+        assert p.call_count==2 and comparison.call_count==1 and out['result']=='REVIEW_REQUIRED'
         assert out['identityComparison']['directAccountText']['accountMatches'] is True
-        assert out['identityComparison']['legacyStdinJson']['category']=='CLI_INPUT_JSON_OR_STDIN'
+        assert 'legacyStdinJson' not in out['identityComparison']
         assert out['diagnostics']['regionMatches']['exitCode']==254 and secret not in json.dumps(out)
-# No inventory fallback: successful direct/legacy checks cannot rescue a failed primary.
+# No inventory fallback: a successful direct check cannot rescue a failed primary.
 def primary_failed(command,**kw):
     if '--query' in command: return result(stdout=m.ACCOUNT)
-    if '--cli-input-json' in command: return result()
+    assert '--cli-input-json' not in command
     return result(252,stderr='Unknown option '+secret)
 with patch.object(m.subprocess,'run',side_effect=primary_failed) as p:
-    out=m.check(diagnose_identity=True); assert p.call_count==3 and out['result']=='STOP_ACCOUNT_UNVERIFIED'
+    out=m.check(diagnose_identity=True); assert p.call_count==2 and out['result']=='STOP_ACCOUNT_UNVERIFIED'
     assert 'checks' not in out and out['identityCheck']['exitCode']==252
     assert secret not in json.dumps(out)
 # Wrong primary account stops before diagnostic probes or any bucket/IAM request.
 with patch.object(m.subprocess,'run',return_value=result(stdout=json.dumps({'Account':'999999999999'}))) as p:
     out=m.check(diagnose_identity=True); assert p.call_count==1 and out['result']=='STOP_ACCOUNT_MISMATCH'
-# Wrong comparison account also stops inventory; no legacy probe after wrong direct result.
+# Wrong comparison account also stops inventory.
 with patch.object(m.subprocess,'run',side_effect=[result(),result(stdout='999999999999')]) as p:
     out=m.check(diagnose_identity=True); assert p.call_count==2 and out['result']=='STOP_ACCOUNT_MISMATCH'
     assert 'checks' not in out
@@ -157,6 +158,105 @@ print(json.dumps({'check':'AWS_CLI_BOUNDARY_SYNTHETIC','passed':True,'cloudCalls
 `;
   const output = execFileSync('python3', ['-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
   assert.deepEqual(JSON.parse(output), { check: 'AWS_CLI_BOUNDARY_SYNTHETIC', passed: true, cloudCalls: 0 });
+});
+test('real CLI child reads closed 0600 JSON files and cleanup/redaction survive every exit path', () => {
+  const code = String.raw`
+import hashlib, importlib.util, json, os, pathlib, subprocess, sys
+from unittest.mock import patch
+spec=importlib.util.spec_from_file_location('inventory','scripts/privacyAwsReadOnly.py')
+m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+secret='SYNTHETIC_PRIVATE_IDENTIFIER_'+('x'*65536)+'_\u2603'
+parameters={'AccessKeyId':secret}
+expected=hashlib.sha256(json.dumps(parameters).encode('utf-8')).hexdigest()
+real_run=subprocess.run; real_file=m.tempfile.NamedTemporaryFile; files=[]; paths=[]; mode='success'; children=0
+child=r'''
+import hashlib,json,os,pathlib,stat,sys,time
+mode=sys.argv[1]
+url=sys.argv[sys.argv.index('--cli-input-json')+1]
+assert url.startswith('file://') and '/dev/stdin' not in url
+path=pathlib.Path(url[7:]); raw=path.read_bytes(); value=json.loads(raw)
+assert stat.S_IMODE(path.stat().st_mode)==0o600 and path.stat().st_uid==os.geteuid()
+assert stat.S_IMODE(path.parent.stat().st_mode)==0o700 and path.parent.stat().st_uid==os.geteuid()
+assert hashlib.sha256(raw).hexdigest()==os.environ['SPEEDY_FIXTURE_INPUT_HASH']
+assert sys.stdin.read()==''
+if 'AccessKeyId' in value: assert value['AccessKeyId'] not in '\0'.join(sys.argv)
+else:
+    assert value=={'Bucket':'speedy-sweeties-privacy-decisions-080413009273','ExpectedBucketOwner':'080413009273'}
+if mode=='success': print(json.dumps({'boundaryPass':True}))
+elif mode=='error':
+    sys.stderr.write('An error occurred ('+value['AccessKeyId']+') Invalid JSON '+raw.decode()); sys.exit(252)
+elif mode=='malformed': print(raw.decode()+' invalid '+value['AccessKeyId'])
+elif mode=='timeout':
+    print(raw.decode(),flush=True); sys.stderr.write(value['AccessKeyId']); sys.stderr.flush(); time.sleep(10)
+else: raise AssertionError('Unexpected fixture mode')
+'''
+def observe_file(*args,**kw):
+    stream=real_file(*args,**kw); files.append(stream); paths.append(pathlib.Path(stream.name)); return stream
+def spawn(command,**kw):
+    global children
+    assert command[:3] in [['aws','iam','get-access-key-last-used'],['aws','s3api','get-bucket-location']]
+    assert secret not in json.dumps(command) and '--cli-input-json' in command
+    assert all(f.closed for f in files)  # Parent write handles closed before spawning.
+    assert kw['stdin']==subprocess.DEVNULL and 'input' not in kw and kw['timeout']==25
+    if mode=='interrupt': raise KeyboardInterrupt()
+    if mode=='spawn-error': return real_run([str(paths[-1].parent/'missing-executable')],**kw)
+    children+=1; kw['env']=dict(kw['env'],SPEEDY_FIXTURE_INPUT_HASH=expected)
+    if mode=='timeout': kw['timeout']=1  # Test-only shortening; production remains 25s.
+    return real_run([sys.executable,'-c',child,mode,*command[1:]],**kw)
+def removed():
+    assert all(f.closed for f in files)
+    assert all(not p.exists() and not p.parent.exists() for p in paths)
+with patch.object(m.tempfile,'NamedTemporaryFile',side_effect=observe_file),patch.object(m.subprocess,'run',side_effect=spawn):
+    for mask in [0,0o777]:
+        previous=os.umask(mask)
+        try: assert m.cli('iam','get-access-key-last-used',parameters)=={'boundaryPass':True}
+        finally: os.umask(previous)
+        removed()
+    bucket_input={'Bucket':m.BUCKET,'ExpectedBucketOwner':m.ACCOUNT}
+    expected=hashlib.sha256(json.dumps(bucket_input).encode('utf-8')).hexdigest()
+    assert m.cli('s3api','get-bucket-location',bucket_input)=={'boundaryPass':True}; removed()
+    expected=hashlib.sha256(json.dumps(parameters).encode('utf-8')).hexdigest()
+    for mode,category,exit_code in [('error','CLI_INPUT_JSON_OR_FILE',252),('malformed','INVALID_JSON_OUTPUT',0),
+                                    ('timeout','PROCESS_TIMEOUT',None),('spawn-error','EXECUTABLE_NOT_FOUND',None)]:
+        try: m.cli('iam','get-access-key-last-used',parameters); raise AssertionError('Failure accepted')
+        except m.Unverified as error:
+            safe=error.diagnostic(); assert safe['category']==category and safe['exitCode']==exit_code
+            assert secret not in json.dumps(safe) and str(paths[-1]) not in json.dumps(safe)
+        removed()
+    mode='interrupt'
+    try: m.cli('iam','get-access-key-last-used',parameters); raise AssertionError('Interruption swallowed')
+    except KeyboardInterrupt: pass
+    removed()
+    before=children
+    def partial_write(value,stream):
+        stream.write(secret[:40]); raise TypeError(secret)
+    with patch.object(m.json,'dump',side_effect=partial_write):
+        try: m.cli('iam','get-access-key-last-used',parameters); raise AssertionError('Partial input used')
+        except m.Unverified as error:
+            assert error.category=='PRIVATE_INPUT_PREPARATION_ERROR' and secret not in json.dumps(error.diagnostic())
+    assert children==before; removed()
+    mode='success'; real_unlink=m.os.unlink; first=True
+    def fail_once(path,*args,**kw):
+        global first
+        if first: first=False; raise PermissionError(secret)
+        return real_unlink(path,*args,**kw)
+    with patch.object(m.os,'unlink',side_effect=fail_once):
+        try: m.cli('iam','get-access-key-last-used',parameters); raise AssertionError('Cleanup failure hidden')
+        except m.Unverified as error:
+            assert error.category=='PRIVATE_INPUT_CLEANUP_ERROR' and secret not in json.dumps(error.diagnostic())
+    removed()  # Directory cleanup removed the file; the initial error still stops the run.
+calls=[]
+def cleanup_stop(service,op,params):
+    calls.append(op)
+    if service=='sts': return {'Account':m.ACCOUNT}
+    raise m.Unverified('CLI_TEMPFILE_CLEANUP_FAILED','PRIVATE_INPUT_CLEANUP_ERROR')
+try: m.check(cleanup_stop); raise AssertionError('Inventory continued after cleanup failure')
+except m.Unverified: assert len(calls)==2
+assert children==7
+print(json.dumps({'check':'AWS_PRIVATE_FILE_REAL_BOUNDARY','realChildren':children,'passed':True,'cloudCalls':0}))
+`;
+  const output = execFileSync('python3', ['-c', code], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+  assert.deepEqual(JSON.parse(output), { check: 'AWS_PRIVATE_FILE_REAL_BOUNDARY', realChildren: 7, passed: true, cloudCalls: 0 });
 });
 test('manual cloud harness rejects missing authorization, wrong identity and unsafe targets before cloud writes', () => {
   const { guardedIdentity, RUN_ID, RUN_BUDGET: b } = require('./privacyRecoveryCloud.cjs');
