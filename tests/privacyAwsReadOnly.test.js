@@ -61,7 +61,12 @@ print(json.dumps({'check':'AWS_METADATA_AND_CLEANUP_SYNTHETIC','passed':12,'clou
   const result = JSON.parse(output); assert.equal(result.passed, 12); assert.equal(result.cloudCalls, 0);
 });
 test('manual cloud harness rejects missing authorization, wrong identity and unsafe targets before cloud writes', () => {
-  const { guardedIdentity, RUN_ID } = require('./privacyRecoveryCloud.cjs');
+  const { guardedIdentity, RUN_ID, RUN_BUDGET: b } = require('./privacyRecoveryCloud.cjs');
+  assert.ok(b.processCalls * b.phases + b.fixedProbeCalls <= 10000);
+  assert.ok(b.processPuts * b.phases + b.fixedProbePuts <= 150);
+  const calls = b.processCalls * b.phases + b.fixedProbeCalls;
+  const conservativeUsd = calls / 1000 * 0.0055 + calls * b.objectBytes / (1024 ** 3) * 0.09;
+  assert.ok(conservativeUsd < 0.10, 'Bounded two-process requests/transfer must fit the stated future-test estimate');
   const e = { NODE_ENV: 'test', PRIVACY_SYNTHETIC_DATABASE: 'yes', PRIVACY_S3_CLOUD_VERIFICATION_AUTHORIZED: RUN_ID,
     DATABASE_URL: 'postgresql://privacy_test:synthetic-only@127.0.0.1/speedy_privacy_synthetic', AWS_ACCESS_KEY_ID: 'synthetic', AWS_SECRET_ACCESS_KEY: 'synthetic',
     PRIVACY_DELETION_ENABLED: 'false', PRIVACY_FULFILLMENT_ENABLED: 'false', PRIVACY_VERIFICATION_EMAIL_ENABLED: 'false', PRIVACY_VERIFICATION_PHONE_ENABLED: 'false' };

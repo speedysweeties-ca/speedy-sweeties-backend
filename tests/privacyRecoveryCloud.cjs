@@ -6,6 +6,7 @@ const RUN_ID = 'recovery-integration-20261028';
 const PREFIX = `verification/${RUN_ID}/`;
 const BUCKET = 'speedy-sweeties-privacy-decisions-080413009273', OWNER = '080413009273';
 const APP_ARN = `arn:aws:iam::${OWNER}:user/SpeedyPrivacyJournalApplication`;
+const RUN_BUDGET = { processCalls: 4500, processPuts: 70, phases: 2, fixedProbeCalls: 20, fixedProbePuts: 4, objectBytes: 16384 };
 function guardedIdentity(e, invoke = () => JSON.parse(execFileSync('aws', ['sts', 'get-caller-identity', '--output', 'json', '--no-cli-pager', '--region', 'ca-central-1'],
   { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 10000, env: { ...e, AWS_MAX_ATTEMPTS: '1', AWS_IGNORE_CONFIGURED_ENDPOINT_URLS: 'true' } }))) {
   assert.equal(e.NODE_ENV, 'test', 'CLOUD_TEST_ENVIRONMENT_REQUIRED');
@@ -28,13 +29,14 @@ async function cloudTransport(e = process.env, requireEmpty = true) {
   const calls = [], elapsed = [], objects = new Map(), known = new Set();
   const transport = { objects, failKind: null, after: null,
     async send(command, options) {
-      assert.ok(calls.length < 10000, 'CLOUD_CALL_BUDGET_EXCEEDED');
+      // Two serial processes plus fixed probes remain below the run's 10k/150 budget.
+      assert.ok(calls.length < RUN_BUDGET.processCalls, 'CLOUD_CALL_BUDGET_EXCEEDED');
       assert.equal(command.input.Bucket, BUCKET); assert.equal(command.input.ExpectedBucketOwner, OWNER);
       const location = command.input.Key || command.input.Prefix;
       assert.ok(location?.startsWith(PREFIX), 'CLOUD_SCOPE_REJECTED');
       if (command instanceof PutObjectCommand) {
-        assert.ok(calls.filter(c => c === 'PutObjectCommand').length < 150, 'CLOUD_WRITE_BUDGET_EXCEEDED');
-        assert.ok(Buffer.byteLength(command.input.Body) <= 16384, 'CLOUD_SYNTHETIC_PAYLOAD_BUDGET_EXCEEDED');
+        assert.ok(calls.filter(c => c === 'PutObjectCommand').length < RUN_BUDGET.processPuts, 'CLOUD_WRITE_BUDGET_EXCEEDED');
+        assert.ok(Buffer.byteLength(command.input.Body) <= RUN_BUDGET.objectBytes, 'CLOUD_SYNTHETIC_PAYLOAD_BUDGET_EXCEEDED');
         if (JSON.parse(command.input.Body).kind === transport.failKind)
           throw Object.assign(new Error('synthetic interrupted storage write'), { $metadata: { httpStatusCode: 503 } });
       }
@@ -94,5 +96,5 @@ async function probes() {
     acceptedWriteResolutionPassed: true, restartPassed: true, fullReadMs, cleanup: 'REQUIRED_IN_OWNER_CLOUDSHELL', ...f.transport.summary() }));
   f.client.destroy();
 }
-module.exports = { RUN_ID, PREFIX, BUCKET, OWNER, guardedIdentity, cloudTransport };
+module.exports = { RUN_ID, PREFIX, BUCKET, OWNER, RUN_BUDGET, guardedIdentity, cloudTransport };
 if (require.main === module) probes().catch(() => { console.log(JSON.stringify({ check: 'SPEEDY_S3_CLOUD_PROBES', result: 'STOP_VERIFICATION_FAILURE', cleanup: 'REQUIRED_IN_OWNER_CLOUDSHELL' })); process.exitCode = 1; });
