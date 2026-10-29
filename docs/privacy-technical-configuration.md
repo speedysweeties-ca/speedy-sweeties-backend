@@ -1311,6 +1311,19 @@ unprovable; the separate production enum assessment is not retroactive clone pro
 
 #### Post-snapshot privacy decisions — bounded source assessment, 2026-10-27
 
+**Subsequent owner-supplied AWS configuration evidence:** corrected CloudShell
+inventory returned `READBACK_PASS_LIVE_APPLICATION_ACCESS_UNVERIFIED`, all reported
+checks/account match true, one active application key, operator policy unattached,
+objectsRead 0 / writes 0. Configuration PASS; do not rerun it. Application access is
+untested, not failed; saved Render key match/runtime connection remain unverified.
+`privacy-s3-storage.md` contains the single pending test approval package: exact
+temporary permissions, private existing-key CI copies, workflow-only registration,
+US$0.10-before-tax/FX budget and complete synthetic/permission/credential-copy cleanup.
+Before any cloud write, its existing cleanup helper needs the known stdin-path
+compatibility correction and synthetic verification. No execution/permission change
+is authorized yet; production enrollment/deployment/activation stay outside the test.
+The older preparation's unknown-configuration statements below are historical.
+
 **Current integration closeout, October 28 Toronto:** S3 configuration/startup and
 reviewed successor/minimization/retirement source is complete at
 `649c93884364277322bab21fec27885c708209ca`, incorporating main `007cba9`; both jobs

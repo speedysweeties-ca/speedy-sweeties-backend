@@ -55,7 +55,21 @@ read-back cannot establish the application's restricted credentials or saved Ren
 values work. No authenticated AWS connector/CLI session is available to this agent;
 the final handoff supplies one pinned, checksum-verified CloudShell loader command.
 
-### Shared private-file correction and evidence limit
+### Authenticated configuration inventory — owner-supplied PASS
+
+Robert supplied the corrected CloudShell result on October 28:
+`READBACK_PASS_LIVE_APPLICATION_ACCESS_UNVERIFIED`, accountMatches true, all reported
+configuration checks true, one active application key, operator policy unattached,
+objectsRead 0 / writes 0. Record this as **owner-supplied authenticated AWS
+configuration evidence**, not an agent-executed read-back. The completed inventory
+must not be rerun. Prior stdin-failure evidence remains historical below.
+
+Application credential access is **untested, not failed**. This inventory does not
+match the saved Render credential, prove a running connection, test real S3 access/
+conditional writes or verify recovery/latency/cleanup. Organization controls remain
+unverified. No key, IAM/bucket setting, production gate or deployment changed.
+
+### Shared private-file correction — preserved source evidence
 
 Current checker source: `0dc48786e82be413bb70cedac57bc35b26787040`. Every parameterized
 S3/IAM call now uses the same secure local JSON-file path, not `/dev/stdin`:
@@ -91,8 +105,9 @@ and verify IAM/S3 inputs and unchanged expected owner. Permissive/restrictive um
 success, real nonzero exit, malformed output, actual subprocess timeout, start
 failure, interruption, partial JSON write, cleanup failure/stop and redaction pass.
 These are not mocked AWS responses alone; no AWS CLI or cloud call ran on this Mac.
-Authenticated bucket inventory and application access remain unverified until owner
-read-back and the separately approved restricted cloud test. No dependency installed.
+At source preparation, authenticated inventory/application access were unverified.
+The later owner inventory PASS above closes configuration only; application access
+and controlled cloud behavior remain untested. No dependency installed.
 Both normal Linux Node 24.22.1 CI jobs (`validate`, `privacy-database`) PASS at
 `0dc48786e82be413bb70cedac57bc35b26787040` in
 [CI 40808636607](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40808636607).
@@ -372,11 +387,105 @@ pricing. Recalculate using actual usage before requesting provisioning approval.
 ## Exact bounded cloud verification — prepared, future approval required
 
 Existing AWS account/bucket/user setup is recorded above; do not repeat provisioning
-or create a new key/operator role. All steps below remain unexecuted:
+or create a new key/operator role. Configuration inventory is complete; execution
+steps below are **not approved or executed**.
 
-1. Robert runs the read-only CloudShell checker using the pinned command supplied
-   in this handoff's release closeout. Resolve only actual failed/unverified checks;
-   preserve settings/keys. Administrator metadata does not prove application access.
+### One consolidated approval request — pending Robert
+
+Approve one synthetic run and its complete cleanup in existing account
+`080413009273`, bucket `speedy-sweeties-privacy-decisions-080413009273`, Canada
+Central. Writes/removals are limited to `verification/recovery-integration-20261028/`.
+Do not enroll or inspect production decision objects. No new AWS/Render resource,
+account, key, role, plan upgrade, message or live AI call.
+
+1. **Cleanup prerequisite before any cloud write:** correct only
+   `scripts/privacyS3SyntheticCleanup.py`'s known `/dev/stdin` input incompatibility,
+   reusing the tested closed 0600/private-directory JSON transport (or the smallest
+   equivalent). Keep its exact account/operator/prefix/known-key/version safeguards
+   and authorization. Run synthetic real-subprocess cleanup/error regressions and
+   relevant CI, commit/push, and record the final tested revision. Do not run the
+   cleanup mutation against AWS yet. Stop cloud execution if this prerequisite fails.
+2. **Temporary app permission:** add an inline policy named
+   `SpeedyPrivacyJournalSyntheticVerification` to existing IAM user
+   `SpeedyPrivacyJournalApplication`, exactly `privacy-s3-verification-policy.json`:
+   bucket `s3:ListBucket`/`s3:ListBucketVersions` only when `s3:prefix` matches
+   `verification/recovery-integration-20261028/*`; object `s3:GetObject`/`s3:PutObject`
+   only at `arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/verification/recovery-integration-20261028/*`.
+   Preserve the original application policy and every explicit deny. Existing
+   bucket-wide create-only/SSE-S3 rules apply to these writes too. No app delete,
+   version-body read, ACL/control-plane or new production-prefix grant.
+3. **Private credential/environment setup:** in GitHub repository Settings →
+   Environments, create/reuse `privacy-s3-verification`, allow only branch
+   `review/customer-account-deletion`, require Robert's review, and disallow admin
+   bypass. Permit the sole owner to approve their own dispatch if needed; do not
+   enable an impossible sole-reviewer self-review restriction. Robert enters only
+   his existing securely retained application key into environment secrets
+   `PRIVACY_TEST_AWS_ACCESS_KEY_ID` and `PRIVACY_TEST_AWS_SECRET_ACCESS_KEY` through
+   the private GitHub UI. No secret in chat, source, shell arguments, workflow
+   inputs or logs. No Render credential retrieval, replacement or rotation. If no
+   secure copy/protected environment is available, stop without cloud writes.
+   **Risk disclosure:** this is the same identity/key, not an isolated new identity;
+   its existing production-prefix grants remain. Prefix-guarded code and protected
+   CI access constrain this test, but the temporary allow is not an overriding
+   deny of those pre-existing grants. Remove the extra CI copy promptly.
+4. **Manual registration only:** create/review/merge a PR containing only
+   `.github/workflows/privacy-s3-cloud.yml` onto current `main`, respecting checks/
+   branch protection. This specifically authorizes a workflow-registration merge,
+   **not** the review branch's application/privacy/recovery source or migrations.
+   Render Auto-Deploy must remain Off; no deployment or automatic trigger. Then
+   dispatch the review branch once with `authorized=true`, record its exact tested
+   SHA and allow Robert's environment review. GitHub currently reports this repo
+   public/default `main`; the workflow is absent from `main`. Do not dispatch `main`
+   (it lacks the review test source) or rerun an uncertain/partially populated prefix.
+5. **Run/budget:** one standard included Linux runner, one serial PostgreSQL 18
+   worker, at most 15 minutes; no paid runner/capacity. Four gates false, delivery
+   mocked, synthetic secrets/database only. Verify exact app/account, empty test
+   version inventory, allowed/denied access, conditional/racing writes, uncertain
+   response/restart, real synthetic restore/successor/financial/date/hold/unrelated
+   protections and latency. The denied out-of-scope GET targets only the synthetic
+   `verification/unapproved-run/` path, never production. Proposed **US$0.10 AWS test
+   budget before tax/FX**, expected under $0.05; aggregate bounds 10,000 requests /
+   150 attempted puts / 16-KiB objects plus cleanup within the stated allowance.
+   This is a conservative cost estimate, not an AWS-enforced dollar cap. No other
+   paid resource. Stop on unexpected identity, nonempty prefix, failure or budget
+   limit; no automatic retry. Existing gates and production settings stay unchanged.
+6. **Cleanup on success or failure, same session and within 24 hours:** use Robert's
+   existing authorized non-application owner/CloudShell identity. The permanent
+   `SpeedyPrivacyJournalOperatorPolicy` stays unattached; assume no operator role.
+   If that existing identity needs a temporary cleanup grant, use inline
+   `SpeedyPrivacyJournalSyntheticCleanup`, exactly
+   `privacy-s3-verification-cleanup-policy.json`: bucket `s3:ListBucketVersions`
+   only with exact prefix `verification/recovery-integration-20261028/`, and
+   `s3:DeleteObject`/`s3:DeleteObjectVersion` only at the run's object ARN above.
+   Verify the exact existing principal first; never grant cleanup to the app user
+   or create a role. Validate the full synthetic key/version manifest before any
+   removal; delete all known test object versions/delete markers and verify zero
+   remaining versions. Stop and report unknown objects/partial failure, never widen
+   the target. Preserve sanitized results before cleanup. Keep bucket/production
+   objects and all permanent protections untouched.
+7. **Remove temporary access:** remove both temporary inline policies (if added),
+   delete both CI environment-secret entries and remove the dedicated test
+   environment after its run completes. Verify only targeted temporary-access/
+   secret-name absence, not a repeated configuration inventory. End the ephemeral
+   runner; retain sanitized counts/status/timing evidence only. Do not claim GitHub
+   backup erasure. Preserve Robert's original secure key copy and Render Save-only
+   values. If cleanup is blocked, remove CI credential/access copies promptly and
+   report the exact remaining synthetic versions/access; no unattended reruns.
+
+This single proposed approval covers the prerequisite source correction, exact
+temporary permissions/private CI credential copies, workflow-only registration
+merge, one test and its narrowly scoped cleanup. It does **not** cover production
+deployment, enrollment, restoration/customer changes, privacy activation, website
+publication or Apple upload. No covered action starts before approval.
+
+GitHub documents the [default-branch dispatch requirement](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)
+and [environment secret/reviewer/branch protections](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
+
+### Existing operational sequence — subject to the single approval above
+
+1. The owner-supplied authenticated configuration inventory is PASS; do not rerun
+   it. Application access is untested, not failed. Complete the cleanup-helper
+   private-file prerequisite above before any permitted cloud write.
 2. Review/authorize one synthetic run, expected AWS cost below **US$0.05**, bounded
    below **US$0.10** before tax under 10,000 requests, 150 immutable puts and 16-KiB
    synthetic object limits. At official rates above, the worst request/transfer
@@ -421,9 +530,9 @@ or create a new key/operator role. All steps below remain unexecuted:
    explicit deletion deny remains intact. If the existing operator session lacks
    rights, `privacy-s3-verification-cleanup-policy.json` is the exact narrowly scoped
    temporary permission to review for that existing identity; no role is assumed.
-9. Remove temporary verification/cleanup permission attachments and CI credential
-   copies, preserving the original Render key. Run the metadata checker again to
-   confirm only the original app policy is attached. Keep the existing private
+9. Remove temporary verification/cleanup inline grants and CI credential
+   copies, preserving the original Render key. Use only targeted IAM/CI absence
+   checks, not a repeated completed inventory. Keep the existing private
    bucket; no new services/resources require teardown. Preserve sanitized evidence.
 10. Before production use, review actual cloud results/provider facts and precise
     operator session, offline restore and production enrollment/cutover procedures.
@@ -518,7 +627,11 @@ operator/enrollment execution remain unverified in AWS. Successor/wiring/retirem
 source was completed later as described above; its cloud behavior remains unverified.
 Subsequent documentation-only evidence commits reuse this exact tested source.
 
-## Next action — one read-only CloudShell command
+## Completed inventory command — preserved evidence; do not rerun
+
+The command below produced Robert's owner-supplied authenticated PASS recorded
+above. Preserve it for traceability, not as another next action. Next action is
+the one consolidated test approval above. Its original instructions were:
 
 Open the AWS console in account `080413009273` and open **CloudShell** using the
 existing signed-in owner session. Do not enter the application access key or change

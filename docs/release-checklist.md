@@ -3,7 +3,34 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
-## Shared AWS inventory input correction — 2026-10-28
+## Authenticated AWS configuration PASS; synthetic test approval pending
+
+- Robert supplied corrected CloudShell result
+  `READBACK_PASS_LIVE_APPLICATION_ACCESS_UNVERIFIED`: accountMatches true, all
+  reported configuration checks true, one active application key, operator policy
+  unattached, objectsRead 0 / writes 0. This is owner-supplied authenticated AWS
+  configuration evidence. Do not rerun it. Application access is untested, not failed;
+  no running Render connection, production enrollment or cloud-test pass implied.
+- One consolidated approval package is in `docs/privacy-s3-storage.md`: exact
+  reserved-prefix app/conditional cleanup grants, private existing-key GitHub
+  environment copies, reviewed workflow-only registration merge to main, one
+  US$0.10-before-tax/FX bounded test and same-session cleanup (within 24 hours),
+  test versions/markers/temporary IAM grants/CI-secret copies removed afterward.
+  No new identity, key, role, resource or paid runner. Original app privileges and
+  the risk of an extra same-identity credential copy are explicitly disclosed.
+- Required before any cloud write after approval: fix the existing cleanup helper's
+  now-evidenced incompatible stdin input using the tested private-file path, with
+  synthetic actual-subprocess/cleanup regressions and CI. Do not present its current
+  AWS invocation as verified cleanup. This source prerequisite is part of the one
+  proposed package, not permission to execute now. Unknown contents/identity or
+  incomplete cleanup stops the run; no automatic rerun or broader deletion.
+- No cloud/IAM/CI-secret/workflow registration change was made while recording this
+  evidence. This is documentation only; reuse passing source/CI evidence. Four false
+  privacy gates/Auto-Deploy Off and all completed provider/device/recovery/business
+  decisions remain unchanged. Production deployment/enrollment/activation, customer
+  changes, website publication and Apple upload remain outside the test approval.
+
+## Earlier shared AWS inventory input correction — preserved evidence, 2026-10-28
 
 - Robert's revised CloudShell output: accountMatches true; primary/direct identity
   SUCCESS, exit 0; legacy stdin JSON and all parameterized S3/IAM checks failed
@@ -25,7 +52,7 @@ a separate release and requires its own signed build and store submission.
   [CI 40808636607](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40808636607).
   Revised immutable artifact download HTTP 200/checksum PASS, not executed against
   AWS. Documentation-only command/evidence commit reuses that exact tested source.
-- NEXT: run the one pinned private-file inventory command in
+- The earlier NEXT action (now completed): run the pinned private-file inventory command in
   `docs/privacy-s3-storage.md` and return sanitized JSON only. No legacy comparison,
   key change, production deployment/enrollment, S3 write, gate activation or message.
   All four false gates/Auto-Deploy Off and all prior approvals/evidence preserved.
