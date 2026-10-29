@@ -95,6 +95,10 @@ test('post-snapshot decisions survive actual serial synthetic PostgreSQL dump/re
       assert.equal((await store.ready()).cases.size, 3);
       assert.equal((await authorizeRetiredHistoryRemoval(source, store, { scope: store.scope, enrollmentHash: coverage.enrollmentHash }, true)).reviewedRetiredRemovalAllowed, true);
       await assert.rejects(source.ready(), /SCOPE_SEALED/);
+      // Simulate retired history becoming unavailable only AFTER verified coverage.
+      // In optional cloud mode this hides responses, not an actual AWS delete.
+      for (const object of s3.objects.keys()) if (object.startsWith(fixture.activeConfig.prefix)) s3.objects.delete(object);
+      await assert.rejects(source.ready(), /COVERAGE_REQUIRED/);
       keyOf = n => `${targetConfig.prefix}${String(n).padStart(16, '0')}.json`;
       service = new PrivacyDeletionService(db, key, delivery, () => true, 'Synthetic 30-day commitment', '12-31', store);
     });

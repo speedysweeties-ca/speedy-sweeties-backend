@@ -65,7 +65,8 @@ async function probes() {
   const found = await f.client.send(new ListObjectVersionsCommand({ ...input, Prefix: PREFIX + 'journal/', MaxKeys: 1000 }));
   const original = found.Versions?.find(v => v.IsLatest);
   assert.ok(original, 'SYNTHETIC_JOURNAL_REQUIRED');
-  assert.equal((await f.client.send(new GetObjectCommand({ ...input, Key: original.Key }))).$metadata.httpStatusCode, 200);
+  const read = await f.client.send(new GetObjectCommand({ ...input, Key: original.Key }));
+  assert.equal(read.$metadata.httpStatusCode, 200); await read.Body.transformToString();
   const denied = async command => assert.rejects(f.client.send(command), error => error.$metadata?.httpStatusCode === 403);
   await denied(new GetObjectCommand({ ...input, Key: 'verification/unapproved-run/0000000000000001.json' }));
   await denied(new GetObjectCommand({ ...input, Key: original.Key, VersionId: original.VersionId }));
