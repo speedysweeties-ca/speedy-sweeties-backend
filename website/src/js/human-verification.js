@@ -40,6 +40,7 @@
         'refresh-expired': 'auto'
       });
       if (widgetId === undefined) unavailable();
+      else if (!ready()) changed('Please complete the human verification.');
     } catch { unavailable(); }
   };
   const load = () => {
