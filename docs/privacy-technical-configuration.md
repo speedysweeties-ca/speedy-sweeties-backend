@@ -1311,6 +1311,29 @@ unprovable; the separate production enum assessment is not retroactive clone pro
 
 #### Post-snapshot privacy decisions — bounded source assessment, 2026-10-27
 
+**October 29 actual synthetic cloud closeout:**
+[run 40878909548](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40878909548)
+PASS at `5e0791d4bc217252aa37425d32340811a3abe8b1` (code identical to cleanup-tested
+`a692b0d`). Actual app identity/verification-prefix access, conditional/denied/racing
+writes, deliberately uncertain acknowledgement/restart and real serial PostgreSQL
+snapshot/successor recovery pass; 5/5 restore tests protect financial evidence,
+original dates, holds/cancellations, anti-reactivation and unrelated fixtures.
+Full-read 438 ms. Controlled failure injection is not a real AWS outage; no
+production permission/runtime/enrollment or production restore is proven.
+
+History has an earlier skipped dispatch 40878666189 with zero job steps; one
+executed AWS job, not a single dispatch record. Robert's authenticated CloudShell
+cleanup reports 37 version/marker entries removed and emptyVersionInventory=true;
+temporary IAM cleanup is owner-confirmed. Independent public GitHub reads verify
+test environment HTTP 404/repository HTTP 200, removing active CI credential copies.
+All detail/limits/source hashes are in `privacy-s3-storage.md`; no raw logs/secrets
+stored. No ongoing test compute/synthetic storage; actual invoice unverified.
+
+Next is the gated production recovery deployment/enrollment/external-pin/offline
+operator plan for review, not automatic activation. Four false gates/Auto-Deploy
+Off and existing business approvals remain. No new clone or repeated account audit.
+The earlier unverified/pending statements below describe their original dates.
+
 **Subsequent owner-supplied AWS configuration evidence:** corrected CloudShell
 inventory returned `READBACK_PASS_LIVE_APPLICATION_ACCESS_UNVERIFIED`, all reported
 checks/account match true, one active application key, operator policy unattached,

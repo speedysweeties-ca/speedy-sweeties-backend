@@ -384,14 +384,85 @@ No KMS/replication/CloudTrail data events/extra log service/support plan is incl
 or provisioned. Render's own transfer allowances/billing are not verified by AWS
 pricing. Recalculate using actual usage before requesting provisioning approval.
 
-## Exact bounded cloud verification — approved; private setup outstanding
+## Exact bounded cloud verification — live synthetic PASS; cleanup complete
 
 Existing AWS account/bucket/user setup is recorded above; do not repeat provisioning
 or create a new key/operator role. Configuration inventory is complete; execution
 is covered by Robert's explicit approval of the complete package and US$0.10 AWS
 budget before tax/FX. No repeat approval is needed for that same scope.
 
-### Execution record — cleanup/registration complete, cloud run not started
+### October 29 live result — sanitized provider/CI evidence
+
+- [Run 40878909548](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40878909548)
+  completed SUCCESS, `workflow_dispatch`, attempt **1**, exact review head
+  `5e0791d4bc217252aa37425d32340811a3abe8b1`. Only documentation differs from tested
+  cleanup/code `a692b0d`. No rerun or second dispatch was requested by the agent.
+  Job `123464857969` completed all steps, including container shutdown.
+- History also contains earlier dispatch
+  [40878666189](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40878666189),
+  created 09:04:44 Toronto, SKIPPED at 09:04:47, attempt 1. Its synthetic-cloud job
+  `123464061027` is skipped with **zero steps**. Thus two dispatch records exist,
+  but only one executed cloud job; do not claim a single dispatch across history
+  or invent its input/reason. The earlier skipped job did not execute AWS test code.
+- Created October 29 at 09:06:22 Toronto; job ran 09:08:43–09:10:17 and run completed
+  09:10:18 Toronto (UTC 13:06:22 / 13:08:43–13:10:17 / 13:10:18). Same-session
+  cleanup requested immediately; conservative 24-hour cleanup deadline is
+  **October 30, 09:06:22 Toronto**, not a retention rule for customer records.
+- Actual AWS app-account/identity guards passed; real SDK journal writes/reads and
+  permission probes succeeded only under the reserved synthetic run prefix. Current
+  GET succeeded; out-of-approved-test-prefix GET, old-version GET, DELETE and
+  unconditional PUT were asserted HTTP 403; conditional overwrite asserted 412.
+  Real concurrent writers produced one winner; deliberately lost post-acceptance
+  acknowledgement was recovered; restart passed. No production object was targeted.
+- Actual serial PostgreSQL 18 dump/restore suite: tests **5**, pass **5**, fail **0**,
+  skipped **0**, duration **43325.988659 ms**. Includes verified nonempty successor
+  coverage, both old snapshots, original deadlines/review dates, later holds/
+  cancellations, financial evidence/charge facts, anti-reactivation/access revocation,
+  unchanged unrelated fixtures and unfinished-operation stops. Selected missing/
+  interrupted responses and predecessor unavailability were controlled injections
+  over real S3, not actual AWS object deletion/outage. This is synthetic cloud
+  verification, NOT production enrollment/recovery or a new production restore.
+- Sanitized `SPEEDY_S3_CLOUD_PROBES`: allowedDeniedPassed=true,
+  conditionalRacePassed=true, acceptedWriteResolutionPassed=true, restartPassed=true;
+  fullReadMs=438 (<4000); instrumented transport requestP95Ms=249, maxRequestMs=253,
+  cloudCalls=44, puts=5. Those counters exclude the DB-recovery phase and direct
+  permission probes; they are **not** total billed requests. Existing aggregate
+  request/put/payload bounds did not fail. Actual invoice/cost is not yet observed;
+  no invented exact charge or assertion of a verified AWS billing cap.
+- Only sanitized summaries were preserved; no keys/key IDs, signing headers,
+  journal/object bodies, phone numbers, OTPs or raw provider responses are stored
+  in this handoff. Delivery was mocked; production gates/settings unchanged.
+- **Cleanup COMPLETE, October 29:** Robert returned authenticated CloudShell output
+  `{"check":"SPEEDY_S3_SYNTHETIC_CLEANUP","deletedVersions":37,"emptyVersionInventory":true,"result":"CLEANUP_CONFIRMED"}`.
+  Pinned helper `a692b0d` / SHA256
+  `c786dee4becd82f2c4a0a15e3b07623cca845c1de663a41961e9bd190f590bc4`
+  validated account/non-app identity, exact bucket/prefix and complete known-key
+  manifest before removing the 37 version/marker entries, then verified no remaining
+  versions/markers or truncation. This is **owner-supplied authenticated cleanup
+  evidence**, not an agent-run AWS delete. Exact cleanup timestamp was not supplied;
+  completion was reported on October 29, before the conservative deadline above.
+- Robert subsequently replied `done` to the explicit app inline-grant removal,
+  conditional operator cleanup-grant removal and GitHub test-environment deletion
+  instructions. Record temporary IAM grant cleanup as **owner-confirmed**; no
+  independent IAM API read-back was available. Whether an operator cleanup grant
+  was ever added was not separately reported; do not invent that history. Permanent
+  app policy/key and unattached permanent operator policy were to remain unchanged.
+- Independent unauthenticated GitHub read-back: repository HTTP 200/public=true;
+  exact environment `privacy-s3-verification` HTTP **404** after its earlier 200.
+  The test environment is removed, including its two active environment-secret
+  entries. No secret value was retrieved; no claim about GitHub backup erasure.
+- The executed CI job/containers are terminal and the synthetic version inventory
+  is empty. No new paid resource or ongoing test compute/storage remains; request
+  charges/invoice are not independently reconciled. No further test, cleanup rerun,
+  production action, website publication or Apple upload is authorized by this result.
+- NEXT RELEASE ACTION: prepare the exact gated production recovery rollout,
+  enrollment/external-pin and offline reconciliation/operator handoff for review,
+  using this tested source/evidence. The current source is not deployed/enrolled;
+  production permission/runtime/restore operation, activation and in-app verification
+  remain separate. Keep all four gates false/Auto-Deploy Off. No new restore clone,
+  repeat provider inventory, retention decision or broad audit is needed here.
+
+### Preparation evidence and owner setup
 
 - Cleanup source `a692b0da41fe3c0d4a0bd8d4e6e3f13a349d16fa` replaces all standalone
   cleanup stdin JSON with closed 0600 files/0700 directories, finally removal and
@@ -414,21 +485,21 @@ budget before tax/FX. No repeat approval is needed for that same scope.
   and normal push [CI 40811582646](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40811582646).
   Branch protection/mergeability checks respected. No Render deployment triggered.
   This main registration SHA is not evidence of a changed running production SHA.
-- Manual-run baseline query returned no workflow_dispatch runs on the review branch.
-  **Cloud test NOT RUN.** No S3 writes, cloud deletions or production enrollment.
-  No test objects have been created by this execution; bucket/prefix emptiness and
-  post-test cleanup are not claimed without their actual future checks.
-- Connector access cannot manage AWS IAM or GitHub protected-environment secrets/
-  workflow dispatch. Robert has the precise dashboard steps for the approved app
-  inline policy and protected private credential copies. Their completion is
-  **pending confirmation**, not assumed and not an application credential failure.
-  No secret is requested in chat or extracted from Render. Do not dispatch until
-  the owner confirms setup and the exact reviewed branch head is recorded.
-- NEXT owner action: complete the private setup below and reply `ready` only, no
-  secret/screenshot. The later single dispatch/environment review is an execution
-  step under the existing approval, not a request for renewed business approval.
-  If the UI is unavailable or the existing secure key copy is missing, stop and
-  report that precise limitation; do not create/rotate keys or upgrade plans.
+- Earlier manual-run baseline query returned no dispatch runs. Robert subsequently
+  supplied `ready` and confirmed both environment secrets saved using the existing
+  application pair, privately copied from Render, with no Render change/key rotation.
+  This is owner-reported credential handling; the agent retrieved no secret.
+- Independent public GitHub metadata read-back (no token/credential read):
+  environment `privacy-s3-verification`, sole reviewer `speedysweeties-ca`,
+  prevent_self_review=false, can_admins_bypass=false, custom branch policies=true,
+  exactly one allowed Branch `review/customer-account-deletion`. Connector lacks
+  dispatch/IAM/secret-management actions; Robert performed the one dashboard dispatch
+  and supplied its URL. These were execution steps under his existing approval.
+- The owner setup/dispatch/cleanup actions below are now completed evidence, **not**
+  instructions to repeat them.
+  Provider configuration inventory is already closed and must not be rerun.
+  Actual verification-prefix application access is now passed, not pending/failed;
+  production-prefix/runtime configuration and production enrollment remain untested.
 
 ### Private dashboard setup — owner action, no secret disclosure
 
@@ -601,7 +672,10 @@ and [environment secret/reviewer/branch protections](https://docs.github.com/en/
     must never auto-enroll. Configuration, deployment, production enrollment and
     gate activation require separate approval; all four gates stay false here.
 
-### Approved post-run cleanup command — do not run before the single test
+### Completed cleanup command — preserved evidence; do not rerun
+
+The command below produced the owner-supplied `CLEANUP_CONFIRMED` result above.
+Do not rerun it. Its original approved instructions were:
 
 After the workflow is terminal, use Robert's existing authorized non-application
 CloudShell session in account `080413009273`. This standalone, checksum-pinned

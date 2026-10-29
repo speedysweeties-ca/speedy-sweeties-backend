@@ -3,7 +3,42 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
-## Approved bounded synthetic test — cleanup/registration ready; private setup pending
+## October 29 live synthetic S3 PASS — cleanup complete
+
+- Exact [run 40878909548](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40878909548),
+  attempt 1, review head `5e0791d4bc217252aa37425d32340811a3abe8b1`, SUCCESS.
+  Job `123464857969` finished 09:10:17 Toronto; all steps/container shutdown passed.
+- Earlier dispatch 40878666189 was SKIPPED with zero job steps. Two dispatch records,
+  one executed AWS test job; no rerun by the agent. Do not erase the skipped entry
+  or claim there was only one dispatch across sessions.
+- AWS account/exact app identity, allowed/denied permissions, conditional overwrite,
+  concurrent winner, deliberately uncertain accepted-write recovery and restart PASS.
+  Actual S3-backed serial PostgreSQL restore/successor suite 5/5, zero skips/failures:
+  dates, newer holds/cancellations, financial evidence, anti-reactivation and unrelated
+  records protected. Failure injections remain controlled, not real AWS outages.
+- Full-read latency 438 ms; instrumented probe transport p95 249 ms / max 253 ms,
+  44 calls / 5 puts. Those counts exclude recovery/direct permission calls and are
+  not total billing. Aggregate guards passed; actual invoice unverified. No rerun.
+- Independent environment metadata PASS: sole Robert reviewer, self-review allowed,
+  administrator bypass false, exactly one allowed review branch. Owner confirms
+  existing secrets entered privately; no agent secret retrieval or key rotation.
+- Cleanup: owner-supplied authenticated JSON `CLEANUP_CONFIRMED`, deletedVersions=37,
+  emptyVersionInventory=true. Exact bucket/test-prefix/manifest guards and final
+  empty listing passed. No repeated deletion/inventory needed.
+- Temporary IAM grant removal is owner-confirmed (`done` to explicit cleanup steps),
+  not independently read through IAM. Do not invent whether the conditional operator
+  cleanup grant was created. Independent GitHub metadata confirms the exact test
+  environment HTTP 404 while the public repository remains HTTP 200, closing the
+  active CI-secret-copy cleanup. Permanent policies/original key preserved by scope;
+  no physical-backup deletion claim. CI/container job finished, no ongoing test
+  compute or synthetic-version storage; actual invoice not independently observed.
+- NEXT: prepare the gated production recovery rollout/enrollment/external pins and
+  offline reconciliation/operator plan for review from this tested source. No
+  production deployment/enrollment/activation follows automatically. Keep all four
+  privacy gates false/Auto-Deploy Off; in-app privacy flow and fulfillment remain
+  separate tests. Apple case/website/Android/provider/business decisions unchanged.
+
+## Earlier approved preparation — preserved evidence, now executed once
 
 - Robert approved the complete one-run/test/cleanup package, US$0.10 AWS before
   tax/FX; no repeated approval request. No production deployment/enrollment/gates,
@@ -18,16 +53,11 @@ a separate release and requires its own signed build and store submission.
   merged at `ac1a69b13211b8612213ade951a3db15b5142a90`, adding only the approved manual
   workflow. PR/push CI both jobs PASS (40811599544 / 40811582646). No application
   code/migration merged, production deployment or automatic cloud trigger.
-- Cloud test NOT RUN: pre-run query found no manual runs. No S3 test objects were
-  created by this execution; no live application-access, latency or cleanup pass
-  claimed. No newly provisioned/billable resource. Actual permissions and private CI
-  secret setup need owner dashboard confirmation; connector lacks those operations.
-- NEXT: Robert completes the protected environment/private existing-key entry and
-  exact temporary app inline grant described in `docs/privacy-s3-storage.md`, then
-  replies ready without values/screenshots. Preserve review source until the single
-  dispatch; later documentation-only evidence may reuse passing code CI. No reruns.
-  Cleanup all test versions/markers, temporary IAM grants and CI copies immediately
-  after success/failure; no production-prefix removal or permanent operator grant.
+- The earlier pre-run query found no manual runs; the subsequent one-run result
+  supersedes that status above. No newly provisioned resource; existing bucket only.
+- The earlier private setup/ready/dispatch action is completed, not another request
+  to repeat it. Test versions/markers, temporary IAM grants and CI copies are now
+  cleaned up as recorded above; no production-prefix removal or permanent operator grant.
 
 ## Earlier authenticated AWS configuration PASS; approval subsequently granted
 
