@@ -4,7 +4,7 @@
   const token = location.hash.slice(1);
   if (new URLSearchParams(location.search).get("embedded") === "1") {
     document.documentElement.classList.add("embedded");
-    const allowedParents = ["https://www.speedysweeties.ca", "https://speedysweeties.ca", "https://speedy-sweeties.webflow.io"];
+    const allowedParents = ["https://www.speedysweeties.ca"];
     new ResizeObserver(() => {
       const message = { type: "speedy:check-in-height", height: document.body.scrollHeight };
       for (const origin of allowedParents) window.parent.postMessage(message, origin);
