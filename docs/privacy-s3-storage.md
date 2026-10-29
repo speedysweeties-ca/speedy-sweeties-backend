@@ -1,5 +1,140 @@
 # S3 privacy decision store — production review package, 2026-10-29
 
+## API quiescent startup — implemented for review ONLY, October 29
+
+Robert authorized this narrow source/synthetic-test change, NOT another production
+rollout. New branch `review/api-quiescent-startup`; PR99 is already merged. Production
+remains the recorded `3a6cab9`; no Render/AWS/config/permission/downtime/enrollment
+action is performed here. Prior completed runtime/AWS/provider/device evidence is
+reused. The writer inventory and private-access instructions below remain applicable.
+This section supersedes the earlier DESIGN ONLY/unimplemented startup-control status.
+
+### Exact control and implementation
+
+| `API_STARTUP_MODE` | Behavior selected once BEFORE application imports |
+| --- | --- |
+| Unset, or exact `normal` | Original startup body in `normalServer.ts`, unchanged except its explanatory comment. No normal route/monitor/credential/business behavior is removed. |
+| Exact `quiescent` | Only `quiescentServer.ts`: native HTTP health handler and log-free direct Prisma client. No app/routes/env business module/Firebase/provider client, repair, alert, monitor, session writer or business timer is started. All four existing privacy gates MUST be literal `false`; missing/true/invalid gate or invalid port/missing DB configuration stops startup. |
+| Any other value, including empty/whitespace/case variants | Exit nonzero with fixed sanitized startup error, BEFORE either server loads. Never select normal as error recovery. |
+
+`server.ts` reads the existing dotenv configuration first outside NODE_ENV=test,
+just as normal configuration did; non-ENOENT config-read failure stops. Process
+environment takes precedence. There is no extra state table/file, migration,
+dependency, scheduler or recovery implementation. Existing Node24.22.1 pins and
+both required CI jobs remain. Dedicated digest/AWS/ownership/retention/operator
+guards are untouched; root is still rejected. Do not set NODE_ENV=test on Render.
+
+Quiescent HTTP permits ONLY exact GET `/api/v1/health/live` (200; no DB query) and
+GET `/api/v1/health/ready` (200 only after a request-driven **READ ONLY** transaction:
+statement timeout1500ms, lock timeout500ms, SELECT1; transaction2500ms/maxWait1000ms).
+Overlapping ready requests share one probe; no polling, autonomous retry or mode
+expiry. Unavailable DB returns503, not normal startup. Every other path/method,
+including HEAD/OPTIONS, write-capable GETs, query/trailing-slash health variants,
+static app routes and private-network requests, is rejected without routing or body
+parsing:503 `API_QUIESCENT`, no-store. Responses identify `mode=quiescent` and
+`applicationWritersStarted=false`; no private input/error body is echoed/logged.
+Those markers describe API application writers, NOT cron/global DB exclusion.
+
+**Persistence/release:** the operator leaves this exact setting SAVED on the existing
+Render API service. Each restart/deploy selects quiescence again. Running processes
+never switch on env mutation/error/timeout. Save only does NOT load it; Restart uses
+the existing deployment's env, so a normal same-reviewed-SHA deploy is required after
+saved changes. Only a separately reviewed explicit `API_STARTUP_MODE=normal` config
+load releases API exclusion. Do not delete/unset the key during maintenance: absence
+retains legacy normal startup for compatibility. Code cannot prove who approved a
+dashboard edit; restrict/review those operations. This is not an external immutable
+latch or protection against an authorized operator deliberately removing the setting.
+
+### Reviewed future sequence — NOT permission to execute or book downtime
+
+Use one exact approved **quiescence-capable merge SHA**, recorded as RELEASE_SHA;
+do not deploy old3a6cab9 while expecting it to recognize this new setting. Existing
+owner approval of PR99 does not cover a new executable SHA. Robert's actual non-root
+MFA temporary operator/profile, private existing digest/Render API secret, protected
+durable record and exact closed-business Toronto window remain prerequisites. No
+new identities/keys/grants or paid resources are created by this source task.
+
+1. After new-source approval and current required CI, record main/live/schema and
+   exact API resource. Keep API/dispatcher/cron Auto-Deploy Off, four gates false,
+   all secrets/operational settings/schedules intact. No dispatcher/cron deployment.
+   Check no pending migration (none added here). Confirm no cron due/in flight for
+   the ENTIRE window and exclude/identify all other DB writers independently.
+2. Only in Robert's confirmed window: Render Dashboard → Speedy's workspace →
+   speedy-api → Settings → Maintenance Mode → enable to block public requests.
+   This alone is NOT writer exclusion and does not stop private access/monitors.
+3. speedy-api → Environment → add `API_STARTUP_MODE=quiescent`, retain all four
+   false gates → Save only. Deploys → Manual Deploy → Deploy a specific commit →
+   full RELEASE_SHA. Preserve build → migrate deploy → npm run start. No start-
+   command override, ad-hoc server or secret removal. Do NOT start enrollment yet:
+   during rolling deploy the OLD normal instance may still be running and writing.
+4. Verify exact live revision and quiescent health locally as below; obtain provider
+   confirmation that ALL old normal instances/one-off jobs have retired/drained,
+   including shutdown flushes/in-flight transactions. Inspect DB connections,
+   transactions/prepared transactions and expected schemas/triggers without outputting
+   rows/SQL/contacts. Readiness/quiescent self-report alone is not that confirmation.
+   Stop if any client is unattributed, any old instance remains or no adequate
+   retirement evidence is available. Reconfirm cron/external writer exclusion.
+5. Only now mark the actual exclusion evidence/expiry and use existing guarded
+   operator build/preflight/enroll commands at this exact RELEASE_SHA. No changed
+   identity guard, longer DB transaction, fake empty baseline or invented hash.
+   Preflight plan and all nine empty indicators must pass; uncertain write stops.
+6. Preserve actual six observed pins in the CONFIRMED existing durable private
+   location; save pins in API Environment WITHOUT changing quiescent/gates/keys.
+   Normal deploy of SAME RELEASE_SHA loads pins. Every overlapping instance now
+   stays quiescent; repeat mode/health checks and existing pure restricted-app S3
+   read-back (replace its literal SHA with RELEASE_SHA). No app/provider import or
+   customer action is needed. Keep cron/external writers excluded independently.
+7. Once durable pins, config/health/schema/current authenticated S3 reads and all
+   recorded required checks pass, remove only the reviewed temporary operator grant/
+   session; preserve the app key and permanent policies. Review explicit release:
+   API Environment → change ONLY `API_STARTUP_MODE=normal` → Save only → deploy
+   SAME RELEASE_SHA. **This is the deliberate end of API write exclusion**: normal
+   monitors can resume during that deployment. Keep public maintenance on until
+   normal health/config/disabled-privacy checks pass; then disable maintenance to
+   reopen public traffic. Four privacy gates stay false; no customer privacy activation.
+
+**Failure/recovery:** never change mode to normal just to clear an error. If the
+first quiescent deploy fails, Render can retain old normal processes: public edge
+maintenance does not make the DB offline; do not enroll. During pin-load/verification
+failure, keep saved quiescent mode, false gates and ingress exclusion; forward-fix
+only reviewed source/config. Do not roll back to a build without this selector (it
+would ignore quiescence), use Restart to load saved changes, reverse migrations,
+rotate keys, delete/edit history/pins or blind-repeat enrollment. Operator disconnect
+or expired evidence leaves quiescence selected; it never authorizes reopening.
+After real privacy state, preserve the existing stricter history/reader rollback
+boundary. Inability to establish external-writer exclusion remains a hard stop.
+
+### Read-only future quiescent verification — new API Shell, not run now
+
+Open Render → workspace → speedy-api → Shell. Replace ONLY the literal
+`REVIEWED_MERGE_SHA` with the actual future release, never a guessed SHA. This checks
+the actual LOCAL health handler (public maintenance otherwise masks it). It does
+not inspect customer data, request a code or call a provider:
+
+```sh
+node <<'SPEEDY_QUIESCENT_READONLY'
+(async()=>{const e=process.env;const gates=['PRIVACY_DELETION_ENABLED','PRIVACY_FULFILLMENT_ENABLED','PRIVACY_VERIFICATION_EMAIL_ENABLED','PRIVACY_VERIFICATION_PHONE_ENABLED'];
+const targetMatches=e.RENDER_SERVICE_ID==='srv-d7ntlnpkh4rs73bev9q0'&&e.RENDER_GIT_COMMIT==='REVIEWED_MERGE_SHA';
+const configPass=e.API_STARTUP_MODE==='quiescent'&&e.NODE_ENV==='production'&&gates.every(k=>e[k]==='false');
+const port=Number(e.PORT||4000);if(!targetMatches||!configPass||!Number.isInteger(port)||port<1||port>65535)throw Error('stop');
+const results=[];for(const [path,want] of [['/api/v1/health/live',200],['/api/v1/health/ready',200],['/api/v1/privacy/deletion/admin/requests',503]]){
+const r=await fetch(`http://127.0.0.1:${port}${path}`,{method:'GET',redirect:'error',signal:AbortSignal.timeout(5000)});const j=await r.json();
+const pass=r.status===want&&j.mode==='quiescent'&&j.applicationWritersStarted===false&&r.headers.get('cache-control')==='no-store'&&(path.endsWith('/ready')?j.checks?.database==='ok':want===503?j.code==='API_QUIESCENT':j.success===true);
+results.push({path,status:r.status,pass});if(!pass)break;}
+const pass=results.length===3&&results.every(x=>x.pass);console.log(JSON.stringify({check:'SPEEDY_QUIESCENT_READONLY',targetMatches,configPass,results,pass}));process.exitCode=pass?0:1;
+})().catch(()=>{console.log(JSON.stringify({check:'SPEEDY_QUIESCENT_READONLY',result:'STOP_NO_PRIVATE_DETAILS'}));process.exitCode=1;});
+SPEEDY_QUIESCENT_READONLY
+```
+
+This Shell check is not global writer attribution, MFA, secret continuity or S3
+verification. Preserve the completed normal3a6cab9 read-back; don't rerun it now.
+No maintenance window is booked. The 20–30 minute impact estimate below remains
+unverified until the actual operator/session/window/provider retirement evidence
+is available. Cron and other DB clients are **outside this API-only control**.
+Current platform references reviewed for this handoff:
+[Render deployments, restart and old-instance drain](https://render.com/docs/deploys),
+[Render health checks](https://render.com/docs/health-checks).
+
 ## Current production closeout — October 29, enrollment NOT started
 
 Robert approved review head `23c1921738d10f7b4a8972fd66faa82f90c5ac61`

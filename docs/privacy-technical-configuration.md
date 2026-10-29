@@ -1,5 +1,17 @@
 # Privacy deletion technical configuration and isolated evidence
 
+## Quiescent-startup source review — October 29, NOT deployed
+
+New `review/api-quiescent-startup` prepares API_STARTUP_MODE=quiescent before all
+business imports. Exact GET live/READ ONLY ready only; all normal/public/private
+requests blocked. No jobs/monitors/repair/session writer/provider startup or timed
+reopening. Explicit reviewed normal configuration-load is the release boundary;
+normal startup body otherwise unchanged. This controls API writers only, not
+cron/other connections/pre-deploy SQL. Operator/root, journal, financial and key
+guards unchanged. Commands/sequencing/old-instance drain/recovery are in the new
+top section of [privacy-s3-storage.md](privacy-s3-storage.md). Source/synthetic
+approval only; recorded production3a6cab9 and closed runtime read-back unchanged.
+
 ## Latest production status — October 29 PR 99 API-only rollout
 
 Approved head 23c1921 merged as `3a6cab9be07dba23af8e556f8c807f91d6a018aa`;

@@ -61,14 +61,18 @@ export interface HelpArticle {
 // exact-resource/identity/plan/exclusion guards. Authenticated RESOLVE records need
 // attributable original-DB before/after evidence; ambiguity remains stopped.
 // Existing dispatcher controls, financial fields and customer dates are unchanged.
+// 2026-10-29 API quiescence review: original normal startup/visible controls are
+// unchanged. Explicit operator mode blocks ALL API routes (including write-capable
+// GETs), not merely privacy. It starts no monitors/session writer; cron and other
+// DB clients still need separate exclusion. It cannot reopen on a timeout/error.
 export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "navigation",
     title: "Find dispatcher pages and refresh information",
-    reviewedAt: "2026-10-26",
+    reviewedAt: "2026-10-29",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "LIVE_ORDERS",
-    evidence: ["speedy-dispatcher/src/App.tsx"],
+    evidence: ["speedy-dispatcher/src/App.tsx", "src/server.ts", "src/normalServer.ts", "src/quiescentServer.ts"],
     content: "The top buttons are Live Orders, Create Manual Order, Customer Follow-ups, Dispatcher Pinboard, Dispatcher Standards, Driver Location, Refresh, How do I…?, Logout, and Show more. Show more reveals Delivered History, Catalog, Customers, Staff, Daily Responsibilities, Growth, Customer Retention, Driver Stats, Pickup Locations and QR Code Tracking, plus dispatch and alert switches. Administrators also see Privacy requests. Some controls require an administrator. Hide more collapses these controls without deleting anything. Live Orders normally refreshes every 5 seconds. Page refresh pauses on working screens and during editing; incoming orders are still checked every 5 seconds. Driver Location refreshes every 3 seconds. Use the relevant screen's refresh control when information looks old. A connection warning means displayed information may be stale; the help assistant cannot verify live status.",
   },
   {

@@ -3,6 +3,38 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## October 29 API quiescent-startup change — SOURCE REVIEW ONLY
+
+- New branch `review/api-quiescent-startup` for a NEW draft PR (99 already merged).
+  `API_STARTUP_MODE=quiescent` is selected before app/routes/business imports;
+  only native HTTP exact GET live/ready and a request-driven READ ONLY SELECT1
+  client are loaded. Every other route/method (including write-capable GETs and
+  private access) is503/API_QUIESCENT/no-store. No business jobs, timers, monitors,
+  repair, session writer, alerts or provider activity. Errors never open normal.
+- Exact `normal` or unset preserves original startup body in `normalServer.ts`;
+  byte-identical to deployed server body except comment. Empty/typo/case/whitespace
+  mode stops. Quiescence requires all four privacy gates literally false and valid
+  minimal DB/port settings. Saved Render env retains selection across restart/deploy;
+  explicit reviewed `normal` plus normal same-source deploy releases it. No unset/
+  deletion during maintenance, timeout release, storage fallback or key change.
+- Synthetic actual process/import traps/loopback checks cover blocked routes,
+  read-only health, config/database/listen failures, restart persistence and
+  explicit return to original normal startup. Actual guarded loopback PostgreSQL
+  transaction-read-only check added to existing serial privacy-database CI; both
+  required jobs/runtime pins/full-history help/timing/financial/recovery tests kept.
+  No dependency/schema/migration/dispatcher bundle or existing operator guard change.
+- Single exact deployment/config/verification/stop/recovery handoff:
+  [privacy-s3-storage.md](privacy-s3-storage.md#api-quiescent-startup--implemented-for-review-only-october-29).
+  It requires OLD normal-instance retirement/drain BEFORE baseline/enrollment;
+  mode self-report and a new live deploy alone do not prove that. API mode does
+  NOT stop cron, outside clients or pre-deploy SQL. Independently exclude them.
+- This source/synthetic authorization does NOT approve new-SHA merge/deploy/config/
+  downtime/enrollment. Production stays recorded3a6cab9/four gates false/AutoOff.
+  Prior runtime/AWS/provider/iPad/cleanup evidence closed; no repeat. Root is still
+  ineligible; actual MFA non-app profile, durable protected record/private access
+  and later Robert-confirmed closed-business window remain prerequisites, not
+  reasons to pause this implementation. Exact source CI/evidence recorded at closeout.
+
 ## October 29 approved PR 99 — API deployed; enrollment prerequisites open
 
 - Approved head `23c1921738d10f7b4a8972fd66faa82f90c5ac61` merged normally as
