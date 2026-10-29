@@ -9,6 +9,23 @@ action is performed here. Prior completed runtime/AWS/provider/device evidence i
 reused. The writer inventory and private-access instructions below remain applicable.
 This section supersedes the earlier DESIGN ONLY/unimplemented startup-control status.
 
+**Source/evidence:** `8550562e7e54001a0f56719792ef145dc79d0bef`,
+[draft PR100](https://github.com/speedysweeties-ca/speedy-sweeties-backend/pull/100).
+Exact source both jobs PASS in [PR CI40929641398](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40929641398)
+and [push CI40929533744](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40929533744),
+attempt1/no manual rerun. Actual child-process startup suite **22/22** in the
+privacy-database job includes real loopback Prisma/PostgreSQL READ ONLY assertion
+(transaction_read_only=on). Existing serial recovery/operator **9/9**, lifecycle/
+baseline/delivery **23/23** pass. Validate: backend **553 pass / 7 DB-only skips /
+zero failures**, actual timing-history DB1/1 each, dispatcher69/69, guards/build/
+help/audits pass. One added backend skip is exercised in privacy-database instead.
+Pinned-Node local focus **24 pass / 1 CI-only DB skip / zero failures**, build/help/
+whitespace pass; exact original normal-startup body comparison passes. Documented
+future Shell command **12 synthetic VM cases pass**, zero network calls. These are
+synthetic/local/CI results, NOT production quiescence/global exclusion/S3 proof.
+Later evidence-only handoff commits preserve this runtime/test tree; exact final
+review-head checks are recorded in PR100, not guessed from an earlier SHA.
+
 ### Exact control and implementation
 
 | `API_STARTUP_MODE` | Behavior selected once BEFORE application imports |
