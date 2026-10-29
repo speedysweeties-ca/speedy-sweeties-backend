@@ -3,6 +3,36 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## October 29 approved PR 99 — API deployed; enrollment prerequisites open
+
+- Approved head `23c1921738d10f7b4a8972fd66faa82f90c5ac61` merged normally as
+  **`3a6cab9be07dba23af8e556f8c807f91d6a018aa`**; full tree equals approved head.
+  Existing head CI reused; actual merge CI **40909689685**, `validate` and
+  `privacy-database` SUCCESS. No bypass, changed executable scope or manual rerun.
+- API-only **dep-dbhn281srm7s7388s6g0**, live 2026-10-29T16:17:03Z. Build Node24.22.1;
+  48 migrations/no pending; normal build → migrate deploy → start preserved.
+  Read-only live/ready 200, disabled privacy admin GET 503/no-store. Schema: six
+  tables/five state columns/four enabled exact guards, 48 complete/zero unresolved.
+- Auto-Deploy Off independently confirmed on API/dispatcher/cron. Dispatcher still
+  007cba9, cron c5f249f/schedule unchanged; no excluded resource/settings changed.
+  Preserve all four false gates/credentials. NEW API Shell boolean read-back is
+  pending; a disabled deletion endpoint alone does not prove all four values.
+- Enrollment NOT started: no fresh protected baseline/preflight, AWS write/hash/pin
+  save, permission grant/access cleanup or downtime. Actual non-app MFA session/
+  temporary profile/minimum rights, durable protected pin record, retained private
+  digest/Render read credential access and complete confirmed ALL-writer exclusion
+  are unresolved. AWS CLI absent on Mac. Suspension/maintenance/resume must not be
+  misrepresented as exclusion through a normal API start with background monitors.
+- Current execution status, one consolidated owner navigation list, exact safe
+  Shell/STS checks and remaining operational stop are in
+  [privacy-s3-storage.md](privacy-s3-storage.md#current-production-closeout--october-29-enrollment-not-started).
+  Existing approval remains valid within scope; do not request it again. Runtime
+  read-back/prerequisites → guarded once-only enrollment → durable observed pins →
+  same-SHA load/restricted-read verification/access cleanup, only when exclusion is
+  genuinely established. Activation/website/Apple remain later separate boundaries.
+- No broad application tests, AWS inventory/cloud run/cleanup, provider/iPad rerun,
+  simulator, iOS rebuild or new paid resource. Completed findings stay closed.
+
 ## October 29 guarded production operator implementation — review source, not executed
 
 - Implemented `npm run privacy:operator -- preflight|enroll|dry-run|apply|resolve`,

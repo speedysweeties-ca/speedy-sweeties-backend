@@ -1,5 +1,123 @@
 # S3 privacy decision store — production review package, 2026-10-29
 
+## Current production closeout — October 29, enrollment NOT started
+
+Robert approved review head `23c1921738d10f7b4a8972fd66faa82f90c5ac61`
+and its bounded API deployment/conditional initial enrollment package. PR 99 was
+marked ready and merged normally as **`3a6cab9be07dba23af8e556f8c807f91d6a018aa`**.
+Fetched main was `ac1a69b`; the actual merge's **entire Git tree equals the approved
+head**, whose executable/test tree equals `cef843a`. No executable scope changed.
+Both jobs passed on approved head (40902492278 / 40902480571) and on the actual
+[merge, CI 40909689685](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40909689685):
+`validate` 123573960768 and `privacy-database` 123573960224, SUCCESS. No manual
+test rerun, new source, simulator or repeated AWS/provider/device verification.
+Handoff-only verification: whitespace checks pass in both repositories; the exact
+documented runtime read-back, substituting this actual merge SHA, passes 10 synthetic
+VM cases (correct target, wrong target/revision, each enabled gate, missing digest/
+AWS credential and conflicting session). No secret echo/environment mutation or
+network call. These are command-safety checks, not the pending live Shell read-back.
+GitHub reported main unprotected/no rulesets, clean merge/no review threads; the
+connector's administrative protection endpoint returned 403. Normal merge was used,
+with expected-head enforcement and no administrator/check bypass.
+
+**API only:** `dep-dbhn281srm7s7388s6g0`, exact merge above, live
+2026-10-29T16:17:03Z (12:17 Toronto). Preserved build → `npx prisma migrate deploy`
+→ start. Build log confirms Node **24.22.1**; pre-deploy reports **48 migrations,
+no pending migrations to apply**; startup connected to DB. Post-deploy read-only:
+liveness 200, readiness 200/database ok, privacy admin-list GET 503
+`PRIVACY_SERVICE_UNAVAILABLE` / `Cache-Control: no-store`. Production metadata
+confirms exact resource `dpg-d7m33g2qqhas73f58hrg-a`, database `speedy_sweeties_db`,
+role `speedy_sweeties_db_user`, Ohio/PostgreSQL 18/available. Schema read-back:
+48 completed/zero unresolved migrations, six privacy tables, five privacy-state
+columns and four enabled protection triggers. Their table/event/function hashes
+match checked-in SQL after equivalent whitespace trimming. Historical rolled-back
+loyalty migration is not an unresolved failure. No new SQL was applied.
+
+Auto-Deploy independently remains **Off** on API, dispatcher and cron; none is
+suspended and API maintenance mode remains off. Dispatcher remains `007cba9` and
+cron `c5f249f` (schedule `0 14 * * *` UTC unchanged); neither was deployed/run/changed.
+Ordinary API operation continues. All four gates must remain literal `false`;
+no environment setting/secret was changed. The disabled route verifies the deletion
+gate's behavior, **not all four values or credential continuity**. A NEW API Shell
+read-back remains required for the current revision, using the existing
+`SPEEDY_RECOVERY_RELEASE_READONLY` command below with
+`RECORDED_RELEASE_SHA=3a6cab9be07dba23af8e556f8c807f91d6a018aa` substituted in its
+literal comparison. Open Render → Speedy's workspace → speedy-api → Shell:
+https://dashboard.render.com/web/srv-d7ntlnpkh4rs73bev9q0/shell . Return only sanitized
+JSON, never an environment dump. No redeploy is needed for that check.
+
+**Enrollment/configuration/access cleanup:** NOT EXECUTED. No production operator
+preflight, baseline certification, S3 read/write/enrollment, observed hash/pin save,
+second deployment, permission grant or writer interruption occurred. There is no
+new temporary operator access to remove. Completed synthetic cleanup stays closed.
+Do not read this rollout as recovery enrollment, restricted production-app S3 access,
+restore reconciliation, customer activation or an in-app privacy-flow pass.
+
+### Remaining execution prerequisites — one consolidated owner follow-up
+
+These are execution facts, not requests to reapprove the package or retention rules:
+
+1. **Existing non-app operator:** AWS Console https://console.aws.amazon.com/ →
+   account menu (confirm 080413009273) → CloudShell (>_). Run only:
+   `aws sts get-caller-identity --query '{Account:Account,Arn:Arn}' --output json --region ca-central-1 --no-cli-pager`.
+   Return that non-secret JSON and the displayed identity type. Account menu →
+   Security credentials / existing IAM or Identity Center session: privately review
+   actual MFA provenance/expiry and report non-secret evidence only. STS alone does
+   not prove MFA; root/application credentials are rejected. No operator role or
+   session-scoped grant is assumed. Review the minimum prefix/current-read/key-1
+   conditional PUT permissions in section 3 against that actual existing principal;
+   do not attach the larger permanent operator policy or create/rotate a key.
+2. **Protected durable pins:** open the EXISTING secure-backup/password-manager
+   application used for the retained digest. Select a separate owner/operator-only
+   item for the observed six pins, not the digest item or a PostgreSQL backup.
+   Confirm application/service name, restricted access and recovery after Mac loss
+   (backup or another trusted device). No existing store/location has yet been
+   confirmed. A temporary/local 0600 file or the mere existence of iCloud/Keychain
+   is not durable-location evidence. Do not put secrets in this record or chat.
+3. **Private access/tooling:** confirm retained digest access and an EXISTING Render
+   read credential: Render Dashboard → account menu → Account Settings → API Keys.
+   Report only availability, not its value/name/ending; a visible key entry is not
+   proof its secret is retained. Database → speedy-sweeties-db → Connect → External
+   Database URL supplies the exact target only to the hidden prompt. No URL/key was
+   retrieved here. AWS CLI and Render CLI were not found on this Mac's PATH; no
+   `~/.aws` directory was found. A usable AWS CLI v2 temporary profile/session on
+   the operator machine is still unestablished; no installation or credential copy
+   was performed. CloudShell identity access is not proof of a usable local profile.
+   Existing pinned Node is available; prepare the artifact only at the actual
+   release SHA after preserving any local changes. Later handoff commits must not
+   accidentally become the manifest's release SHA: after committing/preserving local
+   work, temporarily select `git switch --detach 3a6cab9be07dba23af8e556f8c807f91d6a018aa`
+   in this SAME checkout for artifact preparation/operator commands; do not reset,
+   remove the review branch or create a duplicate checkout. Return to
+   `review/customer-account-deletion` for documentation. Stop if switching would
+   overwrite local work. Do not run operator preparation yet while prerequisites
+   are unresolved.
+4. **All-writer exclusion/timing:** obtain Robert's explicit Toronto-time window
+   before any interruption (evidence windows at most 30 minutes), away from cron's
+   14:00 UTC daily run and only after confirming none is in flight. Proposed first
+   phase: Render → workspace → speedy-api → Settings → Suspend Service, wait for
+   API/monitor shutdown and DB connections/transactions to drain; close other direct
+   production writer sessions and verify them absent. Confirm other people/scripts
+   using this DB. No cron/dispatcher/staging/SMS change is authorized. Maintenance
+   mode alone leaves the process/background writers running. **The complete window
+   is not yet established:** resuming or normally deploying the API starts existing
+   monitors; public maintenance mode alone cannot preserve ALL-writer exclusion
+   through pin-load/application verification. Review the exact controlled re-entry
+   method before promising continuous exclusion or stopping ordering. Do not set
+   `allWritersStopped=true` from gate settings, quiet traffic, an intention to suspend
+   or an unverified restart sequence. No new runtime control is introduced here.
+
+Once these facts and current-runtime read-back pass, the already-approved guarded
+preflight/enrollment/actual external pin/same-SHA config-load/read-only restricted
+app check/access removal can proceed, with no repeated deployment approval. Stop
+on nonempty baseline, missing history, mismatch or uncertainty; never blind-repeat
+GENESIS. If continuous exclusion cannot be achieved with reviewed existing controls,
+report that precise operational obstacle before execution. No customer deletion,
+restored-DB apply, activation, message, publication or Apple upload is authorized.
+
+This section supersedes earlier **undeployed/draft/proposal-only** status statements
+below, while preserving their dated test and business evidence.
+
 **CURRENT IMPLEMENTATION ENTRY POINT:** see [Implemented offline operator commands](#implemented-offline-operator-commands--source-only-october-29)
 below. Enrollment/preflight, reconciliation dry-run/apply and evidence-backed
 unfinished-operation resolution are now implemented in review source; no command
