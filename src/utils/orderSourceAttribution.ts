@@ -1,9 +1,7 @@
 import { OrderSource } from "@prisma/client";
 
 const WEBFLOW_ORDER_ORIGINS = new Set([
-  "https://speedysweeties.ca",
-  "https://www.speedysweeties.ca",
-  "https://speedy-sweeties.webflow.io"
+  "https://www.speedysweeties.ca"
 ]);
 
 const PUBLIC_ORDER_SOURCES = new Set<OrderSource>([

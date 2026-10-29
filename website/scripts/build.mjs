@@ -3,6 +3,11 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const production = process.argv.includes('--production');
+const turnstileSiteKey = production ? (process.env.TURNSTILE_SITE_KEY ?? '').trim() : '';
+if (production && (!/^0x[A-Za-z0-9_-]{10,80}$/.test(turnstileSiteKey) ||
+    turnstileSiteKey === '0x4AAAAAAAQTptj2So4dx43e')) {
+  throw new Error('Production requires an owner-held TURNSTILE_SITE_KEY; test and former Webflow keys are forbidden.');
+}
 await rm(root + 'dist', { recursive: true, force: true });
 await mkdir(root + 'dist', { recursive: true });
 await cp(root + 'src', root + 'dist', { recursive: true });
@@ -12,8 +17,8 @@ await writeFile(root + 'dist/index.html', html);
 await writeFile(root + 'dist/js/site-config.js', `/* Generated at build time. Preview is the default. */
 (() => {
   const production = ${production};
-  const live = production && ['www.speedysweeties.ca', 'speedysweeties.ca'].includes(window.location.hostname);
-  window.speedySite = Object.freeze({ live });
+  const live = production && window.location.hostname === 'www.speedysweeties.ca';
+  window.speedySite = Object.freeze({ live, turnstileSiteKey: ${JSON.stringify(turnstileSiteKey)} });
   if (!live && !document.querySelector('meta[name="robots"]')) {
     const robots = document.createElement('meta');
     robots.name = 'robots'; robots.content = 'noindex, nofollow';
@@ -25,4 +30,4 @@ await writeFile(root + 'dist/robots.txt', production
   ? 'User-agent: *\nAllow: /\nSitemap: https://www.speedysweeties.ca/sitemap.xml\n'
   : 'User-agent: *\nDisallow: /\n');
 await writeFile(root + 'dist/sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://www.speedysweeties.ca/</loc></url></urlset>\n');
-console.log(`Built ${production ? 'production (live only on the two production domains)' : 'preview (no orders or analytics)'} into website/dist.`);
+console.log(`Built ${production ? 'production (live only on www.speedysweeties.ca)' : 'preview (no orders or analytics)'} into website/dist.`);

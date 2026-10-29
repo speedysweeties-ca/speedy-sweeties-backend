@@ -5,6 +5,7 @@ import { asyncHandler } from "../utils/asyncHandler";
 import { validateRequest } from "../middleware/validateRequest";
 import { requireAuth } from "../middleware/auth.middleware";
 import { orderCreationRateLimiter } from "../middleware/orderCreationRateLimiter";
+import { requireWebsiteVerification } from "../middleware/websiteVerification";
 import { preventDuplicatePublicOrderSubmission } from "../middleware/orderDuplicateGuard";
 import { orderTrackingRateLimiter } from "../middleware/orderTrackingRateLimiter";
 import { requireRole } from "../middleware/role.middleware";
@@ -62,6 +63,7 @@ router.post(
   "/",
   orderCreationRateLimiter,
   validateRequest(createOrderSchema),
+  asyncHandler(requireWebsiteVerification),
   asyncHandler(preventDuplicatePublicOrderSubmission),
   asyncHandler(createOrderController)
 );

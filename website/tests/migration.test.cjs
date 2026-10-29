@@ -14,11 +14,12 @@ const acknowledgement = {
   trackingToken: 'a'.repeat(43)
 };
 
-function harness({ live = true, closed = false, order = acknowledgement, status = 200, failOrder = false } = {}) {
+function harness({ live = true, closed = false, order = acknowledgement, status = 200, failOrder = false, token = 'synthetic-token' } = {}) {
   const { document, CustomEvent, Event } = parseHTML(html);
   const calls = [];
   const window = { speedySite: { live }, location: { hostname: 'www.speedysweeties.ca' }, addEventListener() {},
-    speedyAddress: { verify: async () => {}, matches: () => true } };
+    speedyAddress: { verify: async () => {}, matches: () => true },
+    speedyHumanVerification: { ready: () => Boolean(token), getToken: () => token, mount() {}, reset() {} } };
   const fetch = async (url, options) => {
     calls.push({ url, options });
     if (url.endsWith('/business/status')) return { ok: true, json: async () => ({ success: true, source: 'google_places', isOpen: !closed }) };
@@ -59,6 +60,7 @@ test('matching form preserves API payload, access details and valid acknowledgem
   assert.equal(payload.unitNumber, '4B'); assert.equal(payload.buzzCode, '2468');
   assert.equal(payload.addressLine1, '1 Example Street');
   assert.equal(payload.paymentMethod, 'CASH');
+  assert.equal(payload.turnstileToken, 'synthetic-token');
   assert.equal(payload.items[0].quantity, 2);
   assert.equal(h.form.style.display, 'none');
   assert.match(h.document.querySelector('.w-form-done').textContent, /order #42 has been received/);
@@ -124,8 +126,9 @@ test('all page and CSS assets are local and present; hosted editor is absent', (
   assert.equal(document.querySelector('form').getAttribute('method'), 'post');
 });
 
-test('build keeps preview isolated and enables production only on exact business domains', () => {
-  const build = args => execFileSync(process.execPath, [path.join(root, 'scripts/build.mjs'), ...args]);
+test('build keeps previews isolated and requires owner key on the canonical production domain', () => {
+  const build = (args, key = '0xSyntheticOwnerKeyForBuildTest') => execFileSync(process.execPath,
+    [path.join(root, 'scripts/build.mjs'), ...args], { env: { ...process.env, TURNSTILE_SITE_KEY: key }, stdio: 'pipe' });
   const runConfig = hostname => {
     const { document } = parseHTML('<html><head></head><body></body></html>');
     const window = { location: { hostname } };
@@ -138,11 +141,30 @@ test('build keeps preview isolated and enables production only on exact business
     assert.match(fs.readFileSync(path.join(root, 'dist/robots.txt'), 'utf8'), /Disallow: \//);
     build(['--production']);
     assert.equal(runConfig('www.speedysweeties.ca'), true);
-    assert.equal(runConfig('speedysweeties.ca'), true);
+    assert.equal(runConfig('speedysweeties.ca'), false);
     assert.equal(runConfig('speedy-sweeties-website.onrender.com'), false);
     assert.equal(runConfig('speedysweeties.ca.example.invalid'), false);
     assert.equal(runConfig('localhost'), false);
+    for (const key of ['', '1x00000000000000000000AA', '0x4AAAAAAAQTptj2So4dx43e']) {
+      assert.throws(() => build(['--production'], key), /requires an owner-held/);
+    }
   } finally {
     build([]);
+  }
+});
+
+test('missing or expired verification prevents any order POST', async () => {
+  const h = harness({ token: '' }); await settle(); h.submit(); await settle();
+  assert.equal(posts(h).length, 0);
+  assert.match(h.document.querySelector('.w-form-fail').textContent, /complete the human verification/);
+});
+
+test('server verification rejection is retryable and never claims an order was received', async () => {
+  for (const [status, code] of [[400, 'HUMAN_VERIFICATION_REQUIRED'], [503, 'HUMAN_VERIFICATION_UNAVAILABLE']]) {
+    const h = harness({ status, order: { success: false, code, message: 'Please verify again.' } });
+    await settle(); h.submit(); await settle(); h.submit(); await settle();
+    assert.equal(posts(h).length, 2);
+    assert.notEqual(h.form.style.display, 'none');
+    assert.match(h.document.querySelector('.w-form-fail').textContent, /Please verify again/);
   }
 });

@@ -209,10 +209,11 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "order-lifecycle",
     title: "Understand statuses, receipts and late-order warnings",
-    reviewedAt: "2026-10-24",
+    // 2026-10-29: Website verification runs before creation; staff lifecycle and timers remain unchanged.
+    reviewedAt: "2026-10-29",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "LIVE_ORDERS",
-    evidence: ["speedy-dispatcher/src/App.tsx", "docs/order-status-state-machine.md", "docs/dispatcher-edit-pauses.md"],
+    evidence: ["speedy-dispatcher/src/App.tsx", "docs/order-status-state-machine.md", "docs/dispatcher-edit-pauses.md", "src/middleware/websiteVerification.ts"],
     content: "The normal lifecycle is PLACED (shown as NEW ORDER), DISPATCHED, ACCEPTED, OUT_FOR_DELIVERY and DELIVERED. Assignment dispatches the order; the assigned driver accepts it. OUT_FOR_DELIVERY and DELIVERED require a saved valid digital receipt. Driver-created digital receipts are the final-total record, not the initial estimated totals. Staff cannot skip these steps or reopen DELIVERED/CANCELLED orders. If RECEIPT_REQUIRED appears, have the assigned driver complete the digital receipt workflow. Live Orders marks unaccepted orders at 5+ minutes, allowing for recorded pre-dispatch editing pauses, and shows Delivery overdue (40+ min) using time from creation. These warnings call for checking progress, not proof of the cause of a delay. The help assistant cannot inspect the order, mark it delivered or guarantee an arrival time.",
   },
   {

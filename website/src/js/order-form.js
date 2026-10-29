@@ -293,10 +293,10 @@
       if (!response) return false;
       if (response.status === 429) return true;
       if (!isRecord(result) || result.success !== false) return false;
-      if (response.status === 503) return result.code === "ADDRESS_CHECK_UNAVAILABLE";
+      if (response.status === 503) return ["ADDRESS_CHECK_UNAVAILABLE", "HUMAN_VERIFICATION_UNAVAILABLE"].includes(result.code);
       if (response.status === 409) return result.message === closedMessage;
       if (response.status !== 400) return false;
-      return result.code === "INVALID_DELIVERY_ADDRESS" ||
+      return ["INVALID_DELIVERY_ADDRESS", "HUMAN_VERIFICATION_REQUIRED"].includes(result.code) ||
         (Array.isArray(result.errors) && result.errors.length > 0 &&
           result.errors.every((error) => isRecord(error) &&
             typeof error.path === "string" && typeof error.message === "string"));
@@ -360,8 +360,12 @@ form.prepend(topHoursNotice);
 const submitGate = document.createElement("fieldset");
 submitGate.id = "speedy-order-submit-gate";
 submitGate.style.cssText = "border:0;padding:0;margin:0;min-width:0;width:100%;";
+const orderActions = document.createElement("div");
+orderActions.className = "speedy-order-actions";
 if (submitButton) {
-submitButton.before(hoursNotice, submitGate);
+submitButton.before(hoursNotice, orderActions);
+window.speedyHumanVerification?.mount(orderActions);
+orderActions.append(submitGate);
 submitGate.append(submitButton);
 const describedBy = submitButton.getAttribute("aria-describedby") || "";
 submitButton.setAttribute("aria-describedby",
@@ -372,7 +376,7 @@ form.append(hoursNotice);
 
 const renderBusinessState = () => {
 submitGate.disabled = submitting || unconfirmedOrder || businessState === "checking" ||
-businessState === "closed";
+businessState === "closed" || (live && !window.speedyHumanVerification?.ready());
 let message = "Checking whether we're open for delivery…";
 if (businessState === "preview") message = "Website preview — online ordering is disabled here. No orders will be sent.";
 if (businessState === "open") message = "We're open for delivery.";
@@ -424,6 +428,7 @@ topHoursNotice.hidden = businessState !== "closed";
       return pendingStatus;
     };
 
+    document.addEventListener("speedy:verification-change", renderBusinessState);
     renderBusinessState();
     refreshBusinessStatus();
     const refreshVisibleHours = () => {
@@ -532,10 +537,13 @@ topHoursNotice.hidden = businessState !== "closed";
           // Recheck at submission, including when a tab has stayed open past closing.
           if (await refreshBusinessStatus() === "closed") return;
           if (!window.speedyAddress.matches(payload)) throw new Error("Your address changed. Please select it again.");
+          payload.turnstileToken = window.speedyHumanVerification?.getToken();
+          if (!payload.turnstileToken) throw new Error("Please complete the human verification beside Submit Order. If it cannot load, call 519-826-8097.");
           if (submitButton) submitButton.value = "Submitting order...";
           const { response, result } = await requestOrder(payload);
 
           if (isKnownRejection(response, result)) {
+            window.speedyHumanVerification?.reset();
             if (response.status === 409 && result?.message === closedMessage) {
               businessState = "closed";
               nextOpenText = "";

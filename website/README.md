@@ -28,7 +28,7 @@ the form; submission shows a preview message and sends nothing. No customer
 tracking tokens are read from browser storage on previews.
 
 Even a production build stays in preview mode on any hostname other than
-`speedysweeties.ca` and `www.speedysweeties.ca`. This avoids accidentally sending
+`www.speedysweeties.ca`. This avoids accidentally sending
 orders from an onrender.com preview. No hostname query parameter overrides this.
 
 ## Render preview configuration
@@ -63,9 +63,15 @@ The website does not need backend secrets or a paid Webflow plan.
   Webflow's mobile navigation. Native checkboxes and radios remain.
 - The inherited privacy text changes only the hosting provider to Render.
 
-## Remaining cutover checks
+## Original migration checklist (historical)
 
-This branch is ready for a non-ordering preview, not a completed production move.
+The website migration was completed on October 29, 2026. The checklist below
+records the original cutover considerations. The separate verification release
+is described in [website-verification-rollout.md](../docs/website-verification-rollout.md).
+Production builds now require the owner-held public `TURNSTILE_SITE_KEY`; the
+server secret belongs only on the API service. The apex redirects to www and
+does not receive direct browser API permission. A non-ordering preview is public
+unless separately restricted by the host.
 
 1. Owner identifies the Render workspace; create and verify the new static site.
 2. Review the replacement on desktop and mobile. Record the new service URL and
