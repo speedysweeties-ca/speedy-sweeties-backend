@@ -43,6 +43,10 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
       - run: npm run build
+      - name: Verify quiescent startup against guarded synthetic PostgreSQL
+        env:
+          CHECK_QUIESCENT_DATABASE: '1'
+        run: node --test --test-concurrency=1 tests/quiescentStartup.test.js
       - run: node tests/preparePrivacyDatabase.cjs
       - name: Reconcile actual synthetic snapshots serially before lifecycle fixtures
         env:

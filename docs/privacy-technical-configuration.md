@@ -1,5 +1,43 @@
 # Privacy deletion technical configuration and isolated evidence
 
+## Quiescent-startup source review — October 29, NOT deployed
+
+New `review/api-quiescent-startup` prepares API_STARTUP_MODE=quiescent before all
+business imports. Exact GET live/READ ONLY ready only; all normal/public/private
+requests blocked. No jobs/monitors/repair/session writer/provider startup or timed
+reopening. Explicit reviewed normal configuration-load is the release boundary;
+normal startup body otherwise unchanged. This controls API writers only, not
+cron/other connections/pre-deploy SQL. Operator/root, journal, financial and key
+guards unchanged. Commands/sequencing/old-instance drain/recovery are in the new
+top section of [privacy-s3-storage.md](privacy-s3-storage.md). Source/synthetic
+approval only; recorded production3a6cab9 and closed runtime read-back unchanged.
+
+## Latest production status — October 29 PR 99 API-only rollout
+
+Approved head 23c1921 merged as `3a6cab9be07dba23af8e556f8c807f91d6a018aa`;
+full approved tree preserved. Actual merge CI 40909689685 passes both required jobs.
+API `dep-dbhn281srm7s7388s6g0` live 16:17:03Z; Node24.22.1 build/no pending SQL,
+read-only live/ready/disabled privacy/schema/guard checks pass. No environment
+change, dispatcher/cron action, enrollment, AWS write or customer operation.
+Auto-Deploy Off confirmed on all three. Owner-supplied October 29 NEW API Shell
+read-back has ALL assertions true (including four gates exactly false); completed,
+do not repeat. Presence is not retained-secret retrieval or production S3 access.
+Enrollment approval is conditional on still-unconfirmed owner/session/durable pin/
+private access/ALL-writer exclusion facts. Ordinary ordering continues; no exclusion
+window began. See the single current closeout/prerequisite list at the top of
+[privacy-s3-storage.md](privacy-s3-storage.md). Earlier undeployed statements below
+are historical, not the current API deployment status. Completed provider/OpenAI/
+receipt/storage/recovery/device/business findings remain unchanged.
+
+Owner CloudShell STS account matches but principal is `arn:aws:iam::080413009273:root`;
+not an eligible operator or proof of MFA. Retained private credential access and
+durable pin-record location remain unconfirmed. Read-only writer inventory in the
+S3 handoff establishes that suspend/maintenance/resume cannot continuously exclude
+all startup/background writers through pin-load verification with current source.
+The proposed minimal fail-closed quiescent startup control is NOT implemented or
+authorized by the old reviewed SHA. No source/config/permission/operational change,
+new window or enrollment occurred; precise private lookup guidance is documented.
+
 Updated 2026-10-29. The production findings came from repository inspection plus
 read-only Render/PostgreSQL and mailbox access. The isolated-test update separately
 used the authorized disposable service/database reset and deploy sequence; no secret

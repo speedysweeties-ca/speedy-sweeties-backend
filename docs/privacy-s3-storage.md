@@ -1,5 +1,433 @@
 # S3 privacy decision store — production review package, 2026-10-29
 
+## Consolidated enrollment preparation — locked paper confirmed, execution NOT authorized
+
+Robert confirms a printer and Robert-controlled locked business-record storage.
+The protected loss-of-Mac recovery copy is a printed record with exact reference
+`locked-paper:SpeedySweeties-PrivacyRecovery-epoch-0001`. The storage arrangement
+is **confirmed**; the actual record correctly remains pending enrollment. No Apple
+account, Notes synchronization, new service or paid storage work remains.
+
+After authorized enrollment, print only the six actual observed recovery pins
+emitted by the guarded tool: bucket, expected owner, region, prefix, scope and the
+observed enrollment HMAC. Robert must compare all six complete printed values with
+the protected tool output and confirm the sheet is legible and secured in the locked
+storage before pins are loaded or normal operation reopens. Never invent the hash or
+print passwords, AWS access/session keys, `PRIVACY_DIGEST_KEY`, database/Render URLs
+or credentials, customer data, or approval evidence.
+
+Current source review is read-only. Draft PR100 now contains fetched current main
+`bb753d4f552ed763d9045375d3c5605ea79d9b91` through integration merge revision
+`8c376ac539605f6e5aaa6a199bf4d1ded0eef466`. Main's website, CORS, human-
+verification and help work is preserved exactly; PR100's quiescence source is
+unchanged from reviewed head `45acfd8c296d5b441d2e593f16f9107248117f8f` except the clean combined help result.
+No blocking integrated-source finding was identified. Require validate and privacy-
+database SUCCESS on the resulting exact PR head before any merge. The future normal
+merge SHA, not an integration or documentation revision, becomes `RELEASE_SHA`.
+No main merge, deployment, permission, downtime, S3 access or enrollment occurred.
+
+The canonical exact temporary policy remains in the iOS release checkout at
+`ReleaseNotes/PRIVACY_OPERATOR_ENROLLMENT_POLICY_PROPOSED.json`, SHA-256
+`040698e883b1508c1e88498d6e73c09cccbd8e46a25ae83eef3fbc601fd52567`, proposed
+inline name `SpeedyPrivacyJournalEnrollment20261029`. The complete ordered approval
+package is `ReleaseNotes/PRIVACY_RECOVERY_CONTROLLED_WINDOW_APPROVAL.txt` in that
+checkout. Remaining private confirmations are existing stable digest readability,
+exact production DB URL/role, existing Render API read credential, an owner-only
+0700/0600 local operator directory and an existing IAM admin session for attach/
+remove. Never expose or replace values. Robert still supplies the exact closed-
+business America/Toronto start/end; no window is booked. Four gates stay false and
+API/dispatcher/cron Auto-Deploy stay Off.
+
+## API quiescent startup — implemented for review ONLY, October 29
+
+Robert authorized this narrow source/synthetic-test change, NOT another production
+rollout. New branch `review/api-quiescent-startup`; PR99 is already merged. Production
+remains the recorded `3a6cab9`; no Render/AWS/config/permission/downtime/enrollment
+action is performed here. Prior completed runtime/AWS/provider/device evidence is
+reused. The writer inventory and private-access instructions below remain applicable.
+This section supersedes the earlier DESIGN ONLY/unimplemented startup-control status.
+
+**Source/evidence:** `8550562e7e54001a0f56719792ef145dc79d0bef`,
+[draft PR100](https://github.com/speedysweeties-ca/speedy-sweeties-backend/pull/100).
+Exact source both jobs PASS in [PR CI40929641398](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40929641398)
+and [push CI40929533744](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40929533744),
+attempt1/no manual rerun. Actual child-process startup suite **22/22** in the
+privacy-database job includes real loopback Prisma/PostgreSQL READ ONLY assertion
+(transaction_read_only=on). Existing serial recovery/operator **9/9**, lifecycle/
+baseline/delivery **23/23** pass. Validate: backend **553 pass / 7 DB-only skips /
+zero failures**, actual timing-history DB1/1 each, dispatcher69/69, guards/build/
+help/audits pass. One added backend skip is exercised in privacy-database instead.
+Pinned-Node local focus **24 pass / 1 CI-only DB skip / zero failures**, build/help/
+whitespace pass; exact original normal-startup body comparison passes. Documented
+future Shell command **12 synthetic VM cases pass**, zero network calls. These are
+synthetic/local/CI results, NOT production quiescence/global exclusion/S3 proof.
+Later evidence-only handoff commits preserve this runtime/test tree; exact final
+review-head checks are recorded in PR100, not guessed from an earlier SHA.
+
+### Exact control and implementation
+
+| `API_STARTUP_MODE` | Behavior selected once BEFORE application imports |
+| --- | --- |
+| Unset, or exact `normal` | Original startup body in `normalServer.ts`, unchanged except its explanatory comment. No normal route/monitor/credential/business behavior is removed. |
+| Exact `quiescent` | Only `quiescentServer.ts`: native HTTP health handler and log-free direct Prisma client. No app/routes/env business module/Firebase/provider client, repair, alert, monitor, session writer or business timer is started. All four existing privacy gates MUST be literal `false`; missing/true/invalid gate or invalid port/missing DB configuration stops startup. |
+| Any other value, including empty/whitespace/case variants | Exit nonzero with fixed sanitized startup error, BEFORE either server loads. Never select normal as error recovery. |
+
+`server.ts` reads the existing dotenv configuration first outside NODE_ENV=test,
+just as normal configuration did; non-ENOENT config-read failure stops. Process
+environment takes precedence. There is no extra state table/file, migration,
+dependency, scheduler or recovery implementation. Existing Node24.22.1 pins and
+both required CI jobs remain. Dedicated digest/AWS/ownership/retention/operator
+guards are untouched; root is still rejected. Do not set NODE_ENV=test on Render.
+
+Quiescent HTTP permits ONLY exact GET `/api/v1/health/live` (200; no DB query) and
+GET `/api/v1/health/ready` (200 only after a request-driven **READ ONLY** transaction:
+statement timeout1500ms, lock timeout500ms, SELECT1; transaction2500ms/maxWait1000ms).
+Overlapping ready requests share one probe; no polling, autonomous retry or mode
+expiry. Unavailable DB returns503, not normal startup. Every other path/method,
+including HEAD/OPTIONS, write-capable GETs, query/trailing-slash health variants,
+static app routes and private-network requests, is rejected without routing or body
+parsing:503 `API_QUIESCENT`, no-store. Responses identify `mode=quiescent` and
+`applicationWritersStarted=false`; no private input/error body is echoed/logged.
+Those markers describe API application writers, NOT cron/global DB exclusion.
+
+**Persistence/release:** the operator leaves this exact setting SAVED on the existing
+Render API service. Each restart/deploy selects quiescence again. Running processes
+never switch on env mutation/error/timeout. Save only does NOT load it; Restart uses
+the existing deployment's env, so a normal same-reviewed-SHA deploy is required after
+saved changes. Only a separately reviewed explicit `API_STARTUP_MODE=normal` config
+load releases API exclusion. Do not delete/unset the key during maintenance: absence
+retains legacy normal startup for compatibility. Code cannot prove who approved a
+dashboard edit; restrict/review those operations. This is not an external immutable
+latch or protection against an authorized operator deliberately removing the setting.
+
+### Reviewed future sequence — NOT permission to execute or book downtime
+
+Use one exact approved **quiescence-capable merge SHA**, recorded as RELEASE_SHA;
+do not deploy old3a6cab9 while expecting it to recognize this new setting. Existing
+owner approval of PR99 does not cover a new executable SHA. The non-root temporary
+operator/profile and locked-paper method/reference are confirmed. Remaining inputs
+are the private existing digest/DB/Render access, separate IAM admin session, exact
+closed-business Toronto window and refreshed PR100/CI/merge SHA. No new identity,
+permanent key, paid resource or broad grant is created by this source task.
+
+1. After new-source approval and current required CI, record main/live/schema and
+   exact API resource. Keep API/dispatcher/cron Auto-Deploy Off, four gates false,
+   all secrets/operational settings/schedules intact. No dispatcher/cron deployment.
+   Check no pending migration (none added here). Confirm no cron due/in flight for
+   the ENTIRE window and exclude/identify all other DB writers independently.
+2. Only in Robert's confirmed window: Render Dashboard → Speedy's workspace →
+   speedy-api → Settings → Maintenance Mode → enable to block public requests.
+   This alone is NOT writer exclusion and does not stop private access/monitors.
+3. speedy-api → Environment → add `API_STARTUP_MODE=quiescent`, retain all four
+   false gates → Save only. Deploys → Manual Deploy → Deploy a specific commit →
+   full RELEASE_SHA. Preserve build → migrate deploy → npm run start. No start-
+   command override, ad-hoc server or secret removal. Do NOT start enrollment yet:
+   during rolling deploy the OLD normal instance may still be running and writing.
+4. Verify exact live revision and quiescent health locally as below; obtain provider
+   confirmation that ALL old normal instances/one-off jobs have retired/drained,
+   including shutdown flushes/in-flight transactions. Inspect DB connections,
+   transactions/prepared transactions and expected schemas/triggers without outputting
+   rows/SQL/contacts. Readiness/quiescent self-report alone is not that confirmation.
+   Stop if any client is unattributed, any old instance remains or no adequate
+   retirement evidence is available. Reconfirm cron/external writer exclusion.
+5. Only now mark the actual exclusion evidence/expiry and use existing guarded
+   operator build/preflight/enroll commands at this exact RELEASE_SHA. No changed
+   identity guard, longer DB transaction, fake empty baseline or invented hash.
+   Preflight plan and all nine empty indicators must pass; uncertain write stops.
+6. Print only the actual six observed pin `NAME=value` lines. Robert compares every
+   complete printed value with protected tool output and secures the sheet under
+   `locked-paper:SpeedySweeties-PrivacyRecovery-epoch-0001`. Until he confirms exact
+   match and locked storage, remain quiescent and do not load pins or reopen. Then
+   save pins in API Environment WITHOUT changing quiescent/gates/keys.
+   Normal deploy of SAME RELEASE_SHA loads pins. Every overlapping instance now
+   stays quiescent; repeat mode/health checks and existing pure restricted-app S3
+   read-back (replace its literal SHA with RELEASE_SHA). No app/provider import or
+   customer action is needed. Keep cron/external writers excluded independently.
+7. Once durable pins, config/health/schema/current authenticated S3 reads and all
+   recorded required checks pass, remove only the reviewed temporary operator grant/
+   session; preserve the app key and permanent policies. Review explicit release:
+   API Environment → change ONLY `API_STARTUP_MODE=normal` → Save only → deploy
+   SAME RELEASE_SHA. **This is the deliberate end of API write exclusion**: normal
+   monitors can resume during that deployment. Keep public maintenance on until
+   normal health/config/disabled-privacy checks pass; then disable maintenance to
+   reopen public traffic. Four privacy gates stay false; no customer privacy activation.
+
+**Failure/recovery:** never change mode to normal just to clear an error. If the
+first quiescent deploy fails, Render can retain old normal processes: public edge
+maintenance does not make the DB offline; do not enroll. During pin-load/verification
+failure, keep saved quiescent mode, false gates and ingress exclusion; forward-fix
+only reviewed source/config. Do not roll back to a build without this selector (it
+would ignore quiescence), use Restart to load saved changes, reverse migrations,
+rotate keys, delete/edit history/pins or blind-repeat enrollment. Operator disconnect
+or expired evidence leaves quiescence selected; it never authorizes reopening.
+After real privacy state, preserve the existing stricter history/reader rollback
+boundary. Inability to establish external-writer exclusion remains a hard stop.
+
+### Read-only future quiescent verification — new API Shell, not run now
+
+Open Render → workspace → speedy-api → Shell. Replace ONLY the literal
+`REVIEWED_MERGE_SHA` with the actual future release, never a guessed SHA. This checks
+the actual LOCAL health handler (public maintenance otherwise masks it). It does
+not inspect customer data, request a code or call a provider:
+
+```sh
+node <<'SPEEDY_QUIESCENT_READONLY'
+(async()=>{const e=process.env;const gates=['PRIVACY_DELETION_ENABLED','PRIVACY_FULFILLMENT_ENABLED','PRIVACY_VERIFICATION_EMAIL_ENABLED','PRIVACY_VERIFICATION_PHONE_ENABLED'];
+const targetMatches=e.RENDER_SERVICE_ID==='srv-d7ntlnpkh4rs73bev9q0'&&e.RENDER_GIT_COMMIT==='REVIEWED_MERGE_SHA';
+const configPass=e.API_STARTUP_MODE==='quiescent'&&e.NODE_ENV==='production'&&gates.every(k=>e[k]==='false');
+const port=Number(e.PORT||4000);if(!targetMatches||!configPass||!Number.isInteger(port)||port<1||port>65535)throw Error('stop');
+const results=[];for(const [path,want] of [['/api/v1/health/live',200],['/api/v1/health/ready',200],['/api/v1/privacy/deletion/admin/requests',503]]){
+const r=await fetch(`http://127.0.0.1:${port}${path}`,{method:'GET',redirect:'error',signal:AbortSignal.timeout(5000)});const j=await r.json();
+const pass=r.status===want&&j.mode==='quiescent'&&j.applicationWritersStarted===false&&r.headers.get('cache-control')==='no-store'&&(path.endsWith('/ready')?j.checks?.database==='ok':want===503?j.code==='API_QUIESCENT':j.success===true);
+results.push({path,status:r.status,pass});if(!pass)break;}
+const pass=results.length===3&&results.every(x=>x.pass);console.log(JSON.stringify({check:'SPEEDY_QUIESCENT_READONLY',targetMatches,configPass,results,pass}));process.exitCode=pass?0:1;
+})().catch(()=>{console.log(JSON.stringify({check:'SPEEDY_QUIESCENT_READONLY',result:'STOP_NO_PRIVATE_DETAILS'}));process.exitCode=1;});
+SPEEDY_QUIESCENT_READONLY
+```
+
+This Shell check is not global writer attribution, MFA, secret continuity or S3
+verification. Preserve the completed normal3a6cab9 read-back; don't rerun it now.
+No maintenance window is booked. The 20–30 minute impact estimate below remains
+unverified until the actual operator/session/window/provider retirement evidence
+is available. Cron and other DB clients are **outside this API-only control**.
+Current platform references reviewed for this handoff:
+[Render deployments, restart and old-instance drain](https://render.com/docs/deploys),
+[Render health checks](https://render.com/docs/health-checks).
+
+## Current production closeout — October 29, enrollment NOT started
+
+Robert approved review head `23c1921738d10f7b4a8972fd66faa82f90c5ac61`
+and its bounded API deployment/conditional initial enrollment package. PR 99 was
+marked ready and merged normally as **`3a6cab9be07dba23af8e556f8c807f91d6a018aa`**.
+Fetched main was `ac1a69b`; the actual merge's **entire Git tree equals the approved
+head**, whose executable/test tree equals `cef843a`. No executable scope changed.
+Both jobs passed on approved head (40902492278 / 40902480571) and on the actual
+[merge, CI 40909689685](https://github.com/speedysweeties-ca/speedy-sweeties-backend/actions/runs/40909689685):
+`validate` 123573960768 and `privacy-database` 123573960224, SUCCESS. No manual
+test rerun, new source, simulator or repeated AWS/provider/device verification.
+Handoff-only verification: whitespace checks pass in both repositories; the exact
+documented runtime read-back, substituting this actual merge SHA, passes 10 synthetic
+VM cases (correct target, wrong target/revision, each enabled gate, missing digest/
+AWS credential and conflicting session). No secret echo/environment mutation or
+network call. These are command-safety checks, not production access tests.
+GitHub reported main unprotected/no rulesets, clean merge/no review threads; the
+connector's administrative protection endpoint returned 403. Normal merge was used,
+with expected-head enforcement and no administrator/check bypass.
+
+**API only:** `dep-dbhn281srm7s7388s6g0`, exact merge above, live
+2026-10-29T16:17:03Z (12:17 Toronto). Preserved build → `npx prisma migrate deploy`
+→ start. Build log confirms Node **24.22.1**; pre-deploy reports **48 migrations,
+no pending migrations to apply**; startup connected to DB. Post-deploy read-only:
+liveness 200, readiness 200/database ok, privacy admin-list GET 503
+`PRIVACY_SERVICE_UNAVAILABLE` / `Cache-Control: no-store`. Production metadata
+confirms exact resource `dpg-d7m33g2qqhas73f58hrg-a`, database `speedy_sweeties_db`,
+role `speedy_sweeties_db_user`, Ohio/PostgreSQL 18/available. Schema read-back:
+48 completed/zero unresolved migrations, six privacy tables, five privacy-state
+columns and four enabled protection triggers. Their table/event/function hashes
+match checked-in SQL after equivalent whitespace trimming. Historical rolled-back
+loyalty migration is not an unresolved failure. No new SQL was applied.
+
+Auto-Deploy independently remains **Off** on API, dispatcher and cron; none is
+suspended and API maintenance mode remains off. Dispatcher remains `007cba9` and
+cron `c5f249f` (schedule `0 14 * * *` UTC unchanged); neither was deployed/run/changed.
+Ordinary API operation continues. **OWNER-SUPPLIED NEW API SHELL READ-BACK PASS,
+October 29:** `SPEEDY_RECOVERY_RELEASE_READONLY` has every assertion true: exact API/
+merge/production/Node24.22.1; all four gates exactly false; dedicated digest present
+and distinct from JWT; AWS pair present with no conflicting provider; approved
+admin/policy/timeframe/fiscal values match. No setting/secret changed. This closes
+the running-configuration read-back: do NOT repeat it or redeploy to check it.
+Presence/equality is not proof of retained credential retrievability, operator
+identity or production S3 access. Neither a key value nor fingerprint was requested.
+
+**Enrollment/configuration/access cleanup:** NOT EXECUTED. No production operator
+preflight, baseline certification, S3 read/write/enrollment, observed hash/pin save,
+second deployment, permission grant or writer interruption occurred. There is no
+new temporary operator access to remove. Completed synthetic cleanup stays closed.
+Do not read this rollout as recovery enrollment, restricted production-app S3 access,
+restore reconciliation, customer activation or an in-app privacy-flow pass.
+
+### Remaining execution prerequisites — one consolidated owner follow-up
+
+These are execution facts, not requests to reapprove the package or retention rules:
+
+1. **Existing non-app operator confirmed; exact rights still unattached:** profile
+   `speedy-privacy-operator`, region `ca-central-1`, account `080413009273` and ARN
+   `arn:aws:iam::080413009273:user/SpeedyPrivacyJournalOperator` match. Robert's
+   password/passkey browser sign-in is owner-provided MFA evidence; STS alone proves
+   identity. The existing loader consumed the `aws login` temporary session and
+   enforced token/expiry/ARN guards. Do not reset/recreate/create a permanent key.
+   An existing separate IAM admin session is needed only to attach/remove the exact
+   proposed inline policy during the controlled window; the operator cannot self-
+   administer it.
+2. **Protected durable pins confirmed; actual record pending:** print only the six
+   actual observed recovery-pin lines after enrollment, compare every complete value
+   and lock the sheet in Robert-controlled business-record storage. Exact reference:
+   `locked-paper:SpeedySweeties-PrivacyRecovery-epoch-0001`. Do not print an invented
+   hash, password, access/session key, digest, URL, credential or customer data. No
+   Apple-account synchronization or new store setup remains.
+3. **Private access/tooling still to confirm:** existing stable digest readability,
+   exact production External Database URL and provider role, and an existing Render
+   API read credential. Report only yes/no availability; do not expose, replace or
+   rotate values. Use an existing Robert-only local operator directory with mode
+   0700/files 0600; it is working storage, not the durable recovery copy. Prepare
+   the artifact only after PR100 contains current main, exact-head CI passes, a
+   separately authorized normal merge produces RELEASE_SHA, and concurrent work is
+   preserved. Never substitute either current branch tip for RELEASE_SHA.
+4. **All-writer exclusion/timing:** Robert supplies exact America/Toronto closed-
+   business start/end covering the estimated 20–30 minutes plus buffer. Evidence
+   remains <=30 minutes fresh. Use PR100's reviewed quiescent startup at exact
+   RELEASE_SHA plus public Maintenance Mode, old-instance/in-flight drain, cron-not-
+   due/in-flight confirmation and absence/control of every outside DB writer. No
+   quiescent marker, gates-false state or quiet traffic proves global exclusion by
+   itself. Follow the ordered package above through paper verification, same-SHA pin
+   load/read-back, targeted access cleanup and explicit same-SHA return to normal.
+
+The current-runtime read-back is now closed. Once the remaining facts and a tested,
+reviewed writer-exclusion method pass, preserve the already-approved bounded
+enrollment intent. A NEW executable quiescence change requires its own exact-source
+review/approval; it is not covered by the old SHA's deployment approval. Do not ask
+again for approved business decisions or repeat the completed PR99 deployment. Stop
+on nonempty baseline, missing history, mismatch or uncertainty; never blind-repeat
+GENESIS. If continuous exclusion cannot be achieved with reviewed existing controls,
+report that precise operational obstacle before execution. No customer deletion,
+restored-DB apply, activation, message, publication or Apple upload is authorized.
+
+### October 29 read-only writer review — why the exclusion procedure is not ready
+
+Robert explicitly confirmed **no maintenance window**; resolve the engineering
+procedure first, then propose duration/impact and choose a closed-business Toronto
+window when he is available. No service suspension or setting change occurred.
+Render monitoring guidance was used for metadata only. Five configured services
+(including previews) were returned in the confirmed workspace; no separate
+background worker was listed. Each has Auto-Deploy Off.
+
+| Writer / entry point | Source-confirmed effects and exclusion consequence |
+| --- | --- |
+| speedy-api request handlers, including staff/customer/driver clients and website | Order/contact/receipt/catalog/staff/presence/loyalty/session/settings writes. Some GETs also write (QR scan, loyalty reset); blocking POST alone is insufficient. All request routes, public AND private, must be excluded except deliberately pure readiness/liveness. |
+| API staff-session writer | `staffSessionLog.service.ts`: immediate/30-second buffered upserts; shutdown flush can still write. Wait for process/transaction drain, not just a public maintenance response. |
+| API pickup repair and hours | `server.ts` unconditionally starts place-ID repair and hours timer. `pickupLocationPlaceIdRepair.service.ts` / `pickupLocationHours.service.ts` update PickupLocation, including error timestamps; hours starts after 45 seconds, then daily. No all-jobs disable flag exists. |
+| API optional startup pickup jobs | `PICKUP_LOCATION_APPLY_ON_START` can create/update pickup rows; dry-run can call geocoding even though it does not persist. Their current runtime values were not read; exclude their execution rather than assume false. |
+| API B&D monitor/history/cache | When configured/enabled, `bndOrderMonitor.service.ts`, `bndWaitingHistory.service.ts` and `integrations/bnd/hours.ts` persist SystemSetting, BndMonitorCheck/WaitingPeriod; paused/closed order polling alone is not a global DB-write stop. Hours refresh can still run. |
+| API B&D / undispatched email workers | `bndEmailAlerts.service.ts` and `undispatchedOrderAlert.service.ts` claim/mark/release rows and may send operational emails; startup checks are immediate. Existing provider settings/admin opt-ins are preserved, not disabled or tested. |
+| API driver assignment notifier | Request-started delayed/retry notifications can clear invalid driver tokens. No new notification/job is invoked; stop/drain the old process and pending work. |
+| speedy-retention-90-day | `retention:90`, deployed c5f249f: writes RetentionMessage draft rows even in DRY_RUN. Schedule `0 14 * * *` UTC. Read-only events: October 29 started 14:01:00Z, ended SUCCESS 14:02:03.670882Z; October 28 also ended SUCCESS. This proves that observed run ended, NOT future-window exclusion. No trigger/run/schedule/deploy change. |
+| speedy-dispatcher | Static Vite preview process serves assets; browser requests go to API. It is not a direct Prisma process. Keep deployed bundle unchanged; staff editing/submission cannot work during API exclusion. |
+| Separate ordering staging / SMS | Metadata live revisions 203b399 / ef944a0 respectively. Their exact checked-in start guards require their specific non-production database resource/name/user; neither starts production server monitors. No request, reset, DB query, secret/config change or deploy against either. Guard/source evidence is not a fresh private environment attestation; do not target them for this window. |
+| Other database clients / manual release tools | A production read-only activity snapshot found 3 other client connections, all using the application role, zero open/prepared transactions. No raw SQL, client IP, application names, PIDs or customer information returned. Those connections are NOT individually attributed and the snapshot is NOT an all-writer stop. `pg_cron`/`pgagent` job tables and pg_cron/pgagent/pg_task extensions absent; this does not prove absence of outside schedulers. No scheduled GitHub workflow in the checkout; cloud workflow is manual only. |
+
+Evidence is the deployed source tree (3a6cab9), configured service/start commands,
+read-only cron events and counts-only system-catalog/activity queries. The exact
+conditional monitor enablement/credentials are deliberately not retrieved; every
+potential writer is covered regardless. Remaining unattributed connections must
+drain/be identified at the real window; do not ask Robert to infer this inventory.
+
+**Evidenced operational gap:** `privacyRecoveryOperator.ts` holds table locks only
+inside its at-most-15-second transaction; `privacyRecoveryOperator.cjs` disconnects
+on exit. PostgreSQL releases those locks at transaction end. They cannot bridge
+the later pin save/deployment/verification. Public maintenance mode leaves the API
+process/private access running. Suspension stops the process, but a normal API
+deployment/resumption starts the above jobs again BEFORE verification. There is
+no existing startup-wide quiescence flag or protected release handshake in the
+approved SHA. Quiet/closed-business traffic, BND disabled or the four false privacy
+gates do not solve this. Do not lengthen the transaction, add a blind long-lived
+lock holder, use NODE_ENV=test, blank operational secrets, or substitute an ad-hoc
+maintenance server/start-command override as an unreviewed workaround.
+
+**Smallest recommended engineering correction — DESIGN ONLY, not implemented:**
+a narrow fail-closed operator-quiescent startup path in the existing API, not a
+second recovery system. It must be selected BEFORE importing app/routes/monitor
+startup, persist across process restart/deploy, start no jobs/timers/provider
+clients or session writer, and reject all public/private application requests
+(including write-capable GETs). Allow only honest read-only live/DB-SELECT-1 checks;
+run the existing pure S3 read-back in a separate Shell. While this operator mode
+is selected, missing/invalid prerequisites must not silently start the normal app,
+and no timeout may reopen it; ordinary startup outside the explicit operator mode
+must retain existing behavior. Keep all four privacy gates false. Release
+quiescence only by a reviewed manual
+same-source configuration-load step AFTER observed pins are durable and read-back
+passes. Test startup/import isolation, rejected write-capable GETs/mutations,
+restart persistence, failures and explicit release with synthetic fixtures/CI.
+The mode/setting does NOT exist now: do not add invented variables in Render.
+
+This changes executable startup scope beyond the reviewed PR99 head; no source
+change, merge or deployment is made under that approval. It needs a bounded review
+change and its exact-head approval before production use. Preserve the existing
+enrollment/journal/retention/ownership/financial guards, 15-second transaction limit,
+stable keys and deployed API while this gap is resolved.
+
+**Future ordered window, conditional on that reviewed control and all access facts:**
+(1) verify no current/due cron job or other release/writer; (2) block ingress, stop/
+drain old API and prove no unattributed DB writers; (3) start verified quiescent API,
+confirm no jobs or application writes; (4) existing guarded preflight/one enrollment;
+(5) retain actual pins in confirmed durable storage; (6) load pins at SAME newly
+reviewed quiescence-capable SHA while still quiescent and verify exact config,
+read-only health/schema and restricted current-history reads; (7) remove temporary
+operator access; (8) only after those checks explicitly release quiescence as the
+end-of-write-exclusion boundary, then verify normal health and reopen ingress.
+If ANY prerequisite, identity, guard, writer check, configuration or outcome is
+uncertain, stop; remain quiescent, do not retry enrollment or automatically reopen.
+
+**Impact/duration estimate, not a booked window or verified recovery SLA:** budget
+20–30 minutes for operator steps and configuration-load builds; the previous API
+build/deploy took about 95 seconds, not a guarantee for subsequent builds. Customer
+order submission/tracking/loyalty/account actions, website API-backed functions,
+dispatcher reads/edits, driver status/actions, QR persistence, B&D live monitoring,
+pickup refreshes and operational alerts will be unavailable or paused. Static
+website/dispatcher assets and local/offline app screens may still open. The separate
+staging/SMS services remain untouched; cron is scheduled outside the window, not
+paused/changed. Do not choose dates until the control is implemented/tested and
+access/durable-record prerequisites pass. Existing max-30-minute evidence manifests
+expire; expiration stops execution, never authorizes auto-reopening or a blind retry.
+
+Sources: [Render maintenance](https://render.com/docs/maintenance-mode),
+[PostgreSQL transaction lock lifetime](https://www.postgresql.org/docs/18/sql-lock.html).
+
+### Locate existing private credentials — no setup changes
+
+Follow privately, without sharing screens/clipboard/secret values:
+
+1. **Mac Passwords first:** Command–Space → type `Passwords` → Return; unlock with
+   Touch ID/Mac login. Select All and search `Render`, `Speedy`, `privacy`,
+   `PRIVACY_DIGEST_KEY` and `API` one at a time. Inspect only an existing item's
+   password/notes privately if relevant. An ordinary Render LOGIN password is NOT
+   a Render API credential; an AWS key is NOT the privacy digest. Do not Edit,
+   Generate, Delete, export a vault/CSV, or paste a value into chat/Terminal.
+   If the app is unavailable on older macOS: System Settings → Passwords. If an
+   existing different password manager was used, open that app and use its own
+   search, not a filesystem/log scan. Report only application name and found/not
+   found/readable, never values or account details.
+2. **Existing production digest:** Safari → https://dashboard.render.com/ →
+   Speedy's workspace → speedy-api → Environment. Locate ONLY
+   `PRIVACY_DIGEST_KEY`; if an existing reveal/copy control is available, Robert
+   can privately establish it is retrievable. Do not click Save/Edit/Generate or
+   copy into chat/commands. Merely seeing a masked field is not retrievability.
+   Do not copy until an appropriate existing protected destination or the approved
+   hidden terminal prompt is ready. No rotation; runtime presence already passed.
+3. **Existing Render API credential:** same dashboard → top-right account menu →
+   Account Settings → API Keys. Inspect entries only; locate the corresponding
+   retained secret in the EXISTING vault/note. Render displays a full API key only
+   at creation: the list cannot recover an unretained secret. A key entry, browser
+   sign-in or connector OAuth session is not a recoverable operator API key. If
+   the retained secret is absent, report `existing Render API secret not located`;
+   do not create/revoke/replace a key or scrape connector/browser credentials.
+4. **Durable pin record confirmed; actual record pending enrollment:** Robert has a
+   printer and Robert-controlled locked business-record storage. Print only the six
+   actual observed recovery-pin `NAME=value` lines after authorized enrollment and
+   use reference `locked-paper:SpeedySweeties-PrivacyRecovery-epoch-0001`. Robert
+   must compare all complete printed values to protected tool output and confirm the
+   sheet is secured before pin loading or normal reopening. Keep the stable digest
+   and every password/access key/database URL/customer value off the sheet. Do not
+   invent the enrollment hash. No Apple-account synchronization work remains.
+
+Report only: retained digest privately readable yes/no and retained Render API
+secret found yes/no. Do not report values. The protected paper method/reference is
+closed; the actual sheet awaits observed pins. See official
+[Mac password lookup](https://support.apple.com/en-ie/105115) and
+[Render API-key disclosure](https://render.com/docs/api).
+
+This section supersedes earlier **undeployed/draft/proposal-only** status statements
+below, while preserving their dated test and business evidence.
+
 **CURRENT IMPLEMENTATION ENTRY POINT:** see [Implemented offline operator commands](#implemented-offline-operator-commands--source-only-october-29)
 below. Enrollment/preflight, reconciliation dry-run/apply and evidence-backed
 unfinished-operation resolution are now implemented in review source; no command
@@ -195,10 +623,13 @@ These are needed for FUTURE authorized execution, not reasons to pause source wo
    restricted operator policy test is claimed. Do not run `aws configure export-credentials`
    manually: it prints credentials. The helper captures it privately with no echo,
    inherited AWS credential fallback, command-argument secrets or raw error output.
-2. Confirm protected **durable external pin-record location/reference and access**,
-   separate from DB backups and the stable digest's retained secure copy. A 0600
-   file proves local access permissions, not durability; `/tmp`/a manual export is
-   not the production recovery store. Existing S3 remains the independent journal.
+2. Protected **durable external pin-record location/reference and access are now
+   confirmed**: print only the six actual observed recovery pins and place the sheet
+   in Robert-controlled locked business-record storage, reference
+   `locked-paper:SpeedySweeties-PrivacyRecovery-epoch-0001`. The actual paper remains
+   pending enrollment. A 0600 file proves local access permissions, not durability;
+   `/tmp`/a manual export is not the production recovery record. Existing S3 remains
+   the independent journal; keep the stable digest separate. No Apple sync remains.
 3. Retain the existing stable digest and app AWS pair without rotation. Privately
    supply the existing digest, exact target External Database URL and an existing
    Render API credential with read access only to metadata/connection-info. The

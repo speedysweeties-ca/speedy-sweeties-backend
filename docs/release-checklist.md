@@ -3,6 +3,127 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## October 29 consolidated enrollment preparation — REVIEW ONLY
+
+This section is current and supersedes dated operator/paper prerequisite statements
+in the historical evidence below.
+
+- Draft PR100 contains fetched main `bb753d4f552ed763d9045375d3c5605ea79d9b91`
+  through integration merge revision `8c376ac539605f6e5aaa6a199bf4d1ded0eef466`.
+  Main's website, CORS, human-verification and help work is preserved exactly;
+  quiescence source is unchanged from reviewed head `45acfd8` except the clean
+  combined help result. No blocking integrated-source finding. Require validate and
+  privacy-database SUCCESS on the resulting exact PR head before any main merge;
+  future normal merge SHA becomes RELEASE_SHA. No main merge/deploy occurred.
+- Existing `speedy-privacy-operator` authentication/session-loader path is confirmed.
+  Owner password/passkey evidence remains distinct from STS identity. Exact temporary
+  policy is unchanged/unattached; no permanent key, user replacement or password reset.
+- Durable recovery copy confirmed: only the six actual observed recovery-pin lines
+  will be printed, compared completely by Robert and secured in Robert-controlled
+  locked business-record storage. Exact reference:
+  `locked-paper:SpeedySweeties-PrivacyRecovery-epoch-0001`. Actual sheet remains
+  pending enrollment. No Apple-account/Notes synchronization remains.
+- Single source/permission/quiescence/exclusion/enrollment/paper/pin-load/cleanup/
+  normal-return package is in the iOS release checkout at
+  `ReleaseNotes/PRIVACY_RECOVERY_CONTROLLED_WINDOW_APPROVAL.txt`. Remaining inputs:
+  retained digest, exact DB URL/role and existing Render read credential privately
+  available; owner-only local operator directory; existing IAM admin session; exact
+  Robert-confirmed closed-business Toronto start/end. Do not expose/replace values.
+  Four gates stay false and API/dispatcher/cron Auto-Deploy stay Off.
+
+## October 29 API quiescent-startup change — SOURCE REVIEW ONLY
+
+- New branch `review/api-quiescent-startup` for a NEW draft PR (99 already merged).
+  `API_STARTUP_MODE=quiescent` is selected before app/routes/business imports;
+  only native HTTP exact GET live/ready and a request-driven READ ONLY SELECT1
+  client are loaded. Every other route/method (including write-capable GETs and
+  private access) is503/API_QUIESCENT/no-store. No business jobs, timers, monitors,
+  repair, session writer, alerts or provider activity. Errors never open normal.
+- Exact `normal` or unset preserves original startup body in `normalServer.ts`;
+  byte-identical to deployed server body except comment. Empty/typo/case/whitespace
+  mode stops. Quiescence requires all four privacy gates literally false and valid
+  minimal DB/port settings. Saved Render env retains selection across restart/deploy;
+  explicit reviewed `normal` plus normal same-source deploy releases it. No unset/
+  deletion during maintenance, timeout release, storage fallback or key change.
+- Synthetic actual process/import traps/loopback checks cover blocked routes,
+  read-only health, config/database/listen failures, restart persistence and
+  explicit return to original normal startup. Actual guarded loopback PostgreSQL
+  transaction-read-only check added to existing serial privacy-database CI; both
+  required jobs/runtime pins/full-history help/timing/financial/recovery tests kept.
+  No dependency/schema/migration/dispatcher bundle or existing operator guard change.
+- Single exact deployment/config/verification/stop/recovery handoff:
+  [privacy-s3-storage.md](privacy-s3-storage.md#api-quiescent-startup--implemented-for-review-only-october-29).
+  It requires OLD normal-instance retirement/drain BEFORE baseline/enrollment;
+  mode self-report and a new live deploy alone do not prove that. API mode does
+  NOT stop cron, outside clients or pre-deploy SQL. Independently exclude them.
+- This source/synthetic authorization does NOT approve new-SHA merge/deploy/config/
+  downtime/enrollment. Production stays recorded3a6cab9/four gates false/AutoOff.
+  Prior runtime/AWS/provider/iPad/cleanup evidence closed; no repeat. The exact
+  non-app profile/session-loader and locked-paper method are now confirmed above;
+  private retained inputs, temporary grant and later Robert-confirmed closed-business
+  window remain prerequisites. Exact source CI/evidence recorded at closeout.
+
+### Quiescent source verification closeout
+
+Source **8550562e7e54001a0f56719792ef145dc79d0bef**, DRAFT PR100. Both validate and
+privacy-database SUCCESS in PR40929641398 / push40929533744. Startup22/22 includes
+actual Prisma/PostgreSQL transaction_read_only=on; recovery/operator9/9 and lifecycle/
+financial/baseline/delivery23/23 pass. Backend553 pass/7 DB-only skips/zero fail;
+both timing DB checks and dispatcher69/69 pass. Local startup/runtime focus24 pass/
+1 CI-only DB skip, documented-command VM12 cases, normal-body byte comparison,
+build/help/whitespace pass. No manual rerun, live AWS/provider/device check or Mac
+broad suite. Source unchanged by later handoff closeout; final exact-head CI is in
+PR100. Production configuration/access/window/enrollment remains UNVERIFIED and
+unexecuted; do not confuse these passing tests with permission to deploy.
+
+## October 29 approved PR 99 — API deployed; enrollment prerequisites open
+
+- Approved head `23c1921738d10f7b4a8972fd66faa82f90c5ac61` merged normally as
+  **`3a6cab9be07dba23af8e556f8c807f91d6a018aa`**; full tree equals approved head.
+  Existing head CI reused; actual merge CI **40909689685**, `validate` and
+  `privacy-database` SUCCESS. No bypass, changed executable scope or manual rerun.
+- API-only **dep-dbhn281srm7s7388s6g0**, live 2026-10-29T16:17:03Z. Build Node24.22.1;
+  48 migrations/no pending; normal build → migrate deploy → start preserved.
+  Read-only live/ready 200, disabled privacy admin GET 503/no-store. Schema: six
+  tables/five state columns/four enabled exact guards, 48 complete/zero unresolved.
+- Auto-Deploy Off independently confirmed on API/dispatcher/cron. Dispatcher still
+  007cba9, cron c5f249f/schedule unchanged; no excluded resource/settings changed.
+  Owner NEW API Shell read-back PASS October 29: all assertions true, including
+  exact target/revision/Node/production, four false gates, digest/AWS presence,
+  no conflicting provider and approved admin/policy/timeframe/fiscal values.
+  Do not repeat it. This does not prove retained secret access or production S3.
+- Enrollment NOT started: no fresh protected baseline/preflight, AWS write/hash/pin
+  save, permission grant/access cleanup or downtime. The exact non-app profile/
+  temporary-session loader and locked-paper record method are now confirmed; owner
+  passkey evidence is not an STS MFA claim. Proposed minimum rights remain unattached.
+  Retained private digest/Render read credential access and complete confirmed ALL-
+  writer exclusion remain unresolved. No maintenance window confirmed. Technical
+  inventory now covers five Render
+  services, API startup/GET/monitor writers, retention draft writes and observed
+  DB sessions; Robert is not expected to infer these. Existing 15-second operator
+  locks end on return and API restart resumes monitors. Continuous exclusion
+  through pin loading/verification needs a reviewed fail-closed quiescent startup
+  path; none exists in deployed 3a6cab9. Design only, no source change. Any such
+  new executable scope requires exact-source review, not reuse of old SHA approval.
+- Current execution status, one consolidated owner navigation list, exact safe
+  Shell/STS checks and remaining operational stop are in
+  [privacy-s3-storage.md](privacy-s3-storage.md#current-production-closeout--october-29-enrollment-not-started).
+  Existing approval remains valid within scope; do not request it again. Current
+  owner runtime check is DONE; safe writer exclusion/non-root access/private store
+  and credential facts → guarded once-only enrollment → durable observed pins →
+  same-SHA load/restricted-read verification/access cleanup, only when exclusion is
+  genuinely established. Activation/website/Apple remain later separate boundaries.
+- No broad application tests, AWS inventory/cloud run/cleanup, provider/iPad rerun,
+  simulator, iOS rebuild or new paid resource. Completed findings stay closed.
+- Next owner navigation is consolidated in that same handoff: existing private
+  retained items; Render API Environment
+  (private existing digest only) / Account Settings → API Keys (retained API secret
+  needed; a listed key is not retrievable there); AWS IAM Roles/Users to locate
+  existing NON-app operator. No values/screenshots, new keys or storage setup
+  requested. Report only availability; missing facts stay open. Estimated
+  future interruption budget 20–30 minutes, not booked or verified; choose a closed-
+  business Toronto window only after the control/access prerequisites are ready.
+
 ## October 29 guarded production operator implementation — review source, not executed
 
 - Implemented `npm run privacy:operator -- preflight|enroll|dry-run|apply|resolve`,
@@ -20,9 +141,10 @@ a separate release and requires its own signed build and store submission.
   readable; old readers cannot interpret RESOLVE and must not be rollback targets.
 - Operator command/reference/minimum permissions/owner prerequisites and production
   approval package: [privacy-s3-storage.md](privacy-s3-storage.md#implemented-offline-operator-commands--source-only-october-29).
-  Actual MFA-backed non-app identity, existing temporary profile/Render read access,
-  durable protected pin location and future all-writer exclusion remain owner-only
-  execution facts. STS identity is not MFA proof; no secrets retrieved/changed.
+  Existing non-app identity/profile/session-loader and durable locked-paper method
+  are now confirmed; exact temporary rights remain unattached. Render/digest private
+  access and future all-writer exclusion remain owner-only execution facts. STS
+  identity is not MFA proof; no secrets retrieved/changed.
 - Source `cef843aa9c944ff9bacf0e331c69e33432582f62`, draft PR 99. Both required jobs
   PASS in PR CI 40900890000 and push CI 40900873587. Serial recovery/operator DB
   9/9, lifecycle/baseline/delivery 23/23; backend 532 pass/6 DB-only skips/zero fail,
