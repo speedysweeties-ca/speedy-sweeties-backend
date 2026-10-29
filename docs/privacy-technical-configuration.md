@@ -7,14 +7,24 @@ full approved tree preserved. Actual merge CI 40909689685 passes both required j
 API `dep-dbhn281srm7s7388s6g0` live 16:17:03Z; Node24.22.1 build/no pending SQL,
 read-only live/ready/disabled privacy/schema/guard checks pass. No environment
 change, dispatcher/cron action, enrollment, AWS write or customer operation.
-Auto-Deploy Off confirmed on all three. Four false gates remain required; current
-Shell equality/presence read-back is pending, not inferred from the disabled route.
+Auto-Deploy Off confirmed on all three. Owner-supplied October 29 NEW API Shell
+read-back has ALL assertions true (including four gates exactly false); completed,
+do not repeat. Presence is not retained-secret retrieval or production S3 access.
 Enrollment approval is conditional on still-unconfirmed owner/session/durable pin/
 private access/ALL-writer exclusion facts. Ordinary ordering continues; no exclusion
 window began. See the single current closeout/prerequisite list at the top of
 [privacy-s3-storage.md](privacy-s3-storage.md). Earlier undeployed statements below
 are historical, not the current API deployment status. Completed provider/OpenAI/
 receipt/storage/recovery/device/business findings remain unchanged.
+
+Owner CloudShell STS account matches but principal is `arn:aws:iam::080413009273:root`;
+not an eligible operator or proof of MFA. Retained private credential access and
+durable pin-record location remain unconfirmed. Read-only writer inventory in the
+S3 handoff establishes that suspend/maintenance/resume cannot continuously exclude
+all startup/background writers through pin-load verification with current source.
+The proposed minimal fail-closed quiescent startup control is NOT implemented or
+authorized by the old reviewed SHA. No source/config/permission/operational change,
+new window or enrollment occurred; precise private lookup guidance is documented.
 
 Updated 2026-10-29. The production findings came from repository inspection plus
 read-only Render/PostgreSQL and mailbox access. The isolated-test update separately

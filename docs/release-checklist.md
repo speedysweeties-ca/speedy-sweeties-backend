@@ -15,23 +15,41 @@ a separate release and requires its own signed build and store submission.
   tables/five state columns/four enabled exact guards, 48 complete/zero unresolved.
 - Auto-Deploy Off independently confirmed on API/dispatcher/cron. Dispatcher still
   007cba9, cron c5f249f/schedule unchanged; no excluded resource/settings changed.
-  Preserve all four false gates/credentials. NEW API Shell boolean read-back is
-  pending; a disabled deletion endpoint alone does not prove all four values.
+  Owner NEW API Shell read-back PASS October 29: all assertions true, including
+  exact target/revision/Node/production, four false gates, digest/AWS presence,
+  no conflicting provider and approved admin/policy/timeframe/fiscal values.
+  Do not repeat it. This does not prove retained secret access or production S3.
 - Enrollment NOT started: no fresh protected baseline/preflight, AWS write/hash/pin
   save, permission grant/access cleanup or downtime. Actual non-app MFA session/
   temporary profile/minimum rights, durable protected pin record, retained private
   digest/Render read credential access and complete confirmed ALL-writer exclusion
-  are unresolved. AWS CLI absent on Mac. Suspension/maintenance/resume must not be
-  misrepresented as exclusion through a normal API start with background monitors.
+  remain unresolved. Owner STS identifies ROOT in the correct account, not an
+  eligible operator; root/application guard remains unchanged. AWS CLI absent on
+  Mac. No maintenance window confirmed. Technical inventory now covers five Render
+  services, API startup/GET/monitor writers, retention draft writes and observed
+  DB sessions; Robert is not expected to infer these. Existing 15-second operator
+  locks end on return and API restart resumes monitors. Continuous exclusion
+  through pin loading/verification needs a reviewed fail-closed quiescent startup
+  path; none exists in deployed 3a6cab9. Design only, no source change. Any such
+  new executable scope requires exact-source review, not reuse of old SHA approval.
 - Current execution status, one consolidated owner navigation list, exact safe
   Shell/STS checks and remaining operational stop are in
   [privacy-s3-storage.md](privacy-s3-storage.md#current-production-closeout--october-29-enrollment-not-started).
-  Existing approval remains valid within scope; do not request it again. Runtime
-  read-back/prerequisites → guarded once-only enrollment → durable observed pins →
+  Existing approval remains valid within scope; do not request it again. Current
+  owner runtime check is DONE; safe writer exclusion/non-root access/private store
+  and credential facts → guarded once-only enrollment → durable observed pins →
   same-SHA load/restricted-read verification/access cleanup, only when exclusion is
   genuinely established. Activation/website/Apple remain later separate boundaries.
 - No broad application tests, AWS inventory/cloud run/cleanup, provider/iPad rerun,
   simulator, iOS rebuild or new paid resource. Completed findings stay closed.
+- Next owner navigation is consolidated in that same handoff: Mac Passwords/Notes
+  existing protected items and second-device/backup access; Render API Environment
+  (private existing digest only) / Account Settings → API Keys (retained API secret
+  needed; a listed key is not retrievable there); AWS IAM Roles/Users to locate
+  existing NON-app operator. No values/screenshots, new keys, grants or storage
+  setup requested. Report only availability; missing facts stay open. Estimated
+  future interruption budget 20–30 minutes, not booked or verified; choose a closed-
+  business Toronto window only after the control/access prerequisites are ready.
 
 ## October 29 guarded production operator implementation — review source, not executed
 

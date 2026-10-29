@@ -15,7 +15,7 @@ Handoff-only verification: whitespace checks pass in both repositories; the exac
 documented runtime read-back, substituting this actual merge SHA, passes 10 synthetic
 VM cases (correct target, wrong target/revision, each enabled gate, missing digest/
 AWS credential and conflicting session). No secret echo/environment mutation or
-network call. These are command-safety checks, not the pending live Shell read-back.
+network call. These are command-safety checks, not production access tests.
 GitHub reported main unprotected/no rulesets, clean merge/no review threads; the
 connector's administrative protection endpoint returned 403. Normal merge was used,
 with expected-head enforcement and no administrator/check bypass.
@@ -36,15 +36,14 @@ loyalty migration is not an unresolved failure. No new SQL was applied.
 Auto-Deploy independently remains **Off** on API, dispatcher and cron; none is
 suspended and API maintenance mode remains off. Dispatcher remains `007cba9` and
 cron `c5f249f` (schedule `0 14 * * *` UTC unchanged); neither was deployed/run/changed.
-Ordinary API operation continues. All four gates must remain literal `false`;
-no environment setting/secret was changed. The disabled route verifies the deletion
-gate's behavior, **not all four values or credential continuity**. A NEW API Shell
-read-back remains required for the current revision, using the existing
-`SPEEDY_RECOVERY_RELEASE_READONLY` command below with
-`RECORDED_RELEASE_SHA=3a6cab9be07dba23af8e556f8c807f91d6a018aa` substituted in its
-literal comparison. Open Render → Speedy's workspace → speedy-api → Shell:
-https://dashboard.render.com/web/srv-d7ntlnpkh4rs73bev9q0/shell . Return only sanitized
-JSON, never an environment dump. No redeploy is needed for that check.
+Ordinary API operation continues. **OWNER-SUPPLIED NEW API SHELL READ-BACK PASS,
+October 29:** `SPEEDY_RECOVERY_RELEASE_READONLY` has every assertion true: exact API/
+merge/production/Node24.22.1; all four gates exactly false; dedicated digest present
+and distinct from JWT; AWS pair present with no conflicting provider; approved
+admin/policy/timeframe/fiscal values match. No setting/secret changed. This closes
+the running-configuration read-back: do NOT repeat it or redeploy to check it.
+Presence/equality is not proof of retained credential retrievability, operator
+identity or production S3 access. Neither a key value nor fingerprint was requested.
 
 **Enrollment/configuration/access cleanup:** NOT EXECUTED. No production operator
 preflight, baseline certification, S3 read/write/enrollment, observed hash/pin save,
@@ -57,16 +56,24 @@ restore reconciliation, customer activation or an in-app privacy-flow pass.
 
 These are execution facts, not requests to reapprove the package or retention rules:
 
-1. **Existing non-app operator:** AWS Console https://console.aws.amazon.com/ →
-   account menu (confirm 080413009273) → CloudShell (>_). Run only:
-   `aws sts get-caller-identity --query '{Account:Account,Arn:Arn}' --output json --region ca-central-1 --no-cli-pager`.
-   Return that non-secret JSON and the displayed identity type. Account menu →
-   Security credentials / existing IAM or Identity Center session: privately review
-   actual MFA provenance/expiry and report non-secret evidence only. STS alone does
-   not prove MFA; root/application credentials are rejected. No operator role or
-   session-scoped grant is assumed. Review the minimum prefix/current-read/key-1
-   conditional PUT permissions in section 3 against that actual existing principal;
-   do not attach the larger permanent operator policy or create/rotate a key.
+1. **Existing non-app operator — current session unsuitable:** owner-supplied
+   CloudShell STS result on October 29 identifies account `080413009273`, ARN
+   `arn:aws:iam::080413009273:root`. Record account match and ROOT identity, not an
+   eligible operator/MFA pass. The existing CLI rejects root even if root used MFA;
+   do not weaken that guard, export root credentials or create root access keys.
+   No repeat STS check is needed for this session. Next read-only discovery: open
+   https://console.aws.amazon.com/ → search IAM → Roles → search
+   `SpeedyPrivacyJournalOperator`. Report only whether that role exists; template
+   ARNs/policy names do NOT prove it exists. If present, open it → Permissions and
+   Trust relationships → View policy; review non-secret principal, MFA/session
+   conditions and exact prefix/key-1 rights before assuming it. Do not edit/attach.
+   IAM → Users: check whether an EXISTING non-application owner/operator user is
+   available; do not select/change SpeedyPrivacyJournalApplication. If already using
+   IAM Identity Center, open that console → AWS accounts / permission sets to locate
+   the EXISTING operator access; do not enable/set up a new organization or service.
+   Actual temporary session ARN/profile, MFA provenance, expiry and minimum effective
+   rights remain unconfirmed. If none exists, report that exact setup gap for a
+   narrowly reviewed non-root access step; no new identity/grant/key is created here.
 2. **Protected durable pins:** open the EXISTING secure-backup/password-manager
    application used for the retained digest. Select a separate owner/operator-only
    item for the observed six pins, not the digest item or a PostgreSQL backup.
@@ -107,13 +114,160 @@ These are execution facts, not requests to reapprove the package or retention ru
    `allWritersStopped=true` from gate settings, quiet traffic, an intention to suspend
    or an unverified restart sequence. No new runtime control is introduced here.
 
-Once these facts and current-runtime read-back pass, the already-approved guarded
-preflight/enrollment/actual external pin/same-SHA config-load/read-only restricted
-app check/access removal can proceed, with no repeated deployment approval. Stop
+The current-runtime read-back is now closed. Once the remaining facts and a tested,
+reviewed writer-exclusion method pass, preserve the already-approved bounded
+enrollment intent. A NEW executable quiescence change requires its own exact-source
+review/approval; it is not covered by the old SHA's deployment approval. Do not ask
+again for approved business decisions or repeat the completed PR99 deployment. Stop
 on nonempty baseline, missing history, mismatch or uncertainty; never blind-repeat
 GENESIS. If continuous exclusion cannot be achieved with reviewed existing controls,
 report that precise operational obstacle before execution. No customer deletion,
 restored-DB apply, activation, message, publication or Apple upload is authorized.
+
+### October 29 read-only writer review — why the exclusion procedure is not ready
+
+Robert explicitly confirmed **no maintenance window**; resolve the engineering
+procedure first, then propose duration/impact and choose a closed-business Toronto
+window when he is available. No service suspension or setting change occurred.
+Render monitoring guidance was used for metadata only. Five configured services
+(including previews) were returned in the confirmed workspace; no separate
+background worker was listed. Each has Auto-Deploy Off.
+
+| Writer / entry point | Source-confirmed effects and exclusion consequence |
+| --- | --- |
+| speedy-api request handlers, including staff/customer/driver clients and website | Order/contact/receipt/catalog/staff/presence/loyalty/session/settings writes. Some GETs also write (QR scan, loyalty reset); blocking POST alone is insufficient. All request routes, public AND private, must be excluded except deliberately pure readiness/liveness. |
+| API staff-session writer | `staffSessionLog.service.ts`: immediate/30-second buffered upserts; shutdown flush can still write. Wait for process/transaction drain, not just a public maintenance response. |
+| API pickup repair and hours | `server.ts` unconditionally starts place-ID repair and hours timer. `pickupLocationPlaceIdRepair.service.ts` / `pickupLocationHours.service.ts` update PickupLocation, including error timestamps; hours starts after 45 seconds, then daily. No all-jobs disable flag exists. |
+| API optional startup pickup jobs | `PICKUP_LOCATION_APPLY_ON_START` can create/update pickup rows; dry-run can call geocoding even though it does not persist. Their current runtime values were not read; exclude their execution rather than assume false. |
+| API B&D monitor/history/cache | When configured/enabled, `bndOrderMonitor.service.ts`, `bndWaitingHistory.service.ts` and `integrations/bnd/hours.ts` persist SystemSetting, BndMonitorCheck/WaitingPeriod; paused/closed order polling alone is not a global DB-write stop. Hours refresh can still run. |
+| API B&D / undispatched email workers | `bndEmailAlerts.service.ts` and `undispatchedOrderAlert.service.ts` claim/mark/release rows and may send operational emails; startup checks are immediate. Existing provider settings/admin opt-ins are preserved, not disabled or tested. |
+| API driver assignment notifier | Request-started delayed/retry notifications can clear invalid driver tokens. No new notification/job is invoked; stop/drain the old process and pending work. |
+| speedy-retention-90-day | `retention:90`, deployed c5f249f: writes RetentionMessage draft rows even in DRY_RUN. Schedule `0 14 * * *` UTC. Read-only events: October 29 started 14:01:00Z, ended SUCCESS 14:02:03.670882Z; October 28 also ended SUCCESS. This proves that observed run ended, NOT future-window exclusion. No trigger/run/schedule/deploy change. |
+| speedy-dispatcher | Static Vite preview process serves assets; browser requests go to API. It is not a direct Prisma process. Keep deployed bundle unchanged; staff editing/submission cannot work during API exclusion. |
+| Separate ordering staging / SMS | Metadata live revisions 203b399 / ef944a0 respectively. Their exact checked-in start guards require their specific non-production database resource/name/user; neither starts production server monitors. No request, reset, DB query, secret/config change or deploy against either. Guard/source evidence is not a fresh private environment attestation; do not target them for this window. |
+| Other database clients / manual release tools | A production read-only activity snapshot found 3 other client connections, all using the application role, zero open/prepared transactions. No raw SQL, client IP, application names, PIDs or customer information returned. Those connections are NOT individually attributed and the snapshot is NOT an all-writer stop. `pg_cron`/`pgagent` job tables and pg_cron/pgagent/pg_task extensions absent; this does not prove absence of outside schedulers. No scheduled GitHub workflow in the checkout; cloud workflow is manual only. |
+
+Evidence is the deployed source tree (3a6cab9), configured service/start commands,
+read-only cron events and counts-only system-catalog/activity queries. The exact
+conditional monitor enablement/credentials are deliberately not retrieved; every
+potential writer is covered regardless. Remaining unattributed connections must
+drain/be identified at the real window; do not ask Robert to infer this inventory.
+
+**Evidenced operational gap:** `privacyRecoveryOperator.ts` holds table locks only
+inside its at-most-15-second transaction; `privacyRecoveryOperator.cjs` disconnects
+on exit. PostgreSQL releases those locks at transaction end. They cannot bridge
+the later pin save/deployment/verification. Public maintenance mode leaves the API
+process/private access running. Suspension stops the process, but a normal API
+deployment/resumption starts the above jobs again BEFORE verification. There is
+no existing startup-wide quiescence flag or protected release handshake in the
+approved SHA. Quiet/closed-business traffic, BND disabled or the four false privacy
+gates do not solve this. Do not lengthen the transaction, add a blind long-lived
+lock holder, use NODE_ENV=test, blank operational secrets, or substitute an ad-hoc
+maintenance server/start-command override as an unreviewed workaround.
+
+**Smallest recommended engineering correction — DESIGN ONLY, not implemented:**
+a narrow fail-closed operator-quiescent startup path in the existing API, not a
+second recovery system. It must be selected BEFORE importing app/routes/monitor
+startup, persist across process restart/deploy, start no jobs/timers/provider
+clients or session writer, and reject all public/private application requests
+(including write-capable GETs). Allow only honest read-only live/DB-SELECT-1 checks;
+run the existing pure S3 read-back in a separate Shell. While this operator mode
+is selected, missing/invalid prerequisites must not silently start the normal app,
+and no timeout may reopen it; ordinary startup outside the explicit operator mode
+must retain existing behavior. Keep all four privacy gates false. Release
+quiescence only by a reviewed manual
+same-source configuration-load step AFTER observed pins are durable and read-back
+passes. Test startup/import isolation, rejected write-capable GETs/mutations,
+restart persistence, failures and explicit release with synthetic fixtures/CI.
+The mode/setting does NOT exist now: do not add invented variables in Render.
+
+This changes executable startup scope beyond the reviewed PR99 head; no source
+change, merge or deployment is made under that approval. It needs a bounded review
+change and its exact-head approval before production use. Preserve the existing
+enrollment/journal/retention/ownership/financial guards, 15-second transaction limit,
+stable keys and deployed API while this gap is resolved.
+
+**Future ordered window, conditional on that reviewed control and all access facts:**
+(1) verify no current/due cron job or other release/writer; (2) block ingress, stop/
+drain old API and prove no unattributed DB writers; (3) start verified quiescent API,
+confirm no jobs or application writes; (4) existing guarded preflight/one enrollment;
+(5) retain actual pins in confirmed durable storage; (6) load pins at SAME newly
+reviewed quiescence-capable SHA while still quiescent and verify exact config,
+read-only health/schema and restricted current-history reads; (7) remove temporary
+operator access; (8) only after those checks explicitly release quiescence as the
+end-of-write-exclusion boundary, then verify normal health and reopen ingress.
+If ANY prerequisite, identity, guard, writer check, configuration or outcome is
+uncertain, stop; remain quiescent, do not retry enrollment or automatically reopen.
+
+**Impact/duration estimate, not a booked window or verified recovery SLA:** budget
+20–30 minutes for operator steps and configuration-load builds; the previous API
+build/deploy took about 95 seconds, not a guarantee for subsequent builds. Customer
+order submission/tracking/loyalty/account actions, website API-backed functions,
+dispatcher reads/edits, driver status/actions, QR persistence, B&D live monitoring,
+pickup refreshes and operational alerts will be unavailable or paused. Static
+website/dispatcher assets and local/offline app screens may still open. The separate
+staging/SMS services remain untouched; cron is scheduled outside the window, not
+paused/changed. Do not choose dates until the control is implemented/tested and
+access/durable-record prerequisites pass. Existing max-30-minute evidence manifests
+expire; expiration stops execution, never authorizes auto-reopening or a blind retry.
+
+Sources: [Render maintenance](https://render.com/docs/maintenance-mode),
+[PostgreSQL transaction lock lifetime](https://www.postgresql.org/docs/18/sql-lock.html).
+
+### Locate existing private credentials and a durable record — no setup changes
+
+Follow privately, without sharing screens/clipboard/secret values:
+
+1. **Mac Passwords first:** Command–Space → type `Passwords` → Return; unlock with
+   Touch ID/Mac login. Select All and search `Render`, `Speedy`, `privacy`,
+   `PRIVACY_DIGEST_KEY` and `API` one at a time. Inspect only an existing item's
+   password/notes privately if relevant. An ordinary Render LOGIN password is NOT
+   a Render API credential; an AWS key is NOT the privacy digest. Do not Edit,
+   Generate, Delete, export a vault/CSV, or paste a value into chat/Terminal.
+   If the app is unavailable on older macOS: System Settings → Passwords. If an
+   existing different password manager was used, open that app and use its own
+   search, not a filesystem/log scan. Report only application name and found/not
+   found/readable, never values or account details.
+2. **If not found, Mac Notes:** Command–Space → Notes → View → Show Folders.
+   Search the same non-secret labels and open an existing locked note privately,
+   if present; then close its lock. Do not reset a forgotten Notes password: that
+   does not recover old locked notes. Do not move/upload plaintext files or
+   create shared notes. No agent search through private vaults or notes occurs.
+3. **Existing production digest:** Safari → https://dashboard.render.com/ →
+   Speedy's workspace → speedy-api → Environment. Locate ONLY
+   `PRIVACY_DIGEST_KEY`; if an existing reveal/copy control is available, Robert
+   can privately establish it is retrievable. Do not click Save/Edit/Generate or
+   copy into chat/commands. Merely seeing a masked field is not retrievability.
+   Do not copy until an appropriate existing protected destination or the approved
+   hidden terminal prompt is ready. No rotation; runtime presence already passed.
+4. **Existing Render API credential:** same dashboard → top-right account menu →
+   Account Settings → API Keys. Inspect entries only; locate the corresponding
+   retained secret in the EXISTING vault/note. Render displays a full API key only
+   at creation: the list cannot recover an unretained secret. A key entry, browser
+   sign-in or connector OAuth session is not a recoverable operator API key. If
+   the retained secret is absent, report `existing Render API secret not located`;
+   do not create/revoke/replace a key or scrape connector/browser credentials.
+5. **Candidate durable pin record, not yet selected:** prefer a separate private
+   item in the already-used, recoverable password manager. If none is established,
+   inspect Notes' folder sidebar for an EXISTING iCloud account (not On My Mac).
+   Notes → Settings can show existing lock configuration; do not change it. On the
+   already-trusted iPad → Notes → Folders, privately confirm that the same existing
+   account/locked item is accessible after authentication. Do not share the Apple
+   ID, note contents or device passcode. iCloud sync alone is not an independent
+   backup or proof against accidental deletion; actual recoverability and access
+   still require owner confirmation. A future separate locked TEXT note/item for
+   the six non-secret observed pins may be suitable only after this confirmation;
+   keep the stable digest separate. Do not invent the enrollment hash or create
+   the record as if enrollment occurred. A Mac-only note/file fails durability
+   without a separately established protected backup. No new account/service or
+   paid storage is proposed.
+
+Report only: vault/application name; retained digest privately readable yes/no;
+retained Render API secret found yes/no; proposed separate protected record and
+existing backup/second-device access yes/no. These prerequisites remain OPEN.
+See official [Mac password lookup](https://support.apple.com/en-ie/105115),
+[Notes locking/recovery limits](https://support.apple.com/en-ca/guide/notes/not28c5f5468/mac)
+and [Render API-key disclosure](https://render.com/docs/api).
 
 This section supersedes earlier **undeployed/draft/proposal-only** status statements
 below, while preserving their dated test and business evidence.
