@@ -104,6 +104,7 @@ const run = async () => {
   assert.deepEqual(preflight, {
     ready: true,
     fixtureCreated: false,
+    verificationChannel: 'PHONE',
     phoneVerificationEnabled: true,
     emailVerificationEnabled: false,
     fulfillmentEnabled: false
