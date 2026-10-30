@@ -5,7 +5,9 @@ const os = require('node:os');
 const path = require('node:path');
 const readline = require('node:readline');
 const { askHidden, isolatedPreflight } = require('./privacyIsolatedClient.cjs');
-const { normalizeCanadianPhone, normalizeEmail } = require('./privacyIsolatedEmailSupport.cjs');
+const {
+  normalizeCanadianPhone, normalizeEmail, approvedOwnerEmail, maskEmail
+} = require('./privacyIsolatedEmailSupport.cjs');
 const { ISOLATED_ROUTES } = require('./privacyIsolatedContract.cjs');
 
 const ALLOWED_ORIGIN = 'https://speedy-privacy-isolated.onrender.com';
@@ -42,7 +44,7 @@ const post = async (url, body, token, fetchImpl = fetch) => {
 
 const saveProtectedRecord = (record, target = recordPath()) => {
   assert.equal(typeof record.baseURL, 'string');
-  for (const key of ['controlSecret', 'trackingToken', 'adminToken', 'orderId']) {
+  for (const key of ['controlSecret', 'trackingToken', 'adminToken', 'orderId', 'maskedDestination']) {
     assert.ok(typeof record[key] === 'string' && record[key].length > 0, `Missing ${key}`);
   }
   fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
@@ -72,15 +74,20 @@ const run = async () => {
   const unitNumber = await askHidden('Optional unit; Enter for none (hidden): ');
   const buzzCode = await askHidden('Optional buzz code; Enter for none (hidden): ');
   assert.ok(email, 'Valid owner email required'); assert.ok(phone, 'Valid Canadian phone required');
+  assert.ok(approvedOwnerEmail(email), 'Entered email does not match the approved owner mailbox');
   assert.ok(fullName.trim() && addressLine1.trim(), 'Synthetic name and address are required');
   const authorization = await ask('Type PREPARE ISOLATED FIXTURE (creates synthetic rows; sends no message): ');
   assert.equal(authorization, 'PREPARE ISOLATED FIXTURE', 'Fixture preparation was not authorized');
   const fixture = await post(new URL(ISOLATED_ROUTES.fixture, base), {
     fullName, email, phone, addressLine1, unitNumber, buzzCode
   }, controlSecret);
+  const maskedDestination = maskEmail(email);
+  assert.equal(fixture.maskedDestination, maskedDestination,
+    'The isolated service did not confirm the approved masked destination');
   saveProtectedRecord({
     version: 1, channel: 'EMAIL', baseURL: base.origin, controlSecret,
-    trackingToken: fixture.trackingToken, adminToken: fixture.adminToken, orderId: fixture.orderId
+    trackingToken: fixture.trackingToken, adminToken: fixture.adminToken,
+    orderId: fixture.orderId, maskedDestination
   });
   console.log(JSON.stringify({ fixtureCreated: true, protectedRecordSaved: true,
     messagesSent: 0, emailVerificationEnabled: true, phoneVerificationEnabled: false }));

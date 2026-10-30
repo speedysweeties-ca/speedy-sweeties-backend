@@ -22,6 +22,9 @@ Stage B remains separately approved and must use exact reviewed backend and iOS 
 - Private fixture values and all control/tracking/admin/provider/database credentials
   use only masked dashboard controls or hidden terminal input. They do not enter Git,
   chat, arguments, clipboard evidence or logs.
+- The hidden normalized email must match the reviewed owner-mailbox digest. The
+  server returns only its mask, and the bootstrap prints that mask before accepting
+  `ARM ONE EMAIL`; a mismatch stops before a provider request is possible.
 
 ## Stage A artifacts
 
@@ -43,6 +46,8 @@ Stage B remains separately approved and must use exact reviewed backend and iOS 
 
 1. Recheck production source/deploy/settings, normal health, all four gates false and
    Auto-Deploy Off. Re-resolve the isolated identities and inspect their exact state.
+   Isolated startup must audit every public application table and accept only the
+   complete empty schema; missing tables or any unexpected row stop startup.
    Any concurrent material change, unknown row or unexpected cost/configuration stops.
 2. If the prior disposable rows remain, stop. The existing destructive reset
    deliberately rejects the completed email-flow shape. Exact-state reset/resource
@@ -56,14 +61,16 @@ Stage B remains separately approved and must use exact reviewed backend and iOS 
    zero-message preflight. This creates exactly one Customer, one delivered iOS Order
    and one non-login ADMIN in the isolated database and sends no message.
 5. Build/install the exact reviewed DEBUG simulator app, run
-   `npm run privacy:isolated:email:bootstrap`, type `ARM ONE EMAIL`, then launch the
-   app. The app must show the red isolated-test banner and delete its import file.
+   `npm run privacy:isolated:email:bootstrap`, confirm the displayed masked owner
+   mailbox, type `ARM ONE EMAIL`, then launch the app. The app must show the red
+   isolated-test banner and delete its import file.
 6. In the real Delete Account UI, confirm the masked owner mailbox. The owner action
    that requests the code is the single-message authorization. Do not tap it again.
    If the outcome is unknown, stop; never resend. Enter the received code only in the
    app, submit one request, and verify its status and due date.
 7. Run `npm run privacy:isolated:email:evidence` once while status is `SUBMITTED`.
-   Require `SPEEDY_ISOLATED_EMAIL_PRE_CANCEL`, `pass=true`, source binding,
+   Require `SPEEDY_ISOLATED_EMAIL_PRE_CANCEL`, `pass=true`, exactly one order whose
+   source ID matches the protected order, no active/unlinked/conflicting orders,
    `FULFILLMENT_DISABLED` and unchanged-record evidence. It performs no fulfillment.
 8. Cancel in the iOS UI, refresh to `CANCELLED`, then run the same evidence command.
    Require `SPEEDY_ISOLATED_EMAIL_FINAL`, `pass=true` and the exact bounded counts.

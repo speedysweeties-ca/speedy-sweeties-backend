@@ -75,6 +75,14 @@ const assertPreCancelOutcome = outcome => {
   }, 'The isolated email flow is not in the approved pre-cancel state');
 };
 
+const assertSourceBinding = (preview, protectedOrderId) => {
+  assert.equal(preview.orderCount, 1, 'Source binding requires exactly one synthetic order');
+  assert.equal(preview.sourceOrderId, protectedOrderId, 'Source binding does not match the protected order');
+  assert.deepEqual(preview.activeOrders, [], 'Source binding has an unexpected active order');
+  assert.deepEqual(preview.unlinkedOrderIds, [], 'Source binding has an unexpected unlinked order');
+  assert.deepEqual(preview.conflictingLinkedOrderIds, [], 'Source binding has an identity conflict');
+};
+
 const run = async () => {
   const record = loadProtectedRecord();
   const base = new URL(record.baseURL);
@@ -85,6 +93,7 @@ const run = async () => {
     const route = path => new URL(`/api/v1/privacy/deletion${path}`, base);
     const preview = await json(route(`/admin/requests/${outcomeResult.payload.requestId}/preview`), record.adminToken);
     assert.equal(preview.status, 200, 'Synthetic preview is unavailable');
+    assertSourceBinding(preview.payload, record.orderId);
     const year = new Date().getUTCFullYear();
     const fulfillment = await json(route(`/admin/requests/${outcomeResult.payload.requestId}/fulfill`), record.adminToken, {
       method: 'POST', body: JSON.stringify({
@@ -105,7 +114,7 @@ const run = async () => {
     assert.deepEqual(unchanged.payload, { customerPresent: true, orderErased: false });
     saveFulfillmentEvidence(record);
     console.log(JSON.stringify({ check: 'SPEEDY_ISOLATED_EMAIL_PRE_CANCEL',
-      oneEmailAccepted: true, verificationApproved: true, sourceOrderBound: preview.payload.orderCount === 1,
+      oneEmailAccepted: true, verificationApproved: true, sourceOrderBound: true,
       dueAtRecorded: true, fulfillmentRejected: true, recordsUnchanged: true, pass: true }));
     return;
   }
@@ -119,4 +128,7 @@ if (require.main === module) run().catch(() => {
   process.exitCode = 1;
 });
 
-module.exports = { loadProtectedRecord, sanitizedOutcome, assertPreCancelOutcome, assertFinalOutcome };
+module.exports = {
+  loadProtectedRecord, sanitizedOutcome, assertPreCancelOutcome,
+  assertSourceBinding, assertFinalOutcome
+};

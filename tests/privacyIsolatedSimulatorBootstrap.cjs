@@ -20,6 +20,11 @@ const importPayload = record => {
   return { version: 1, armedForOneEmail: true, orderId: record.orderId, trackingToken: record.trackingToken };
 };
 
+const armingPrompt = record => {
+  assert.match(record.maskedDestination, /^[^@\s]\*\*\*@[^@\s]+$/);
+  return `Approved destination ${record.maskedDestination}. Type ARM ONE EMAIL to prepare the simulator (this does not send it): `;
+};
+
 const writeImport = (container, payload) => {
   const directory = path.join(container, 'Library', 'Application Support', 'SpeedyPrivacyTest');
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -34,7 +39,7 @@ const writeImport = (container, payload) => {
 const run = async () => {
   if (!process.stdin.isTTY || !process.stdout.isTTY) throw new Error('An interactive terminal is required');
   const record = JSON.parse(fs.readFileSync(recordPath(), 'utf8'));
-  const authorization = await ask('Type ARM ONE EMAIL to prepare the simulator (this does not send it): ');
+  const authorization = await ask(armingPrompt(record));
   assert.equal(authorization, 'ARM ONE EMAIL', 'One-email arming was not authorized');
   const container = execFileSync('xcrun', ['simctl', 'get_app_container', 'booted', bundleID, 'data'], {
     encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']
@@ -48,4 +53,4 @@ if (require.main === module) run().catch(error => {
   console.error(`Simulator bootstrap stopped: ${error.message}`); process.exitCode = 1;
 });
 
-module.exports = { importPayload, writeImport };
+module.exports = { importPayload, armingPrompt, writeImport };

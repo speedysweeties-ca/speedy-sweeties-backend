@@ -52,6 +52,10 @@ export interface HelpArticle {
 // 2026-10-30 isolated-email Stage A review: Resend acceptance now requires a
 // bounded, well-formed provider acknowledgement and records only sanitized
 // diagnostics. The ADMIN Privacy requests controls and procedure are unchanged.
+// 2026-10-30 isolated-email correction review: owner-destination, full-table
+// startup, source-binding evidence and sanitized startup failures affect only the
+// guarded synthetic harness. ADMIN Privacy requests labels, roles and behavior
+// remain unchanged; failed safeguards still stop without fulfillment.
 // 2026-10-28 integration review: Hobby's existing IAM user is wired lazily with
 // exact external pins, without JWT/storage fallback. Sealed predecessors and
 // unfinished successor coverage require offline operator review. Deadlines,
