@@ -42,6 +42,7 @@ test('five independent pages have unique metadata, working assets, navigation an
     assert.ok(document.querySelector('a[data-landing-destination]'));
     assert.ok(home.querySelector(`a[href="/${service.slug}/"]`));
     assert.equal(document.querySelectorAll('footer nav a').length, 5);
+    assert.ok(document.querySelector('footer a[href="/privacy-policy/"]'));
     JSON.parse(document.querySelector('[type="application/ld+json"]').textContent);
     for (const el of document.querySelectorAll('a[href^="/#"]')) assert.ok(home.getElementById(el.getAttribute('href').slice(2)), el.getAttribute('href'));
     for (const el of document.querySelectorAll('a[href^="#"]')) assert.ok(document.getElementById(el.getAttribute('href').slice(1)));
