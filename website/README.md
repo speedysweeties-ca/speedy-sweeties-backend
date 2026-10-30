@@ -12,6 +12,9 @@ It does not change the API, dispatcher, mobile apps or database.
 - Form, tracking, analytics and navigation: `src/js/`.
 - Service landing-page copy: `content/services.mjs`; page template:
   `scripts/render-service-pages.mjs`; styles: `src/assets/service-pages.css`.
+- Privacy statement: keep the published text in `src/index.html`. The build renders
+  its standalone layout with `scripts/render-privacy-page.mjs`; styles are in
+  `src/assets/privacy-page.css`. Both public copies use that same source.
 - Preview build: `node website/scripts/build.mjs` from the repository root.
 - Tests: `cd website`, then `npm ci` and `npm test`.
 - Production build, only after the cutover checks below:
@@ -63,6 +66,25 @@ and current-head CI requirements before publishing. Current live website source
 before this change: `7b564b6b99495948c9aff007f37bfda81e0b49ed`; rollback means a
 website-only redeploy of that prior healthy source. Backend/privacy releases
 remain separate. Dispatcher guide IDs: not applicable; no staff workflow changes.
+
+## Dedicated privacy page and compatibility
+
+The build also generates `/privacy-policy/`, the canonical standalone privacy
+page, and `/privacy/`, a noindex compatibility copy. The original homepage
+`/#privacy-policy` section and full published text remain available. Its heading
+and all five service-page footers link to the dedicated page. The sitemap contains
+seven canonical URLs; the compatibility copy is omitted. The static host resolves
+the slashless privacy paths to their directory pages; verify that behavior live.
+
+Legal pages are readable without JavaScript, an age acknowledgement, login or
+human-verification challenge. They include no form, order API client or Analytics
+loader. Preview metadata remains noindex, and the shared runtime config preserves
+the canonical-host guard. Policy content and effective/updated dates are retained;
+this publication does not activate an app-deletion flow or publish its draft copy.
+
+App/store link checks and the remaining separate privacy-release work are recorded
+in [website-privacy-page-rollout.md](../docs/website-privacy-page-rollout.md). No
+Android/iOS build or store metadata is changed by this website release.
 
 ## Preview isolation
 

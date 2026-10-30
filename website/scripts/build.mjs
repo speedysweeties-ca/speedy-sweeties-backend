@@ -2,6 +2,7 @@ import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { services } from '../content/services.mjs';
 import { canonicalOrigin, renderServicePage } from './render-service-pages.mjs';
+import { privacyPath, renderPrivacyPage } from './render-privacy-page.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const production = process.argv.includes('--production');
@@ -16,6 +17,10 @@ await cp(root + 'src', root + 'dist', { recursive: true });
 let html = await readFile(root + 'dist/index.html', 'utf8');
 html = html.replace('<!--BUILD_ROBOTS-->', production ? '' : '<meta name="robots" content="noindex, nofollow">');
 await writeFile(root + 'dist/index.html', html);
+for (const [slug, legacy] of [['privacy-policy', false], ['privacy', true]]) {
+  await mkdir(root + `dist/${slug}`, { recursive: true });
+  await writeFile(root + `dist/${slug}/index.html`, renderPrivacyPage(html, { production, legacy }));
+}
 for (const service of services) {
   await mkdir(root + `dist/${service.slug}`, { recursive: true });
   await writeFile(root + `dist/${service.slug}/index.html`, renderServicePage(service, { production }));
@@ -35,6 +40,6 @@ await writeFile(root + 'dist/js/site-config.js', `/* Generated at build time. Pr
 await writeFile(root + 'dist/robots.txt', production
   ? 'User-agent: *\nAllow: /\nSitemap: https://www.speedysweeties.ca/sitemap.xml\n'
   : 'User-agent: *\nDisallow: /\n');
-const sitemapUrls = [canonicalOrigin + '/', ...services.map(service => `${canonicalOrigin}/${service.slug}/`)];
+const sitemapUrls = [canonicalOrigin + '/', ...services.map(service => `${canonicalOrigin}/${service.slug}/`), canonicalOrigin + privacyPath];
 await writeFile(root + 'dist/sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + sitemapUrls.map(url => `<url><loc>${url}</loc></url>`).join('') + '</urlset>\n');
 console.log(`Built ${production ? 'production (live only on www.speedysweeties.ca)' : 'preview (no orders or analytics)'} into website/dist.`);

@@ -138,7 +138,17 @@ test('build keeps previews isolated and requires owner key on the canonical prod
   const checkLandingOutput = production => {
     const slugs = ['beer', 'alcohol', 'vape', 'cannabis', 'convenience'].map(name => `${name}-delivery-guelph`);
     const sitemap = fs.readFileSync(path.join(root, 'dist/sitemap.xml'), 'utf8');
-    assert.equal([...sitemap.matchAll(/<loc>/g)].length, 6);
+    assert.equal([...sitemap.matchAll(/<loc>/g)].length, 7);
+    assert.ok(sitemap.includes('https://www.speedysweeties.ca/privacy-policy/'));
+    for (const slug of ['privacy-policy', 'privacy']) {
+      const { document } = parseHTML(fs.readFileSync(path.join(root, `dist/${slug}/index.html`), 'utf8'));
+      assert.equal(document.querySelector('link[rel="canonical"]').getAttribute('href'), 'https://www.speedysweeties.ca/privacy-policy/');
+      assert.equal(Boolean(document.querySelector('meta[name="robots"]')), !production || slug === 'privacy');
+      assert.equal(document.querySelectorAll('form,dialog,[src="/js/analytics.js"]').length, 0);
+      assert.match(document.querySelector('article').textContent, /Google Analytics uses cookies/);
+      assert.match(document.querySelector('article').textContent, /does not delete our order records/);
+      for (const link of document.querySelectorAll('a[href^="#"]')) assert.ok(document.getElementById(link.getAttribute('href').slice(1)));
+    }
     for (const slug of slugs) {
       const { document } = parseHTML(fs.readFileSync(path.join(root, `dist/${slug}/index.html`), 'utf8'));
       assert.equal(Boolean(document.querySelector('meta[name="robots"]')), !production);
