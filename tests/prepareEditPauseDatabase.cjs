@@ -12,7 +12,7 @@ assert.equal(process.env.CI, 'true');
 assert.ok(['127.0.0.1', 'localhost'].includes(url.hostname));
 assert.equal(url.pathname, '/speedy_sweeties_ci');
 const source = readFileSync('prisma/schema.prisma', 'utf8');
-const baseline = source.replace(/^  dispatchEditPauses\s+OrderEditPause\[\]\n/m, '')
+const baseline = source.replace(/^  providerStatus\s+String\?\n/m, '').replace(/^  attemptedAt\s+DateTime\?\n/m, '').replace(/^  dispatchEditPauses\s+OrderEditPause\[\]\n/m, '')
   .replace(/model OrderEditPause \{[\s\S]*?\n\}/, '')
   .replace(/model BndMonitorCheck \{[\s\S]*?\n\}/, '')
   .replace(/model BndWaitingPeriod \{[\s\S]*?\n\}/, '');
@@ -24,3 +24,8 @@ execFileSync('npx', ['--no-install', 'prisma', 'db', 'execute', '--schema', 'pri
   '--file', 'prisma/migrations/20261021220000_add_order_edit_pauses/migration.sql'], { stdio: 'inherit' });
 execFileSync('npx', ['--no-install', 'prisma', 'db', 'execute', '--schema', 'prisma/schema.prisma',
   '--file', 'prisma/migrations/20261022170000_bnd_waiting_history/migration.sql'], { stdio: 'inherit' });
+
+
+// Exercise the additive SMS migration against the pre-SMS baseline.
+execFileSync('npx', ['--no-install', 'prisma', 'db', 'execute', '--schema', 'prisma/schema.prisma',
+  '--file', 'prisma/migrations/20261030160000_retention_sms_delivery/migration.sql'], { stdio: 'inherit' });

@@ -22,7 +22,10 @@ import addressRoutes from "./address.routes";
 
 import { getReadiness } from "../services/readiness.service";
 
+import retentionSmsRoutes from "./retentionSms.routes";
+
 const router = Router();
+router.use("/retention-sms", retentionSmsRoutes);
 router.use("/privacy/deletion", privacyRoutes);
 
 router.get("/health", getReadiness);
