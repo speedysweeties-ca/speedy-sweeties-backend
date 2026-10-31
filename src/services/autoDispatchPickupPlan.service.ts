@@ -173,7 +173,10 @@ type AutoDispatchAllocationResult =
  * Traffic enabled this is the traffic-aware drive time; with it disabled this
  * is the free coordinate estimate.
  *
- * Rob Driver takes priority while eligible and below four unfinished orders.\n * At four or more, automatic dispatch chooses another eligible driver.\n *\n * The legacy function name is retained because the order controller already
+ * Rob Driver takes priority while eligible and below four unfinished orders.
+ * At four or more, automatic dispatch chooses another eligible driver.
+ *
+ * The legacy function name is retained because the order controller already
  * calls it. Item pickup types and pickup locations intentionally do not take
  * part in this assignment decision.
  */

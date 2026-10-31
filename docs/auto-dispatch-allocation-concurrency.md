@@ -16,7 +16,14 @@ When Auto Dispatch is enabled, the service:
 3. Excludes drivers whose heartbeat or GPS is more than one hour old.
 4. Requests one traffic-aware Google Routes matrix from every eligible
    driver's current location directly to the customer's delivery address.
-5. While `AUTO_DISPATCH_ROB_PRIORITY_ENABLED` is enabled (default), gives the\n   verified Rob Driver account first priority below four unfinished assigned\n   orders. Counts every assigned non-DELIVERED/non-CANCELLED order, regardless\n   of assignment source. At four or more, excludes Rob from automatic allocation\n   and selects another eligible driver; no alternative leaves the order unassigned.\n   Below four again, priority resumes. Set the environment flag to `false` to\n   restore ordinary selection, including Rob without a special cap.\n   Otherwise selects the shortest drive time. Distance and stable driver identity are
+5. While `AUTO_DISPATCH_ROB_PRIORITY_ENABLED` is enabled (default), gives the
+   verified Rob Driver account first priority below four unfinished assigned
+   orders. Counts every assigned non-DELIVERED/non-CANCELLED order, regardless
+   of assignment source. At four or more, excludes Rob from automatic allocation
+   and selects another eligible driver; no alternative leaves the order unassigned.
+   Below four again, priority resumes. Set the environment flag to `false` to
+   restore ordinary selection, including Rob without a special cap.
+   Otherwise selects the shortest drive time. Distance and stable driver identity are
    used only to break equal-time ties.
 6. Rechecks the setting, order, driver presence, and unchanged GPS coordinates
    inside the assignment transaction.
