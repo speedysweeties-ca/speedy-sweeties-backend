@@ -22,6 +22,14 @@ import {
 } from "./trafficRouting.service";
 
 const AUTO_DISPATCH_SETTING_KEY = "autoDispatchEnabled";
+// Temporary owner-requested override. Set AUTO_DISPATCH_ROB_PRIORITY_ENABLED=false
+// to restore ordinary closest-driver allocation without changing driver accounts.
+const ROB_DRIVER_ID = "e400eba6-841c-4f89-918b-2426af11e76e";
+const ROB_ACTIVE_ORDER_LIMIT = 4;
+const isRobPriorityEnabled = (): boolean =>
+  !["false", "0", "off", "no"].includes(
+    (process.env.AUTO_DISPATCH_ROB_PRIORITY_ENABLED ?? "true").trim().toLowerCase()
+  );
 
 const isAutoDispatchHardDisabledByEnv = (): boolean => {
   const value = process.env.AUTO_DISPATCH_ENABLED;
@@ -165,7 +173,7 @@ type AutoDispatchAllocationResult =
  * Traffic enabled this is the traffic-aware drive time; with it disabled this
  * is the free coordinate estimate.
  *
- * The legacy function name is retained because the order controller already
+ * Rob Driver takes priority while eligible and below four unfinished orders.\n * At four or more, automatic dispatch chooses another eligible driver.\n *\n * The legacy function name is retained because the order controller already
  * calls it. Item pickup types and pickup locations intentionally do not take
  * part in this assignment decision.
  */
@@ -448,12 +456,35 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
           ];
         });
 
-        const selected = selectAutoDispatchAllocationCandidate(candidates);
+        // Lock Rob before reading his workload, using the same order-then-driver
+        // lock order as manual assignment. Concurrent auto assignments must see
+        // the previous committed assignment before deciding whether slot 4 is free.
+        const robCandidate = isRobPriorityEnabled()
+          ? candidates.find(candidate => candidate.driver.id === ROB_DRIVER_ID)
+          : undefined;
+        let preferred: AutoDispatchAllocationCandidate | null = null;
+        let fallbackCandidates = candidates;
+        if (robCandidate) {
+          fallbackCandidates = candidates.filter(
+            candidate => candidate.driver.id !== ROB_DRIVER_ID
+          );
+          if (await lockAssignableDriver(tx, ROB_DRIVER_ID, new Date())) {
+            const activeOrders = await tx.order.count({
+              where: {
+                assignedDriverId: ROB_DRIVER_ID,
+                orderStatus: { notIn: [OrderStatus.DELIVERED, OrderStatus.CANCELLED] }
+              }
+            });
+            if (activeOrders < ROB_ACTIVE_ORDER_LIMIT) preferred = robCandidate;
+          }
+        }
+        const selected = preferred ??
+          selectAutoDispatchAllocationCandidate(fallbackCandidates);
         if (!selected) {
           return { selected: null, reason: "NO_ROUTEABLE_DRIVERS" };
         }
 
-        if (!await lockAssignableDriver(tx, selected.driver.id, new Date())) {
+        if (!preferred && !await lockAssignableDriver(tx, selected.driver.id, new Date())) {
           return { selected: null, reason: "NO_ROUTEABLE_DRIVERS" };
         }
 
@@ -511,7 +542,7 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
   });
 
   console.log(
-    `[Auto Dispatch] Order ${order.id} dispatched to closest driver ${selected.driver.id}; ${
+    `[Auto Dispatch] Order ${order.id} dispatched to driver ${selected.driver.id}; ${
       routeCalculationMode === "GOOGLE_LIVE_TRAFFIC"
         ? "live-traffic ETA"
         : "free coordinate estimate"

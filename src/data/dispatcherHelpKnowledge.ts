@@ -204,11 +204,11 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "auto-dispatch",
     title: "Turn automatic dispatch on or off",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-31",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "LIVE_ORDERS",
     evidence: ["speedy-dispatcher/src/App.tsx", "src/services/autoDispatchPickupPlan.service.ts"],
-    content: "Open Show more and find Auto Dispatch. Use Turn Auto Dispatch On or Turn Auto Dispatch Off, then check the saved ON/OFF status. This is a shared server setting, not just a sound preference for this browser. Automatic dispatch considers newly created eligible, unassigned orders and requires a verified delivery map location and an active, visible, online driver with fresh GPS. It chooses by the configured travel-time estimate directly to the customer; item pickup types, pickup stops and least-load balancing do not determine that selection. Live Traffic controls whether the estimate uses Google traffic or coordinates. Switching it on is not a promise that all existing waiting orders will immediately be assigned. If an order remains unassigned, check its address/map warning and driver availability and use manual assignment when appropriate.",
+    content: "Open Show more and find Auto Dispatch. Use Turn Auto Dispatch On or Turn Auto Dispatch Off, then check the saved ON/OFF status. This is a shared server setting, not just a sound preference for this browser. Automatic dispatch considers newly created eligible, unassigned orders and requires a verified delivery map location and an active, visible, online driver with fresh GPS. While the temporary Rob Driver priority is enabled, Rob gets first choice when eligible and assigned fewer than four unfinished calls. All assigned calls count until DELIVERED or CANCELLED, including manually assigned calls and calls already picked up. At four or more, new automatic calls go to another eligible driver by travel-time estimate; if none is available the call stays unassigned for dispatch to handle. Priority resumes below four. Manual assignment remains available. Otherwise it chooses by the configured travel-time estimate directly to the customer; item pickup types and pickup stops do not determine that selection. Live Traffic controls whether the estimate uses Google traffic or coordinates. Switching it on is not a promise that all existing waiting orders will immediately be assigned. If an order remains unassigned, check its address/map warning and driver availability and use manual assignment when appropriate.",
   },
   {
     id: "order-lifecycle",
