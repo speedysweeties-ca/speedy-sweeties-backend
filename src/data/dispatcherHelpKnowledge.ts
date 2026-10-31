@@ -202,6 +202,7 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
     content: "In Live Orders, locate the order, choose an online driver from Select Driver and click Assign to Driver. Each driver's active order count is shown in the selector. Verify Assigned and the order status after saving. Choosing a name alone does not assign the order. The button stays disabled until a different driver is selected. Closed orders cannot be assigned. Changing Normal / High saves priority immediately. Assignment moves a new order to DISPATCHED; the driver still needs to accept it. A notification being sent is not proof that the driver saw it. Monitor acceptance and contact the driver or reassign if necessary. Check Staff for visibility and online status if a driver is missing.",
   },
   {
+    // 2026-10-31: Re-reviewed temporary Rob priority and fourth-slot concurrency; documentation formatting preserves behavior.
     id: "auto-dispatch",
     title: "Turn automatic dispatch on or off",
     reviewedAt: "2026-10-31",
