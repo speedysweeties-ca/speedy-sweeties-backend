@@ -17,7 +17,7 @@ const HEX_64 = /^[a-f0-9]{64}$/;
 const TWILIO_VERIFICATION_SID = /^VE[a-f0-9]{32}$/i;
 
 const REVIEWED_FILE_HASHES = Object.freeze({
-  'prisma/schema.prisma': '59f31f1b5dbd0c436eacfadc5f1092d9d8c2836d7f304a953af6cf640b4852ad',
+  'prisma/schema.prisma': 'c8a30a02c43d1175219934cdc070dcb7be07d0513cf5d9f21c720874ca5c8ea9',
   'tests/fixtures/privacyBaseline-12b78cc.prisma': 'f30f7b7d21e1f19109f4f7ad9c69507050fe27339064db2115ca114a43a35091',
   'prisma/migrations/20261023030000_customer_privacy_requests/migration.sql':
     '1425fe3cb4d04149a58970a21e530448ced4d00a0f733c457495d30dbdf38be1',
@@ -27,6 +27,8 @@ const REVIEWED_FILE_HASHES = Object.freeze({
     'a3c26ab69a56feb2d017f5b3ffc9f2088768dcd063113e041a7fdd929bccb6c4',
   'prisma/migrations/20261023220000_approved_privacy_review_dates/migration.sql':
     'fa547902dfd3badf35d0dc90f744d96413c814b514f26ce3585ff340d05f6580',
+  'prisma/migrations/20261030160000_retention_sms_delivery/migration.sql':
+    '00d70a662ed93c389b8be80f7df29391e63265c947f9e27e895401a92377a22d',
 });
 
 const COMPLETED_PHONE_COUNTS = Object.freeze(Object.fromEntries(

@@ -147,8 +147,8 @@ const triggerFunctionRows = () => [{
 }];
 
 test('reviewed cleanup inputs are pinned to the accepted schema and migration files', () => {
-  assert.deepEqual(reviewedSourceReport(), { reviewedFileCount: 6, mismatches: [], pass: true });
-  assert.equal(expectedMigrationEvidence().length, 4);
+  assert.deepEqual(reviewedSourceReport(), { reviewedFileCount: 7, mismatches: [], pass: true });
+  assert.equal(expectedMigrationEvidence().length, 5);
 });
 
 test('completed fixture validator accepts only the audited cancelled phone graph', () => {
