@@ -368,11 +368,11 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "customer-retention",
     title: "Find customers who have not ordered recently",
-    reviewedAt: "2026-10-26",
+    reviewedAt: "2026-10-30",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "CUSTOMER_RETENTION",
-    evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/customer.controller.ts"],
-    content: "Open Show more > Customer Retention. Choose All Customers, Active 0–29 Days, 30+ Days, 60+ Days or 90+ Days. The 30+ and 60+ filters include the older groups too. Search by name, phone, email, address or notes. Review Last Order, Days Since, Completed Orders and Status. Call, Text and Email open the corresponding device application; clicking is not proof that a message was sent. Email appears only when an email is recorded. View History shows up to the 20 most recent stored orders; Hide History or Close History closes it. Refresh Retention reloads the data. This screen does not define a discount, automatically send a campaign or establish permission to contact someone; follow the owner's confirmed procedure.",
+    evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/customer.controller.ts", "src/jobs/retention90.job.ts", "src/services/retentionSms.service.ts"],
+    content: "Open Show more > Customer Retention. Choose All Customers, Active 0–29 Days, 30+ Days, 60+ Days or 90+ Days. The 30+ and 60+ filters include the older groups too. Search by name, phone, email, address or notes. Review Last Order, Days Since, Completed Orders and Status. Call, Text and Email open the corresponding device application; clicking is not proof that a message was sent. Email appears only when an email is recorded. View History shows up to the 20 most recent stored orders; Hide History or Close History closes it. Refresh Retention reloads the data. This screen does not define a discount, automatically send a campaign or establish permission to contact someone; follow the owner's confirmed procedure. A separate scheduled 90-day SMS job defaults to draft-only mode. Sending requires administrator configuration, a start date and batch limit; this screen does not enable it. Provider acceptance is not confirmed delivery. STOP replies suppress future scheduled messages, and uncertain attempts are held for administrator review rather than automatically retried.",
   },
   {
     id: "driver-stats",

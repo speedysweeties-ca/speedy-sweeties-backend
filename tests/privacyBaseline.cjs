@@ -9,6 +9,7 @@ const PRIVACY_MIGRATIONS = [
   '20261023150000_privacy_access_credentials',
   '20261023190000_adopt_retention_policy',
   '20261023220000_approved_privacy_review_dates',
+    '20261030160000_retention_sms_delivery',
 ];
 
 function materializePinnedBaselineSchema() {

@@ -124,6 +124,7 @@ jobs:
           node tests/prepareEditPauseDatabase.cjs
           CHECK_EDIT_PAUSE_DATABASE=1 node --test --test-concurrency=1 tests/orderEditPause.database.test.js
           CHECK_BND_HISTORY_DATABASE=1 node --test --test-concurrency=1 tests/bndWaitingHistory.database.test.js
+          CHECK_RETENTION_SMS_DATABASE=1 node --test --test-concurrency=1 tests/retentionSms.database.test.js
 
       - name: Install dispatcher dependencies
         working-directory: speedy-dispatcher

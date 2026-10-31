@@ -239,6 +239,8 @@ model RetentionMessage {
   consentBasis       String?
   provider           String?
   providerMessageId  String?
+  providerStatus     String?
+  attemptedAt        DateTime?
   errorMessage       String?
   sentAt             DateTime?
   returnedAt         DateTime?
