@@ -59,23 +59,39 @@ export function privacyVerificationDelivery(config: DeliveryConfig, fetcher: typ
         if (!config.emailEnabled || !config.resendApiKey || !config.resendFrom) {
           throw new Error("Verification delivery unavailable");
         }
-        const result = await fetcher("https://api.resend.com/emails", {
-          method: "POST",
-          signal: AbortSignal.timeout(10_000),
-          headers: {
-            Authorization: `Bearer ${config.resendApiKey}`,
-            "Content-Type": "application/json",
-            "Idempotency-Key": `privacy-${id}`
-          },
-          body: JSON.stringify({
-            from: config.resendFrom,
-            to: [to],
-            subject: "Speedy Sweeties privacy verification",
-            text: verificationText(code)
-          })
-        });
-        if (!result.ok) throw new Error("Verification delivery unavailable");
-        return {};
+        try {
+          const result = await fetcher("https://api.resend.com/emails", {
+            method: "POST",
+            signal: AbortSignal.timeout(10_000),
+            headers: {
+              Authorization: `Bearer ${config.resendApiKey}`,
+              "Content-Type": "application/json",
+              "Idempotency-Key": `privacy-${id}`
+            },
+            body: JSON.stringify({
+              from: config.resendFrom,
+              to: [to],
+              subject: "Speedy Sweeties privacy verification",
+              text: verificationText(code)
+            })
+          });
+          if (!result.ok) {
+            report({ provider: "resend", operation: "start", outcome: "rejected",
+              httpStatus: result.status, errorCode: await safeProviderCode(result) });
+            throw new Error("Verification delivery unavailable");
+          }
+          const payload = await result.json() as { id?: unknown };
+          if (typeof payload.id !== "string" || !payload.id.trim() || payload.id.length > 200) {
+            report({ provider: "resend", operation: "start", outcome: "invalid_response", httpStatus: result.status });
+            throw new Error("Verification delivery unavailable");
+          }
+          report({ provider: "resend", operation: "start", outcome: "accepted", httpStatus: result.status });
+          return { reference: payload.id };
+        } catch (error) {
+          if (error instanceof Error && error.message === "Verification delivery unavailable") throw error;
+          report({ provider: "resend", operation: "start", outcome: isTimeout(error) ? "timeout" : "network_error" });
+          throw new Error("Verification delivery unavailable");
+        }
       }
 
       if (!config.phoneEnabled || !config.twilioAccountSid || !config.twilioAuthToken || !config.twilioVerifyServiceSid) {

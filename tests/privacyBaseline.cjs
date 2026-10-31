@@ -9,7 +9,7 @@ const PRIVACY_MIGRATIONS = [
   '20261023150000_privacy_access_credentials',
   '20261023190000_adopt_retention_policy',
   '20261023220000_approved_privacy_review_dates',
-    '20261030160000_retention_sms_delivery',
+  '20261030160000_retention_sms_delivery',
 ];
 
 function materializePinnedBaselineSchema() {
@@ -20,14 +20,39 @@ function materializePinnedBaselineSchema() {
   return path;
 }
 
-function applyPinnedBaselineAndPrivacyMigrations(baselinePath, { recordExecutedSql = false, execute = execFileSync } = {}) {
-  if (recordExecutedSql) {
+function validateMigrationRecordingTarget(recordingScope) {
+  if (recordingScope === 'local-synthetic') {
     assert.equal(process.env.NODE_ENV, 'test'); assert.equal(process.env.PRIVACY_SYNTHETIC_DATABASE, 'yes');
     const url = new URL(process.env.DATABASE_URL);
     assert.ok(['127.0.0.1', 'localhost'].includes(url.hostname));
     assert.equal(url.pathname, '/speedy_privacy_synthetic'); assert.equal(url.username, 'privacy_test');
-    // Only a fresh synthetic setup may record its actual successful SQL. Never
-    // resolve an existing failed/partial ledger or touch production/Render resets.
+    return;
+  }
+  if (recordingScope === 'authorized-render-completed-phone-cleanup-v1') {
+    const { validateAuthorizedRenderTarget } = require('./privacyRenderTarget.cjs');
+    const {
+      COMPLETED_PHONE_CLEANUP_GATE,
+      WRITER_EXCLUSION_CONFIRMATION,
+    } = require('./privacyCompletedPhoneCleanup.cjs');
+    validateAuthorizedRenderTarget(process.env);
+    assert.equal(process.env.PRIVACY_ISOLATED_CLEANUP, COMPLETED_PHONE_CLEANUP_GATE);
+    assert.equal(process.env.PRIVACY_ISOLATED_WRITERS_EXCLUDED, WRITER_EXCLUSION_CONFIRMATION);
+    assert.ok(!process.env.PRIVACY_ISOLATED_RESET || process.env.PRIVACY_ISOLATED_RESET === 'disabled');
+    return;
+  }
+  assert.fail('migration recording scope refused');
+}
+
+function applyPinnedBaselineAndPrivacyMigrations(baselinePath, {
+  recordExecutedSql = false,
+  recordingScope = 'local-synthetic',
+  execute = execFileSync,
+} = {}) {
+  if (recordExecutedSql) {
+    validateMigrationRecordingTarget(recordingScope);
+    // Only an independently guarded fresh synthetic setup may record its actual
+    // successful SQL. Never resolve an existing failed/partial ledger or touch
+    // production/shared databases.
     execute(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'execute', '--schema', 'prisma/schema.prisma', '--stdin'], {
       input: `DO $$ BEGIN IF to_regclass('public._prisma_migrations') IS NOT NULL THEN RAISE EXCEPTION 'Synthetic ledger must be absent'; END IF; END $$;`,
       stdio: ['pipe', 'inherit', 'inherit']

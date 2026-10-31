@@ -16,15 +16,42 @@ const config = overrides => ({
 test('email verification is mocked, idempotent, bounded and disabled unless configured', async () => {
   let call;
   const delivery = privacyVerificationDelivery(config(), async (url, options) => {
-    call = { url, options }; return { ok: true };
+    call = { url, options }; return new Response(JSON.stringify({ id: 'synthetic-resend-id' }), {
+      status: 200, headers: { 'content-type': 'application/json' }
+    });
   });
-  await delivery.start({ channel: 'EMAIL', to: 'stored@example.invalid', code: '12345678', id: 'synthetic' });
+  const started = await delivery.start({ channel: 'EMAIL', to: 'stored@example.invalid', code: '12345678', id: 'synthetic' });
+  assert.equal(started.reference, 'synthetic-resend-id');
   assert.deepEqual(JSON.parse(call.options.body).to, ['stored@example.invalid']);
   assert.equal(call.options.headers['Idempotency-Key'], 'privacy-synthetic');
   assert.ok(call.options.signal);
   assert.equal(await delivery.check({ channel: 'EMAIL', to: 'stored@example.invalid', code: '12345678' }), true);
   const disabled = privacyVerificationDelivery(config({ resendApiKey: '', resendFrom: '', emailEnabled: false }), () => { throw new Error('Must not send'); });
   await assert.rejects(disabled.start({ channel: 'EMAIL', to: 'a@example.invalid', code: '12345678', id: 'a' }));
+});
+
+test('email verification rejects provider errors, malformed success and ambiguous transport without retry', async () => {
+  const cases = [
+    { name: 'rejected', response: new Response(JSON.stringify({ code: 422 }), { status: 422 }) },
+    { name: 'invalid_response', response: new Response('{}', { status: 200 }) },
+  ];
+  for (const value of cases) {
+    const diagnostics = []; let calls = 0;
+    const delivery = privacyVerificationDelivery(config(), async () => { calls += 1; return value.response; },
+      diagnostic => diagnostics.push(diagnostic));
+    await assert.rejects(delivery.start({ channel: 'EMAIL', to: 'stored@example.invalid', code: '12345678', id: value.name }));
+    assert.equal(calls, 1);
+    assert.equal(diagnostics[0].provider, 'resend');
+    assert.equal(diagnostics[0].outcome, value.name);
+  }
+  const diagnostics = []; let calls = 0;
+  const delivery = privacyVerificationDelivery(config(), async () => {
+    calls += 1; const error = new Error('private network detail'); error.name = 'TimeoutError'; throw error;
+  }, diagnostic => diagnostics.push(diagnostic));
+  await assert.rejects(delivery.start({ channel: 'EMAIL', to: 'stored@example.invalid', code: '12345678', id: 'timeout' }));
+  assert.equal(calls, 1);
+  assert.deepEqual(diagnostics, [{ provider: 'resend', operation: 'start', outcome: 'timeout' }]);
+  assert.doesNotMatch(JSON.stringify(diagnostics), /stored@example|private network/);
 });
 
 test('Twilio Verify start/check use managed codes and never place credentials in the URL or body', async () => {
