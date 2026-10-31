@@ -36,6 +36,8 @@ exact('BND_MONITOR_ENABLED', 'false');
 exact('AI_PRODUCT_WEB_LOOKUP_ENABLED', 'false');
 exact('FIREBASE_SERVICE_ACCOUNT_JSON', '{}');
 validateAuthorizedRenderTarget(process.env);
+assert.ok(!process.env.PRIVACY_ISOLATED_CLEANUP, 'cleanup authorization must be removed before isolated server startup');
+assert.ok(!process.env.PRIVACY_ISOLATED_WRITERS_EXCLUDED, 'writer-exclusion authorization must be removed before isolated server startup');
 if (process.env.PRIVACY_ISOLATED_RESET === 'execute-once') {
   assert.equal(diagnosticsOnly, true, 'reset authorization may only remain during a diagnostics-only reset deploy');
 }

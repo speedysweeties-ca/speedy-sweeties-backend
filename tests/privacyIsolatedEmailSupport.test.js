@@ -96,6 +96,8 @@ test('server source keeps provider and gate modes mutually exclusive', () => {
   assert.match(source, /syntheticJournal\(digestSecret, prisma\)/);
   assert.match(source, /auditFullApplicationTableState\(prisma\)/);
   assert.match(source, /sanitizedStartupFailure\(startupStage\)/);
+  assert.match(source, /!process\.env\.PRIVACY_ISOLATED_CLEANUP/);
+  assert.match(source, /!process\.env\.PRIVACY_ISOLATED_WRITERS_EXCLUDED/);
   assert.doesNotMatch(source, /configuredPrivacyRecovery/);
   for (const name of ['AWS_ACCESS_KEY_ID', 'PRIVACY_RECOVERY_S3_BUCKET', 'PRIVACY_RECOVERY_ENROLLMENT_HASH']) {
     assert.match(source, new RegExp(`'${name}'`));

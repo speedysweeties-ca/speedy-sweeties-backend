@@ -18,6 +18,7 @@
     "audit:app-only-loyalty": "npm run build && node dist/jobs/auditAppOnlyLoyalty.job.js",
     "backfill:delivery-locations": "npm run build && node dist/jobs/backfillOrderDeliveryLocations.job.js",
     "privacy:isolated:prepare-render": "node tests/preparePrivacyRenderDatabase.cjs",
+    "privacy:isolated:cleanup-completed-phone": "node tests/prepareCompletedPhoneCleanup.cjs",
     "privacy:isolated:server": "node tests/privacyIsolatedServer.cjs",
     "privacy:isolated:client": "node tests/privacyIsolatedClient.cjs",
     "privacy:isolated:email:fixture": "node tests/privacyIsolatedEmailFixture.cjs",
