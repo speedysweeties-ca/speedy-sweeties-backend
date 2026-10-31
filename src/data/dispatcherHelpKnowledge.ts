@@ -56,6 +56,9 @@ export interface HelpArticle {
 // startup, source-binding evidence and sanitized startup failures affect only the
 // guarded synthetic harness. ADMIN Privacy requests labels, roles and behavior
 // remain unchanged; failed safeguards still stop without fulfillment.
+// 2026-10-31 isolated-cleanup preparation review: the new package command is a
+// guarded synthetic-database maintenance tool with no dispatcher route or control.
+// ADMIN Privacy requests guidance and all staff-visible behavior remain unchanged.
 // 2026-10-28 integration review: Hobby's existing IAM user is wired lazily with
 // exact external pins, without JWT/storage fallback. Sealed predecessors and
 // unfinished successor coverage require offline operator review. Deadlines,
