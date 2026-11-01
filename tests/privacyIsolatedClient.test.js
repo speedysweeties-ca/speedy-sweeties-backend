@@ -59,7 +59,7 @@ test('client preflight uses the deployed authenticated GET route before fixture 
         ok: true,
         status: 200,
         json: async () => ({
-          ready: true, fixtureCreated: false, phoneVerificationEnabled: true,
+          ready: true, fixtureCreated: false, verificationChannel: 'PHONE', phoneVerificationEnabled: true,
           emailVerificationEnabled: false, fulfillmentEnabled: false
         })
       };

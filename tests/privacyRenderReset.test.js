@@ -123,6 +123,25 @@ test('fixture audit rejects every unexpected populated table', () => {
   assert.throws(() => validateSyntheticFixtureSnapshot(snapshot), /unexpected rows in DigitalReceipt/);
 });
 
+test('legacy destructive reset refuses the completed email fixture until separately reviewed', () => {
+  const snapshot = syntheticSnapshot();
+  snapshot.customer.fullName = 'Owner-selected private synthetic name';
+  snapshot.customer.email = 'owner@example.invalid';
+  snapshot.customer.normalizedEmail = 'owner@example.invalid';
+  snapshot.challenge.channel = 'EMAIL';
+  snapshot.counts.PrivacyAccessCredential = 1;
+  snapshot.counts.PrivacyDeletionRequest = 1;
+  snapshot.counts.PrivacyAudit = 2;
+  assert.throws(
+    () => validateSyntheticFixtureSnapshot(snapshot),
+    error => {
+      assert.match(error.message, /unexpected rows|customer marker mismatch/);
+      assert.doesNotMatch(error.message, /owner@example|Owner-selected/);
+      return true;
+    }
+  );
+});
+
 test('fixture audit recognizes an empty application schema without requiring fixture rows', () => {
   assert.equal(validateSyntheticFixtureSnapshot({ counts: {
     Customer: 0, Order: 0, User: 0, PrivacyChallenge: 0, _prisma_migrations: 4,
