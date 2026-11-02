@@ -1,3 +1,5 @@
+// 2026-11-02: Reviewed help-guide after the compatible CSS selector-parser patch.
+// Help answers, role filtering, source navigation and staff workflows are unchanged.
 export type HelpRole = "ADMIN" | "DISPATCHER";
 export type HelpDestination =
   "HELP" |
