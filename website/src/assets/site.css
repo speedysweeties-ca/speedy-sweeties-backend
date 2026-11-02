@@ -38,3 +38,5 @@ html { scroll-behavior: smooth; scroll-padding-top: 110px; }
   .hero-section-1-text-1 { font-size: 15px; letter-spacing: 2px; }
   .hero-section-1-wrapper { padding: 0 20px; }
 }
+
+.speedy-driver-section{display:flex;align-items:center;justify-content:space-between;gap:35px;padding:65px max(24px,calc((100% - 1120px)/2));background:#fff5f3;color:#202020;font:16px/1.7 Arial,sans-serif}.speedy-driver-section>div{max-width:730px}.speedy-driver-section h2{font:700 clamp(28px,4vw,46px)/1.15 Arial,sans-serif;margin:12px 0 20px}.speedy-driver-eyebrow{font-size:12px;font-weight:700;letter-spacing:2px;color:#ae1530}.speedy-driver-section .speedy-driver-fine{font-size:13px;color:#555}.speedy-driver-button{flex-shrink:0;background:#b51630;color:#fff;padding:17px 25px;font-weight:700;text-decoration:none;border-radius:3px}.speedy-driver-button:hover{background:#8d1025}.speedy-driver-footer{color:#fff;text-decoration:underline}.speedy-driver-button:focus-visible{outline:3px solid #202020;outline-offset:4px}@media(max-width:767px){.speedy-driver-section{flex-direction:column;align-items:flex-start;padding-block:45px}.speedy-driver-button{width:100%;text-align:center}}
