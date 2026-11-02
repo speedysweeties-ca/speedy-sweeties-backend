@@ -5,6 +5,7 @@ import morgan from "morgan";
 import path from "node:path";
 import routes from "./routes";
 import { env } from "./config/env";
+import { ApiError } from "./utils/ApiError";
 import { notFound } from "./middleware/notFound";
 import { errorHandler } from "./middleware/errorHandler";
 import { loginRateLimiter } from "./middleware/loginRateLimiter";
@@ -24,11 +25,20 @@ const allowedCorsOrigins = env.CORS_ORIGIN.split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
 const allowAllCorsOrigins = allowedCorsOrigins.includes("*");
+// These retired/preview hosts must not regain API access through stale configuration.
+const deniedWebsiteOrigins = new Set([
+  "https://speedy-sweeties.webflow.io",
+  "https://speedy-sweeties-website.onrender.com",
+  "https://speedysweeties.ca"
+]);
 
 app.use(requestDiagnostics);
 app.use(
   cors({
     origin(origin, callback) {
+      if (origin && deniedWebsiteOrigins.has(origin)) {
+        return callback(new ApiError(403, "CORS origin is not allowed"));
+      }
       if (
         !origin ||
         allowAllCorsOrigins ||
@@ -37,7 +47,7 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(new Error("CORS origin is not allowed"));
+      return callback(new ApiError(403, "CORS origin is not allowed"));
     },
     credentials: true
   })
@@ -70,7 +80,7 @@ app.use("/track", (_req, res, next) => {
   res.set("Referrer-Policy", "no-referrer");
   res.set("X-Robots-Tag", "noindex, nofollow");
   res.removeHeader("X-Frame-Options");
-  res.set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' https://www.speedysweeties.ca https://speedysweeties.ca https://speedy-sweeties.webflow.io");
+  res.set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' https://www.speedysweeties.ca");
   next();
 }, express.static(path.join(__dirname, "../public/track")));
 

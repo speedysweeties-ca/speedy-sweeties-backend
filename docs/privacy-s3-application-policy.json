@@ -1,0 +1,30 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListOnlyActiveJournal",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273",
+      "Condition": { "StringEquals": { "s3:prefix": "production/epoch-0001/" } }
+    },
+    {
+      "Sid": "ReadAndConditionallyAppendActiveJournal",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject"],
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/production/epoch-0001/*"
+    },
+    {
+      "Sid": "EnrollmentRemainsOperatorOnly",
+      "Effect": "Deny",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/production/epoch-0001/0000000000000001.json"
+    },
+    {
+      "Sid": "NoDestructiveOrControlPlanePermissions",
+      "Effect": "Deny",
+      "Action": ["s3:Delete*", "s3:PutBucket*", "s3:PutEncryptionConfiguration", "s3:PutLifecycleConfiguration", "s3:PutReplicationConfiguration", "s3:PutObjectAcl", "s3:PutObjectRetention", "s3:PutObjectLegalHold", "s3:GetObjectVersion"],
+      "Resource": ["arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273", "arn:aws:s3:::speedy-sweeties-privacy-decisions-080413009273/*"]
+    }
+  ]
+}

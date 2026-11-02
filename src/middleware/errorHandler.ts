@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { StatusCodes } from "http-status-codes";
 import { ZodError } from "zod";
 import { ApiError } from "../utils/ApiError";
+import { PrivacyError } from "../services/privacyDeletion.service";
 import { env } from "../config/env";
 import { logServerError } from "./requestDiagnostics";
 
@@ -16,7 +17,12 @@ export function errorHandler(
   let message = "Internal server error";
   let details: unknown = undefined;
 
-  if (error instanceof ApiError) {
+  if (error instanceof PrivacyError) {
+    statusCode = error.status;
+    message = error.code === "IDENTITY_REVERIFICATION_REQUIRED"
+      ? "This customer identity requires verification before another order can be created. Please contact Speedy Sweeties."
+      : "Privacy protection could not be verified. Please retry later.";
+  } else if (error instanceof ApiError) {
     statusCode = error.statusCode;
     message = error.message;
     details = error.details;

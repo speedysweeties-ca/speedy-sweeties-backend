@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { assertPrivacyOrderAllowed } from "../services/privacyGuards.service";
 import { createHash, randomBytes } from "crypto";
 import {
   Prisma,
@@ -665,6 +666,7 @@ const createOrder = async (
   });
 
   const transactionResult = await prisma.$transaction(async (tx) => {
+    await assertPrivacyOrderAllowed(tx, normalizedPhone);
     const customerId =
       matchedCustomer?.id ??
       (await tx.customer.create({
@@ -1007,6 +1009,7 @@ export const updateOrderDetailsController = async (
   }
 
   const updatedOrder = await prisma.$transaction(async (tx) => {
+    await assertPrivacyOrderAllowed(tx, normalizedPhone);
     let customer = await tx.customer.findFirst({
       where: buildCustomerLookupWhere({ normalizedPhone, normalizedEmail })
     });
@@ -1305,7 +1308,7 @@ export const getPublicOrderTrackingController = async (
       include: publicTrackingOrderInclude
     });
 
-    if (!order) {
+    if (!order || order.privacyErasedAt) {
       sendPublicTrackingNotFound(res);
       return;
     }
@@ -1340,7 +1343,7 @@ export const getPublicOrderTrackingByTokenController = async (
       include: publicTrackingOrderInclude
     });
 
-    if (!order) {
+    if (!order || order.privacyErasedAt) {
       sendPublicTrackingNotFound(res);
       return;
     }

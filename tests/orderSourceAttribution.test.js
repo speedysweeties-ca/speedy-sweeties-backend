@@ -6,11 +6,9 @@ const {
   resolveOrderSourceAttribution
 } = require("../dist/utils/orderSourceAttribution.js");
 
-test("recognizes only the approved Speedy Sweeties Webflow origins", () => {
+test("recognizes only the canonical website origin using the legacy source label", () => {
   for (const origin of [
-    "https://speedysweeties.ca",
-    "https://www.speedysweeties.ca",
-    "https://speedy-sweeties.webflow.io"
+    "https://www.speedysweeties.ca"
   ]) {
     assert.equal(isWebflowOrderOrigin(origin), true, origin);
   }
@@ -19,6 +17,8 @@ test("recognizes only the approved Speedy Sweeties Webflow origins", () => {
     undefined,
     "",
     "not-a-url",
+    "https://speedysweeties.ca",
+    "https://speedy-sweeties.webflow.io",
     "http://www.speedysweeties.ca",
     "https://speedysweeties.ca.evil.example",
     "https://www.speedysweeties.ca/order"

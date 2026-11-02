@@ -5,6 +5,8 @@ const { prisma } = require("../dist/lib/prisma.js");
 
 process.env.GOOGLE_ROUTES_API_KEY = "auto-dispatch-test-key";
 process.env.AUTO_DISPATCH_ENABLED = "true";
+process.env.AUTO_DISPATCH_ROB_PRIORITY_ENABLED = "true";
+const ROB_ID = "e400eba6-841c-4f89-918b-2426af11e76e";
 
 const {
   autoDispatchCreatedOrderWithPickupPlan,
@@ -184,6 +186,7 @@ const installAllocationHarness = (t, options) => {
     }
 
     let releaseLock;
+    const driverLocks = new Map();
     let lockedOrderId;
     let snapshot;
     const tx = {
@@ -193,7 +196,11 @@ const installAllocationHarness = (t, options) => {
           : "";
         rawQueries.push(queryText);
         if (queryText.includes('FROM "User"')) {
-          const driver = drivers.find(driver => driver.id === queryValues[0]);
+          const driverId = queryValues[0];
+          if (!driverLocks.has(driverId)) {
+            driverLocks.set(driverId, await acquireOrderLock("driver:" + driverId));
+          }
+          const driver = drivers.find(driver => driver.id === driverId);
           return driver && driver.isOnline ? [{ id: driver.id }] : [];
         }
         const orderId = queryValues.find(
@@ -227,6 +234,14 @@ const installAllocationHarness = (t, options) => {
         findMany: async () => drivers.map((driver) => ({ ...driver }))
       },
       order: {
+        count: async ({ where }) => {
+          assert.ok(driverLocks.has(where.assignedDriverId), "workload read requires driver lock");
+          assert.deepEqual(where.orderStatus.notIn, [OrderStatus.DELIVERED, OrderStatus.CANCELLED]);
+          return [...orderRows.values()].filter(order =>
+            order.assignedDriverId === where.assignedDriverId &&
+            !where.orderStatus.notIn.includes(order.orderStatus)
+          ).length;
+        },
         updateMany: async ({ where, data }) => {
           const order = orderRows.get(where.id);
           if (
@@ -260,6 +275,7 @@ const installAllocationHarness = (t, options) => {
       }
       throw error;
     } finally {
+      for (const release of driverLocks.values()) release();
       if (releaseLock) releaseLock();
     }
   });
@@ -504,4 +520,93 @@ test("a transaction failure rolls back the assignment", async (t) => {
   assert.equal(result.reason, "ALLOCATION_UNAVAILABLE");
   assert.equal(harness.orderRows.get("order-a").assignedDriverId, null);
   assert.equal(harness.orderRows.get("order-a").orderStatus, OrderStatus.PLACED);
+});
+
+const robWorkload = (count) => Array.from({ length: count }, (_, index) =>
+  autoDispatchOrder("existing-" + index, 200 + index, {
+    assignedDriverId: ROB_ID,
+    orderStatus: [OrderStatus.PLACED, OrderStatus.DISPATCHED, OrderStatus.ACCEPTED, OrderStatus.OUT_FOR_DELIVERY][index % 4],
+    dispatchSource: index % 2 ? DispatchSource.AUTO : DispatchSource.MANUAL
+  })
+);
+
+for (const count of [0, 1, 2, 3, 4, 5]) {
+  test("Rob priority with " + count + " unfinished calls", async t => {
+    const harness = installAllocationHarness(t, {
+      orders: [autoDispatchOrder("new", 101), ...robWorkload(count)],
+      drivers: [allocationDriver(ROB_ID, "Rob", 43.51), allocationDriver("other", "Other", 43.52)],
+      routeDurations: directRouteDurations(600, 60)
+    });
+    const result = await autoDispatchCreatedOrderWithPickupPlan("new");
+    assert.equal(result.driverId, count < 4 ? ROB_ID : "other");
+    assert.equal(harness.orderRows.get("new").orderStatus, OrderStatus.DISPATCHED);
+  });
+}
+
+test("Rob at capacity is excluded even when closest and order waits if alone", async t => {
+  installAllocationHarness(t, {
+    orders: [autoDispatchOrder("new", 101), ...robWorkload(4)],
+    drivers: [allocationDriver(ROB_ID, "Rob", 43.51)],
+    routeDurations: directRouteDurations(30, 600)
+  });
+  const result = await autoDispatchCreatedOrderWithPickupPlan("new");
+  assert.equal(result.dispatched, false);
+  assert.equal(result.reason, "NO_ROUTEABLE_DRIVERS");
+});
+
+test("completed and cancelled calls free Rob capacity immediately", async t => {
+  const existing = robWorkload(5);
+  existing[0].orderStatus = OrderStatus.DELIVERED;
+  existing[1].orderStatus = OrderStatus.CANCELLED;
+  installAllocationHarness(t, {
+    orders: [autoDispatchOrder("new", 101), ...existing],
+    drivers: [allocationDriver(ROB_ID, "Rob", 43.51), allocationDriver("other", "Other", 43.52)],
+    routeDurations: directRouteDurations(600, 60)
+  });
+  assert.equal((await autoDispatchCreatedOrderWithPickupPlan("new")).driverId, ROB_ID);
+});
+
+test("concurrent calls share only Rob's last free slot", async t => {
+  const harness = installAllocationHarness(t, {
+    orders: [autoDispatchOrder("new-a", 101), autoDispatchOrder("new-b", 102), ...robWorkload(3)],
+    drivers: [allocationDriver(ROB_ID, "Rob", 43.51), allocationDriver("other", "Other", 43.52)],
+    routeDurations: directRouteDurations(600, 60),
+    waitForInitialOrderReads: 2
+  });
+  const results = await Promise.all([
+    autoDispatchCreatedOrderWithPickupPlan("new-a"),
+    autoDispatchCreatedOrderWithPickupPlan("new-b")
+  ]);
+  assert.deepEqual(results.map(result => result.driverId).sort(), [ROB_ID, "other"].sort());
+  assert.equal([...harness.orderRows.values()].filter(order => order.assignedDriverId === ROB_ID).length, 4);
+});
+
+test("Rob signing out before allocation falls back to another driver", async t => {
+  installAllocationHarness(t, {
+    orders: [autoDispatchOrder("new", 101)],
+    drivers: [allocationDriver(ROB_ID, "Rob", 43.51), allocationDriver("other", "Other", 43.52)],
+    routeDurations: directRouteDurations(600, 60),
+    beforeFirstTransaction: drivers => { drivers[0].isOnline = false; }
+  });
+  assert.equal((await autoDispatchCreatedOrderWithPickupPlan("new")).driverId, "other");
+});
+
+test("disabling temporary priority restores closest-driver allocation without Rob cap", async t => {
+  replaceForTest(t, process.env, "AUTO_DISPATCH_ROB_PRIORITY_ENABLED", "false");
+  installAllocationHarness(t, {
+    orders: [autoDispatchOrder("new", 101), ...robWorkload(4)],
+    drivers: [allocationDriver(ROB_ID, "Rob", 43.51), allocationDriver("other", "Other", 43.52)],
+    routeDurations: directRouteDurations(30, 600)
+  });
+  assert.equal((await autoDispatchCreatedOrderWithPickupPlan("new")).driverId, ROB_ID);
+});
+
+test("stale Rob GPS does not bypass normal eligibility", async t => {
+  const stale = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  installAllocationHarness(t, {
+    orders: [autoDispatchOrder("new", 101)],
+    drivers: [allocationDriver(ROB_ID, "Rob", 43.51, { locationUpdatedAt: stale }), allocationDriver("other", "Other", 43.52)],
+    routeDurations: directRouteDurations(600, 60)
+  });
+  assert.equal((await autoDispatchCreatedOrderWithPickupPlan("new")).driverId, "other");
 });

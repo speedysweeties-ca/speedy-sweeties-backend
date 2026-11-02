@@ -1,9 +1,9 @@
 import { prisma } from "../lib/prisma";
+import { retentionSmsConfig, sendRetentionMessages } from "../services/retentionSms.service";
 
 const RETENTION_TRIGGER_DAYS = 90;
 const EXISTING_BUSINESS_RELATIONSHIP_DAYS = 730;
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
-const SMS_MODE = (process.env.RETENTION_SMS_MODE || "DRY_RUN").trim().toUpperCase();
 
 const MESSAGE_BODY =
   "Speedy Sweeties: It's been a while! We'd love to deliver for you again. Order at speedysweeties.ca or call 519-826-8097. Reply STOP to unsubscribe.";
@@ -37,13 +37,8 @@ const getLatestCompletedOrderDate = (
 };
 
 async function runRetention90Job(): Promise<void> {
-  if (SMS_MODE !== "DRY_RUN") {
-    throw new Error(
-      `RETENTION_SMS_MODE=${SMS_MODE} is not enabled in Phase 3A. This job intentionally supports DRY_RUN only so no SMS can be sent accidentally.`
-    );
-  }
-
-  console.log("90-day retention job started in DRY_RUN mode.");
+  const sendConfig = retentionSmsConfig();
+  console.log("90-day retention draft scan started.");
 
   const now = new Date();
   const customers = await prisma.customer.findMany({
@@ -151,7 +146,7 @@ async function runRetention90Job(): Promise<void> {
         })
       : { count: 0 };
 
-  console.log("90-day retention job completed in DRY_RUN mode.");
+  console.log("90-day retention draft scan completed.");
   console.log(`Customers reviewed: ${customers.length}`);
   console.log(`Eligible 90-day candidates: ${candidates.length}`);
   console.log(`New dry-run records created: ${result.count}`);
@@ -160,7 +155,12 @@ async function runRetention90Job(): Promise<void> {
   console.log(
     `Skipped - outside 2-year existing-business-relationship window without recorded express consent: ${skippedOutsideConsentWindow}`
   );
-  console.log("SMS messages sent: 0");
+  if (sendConfig) {
+    const result = await sendRetentionMessages(prisma, sendConfig);
+    console.log(`SMS attempted: ${result.attempted}; provider accepted: ${result.accepted}. Delivery requires callbacks.`);
+  } else {
+    console.log("SMS messages sent: 0");
+  }
 }
 
 async function main(): Promise<void> {

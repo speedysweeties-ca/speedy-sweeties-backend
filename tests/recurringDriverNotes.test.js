@@ -153,6 +153,8 @@ test("manual creation atomically snapshots and persists against the resolved cus
       let createdOrder;
       let transactionCustomer = customerToResolve;
       const tx = {
+        $executeRaw: async () => 1,
+        privacyDeletedIdentity: { findUnique: async () => null, findFirst: async () => null },
         $queryRaw: async (_queryStrings, ...queryValues) => {
           const customerId = queryValues.find(
             (value) =>

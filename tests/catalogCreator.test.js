@@ -41,6 +41,8 @@ const installOrderDatabase = (t, existingItem = null) => {
   };
   const customer = { id: "customer-1", recurringDriverNotes: null };
   const tx = {
+    $executeRaw: async () => 1,
+    privacyDeletedIdentity: { findUnique: async () => null, findFirst: async () => null },
     customer: {
       findFirst: async () => customer,
       update: async () => customer

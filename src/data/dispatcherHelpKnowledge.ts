@@ -8,6 +8,7 @@ export type HelpDestination =
   "DISPATCHER_CHECKLIST" |
   "DRIVER_LOCATION" |
   "DISPATCHER_PERFORMANCE" |
+  "PRIVACY_REQUESTS" |
   "DRIVERS" |
   "DISPATCHER_PINBOARD" |
   "DISPATCHER_STANDARDS" |
@@ -30,24 +31,56 @@ export interface HelpArticle {
   content: string;
 }
 
-// Workflow audit: main 12b78cc, 2026-10-24. Update affected guides in every workflow change.
-// Maintenance review 2026-10-26: dispatcher lint-only Zod updated; navigation, help
+// Workflow audit: main 7bcaaf7 plus PR 93, 2026-10-26. Update affected guides in every workflow change.
+// Maintenance review 2026-11-02: dispatcher lint-only Zod updated; navigation, help
 // sources and staff workflows are unchanged (guide: help-guide).
 // Published standards are live data; this guide explains their screen, never copies their policy.
+// 2026-10-26 Node 24.22.1 security review: navigation, B&D email controls and
+// customer-retention procedures remain unchanged. Runtime pins/build guards do
+// not change polling, authorization, dispatch, messaging settings or the cron's
+// DRY_RUN-only behavior. No published policy or live provider outcome is inferred.
+// 2026-10-26 combined PR 93/security-main review: navigation, privacy-requests,
+// receipts, bnd-emails and customer-retention remain accurate. Merging c5f249f
+// changes the runtime/CI only; ADMIN privacy controls, retained receipt evidence,
+// identity guards and all existing dispatch/notification controls are preserved.
+// 2026-10-28 recovery review: existing controls and receipt redaction are unchanged;
+// privacy decisions now fail closed without complete independent recovery history.
+// 2026-10-28 follow-up: offline recovery additionally stops for missing scoped
+// financial records or newer external-retention decisions. The privacy-requests
+// guide's offline/operator-review instructions and existing controls stay accurate.
+// 2026-10-28 S3 preparation review: the proposed conditional append store changes
+// no visible controls or receipt erasure. Missing permissions/uncertain appends
+// still require the privacy operator; do not bypass stops or retry uncertain work.
+// 2026-10-28 integration review: Hobby's existing IAM user is wired lazily with
+// exact external pins, without JWT/storage fallback. Sealed predecessors and
+// unfinished successor coverage require offline operator review. Deadlines,
+// financial evidence and all visible controls remain unchanged; gates-off
+// ordinary ordering does not depend on recovery-store availability.
+// Same-day retirement review: operator-only removal validates successor coverage,
+// the externally pinned active scope and the full retired-version inventory first;
+// any partial deletion stops for review. No app delete permission or new UI.
+// 2026-10-29 production operator review: enrollment and offline dry-run/apply use
+// exact-resource/identity/plan/exclusion guards. Authenticated RESOLVE records need
+// attributable original-DB before/after evidence; ambiguity remains stopped.
+// Existing dispatcher controls, financial fields and customer dates are unchanged.
+// 2026-10-29 API quiescence review: original normal startup/visible controls are
+// unchanged. Explicit operator mode blocks ALL API routes (including write-capable
+// GETs), not merely privacy. It starts no monitors/session writer; cron and other
+// DB clients still need separate exclusion. It cannot reopen on a timeout/error.
 export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "navigation",
     title: "Find dispatcher pages and refresh information",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-29",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "LIVE_ORDERS",
-    evidence: ["speedy-dispatcher/src/App.tsx"],
-    content: "The top buttons are Live Orders, Create Manual Order, Customer Follow-ups, Dispatcher Pinboard, Dispatcher Standards, Driver Location, Refresh, How do I…?, Logout, and Show more. Show more reveals Delivered History, Catalog, Customers, Staff, Daily Responsibilities, Growth, Customer Retention, Driver Stats, Pickup Locations and QR Code Tracking, plus dispatch and alert switches. Some controls require an administrator. Hide more collapses these controls without deleting anything. Live Orders normally refreshes every 5 seconds. Page refresh pauses on working screens and during editing; incoming orders are still checked every 5 seconds. Driver Location refreshes every 3 seconds. Use the relevant screen's refresh control when information looks old. A connection warning means displayed information may be stale; the help assistant cannot verify live status.",
+    evidence: ["speedy-dispatcher/src/App.tsx", "src/server.ts", "src/normalServer.ts", "src/quiescentServer.ts"],
+    content: "The top buttons are Live Orders, Create Manual Order, Customer Follow-ups, Dispatcher Pinboard, Dispatcher Standards, Driver Location, Refresh, How do I…?, Logout, and Show more. Show more reveals Delivered History, Catalog, Customers, Staff, Daily Responsibilities, Growth, Customer Retention, Driver Stats, Pickup Locations and QR Code Tracking, plus dispatch and alert switches. Administrators also see Privacy requests. Some controls require an administrator. Hide more collapses these controls without deleting anything. Live Orders normally refreshes every 5 seconds. Page refresh pauses on working screens and during editing; incoming orders are still checked every 5 seconds. Driver Location refreshes every 3 seconds. Use the relevant screen's refresh control when information looks old. A connection warning means displayed information may be stale; the help assistant cannot verify live status.",
   },
   {
     id: "help-guide",
     title: "Use How do I…? and its source guides",
-    reviewedAt: "2026-10-26",
+    reviewedAt: "2026-11-02",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "HELP",
     evidence: ["speedy-dispatcher/src/DispatcherHelp.tsx", "src/services/dispatcherHelp.service.ts"],
@@ -56,20 +89,20 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "dispatcher-standards",
     title: "Read dispatcher expectations and responsibilities",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-28",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "DISPATCHER_STANDARDS",
-    evidence: ["speedy-dispatcher/src/DispatcherStandards.tsx", "speedy-dispatcher/src/App.tsx", "src/routes/dispatcherStandards.routes.ts"],
-    content: "For expectations, responsibilities and consequences, open Dispatcher Standards in the top buttons. Read What is expected and What happens if this is missed on the published entries. Refresh standards reloads the saved entries. Dispatchers see published entries only; administrators can also manage drafts and archived entries. The help assistant cannot read the current entries or know their count, wording, published status or consequences. Direct questions about current standards to the entries themselves; do not invent or quote a fee. Daily Responsibilities is a separate checklist still accessible under Show more; it is not the editor for Dispatcher Standards. If a checklist task conflicts with the published standards, ask the owner to clarify.",
+    evidence: ["speedy-dispatcher/src/DispatcherStandards.tsx", "speedy-dispatcher/src/App.tsx", "src/routes/dispatcherStandards.routes.ts", "src/services/dispatcherStandards.service.ts"],
+    content: "For expectations, responsibilities and consequences, open Dispatcher Standards in the top buttons. Read What is expected and What happens if this is missed on the published entries. Current version posted appears below each published title with the saved date and time in Guelph time. It identifies the most recent publication of the current entry, not its original first publication or proof that someone has read it. Refresh standards reloads the saved entries. Dispatchers see published entries only; administrators can also manage drafts and archived entries. The help assistant cannot read the current entries or know their count, wording, published status or consequences. Direct questions about current standards to the entries themselves; do not invent or quote a fee. Daily Responsibilities is a separate checklist still accessible under Show more; it is not the editor for Dispatcher Standards. If a checklist task conflicts with the published standards, ask the owner to clarify.",
   },
   {
     id: "manage-standards",
     title: "Add, publish, revise or archive a standard",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-28",
     roles: ["ADMIN"],
     destination: "DISPATCHER_STANDARDS",
-    evidence: ["speedy-dispatcher/src/DispatcherStandards.tsx", "src/routes/dispatcherStandards.routes.ts"],
-    content: "Administrators open Dispatcher Standards > Add entry. Enter Title, What is expected and What happens if this is missed, then Save draft. To publish, click Edit on the saved entry, choose Published — visible to dispatchers in Visibility, click Save and publish and confirm. Use Edit and Visibility to return an entry to Draft or Archived, then save. All entries, Published, Draft and Archived filter the administrator's list. Archived entries and drafts are private to administrators. A saved entry persists across devices and sign-ins. Unsaved editor text survives switching dashboard tabs but not a browser reload or logout. If another administrator changed the board or a save was interrupted, check Refresh standards before retrying; do not overwrite newer wording blindly. The help assistant cannot publish policy or determine whether a consequence is enforceable.",
+    evidence: ["speedy-dispatcher/src/DispatcherStandards.tsx", "src/routes/dispatcherStandards.routes.ts", "src/services/dispatcherStandards.service.ts"],
+    content: "Administrators open Dispatcher Standards > Add entry. Enter Title, What is expected and What happens if this is missed, then Save draft. To publish, click Edit on the saved entry, choose Published — visible to dispatchers in Visibility, click Save and publish and confirm. Each Save and publish refreshes Current version posted using the server save time, including revisions and republication. Drafts and archived entries show Last updated instead when a saved date is available. Use Edit and Visibility to return an entry to Draft or Archived, then save. All entries, Published, Draft and Archived filter the administrator's list. Archived entries and drafts are private to administrators. A saved entry persists across devices and sign-ins. Unsaved editor text survives switching dashboard tabs but not a browser reload or logout. If another administrator changed the board or a save was interrupted, check Refresh standards before retrying; do not overwrite newer wording blindly. The help assistant cannot publish policy or determine whether a consequence is enforceable.",
   },
   {
     id: "dispatcher-pinboard",
@@ -128,11 +161,11 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "edit-order",
     title: "Edit an existing delivery order",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-26",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "LIVE_ORDERS",
     evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/order.controller.ts"],
-    content: "Open Live Orders, find the correct order and click Edit Order. Change customer contact details, Address Line 1, Apartment / Unit, Buzz Code, City, Province, payment method, items or Additional Notes. Use Add Item and the item removal controls as needed. Click Save Changes and verify the updated order. Cancel asks whether to discard the edits; cancelling the editor does not cancel the delivery. Delivered and cancelled orders cannot be edited. Saving an order edit also creates or updates the matching customer profile by phone/email, but does not rewrite other orders. Civic-address changes are verified. For a delivery already underway, coordinate the change with the assigned driver.",
+    content: "Open Live Orders, find the correct order and click Edit Order. Change customer contact details, Address Line 1, Apartment / Unit, Buzz Code, City, Province, payment method, items or Additional Notes. Use Add Item and the item removal controls as needed. Click Save Changes and verify the updated order. Cancel asks whether to discard the edits; cancelling the editor does not cancel the delivery. Delivered and cancelled orders cannot be edited. Saving an order edit also creates or updates the matching customer profile by phone/email, but does not rewrite other orders. Civic-address changes are verified. If the server says this customer identity requires verification, do not bypass the protection by substituting another phone number; stop and refer the case to the privacy administrator. For a delivery already underway, coordinate the change with the assigned driver.",
   },
   {
     id: "edit-timing",
@@ -146,11 +179,11 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "manual-order",
     title: "Create a telephone order",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-26",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "CREATE_MANUAL_ORDER",
     evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/order.controller.ts"],
-    content: "Open Create Manual Order. Type the customer's name or phone and select the correct customer suggestion when available. Verify name, phone, email and street address, City and Province; the current form requires these. Apartment / Unit and Buzz Code are optional separate fields. Choose Cash, Debit, Visa, Mastercard or E-Transfer. Enter item names and positive whole-number quantities, select matching suggestions when available, and use Add Another Item or Remove as needed. Review Additional Notes, Recurring Driver Notes and Dispatcher Notes (Internal), then click Create Manual Order. Wait for success and check the resulting order in Live Orders before retrying an uncertain submission. Cancel asks to discard a changed form. Dispatcher Notes for a selected customer save while typing, so cancelling the order form does not undo those note changes. The help assistant cannot submit orders.",
+    content: "Open Create Manual Order. Type the customer's name or phone and select the correct customer suggestion when available. Verify name, phone, email and street address, City and Province; the current form requires these. Apartment / Unit and Buzz Code are optional separate fields. Choose Cash, Debit, Visa, Mastercard or E-Transfer. Enter item names and positive whole-number quantities, select matching suggestions when available, and use Add Another Item or Remove as needed. Review Additional Notes, Recurring Driver Notes and Dispatcher Notes (Internal), then click Create Manual Order. Wait for success and check the resulting order in Live Orders before retrying an uncertain submission. If the server says this customer identity requires verification, do not change the phone number to work around it; stop and refer the case to the privacy administrator. Cancel asks to discard a changed form. Dispatcher Notes for a selected customer save while typing, so cancelling the order form does not undo those note changes. The help assistant cannot submit orders.",
   },
   {
     id: "previous-order",
@@ -171,21 +204,23 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
     content: "In Live Orders, locate the order, choose an online driver from Select Driver and click Assign to Driver. Each driver's active order count is shown in the selector. Verify Assigned and the order status after saving. Choosing a name alone does not assign the order. The button stays disabled until a different driver is selected. Closed orders cannot be assigned. Changing Normal / High saves priority immediately. Assignment moves a new order to DISPATCHED; the driver still needs to accept it. A notification being sent is not proof that the driver saw it. Monitor acceptance and contact the driver or reassign if necessary. Check Staff for visibility and online status if a driver is missing.",
   },
   {
+    // 2026-10-31: Re-reviewed temporary Rob priority and fourth-slot concurrency; documentation formatting preserves behavior.
     id: "auto-dispatch",
     title: "Turn automatic dispatch on or off",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-31",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "LIVE_ORDERS",
     evidence: ["speedy-dispatcher/src/App.tsx", "src/services/autoDispatchPickupPlan.service.ts"],
-    content: "Open Show more and find Auto Dispatch. Use Turn Auto Dispatch On or Turn Auto Dispatch Off, then check the saved ON/OFF status. This is a shared server setting, not just a sound preference for this browser. Automatic dispatch considers newly created eligible, unassigned orders and requires a verified delivery map location and an active, visible, online driver with fresh GPS. It chooses by the configured travel-time estimate directly to the customer; item pickup types, pickup stops and least-load balancing do not determine that selection. Live Traffic controls whether the estimate uses Google traffic or coordinates. Switching it on is not a promise that all existing waiting orders will immediately be assigned. If an order remains unassigned, check its address/map warning and driver availability and use manual assignment when appropriate.",
+    content: "Open Show more and find Auto Dispatch. Use Turn Auto Dispatch On or Turn Auto Dispatch Off, then check the saved ON/OFF status. This is a shared server setting, not just a sound preference for this browser. Automatic dispatch considers newly created eligible, unassigned orders and requires a verified delivery map location and an active, visible, online driver with fresh GPS. While the temporary Rob Driver priority is enabled, Rob gets first choice when eligible and assigned fewer than four unfinished calls. All assigned calls count until DELIVERED or CANCELLED, including manually assigned calls and calls already picked up. At four or more, new automatic calls go to another eligible driver by travel-time estimate; if none is available the call stays unassigned for dispatch to handle. Priority resumes below four. Manual assignment remains available. Otherwise it chooses by the configured travel-time estimate directly to the customer; item pickup types and pickup stops do not determine that selection. Live Traffic controls whether the estimate uses Google traffic or coordinates. Switching it on is not a promise that all existing waiting orders will immediately be assigned. If an order remains unassigned, check its address/map warning and driver availability and use manual assignment when appropriate.",
   },
   {
     id: "order-lifecycle",
     title: "Understand statuses, receipts and late-order warnings",
-    reviewedAt: "2026-10-24",
+    // 2026-10-29: Website verification runs before creation; staff lifecycle and timers remain unchanged.
+    reviewedAt: "2026-10-29",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "LIVE_ORDERS",
-    evidence: ["speedy-dispatcher/src/App.tsx", "docs/order-status-state-machine.md", "docs/dispatcher-edit-pauses.md"],
+    evidence: ["speedy-dispatcher/src/App.tsx", "docs/order-status-state-machine.md", "docs/dispatcher-edit-pauses.md", "src/middleware/websiteVerification.ts"],
     content: "The normal lifecycle is PLACED (shown as NEW ORDER), DISPATCHED, ACCEPTED, OUT_FOR_DELIVERY and DELIVERED. Assignment dispatches the order; the assigned driver accepts it. OUT_FOR_DELIVERY and DELIVERED require a saved valid digital receipt. Driver-created digital receipts are the final-total record, not the initial estimated totals. Staff cannot skip these steps or reopen DELIVERED/CANCELLED orders. If RECEIPT_REQUIRED appears, have the assigned driver complete the digital receipt workflow. Live Orders marks unaccepted orders at 5+ minutes, allowing for recorded pre-dispatch editing pauses, and shows Delivery overdue (40+ min) using time from creation. These warnings call for checking progress, not proof of the cause of a delay. The help assistant cannot inspect the order, mark it delivered or guarantee an arrival time.",
   },
   {
@@ -288,27 +323,36 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
     content: "Open Show more > Live Traffic. Turn Live Traffic On enables Google traffic-aware routing, which may be billable. Turn Live Traffic Off makes new routing calculations use coordinate-based estimates without new Google Routes requests. Check the saved ON/OFF status and the routing-mode notice in the map preview. This is a shared server setting. Turning traffic off does not mean all Google services or the map are disabled or free. Route estimates and automatic dispatch use the configured routing mode, but the map preview includes pickup stops while automatic driver selection estimates the direct customer leg. Neither mode guarantees the real arrival time.",
   },
   {
+    id: "privacy-requests",
+    title: "Review and complete a verified privacy deletion request",
+    reviewedAt: "2026-10-29",
+    roles: ["ADMIN"],
+    destination: "PRIVACY_REQUESTS",
+    evidence: ["speedy-dispatcher/src/PrivacyRequests.tsx", "speedy-dispatcher/src/privacyRequest.ts", "src/routes/privacy.routes.ts", "src/services/privacyDeletion.service.ts", "src/services/privacyRecoveryJournal.ts", "src/services/privacyRecoveryS3.ts", "src/services/privacyRecoveryConfiguration.ts", "src/services/privacyRecoveryMaintenance.ts", "src/services/privacyRecoveryRetirement.ts", "src/services/privacyRecoveryOperator.ts", "scripts/privacyRecoveryOperator.cjs", "docs/account-deletion.md"],
+    content: "Administrators open Privacy requests and select Load / refresh requests. General dispatcher access is insufficient. Check the request status and its individual due date; overdue means the recorded due date has passed, not that deletion completed automatically. Select the request and use Preview affected records (no deletion) to inspect the verified source order, linked/active orders, unlinked candidates, identity conflicts, removals, retained financial fields and external systems. Preview does not delete anything. Do not continue while active orders, unlinked candidates or identity conflicts remain. Confirm the adopted policy reference, document a business/legal justification without customer details, enter the applicable tax-year end and financial retain-until date, and review the server-calculated audit and anti-reactivation review dates. Confirm and begin fulfillment is irreversible and is rejected while fulfillment is disabled, the request is on hold, the preview is stale, or the retention decision is invalid. Privacy changes also stop if protected recovery history is unavailable, incomplete or has an unfinished operation; do not bypass that stop or repeatedly retry an uncertain result. Refer it to the privacy operator. A restored database must stay offline until decision reconciliation and external-copy review are complete. After database fulfillment, verify each listed external system and use Record verified external outcome; do not invent an expiry or evidence reference. Confirm completion only after all eligible deletion and external handling is verified. Completion makes the result available through authenticated in-app status and does not send an email or SMS. A request received, provider-accepted message, preview or database fulfillment alone is not completed deletion.",
+  },
+  {
     id: "order-alarms",
     title: "Enable and acknowledge order alarms",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-26",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "LIVE_ORDERS",
-    evidence: ["speedy-dispatcher/src/IncomingOrderAlarm.tsx", "speedy-dispatcher/src/useIncomingOrderAlarm.ts", "docs/dispatcher-edit-pauses.md"],
+    evidence: ["speedy-dispatcher/src/IncomingOrderAlarmPanels.tsx", "speedy-dispatcher/src/useIncomingOrderAlarm.ts", "docs/dispatcher-edit-pauses.md"],
     content: "Open Show more > Alarm. Turn Alarm On enables new-order and overdue-acceptance sound/popups for this browser; Enable Sound unlocks browser audio and Test Alarm tests it without creating an order. New-order sound repeats every 10 seconds until Acknowledge; View Orders opens Live Orders. Acknowledging does not assign a driver. The Driver has not accepted — 5+ minutes alert repeats every 30 seconds while waiting and clears when accepted or cancelled; contact the driver or assign another driver. The acceptance timing allows for recorded pre-dispatch editing pauses. Turning Alarm Off disables these sounds and popups on this browser, not automatic dispatch. The help assistant cannot hear whether audio is working.",
   },
   {
     id: "bnd-alerts",
     title: "Respond to B&D waiting-call alerts",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-26",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "LIVE_ORDERS",
-    evidence: ["speedy-dispatcher/src/BndOrderAlerts.tsx", "speedy-dispatcher/src/useBndOrderAlerts.ts", "speedy-dispatcher/src/bndStatusPolling.ts"],
+    evidence: ["speedy-dispatcher/src/BndOrderAlertPanels.tsx", "speedy-dispatcher/src/useBndOrderAlerts.ts", "speedy-dispatcher/src/bndStatusPolling.ts"],
     content: "Open Show more > B&D Alerts. Enable B&D Sound if browser audio needs enabling. A waiting-call popup lists order numbers and repeats sound every 10 seconds. Open or claim the call in B&D itself; the alert clears after the next successful check. This dashboard does not claim a B&D call for you. Turn B&D Alerts Off silences sound/popups for the current session; they turn on again at the next login. Checks pause outside the hours displayed by the monitor. If monitoring is interrupted or login needs attention, any displayed waiting calls are last-known information; check B&D directly and ask the administrator to investigate. Silencing browser alerts does not switch off the separate B&D email setting.",
   },
   {
     id: "bnd-emails",
     title: "Control B&D email notifications",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-26",
     roles: ["ADMIN"],
     destination: "LIVE_ORDERS",
     evidence: ["speedy-dispatcher/src/BndEmailControls.tsx", "src/routes/bndAlerts.routes.ts"],
@@ -317,11 +361,11 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "customer-retention",
     title: "Find customers who have not ordered recently",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-30",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "CUSTOMER_RETENTION",
-    evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/customer.controller.ts"],
-    content: "Open Show more > Customer Retention. Choose All Customers, Active 0–29 Days, 30+ Days, 60+ Days or 90+ Days. The 30+ and 60+ filters include the older groups too. Search by name, phone, email, address or notes. Review Last Order, Days Since, Completed Orders and Status. Call, Text and Email open the corresponding device application; clicking is not proof that a message was sent. Email appears only when an email is recorded. View History shows up to the 20 most recent stored orders; Hide History or Close History closes it. Refresh Retention reloads the data. This screen does not define a discount, automatically send a campaign or establish permission to contact someone; follow the owner's confirmed procedure.",
+    evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/customer.controller.ts", "src/jobs/retention90.job.ts", "src/services/retentionSms.service.ts"],
+    content: "Open Show more > Customer Retention. Choose All Customers, Active 0–29 Days, 30+ Days, 60+ Days or 90+ Days. The 30+ and 60+ filters include the older groups too. Search by name, phone, email, address or notes. Review Last Order, Days Since, Completed Orders and Status. Call, Text and Email open the corresponding device application; clicking is not proof that a message was sent. Email appears only when an email is recorded. View History shows up to the 20 most recent stored orders; Hide History or Close History closes it. Refresh Retention reloads the data. This screen does not define a discount, automatically send a campaign or establish permission to contact someone; follow the owner's confirmed procedure. A separate scheduled 90-day SMS job defaults to draft-only mode. Sending requires administrator configuration, a start date and batch limit; this screen does not enable it. Provider acceptance is not confirmed delivery. STOP replies suppress future scheduled messages, and uncertain attempts are held for administrator review rather than automatically retried.",
   },
   {
     id: "driver-stats",
@@ -362,11 +406,11 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "receipts",
     title: "View a receipt or prepare a receipt email",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-10-26",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "DELIVERED_HISTORY",
-    evidence: ["speedy-dispatcher/src/App.tsx"],
-    content: "Open Show more > Delivered History and find the correct order. Scroll across to Final Receipt. View opens a text receipt in a browser alert; No receipt means no saved digital receipt is shown. Send opens your device's email application with the order's customer email, subject and receipt text filled in. It does not send an email automatically: review the draft and send it from your email application. Send is disabled when the order has no email. Important current limitation: the text preview and email use preset delivery, HST and driver-tip lines, which may differ from the saved receipt; the grand total is taken from the saved receipt. Verify the breakdown before sending and ask the administrator if it is inconsistent. Do not treat these preset lines as current pricing policy. The help assistant cannot retrieve, correct or send a receipt.",
+    evidence: ["speedy-dispatcher/src/App.tsx", "speedy-dispatcher/src/receiptEvidence.ts", "src/services/privacyDeletion.service.ts"],
+    content: "Open Show more > Delivered History and find the correct order. Scroll across to Final Receipt. View opens a text receipt in a browser alert; No receipt means no saved digital receipt is shown. Send opens your device's email application with the order's customer email, subject and receipt text filled in. It does not send an email automatically: review the draft and send it from your email application. Send is disabled when the order has no email. The text uses the saved item descriptions, quantities and prices, delivery/service charge, tax/fees and grand total. Recognized extra-stop and distance-surcharge evidence comes from the original receipt note or its retained structured copy. After verified privacy fulfillment, a retained financial receipt can keep required transaction evidence while customer identity, arbitrary receipt notes and operational details are removed. Verify the saved breakdown before using it; do not invent a price, tax or fee. The help assistant cannot retrieve, correct or send a receipt.",
   },
 ];
 

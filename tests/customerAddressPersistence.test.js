@@ -116,6 +116,8 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
   replaceForTest(t, prisma, "$transaction", async (callback) => {
     const checkpoint = clone(database);
     const tx = {
+      $executeRaw: async () => 1,
+      privacyDeletedIdentity: { findUnique: async () => null, findFirst: async () => null },
       customer: {
         create: async ({ data }) => {
           database.customer = {
@@ -435,6 +437,8 @@ test("a transaction failure rolls back a customer address update", async (t) => 
   replaceForTest(t, prisma, "$transaction", async (callback) => {
     const checkpoint = clone(database.database);
     const tx = {
+      $executeRaw: async () => 1,
+      privacyDeletedIdentity: { findUnique: async () => null, findFirst: async () => null },
       $queryRaw: async (_queryStrings, ...queryValues) =>
         queryValues.includes(database.database.customer?.id)
           ? [clone(database.database.customer)]

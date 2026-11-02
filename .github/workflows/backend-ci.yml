@@ -8,6 +8,51 @@ permissions:
   contents: read
 
 jobs:
+  privacy-database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: speedy_privacy_synthetic
+          POSTGRES_USER: privacy_test
+          POSTGRES_PASSWORD: synthetic-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U privacy_test -d speedy_privacy_synthetic"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_ENV: test
+      PRIVACY_SYNTHETIC_DATABASE: 'yes'
+      DATABASE_URL: postgresql://privacy_test:synthetic-only@127.0.0.1:5432/speedy_privacy_synthetic
+      JWT_SECRET: synthetic-privacy-test-key
+      FIREBASE_SERVICE_ACCOUNT_JSON: '{}'
+      AUTO_DISPATCH_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The schema baseline is an exact, reviewed historical commit.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - name: Verify runtime pins before privacy checks
+        run: node --test --test-concurrency=1 tests/runtimeVersion.test.js
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+      - run: npm run build
+      - name: Verify quiescent startup against guarded synthetic PostgreSQL
+        env:
+          CHECK_QUIESCENT_DATABASE: '1'
+        run: node --test --test-concurrency=1 tests/quiescentStartup.test.js
+      - run: node tests/preparePrivacyDatabase.cjs
+      - name: Reconcile actual synthetic snapshots serially before lifecycle fixtures
+        env:
+          RECOVERY_POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: node --test --test-concurrency=1 tests/privacyRecovery.database.test.js tests/privacyRecoveryOperator.database.test.js
+      - run: node --test --test-concurrency=1 tests/privacyBaseline.test.js tests/privacyDeletion.database.test.js tests/privacyRoutes.database.test.js tests/privacyDelivery.test.js
   validate:
     runs-on: ubuntu-latest
     services:
@@ -36,16 +81,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            speedy-dispatcher/package-lock.json
+
+      - name: Verify runtime pins before application checks
+        run: node --test --test-concurrency=1 tests/runtimeVersion.test.js
+
       - name: Require dispatcher help review with workflow changes
         env:
           HELP_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: node scripts/checkDispatcherHelp.cjs
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
 
       - name: Install backend dependencies
         run: npm ci
@@ -71,8 +122,9 @@ jobs:
       - name: Validate timing history against isolated PostgreSQL
         run: |
           node tests/prepareEditPauseDatabase.cjs
-          CHECK_EDIT_PAUSE_DATABASE=1 node --test tests/orderEditPause.database.test.js
-          CHECK_BND_HISTORY_DATABASE=1 node --test tests/bndWaitingHistory.database.test.js
+          CHECK_EDIT_PAUSE_DATABASE=1 node --test --test-concurrency=1 tests/orderEditPause.database.test.js
+          CHECK_BND_HISTORY_DATABASE=1 node --test --test-concurrency=1 tests/bndWaitingHistory.database.test.js
+          CHECK_RETENTION_SMS_DATABASE=1 node --test --test-concurrency=1 tests/retentionSms.database.test.js
 
       - name: Install dispatcher dependencies
         working-directory: speedy-dispatcher

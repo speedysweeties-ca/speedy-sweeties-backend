@@ -1,0 +1,660 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PLACED
+  DISPATCHED
+  ACCEPTED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum OrderPriority {
+  NORMAL
+  HIGH
+}
+
+enum PickupLocationRoutingPriority {
+  PREFERRED
+  STANDARD
+  FALLBACK
+}
+
+enum PaymentMethod {
+  CASH
+  DEBIT
+  VISA
+  MASTERCARD
+  ETRANSFER
+}
+
+enum UserRole {
+  ADMIN
+  DISPATCHER
+  DRIVER
+}
+
+enum RetentionMessageStatus {
+  DRY_RUN
+  SENT
+  FAILED
+}
+
+enum DeliveryGeocodeStatus {
+  VERIFIED
+  NEEDS_REVIEW
+  UNVERIFIED
+}
+
+enum DispatchSource {
+  MANUAL
+  AUTO
+  DRIVER
+}
+
+enum OrderSource {
+  UNKNOWN
+  ANDROID_APP
+  IOS_APP
+  WEBFLOW
+  DISPATCHER_MANUAL
+}
+
+enum DispatchEventType {
+  ASSIGNED
+  REASSIGNED
+  UNASSIGNED
+}
+
+model StaffSessionEvent {
+  id         String   @id @default(uuid())
+  eventKey   String   @unique
+  occurredAt DateTime @default(now())
+  userId     String
+  staffName  String?
+  role       UserRole
+  client     String
+  reason     String
+  outcome    String
+  actorId    String?
+  actorName  String?
+
+  @@index([occurredAt, id])
+  @@index([userId, occurredAt])
+  @@index([role, occurredAt])
+}
+
+model User {
+  id                     String   @id @default(uuid())
+  email                  String   @unique
+  passwordHash           String
+  staffRevision          Int      @default(0)
+  authVersion            Int      @default(0)
+  passwordChangeRequired Boolean  @default(false)
+  role                   UserRole
+  firstName              String?
+  lastName               String?
+  isActive               Boolean  @default(true)
+  isVisibleInDispatch    Boolean  @default(true)
+
+  isOnline   Boolean   @default(false)
+  lastSeenAt DateTime?
+
+  latitude                     Float?
+  longitude                    Float?
+  locationUpdatedAt            DateTime?
+  locationAccuracyMeters       Float?
+  locationSpeedMetersPerSecond Float?
+  locationHeadingDegrees       Float?
+  locationRecordedAt           DateTime?
+
+  driverFcmToken          String?
+  driverAppState          String?   @default("FOREGROUND")
+  driverAppStateUpdatedAt DateTime?
+
+  forceLogoutAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedOrders          Order[]                         @relation("DriverOrders")
+  dispatchedOrders        Order[]                         @relation("DispatchedOrders")
+  createdOrders           Order[]                         @relation("CreatedOrders")
+  dispatchEvents          DispatchEvent[]                 @relation("DispatchEventActor")
+  dispatchEventsFrom      DispatchEvent[]                 @relation("DispatchEventFromDriver")
+  dispatchEventsTo        DispatchEvent[]                 @relation("DispatchEventToDriver")
+  checklistCompletions    DispatcherChecklistCompletion[] @relation("ChecklistCompletedBy")
+  handledCheckIns         DeliveryHelpRequest[]
+  dispatcherNotes         DispatcherNote[]                @relation("DispatcherNoteAuthor")
+  resolvedDispatcherNotes DispatcherNote[]                @relation("DispatcherNoteResolver")
+  dispatcherNoteReads     DispatcherNoteRead[]
+
+  @@index([role])
+  @@index([isOnline])
+  @@index([locationUpdatedAt])
+  @@index([locationRecordedAt])
+  @@index([driverAppState])
+  @@index([driverAppStateUpdatedAt])
+}
+
+enum DispatcherNoteStatus {
+  ACTIVE
+  RESOLVED
+}
+
+model DispatcherNote {
+  id           String               @id @default(uuid())
+  title        String               @db.VarChar(140)
+  message      String               @db.VarChar(3000)
+  isImportant  Boolean              @default(false)
+  status       DispatcherNoteStatus @default(ACTIVE)
+  version      Int                  @default(0)
+  authorId     String?
+  author       User?                @relation("DispatcherNoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt    DateTime             @default(now())
+  resolvedAt   DateTime?
+  resolvedById String?
+  resolvedBy   User?                @relation("DispatcherNoteResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  reads        DispatcherNoteRead[]
+
+  @@index([status, isImportant, createdAt])
+}
+
+model DispatcherNoteRead {
+  noteId String
+  userId String
+  readAt DateTime       @default(now())
+  note   DispatcherNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, userId])
+  @@index([userId])
+}
+
+model Customer {
+  id                   String  @id @default(uuid())
+  fullName             String
+  normalizedFullName   String
+  phone                String
+  normalizedPhone      String
+  email                String?
+  normalizedEmail      String?
+  addressLine1         String
+  unitNumber           String?
+  buzzCode             String?
+  city                 String
+  province             String
+  postalCode           String?
+  notes                String?
+  dispatcherNotes      String?
+  recurringDriverNotes String?
+
+  smsMarketingOptOut      Boolean   @default(false)
+  smsMarketingOptOutAt    DateTime?
+  smsExpressConsentAt     DateTime?
+  smsExpressConsentSource String?
+
+  loyaltyCompletedOrders Int     @default(0)
+  loyaltyProgressMonth   String?
+  loyaltyRewardsEarned   Int     @default(0)
+  loyaltyRewardsUsed     Int     @default(0)
+  loyaltyRewardBalance   Int     @default(0)
+  loyaltyFreeDelivery    Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders            Order[]
+  retentionMessages RetentionMessage[]
+
+  @@index([normalizedPhone])
+  @@index([normalizedFullName])
+  @@index([normalizedEmail])
+  @@index([city])
+  @@index([loyaltyFreeDelivery])
+  @@index([smsMarketingOptOut])
+}
+
+model RetentionMessage {
+  id                 String                 @id @default(uuid())
+  customerId         String
+  triggerDays        Int                    @default(90)
+  inactivityAnchorAt DateTime
+  eligibleAt         DateTime
+  phone              String
+  messageBody        String
+  status             RetentionMessageStatus @default(DRY_RUN)
+  consentBasis       String?
+  provider           String?
+  providerMessageId  String?
+  errorMessage       String?
+  sentAt             DateTime?
+  returnedAt         DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, triggerDays, inactivityAnchorAt])
+  @@index([customerId])
+  @@index([status])
+  @@index([eligibleAt])
+  @@index([sentAt])
+  @@index([returnedAt])
+}
+
+model ItemCatalog {
+  id                 String    @id @default(uuid())
+  name               String
+  normalizedName     String
+  size               String?
+  category           String?
+  brand              String?
+  normalizedBrand    String?
+  source             String?
+  pickupType         String    @default("UNKNOWN")
+  isActive           Boolean   @default(true)
+  popularityScore    Int       @default(0)
+  webVerificationUrl String?   @unique
+  webVerifiedAt      DateTime?
+  // Immutable audit snapshots; retain the ID/name even if a staff account is deleted.
+  createdByUserId    String?
+  createdByName      String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  orderItems OrderItem[]
+
+  @@index([normalizedName])
+  @@index([brand])
+  @@index([normalizedBrand])
+  @@index([category])
+  @@index([source])
+  @@index([isActive])
+  @@index([popularityScore])
+  @@index([webVerifiedAt])
+}
+
+model Order {
+  id                     String        @id @default(uuid())
+  orderNumber            Int           @unique @default(autoincrement())
+  fcmToken               String?
+  customerName           String
+  addressLine1           String
+  unitNumber             String?
+  buzzCode               String?
+  city                   String
+  province               String
+  postalCode             String?
+  phone                  String
+  email                  String
+  itemsText              String
+  additionalNotes        String?
+  paymentMethod          PaymentMethod
+  orderSource            OrderSource   @default(UNKNOWN)
+  utmSource              String?
+  utmMedium              String?
+  utmCampaign            String?
+  utmContent             String?
+  utmTerm                String?
+  referralCode           String?
+  orderStatus            OrderStatus   @default(PLACED)
+  priority               OrderPriority @default(NORMAL)
+  trackingTokenHash      String?       @unique
+  trackingTokenExpiresAt DateTime?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  createdByUserId      String?
+  manualEntryStartedAt DateTime?
+
+  dispatchedAt        DateTime?
+  dispatchedByUserId  String?
+  dispatchSource      DispatchSource?
+  acceptedAt          DateTime?
+  outForDeliveryAt    DateTime?
+  deliveredAt         DateTime?
+  cancelledAt         DateTime?
+  cancelledFromStatus OrderStatus?
+  cancellationReason  String?
+
+  undispatchedAlertClaimedAt DateTime?
+  undispatchedAlertSentAt    DateTime?
+
+  deliveryLatitude          Float?
+  deliveryLongitude         Float?
+  geocodeStatus             DeliveryGeocodeStatus?
+  geocodedAddress           String?
+  geocodePlaceId            String?
+  geocodeAddressFingerprint String?
+
+  customerId String?
+
+  assignedDriverId String?
+  assignedAt       DateTime?
+
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  assignedDriver User?     @relation("DriverOrders", fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  dispatchedBy   User?     @relation("DispatchedOrders", fields: [dispatchedByUserId], references: [id], onDelete: SetNull)
+  createdBy      User?     @relation("CreatedOrders", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  items              OrderItem[]
+  digitalReceipt     DigitalReceipt?
+  pickupStops        OrderPickupStop[]
+  dispatchEvents     DispatchEvent[]
+  dispatchEditPauses OrderEditPause[]
+  helpRequest        DeliveryHelpRequest?
+  checkInEvents      DeliveryCheckInEvent[]
+
+  @@index([customerId])
+  @@index([orderSource])
+  @@index([utmSource])
+  @@index([utmCampaign])
+  @@index([referralCode])
+  @@index([assignedDriverId])
+  @@index([dispatchedByUserId])
+  @@index([createdByUserId])
+  @@index([manualEntryStartedAt])
+  @@index([orderStatus])
+  @@index([priority])
+  @@index([createdAt])
+  @@index([dispatchedAt])
+  @@index([undispatchedAlertSentAt])
+  @@index([cancelledAt])
+  @@index([cancelledFromStatus])
+  @@index([geocodeStatus])
+}
+
+enum DeliveryHelpStatus {
+  OPEN
+  HANDLED
+}
+
+enum DeliveryCheckInEventType {
+  VIEWED
+  REVIEW_CLICK
+  SHARE_CLICK
+  SHARE_COMPLETED
+}
+
+model DeliveryHelpRequest {
+  id              String             @id @default(uuid())
+  orderId         String             @unique
+  message         String
+  status          DeliveryHelpStatus @default(OPEN)
+  createdAt       DateTime           @default(now())
+  handledAt       DateTime?
+  handledByUserId String?
+  resolutionNote  String?
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  handledBy User? @relation(fields: [handledByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([createdAt])
+}
+
+model DeliveryCheckInEvent {
+  id        String                   @id @default(uuid())
+  orderId   String
+  type      DeliveryCheckInEventType
+  createdAt DateTime                 @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // Counts distinct deliveries using each action, not reloads or double taps.
+  @@unique([orderId, type])
+  @@index([createdAt, type])
+}
+
+model DispatchEvent {
+  id             String            @id @default(uuid())
+  orderId        String
+  eventType      DispatchEventType
+  dispatchSource DispatchSource
+  actorUserId    String?
+  fromDriverId   String?
+  toDriverId     String?
+  occurredAt     DateTime          @default(now())
+
+  order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actorUser  User? @relation("DispatchEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  fromDriver User? @relation("DispatchEventFromDriver", fields: [fromDriverId], references: [id], onDelete: SetNull)
+  toDriver   User? @relation("DispatchEventToDriver", fields: [toDriverId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, occurredAt])
+  @@index([actorUserId, occurredAt])
+  @@index([eventType])
+  @@index([dispatchSource])
+  @@index([fromDriverId])
+  @@index([toDriverId])
+}
+
+model OrderItem {
+  id            String   @id @default(uuid())
+  orderId       String
+  itemCatalogId String?
+  name          String
+  quantity      Int
+  price         Decimal  @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemCatalog ItemCatalog? @relation(fields: [itemCatalogId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([itemCatalogId])
+  @@index([name])
+}
+
+model DigitalReceipt {
+  id            String @id @default(uuid())
+  receiptNumber String @unique
+
+  orderId           String  @unique
+  createdByDriverId String?
+
+  itemTotal      Decimal @db.Decimal(10, 2)
+  deliveryCharge Decimal @db.Decimal(10, 2)
+  taxOrFees      Decimal @db.Decimal(10, 2)
+  grandTotal     Decimal @db.Decimal(10, 2)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([receiptNumber])
+  @@index([createdByDriverId])
+  @@index([createdAt])
+}
+
+model QrScan {
+  id        String   @id @default(uuid())
+  campaign  String
+  createdAt DateTime @default(now())
+
+  @@index([campaign])
+  @@index([createdAt])
+}
+
+model DispatcherChecklistItem {
+  id          String   @id @default(uuid())
+  label       String
+  description String?
+  isRequired  Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  completions DispatcherChecklistCompletion[]
+
+  @@index([isActive])
+  @@index([isRequired])
+  @@index([sortOrder])
+}
+
+model DispatcherChecklistCompletion {
+  id                String   @id @default(uuid())
+  checklistItemId   String
+  businessDate      DateTime
+  completedByUserId String
+  completedAt       DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  checklistItem   DispatcherChecklistItem @relation(fields: [checklistItemId], references: [id], onDelete: Cascade)
+  completedByUser User                    @relation("ChecklistCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([checklistItemId, businessDate])
+  @@index([businessDate])
+  @@index([completedByUserId])
+  @@index([completedAt])
+}
+
+model DispatcherChecklistAlertLog {
+  id                   String   @id @default(uuid())
+  businessDate         DateTime @unique
+  sentAt               DateTime @default(now())
+  alertEmail           String?
+  incompleteItemLabels String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([sentAt])
+}
+
+model BndEmailAlert {
+  orderId     String    @id
+  orderNumber String
+  createdAt   DateTime  @default(now())
+  claimedAt   DateTime?
+  sentAt      DateTime?
+}
+
+// Successful, validated list checks provide report coverage independently of email alerts.
+model BndMonitorCheck {
+  checkedAt    DateTime @id
+  pendingCount Int
+}
+
+// A continuous sequence of positive waiting observations. No customer data.
+model BndWaitingPeriod {
+  id                String    @id @default(uuid())
+  orderId           String
+  orderNumber       String
+  firstSeenAt       DateTime
+  lastSeenWaitingAt DateTime
+  overFiveMinutesAt DateTime?
+  endObservedAt     DateTime?
+  endReason         String?
+
+  @@index([orderId, firstSeenAt])
+  @@index([overFiveMinutesAt])
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+model PickupLocation {
+  id                           String                        @id @default(uuid())
+  name                         String
+  pickupType                   String
+  addressLine1                 String
+  city                         String
+  province                     String
+  postalCode                   String?
+  latitude                     Float
+  longitude                    Float
+  isActive                     Boolean                       @default(true)
+  routingPriority              PickupLocationRoutingPriority @default(STANDARD)
+  googlePlaceId                String?                       @unique
+  googleBusinessStatus         String?
+  regularOpeningHours          Json?
+  currentOpeningHours          Json?
+  regularHoursUpdatedAt        DateTime?
+  currentHoursUpdatedAt        DateTime?
+  hoursLastCheckedAt           DateTime?
+  hoursLastError               String?
+  manualHoursOverride          Json?
+  manualHoursOverrideNote      String?
+  manualHoursOverrideUpdatedAt DateTime?
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+
+  orderPickupStops OrderPickupStop[]
+
+  @@index([pickupType])
+  @@index([isActive])
+  @@index([routingPriority])
+  @@index([city])
+  @@index([regularHoursUpdatedAt])
+  @@index([currentHoursUpdatedAt])
+  @@index([hoursLastCheckedAt])
+}
+
+model OrderPickupStop {
+  id                   String    @id @default(uuid())
+  orderId              String
+  pickupLocationId     String
+  pickupType           String
+  sequence             Int
+  plannedForDriverId   String?
+  selectionSource      String    @default("AUTO")
+  selectedAt           DateTime  @default(now())
+  etaSeconds           Int?
+  distanceMeters       Int?
+  projectedArrivalAt   DateTime?
+  hoursSource          String?
+  closingDate          String?
+  closingTime          String?
+  closingBufferMinutes Int       @default(3)
+  storeName            String
+  addressLine1         String
+  city                 String
+  province             String
+  latitude             Float
+  longitude            Float
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  pickupLocation PickupLocation @relation(fields: [pickupLocationId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, pickupType])
+  @@index([orderId])
+  @@index([pickupLocationId])
+  @@index([plannedForDriverId])
+  @@index([sequence])
+}
+
+// Server-timed editor leases; audit history is retained for performance reports.
+model OrderEditPause {
+  id          String    @id
+  orderId     String
+  actorUserId String
+  startedAt   DateTime  @default(now())
+  expiresAt   DateTime
+  endedAt     DateTime?
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, startedAt])
+}

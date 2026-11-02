@@ -151,10 +151,16 @@ export function DispatcherStandards({ token, visible, refreshKey }: { token: str
       {entries.map(entry => <article key={entry.id} className="min-w-0 space-y-4 rounded-2xl border border-zinc-700 bg-zinc-900 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3"><h3 className="break-words text-lg font-semibold">{entry.title}</h3>
           {board.canEdit && <span className={`rounded-full px-3 py-1 text-xs font-semibold ${entry.status === "PUBLISHED" ? "bg-emerald-900 text-emerald-100" : entry.status === "DRAFT" ? "bg-amber-900 text-amber-100" : "bg-zinc-700 text-zinc-200"}`}>{statuses[entry.status]}</span>}</div>
+        <p className="text-sm font-semibold text-zinc-200">
+          {entry.updatedAt ? <>{entry.status === "PUBLISHED" ? "Current version posted: " : "Last updated: "}
+            <time dateTime={entry.updatedAt}>{new Date(entry.updatedAt).toLocaleString("en-CA", { timeZone: "America/Toronto", dateStyle: "long", timeStyle: "short" })}</time>
+            {" (Guelph time)"}
+          </> : entry.status === "DRAFT" ? "Draft — not published" : "Date unavailable"}
+        </p>
         <div><h4 className="text-sm font-semibold text-zinc-400">What is expected</h4><p className="mt-1 whitespace-pre-wrap break-words">{entry.expectation}</p></div>
         <div><h4 className="text-sm font-semibold text-zinc-400">What happens if this is missed</h4><p className="mt-1 whitespace-pre-wrap break-words">{entry.consequence}</p></div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 pt-3">
-          <p className="text-xs text-zinc-400">{entry.updatedAt ? `Updated ${new Date(entry.updatedAt).toLocaleString("en-CA", { timeZone: "America/Toronto", dateStyle: "medium", timeStyle: "short" })}${entry.updatedBy ? ` by ${entry.updatedBy}` : ""}` : "Starter draft — not published"}</p>
+          <p className="text-xs text-zinc-400">{entry.updatedBy ? `Saved by ${entry.updatedBy}` : ""}</p>
           {board.canEdit && <button type="button" aria-label={`Edit ${entry.title}`} disabled={saving || !!editor || !!loadError} onClick={() => begin(entry)} className={button}>Edit</button>}
         </div>
       </article>)}
