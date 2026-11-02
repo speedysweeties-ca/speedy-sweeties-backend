@@ -1,3 +1,5 @@
+// 2026-11-02: Reviewed help-guide after the compatible CSS selector-parser patch.
+// Help answers, role filtering, source navigation and staff workflows are unchanged.
 export type HelpRole = "ADMIN" | "DISPATCHER";
 export type HelpDestination =
   "HELP" |
@@ -78,7 +80,7 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "help-guide",
     title: "Use How do I…? and its source guides",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-11-02",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "HELP",
     evidence: ["speedy-dispatcher/src/DispatcherHelp.tsx", "src/services/dispatcherHelp.service.ts"],
