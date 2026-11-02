@@ -20,10 +20,18 @@
   form.addEventListener('change', clearDraft);
   form.addEventListener('submit', event => {
     event.preventDefault();
+    const smartServe = document.getElementById('applicant-smartserve');
+    if (!smartServe.value.trim()) {
+      clearDraft();
+      status.textContent = 'Please enter your Smart Serve number before preparing your application email.';
+      smartServe.focus();
+      return;
+    }
     if (!form.reportValidity()) return;
     const names = [
       ['name', 'Name'], ['phone', 'Phone'], ['email', 'Email'], ['city', 'City or area'],
       ['vehicle', 'Vehicle access'], ['licence', 'Valid driver’s licence'],
+      ['smartserve', 'Smart Serve number'],
       ['availability', 'Availability'], ['experience', 'Experience / notes']
     ];
     const body = 'Hello Speedy Sweeties,\n\nI would like to apply to join your delivery team.\n\n' +
