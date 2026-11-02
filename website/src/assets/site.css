@@ -24,3 +24,17 @@ html { scroll-behavior: smooth; scroll-padding-top: 110px; }
 .service-page-links a:focus-visible{outline:3px solid currentColor;outline-offset:4px}
 .footer .text-block-5 a{color:#fff;text-decoration:underline;text-underline-offset:3px}
 .footer .text-block-5 a:focus-visible{outline:2px solid #fff;outline-offset:3px}
+
+/* Copy refresh: allow the new heading and paired actions to wrap on phones. */
+.speedy-hero-heading { margin: 0; max-width: 100%; font-size: clamp(44px, 8vw, 110px); line-height: 1.05; }
+.speedy-hero-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 18px 28px; }
+.speedy-rates-link { color: #fff; font: 600 18px/1.5 Arial, sans-serif; text-decoration: underline; text-underline-offset: 4px; }
+.speedy-form-intro, .speedy-form-help { color: #fff; font: 400 16px/1.6 Arial, sans-serif; }
+.speedy-form-intro { margin: 0 0 24px; }
+.speedy-form-help { margin: 0 0 8px; }
+.hero-section-1-text-1 { max-width: 900px; text-align: center; line-height: 1.45; }
+.hero-section-1-text-3 { text-align: center; line-height: 1.5; }
+@media (max-width: 767px) {
+  .hero-section-1-text-1 { font-size: 15px; letter-spacing: 2px; }
+  .hero-section-1-wrapper { padding: 0 20px; }
+}
