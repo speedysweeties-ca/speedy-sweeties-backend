@@ -69,6 +69,10 @@ export interface HelpArticle {
 // unchanged. Explicit operator mode blocks ALL API routes (including write-capable
 // GETs), not merely privacy. It starts no monitors/session writer; cron and other
 // DB clients still need separate exclusion. It cannot reopen on a timeout/error.
+// 2026-11-02 Resend response review: privacy-requests staff controls, roles and
+// completion behavior are unchanged. Email delivery now validates the accepted
+// provider reference and reports only sanitized outcomes; the existing 10s timeout,
+// credential-bound destination and no automatic retry behavior are preserved.
 export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "navigation",
@@ -327,10 +331,10 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "privacy-requests",
     title: "Review and complete a verified privacy deletion request",
-    reviewedAt: "2026-10-29",
+    reviewedAt: "2026-11-02",
     roles: ["ADMIN"],
     destination: "PRIVACY_REQUESTS",
-    evidence: ["speedy-dispatcher/src/PrivacyRequests.tsx", "speedy-dispatcher/src/privacyRequest.ts", "src/routes/privacy.routes.ts", "src/services/privacyDeletion.service.ts", "src/services/privacyRecoveryJournal.ts", "src/services/privacyRecoveryS3.ts", "src/services/privacyRecoveryConfiguration.ts", "src/services/privacyRecoveryMaintenance.ts", "src/services/privacyRecoveryRetirement.ts", "src/services/privacyRecoveryOperator.ts", "scripts/privacyRecoveryOperator.cjs", "docs/account-deletion.md"],
+    evidence: ["speedy-dispatcher/src/PrivacyRequests.tsx", "speedy-dispatcher/src/privacyRequest.ts", "src/routes/privacy.routes.ts", "src/services/privacyDelivery.service.ts", "tests/privacyDelivery.test.js", "src/services/privacyDeletion.service.ts", "src/services/privacyRecoveryJournal.ts", "src/services/privacyRecoveryS3.ts", "src/services/privacyRecoveryConfiguration.ts", "src/services/privacyRecoveryMaintenance.ts", "src/services/privacyRecoveryRetirement.ts", "src/services/privacyRecoveryOperator.ts", "scripts/privacyRecoveryOperator.cjs", "docs/account-deletion.md"],
     content: "Administrators open Privacy requests and select Load / refresh requests. General dispatcher access is insufficient. Check the request status and its individual due date; overdue means the recorded due date has passed, not that deletion completed automatically. Select the request and use Preview affected records (no deletion) to inspect the verified source order, linked/active orders, unlinked candidates, identity conflicts, removals, retained financial fields and external systems. Preview does not delete anything. Do not continue while active orders, unlinked candidates or identity conflicts remain. Confirm the adopted policy reference, document a business/legal justification without customer details, enter the applicable tax-year end and financial retain-until date, and review the server-calculated audit and anti-reactivation review dates. Confirm and begin fulfillment is irreversible and is rejected while fulfillment is disabled, the request is on hold, the preview is stale, or the retention decision is invalid. Privacy changes also stop if protected recovery history is unavailable, incomplete or has an unfinished operation; do not bypass that stop or repeatedly retry an uncertain result. Refer it to the privacy operator. A restored database must stay offline until decision reconciliation and external-copy review are complete. After database fulfillment, verify each listed external system and use Record verified external outcome; do not invent an expiry or evidence reference. Confirm completion only after all eligible deletion and external handling is verified. Completion makes the result available through authenticated in-app status and does not send an email or SMS. A request received, provider-accepted message, preview or database fulfillment alone is not completed deletion.",
   },
   {
