@@ -3,10 +3,15 @@ import { fileURLToPath } from 'node:url';
 import { services } from '../content/services.mjs';
 import { canonicalOrigin, renderServicePage } from './render-service-pages.mjs';
 import { driverPath, renderDriverPage } from './render-driver-page.mjs';
-import { privacyPath, renderPrivacyPage } from './render-privacy-page.mjs';
+import { privacyPath, renderPrivacyPage, replaceHomepagePolicy, validateProposedPolicyPublication } from './render-privacy-page.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const production = process.argv.includes('--production');
+const proposed = process.argv.includes('--proposed-privacy-policy');
+const publicationDate = process.argv.find(value => value.startsWith('--privacy-policy-date='))?.slice('--privacy-policy-date='.length) ?? '';
+const policyOptions = { production, publicationDate, approved: process.env.PUBLIC_CUSTOMER_PAGES_APPROVED === 'true' };
+if (proposed) validateProposedPolicyPublication(policyOptions);
+else if (publicationDate) throw new Error('A policy date requires --proposed-privacy-policy.');
 const turnstileSiteKey = production ? (process.env.TURNSTILE_SITE_KEY ?? '').trim() : '';
 if (production && (!/^0x[A-Za-z0-9_-]{10,80}$/.test(turnstileSiteKey) ||
     turnstileSiteKey === '0x4AAAAAAAQTptj2So4dx43e')) {
@@ -17,10 +22,11 @@ await mkdir(root + 'dist', { recursive: true });
 await cp(root + 'src', root + 'dist', { recursive: true });
 let html = await readFile(root + 'dist/index.html', 'utf8');
 html = html.replace('<!--BUILD_ROBOTS-->', production ? '' : '<meta name="robots" content="noindex, nofollow">');
+if (proposed) html = replaceHomepagePolicy(html, policyOptions);
 await writeFile(root + 'dist/index.html', html);
 for (const [slug, legacy] of [['privacy-policy', false], ['privacy', true]]) {
   await mkdir(root + `dist/${slug}`, { recursive: true });
-  await writeFile(root + `dist/${slug}/index.html`, renderPrivacyPage(html, { production, legacy }));
+  await writeFile(root + `dist/${slug}/index.html`, renderPrivacyPage(html, { ...policyOptions, legacy, proposed }));
 }
 await mkdir(root + 'dist' + driverPath, { recursive: true });
 await writeFile(root + 'dist' + driverPath + 'index.html', renderDriverPage({ production }));

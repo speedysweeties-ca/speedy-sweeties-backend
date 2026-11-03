@@ -1,6 +1,7 @@
 // The homepage remains the published policy source so its existing fragment URL
 // and the standalone page cannot drift into different statements.
 import { canonicalOrigin } from './render-service-pages.mjs';
+import { proposedPrivacyPolicy } from '../content/privacy-policy-proposed.mjs';
 
 export const privacyPath = '/privacy-policy/';
 const headings = new Map([
@@ -11,8 +12,61 @@ const headings = new Map([
   ['Contact Us', ['contact-us', 'Contact us']]
 ]);
 const listItems = new Set(['Name', 'Delivery address, including optional apartment/unit number and buzz code', 'Email', 'Phone Number']);
+const escape = value => String(value).replace(/[&<>"']/g, character => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+})[character]);
 
-export function renderPrivacyPage(homeHtml, { production = false, legacy = false } = {}) {
+export function validateProposedPolicyPublication({ production = false, approved = false, publicationDate = '' } = {}) {
+  if (!production) {
+    if (publicationDate) throw new Error('A policy preview must not assign an effective date.');
+    return;
+  }
+  if (!approved) throw new Error('Proposed policy publication requires separate approval and PUBLIC_CUSTOMER_PAGES_APPROVED=true.');
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(publicationDate) || publicationDate !== today) {
+    throw new Error('Policy publication requires the actual Toronto publication date as --privacy-policy-date=YYYY-MM-DD. Rebuild if publication moves to another date.');
+  }
+}
+
+export function proposedPolicyBlocks(options = {}) {
+  validateProposedPolicyPublication(options);
+  const date = options.production ? options.publicationDate : 'Not assigned — proposed policy; publication pending';
+  return [
+    `<strong>Effective Date:</strong> ${escape(date)}`,
+    `<strong>Last updated:</strong> ${options.production ? escape(date) : 'Publication pending; this is a proposed replacement'}`,
+    `<strong>Speedy Sweeties</strong> — ${escape(proposedPrivacyPolicy.introduction)}`,
+    ...proposedPrivacyPolicy.sections.flatMap(section => [
+      section.title, ...section.paragraphs.map(escape),
+      ...(section.links ?? []).map(([label, url]) => `<a href="${escape(url)}" rel="noopener noreferrer">${escape(label)}</a>`)
+    ])
+  ];
+}
+
+export function replaceHomepagePolicy(homeHtml, options = {}) {
+  const pattern = /(<span id="privacy-policy">[\s\S]*?<\/span>)[\s\S]*?(<\/div>)/g;
+  if ([...homeHtml.matchAll(pattern)].length !== 1) throw new Error('Expected exactly one homepage privacy section; stop rather than replace unrelated content.');
+  const body = proposedPolicyBlocks(options).join('<br>');
+  return homeHtml.replace(pattern, (_match, beginning, end) => `${beginning}${body}${end}`);
+}
+
+export function proposedPolicyReviewText() {
+  return [
+    'PROPOSED REPLACEMENT — NOT PUBLISHED; NOT APPLE SUBMISSION APPROVAL',
+    'Canonical URL: ' + canonicalOrigin + privacyPath,
+    'Effective date: not assigned. Use the actual publication date only after approval.',
+    '', proposedPrivacyPolicy.title, '', proposedPrivacyPolicy.introduction,
+    ...proposedPrivacyPolicy.sections.flatMap(section => [
+      '', section.title, '', ...section.paragraphs.flatMap(paragraph => [paragraph, '']),
+      ...(section.links ?? []).map(([label, url]) => `${label}: ${url}`)
+    ])
+  ].join('\n').trim() + '\n';
+}
+
+export function renderPrivacyPage(homeHtml, { production = false, legacy = false, proposed = false, approved = false, publicationDate = '' } = {}) {
+  if (proposed) validateProposedPolicyPublication({ production, approved, publicationDate });
+  const sectionHeadings = proposed ? new Map(proposedPrivacyPolicy.sections.map(section => [section.title, [section.id, section.title]])) : headings;
   const match = homeHtml.match(/<span id="privacy-policy">[\s\S]*?<\/span>([\s\S]*?)<\/div>/);
   if (!match) throw new Error('The published homepage privacy section is missing.');
   const blocks = match[1].split(/<br\s*\/?>/i).map(block => block.replace(/\u200d/g, '').trim()).filter(Boolean);
@@ -21,16 +75,16 @@ export function renderPrivacyPage(homeHtml, { production = false, legacy = false
       !blocks[2]?.startsWith('<strong>Speedy Sweeties</strong>')) {
     throw new Error('Review the privacy-page renderer after changing the policy structure.');
   }
-  const found = blocks.filter(block => headings.has(block));
-  if (found.length !== headings.size || new Set(found).size !== headings.size) {
+  const found = blocks.filter(block => sectionHeadings.has(block));
+  if (found.length !== sectionHeadings.size || new Set(found).size !== sectionHeadings.size) {
     throw new Error('The published policy must contain every expected section once.');
   }
   let listing = false;
   const article = blocks.slice(2).map(block => {
     const close = listing && !listItems.has(block) ? '</ul>' : '';
     if (close) listing = false;
-    if (headings.has(block)) {
-      const [id, title] = headings.get(block);
+    if (sectionHeadings.has(block)) {
+      const [id, title] = sectionHeadings.get(block);
       return `${close}<h2 id="${id}">${title}</h2>`;
     }
     if (listItems.has(block)) {
@@ -41,7 +95,7 @@ export function renderPrivacyPage(homeHtml, { production = false, legacy = false
     return `${close}<p>${block}</p>`;
   }).join('\n') + (listing ? '</ul>' : '');
   const url = canonicalOrigin + privacyPath;
-  const toc = [...headings.values()].map(([id, title]) => `<li><a href="#${id}">${title}</a></li>`).join('');
+  const toc = [...sectionHeadings.values()].map(([id, title]) => `<li><a href="#${id}">${title}</a></li>`).join('');
   return `<!doctype html>
 <html lang="en-CA"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
