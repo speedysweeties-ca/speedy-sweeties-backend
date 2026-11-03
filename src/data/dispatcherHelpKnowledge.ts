@@ -73,6 +73,9 @@ export interface HelpArticle {
 // completion behavior are unchanged. Email delivery now validates the accepted
 // provider reference and reports only sanitized outcomes; the existing 10s timeout,
 // credential-bound destination and no automatic retry behavior are preserved.
+// 2026-11-03 address verification review: manual-order and edit-order controls
+// and validation are unchanged. Website precheck/order creation now share only
+// strict server-verified results for five minutes; clients cannot assert validity.
 export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "navigation",
@@ -167,7 +170,7 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "edit-order",
     title: "Edit an existing delivery order",
-    reviewedAt: "2026-10-26",
+    reviewedAt: "2026-11-03",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "LIVE_ORDERS",
     evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/order.controller.ts"],
@@ -185,7 +188,7 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "manual-order",
     title: "Create a telephone order",
-    reviewedAt: "2026-10-26",
+    reviewedAt: "2026-11-03",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "CREATE_MANUAL_ORDER",
     evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/order.controller.ts"],

@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { getVerifiedDeliveryAddress } from "../services/verifiedDeliveryAddress.service";
 import { assertPrivacyOrderAllowed } from "../services/privacyGuards.service";
 import { createHash, randomBytes } from "crypto";
 import {
@@ -615,9 +616,9 @@ const createOrder = async (
   let deliveryLocation: DeliveryLocationData;
 
   try {
-    deliveryLocation = await geocodeDeliveryAddress(deliveryAddress, {
-      requireRooftop: resolvedOrderSource === OrderSource.WEBFLOW
-    });
+    deliveryLocation = resolvedOrderSource === OrderSource.WEBFLOW
+      ? await getVerifiedDeliveryAddress(deliveryAddress)
+      : await geocodeDeliveryAddress(deliveryAddress);
     if (resolvedOrderSource === OrderSource.WEBFLOW && deliveryLocation.geocodeStatus !== "VERIFIED") {
       res.status(503).json({ success: false, code: "ADDRESS_CHECK_UNAVAILABLE",
         message: "Address checking is temporarily unavailable. Please try again or call 519-826-8097 to order." });
