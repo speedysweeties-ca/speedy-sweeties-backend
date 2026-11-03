@@ -46,10 +46,11 @@ export const proposedPrivacyPolicy = {
     },
     {
       id: 'providers-storage', title: 'Storage, providers and processing locations',
-      // REVIEW HOLD: the equivalent-protection sentence was a conditional ChatGPT
-      // suggestion, not owner confirmation or verified provider compliance.
-      // Resolve its factual basis before policy approval; see the internal handoff.
+      // Robert adopted this standard and confirmed accepted coverage for all
+      // current independent drivers on November 3, 2026; records remain private.
+      // This is owner-provided evidence, not independent verification of behavior.
       paragraphs: [
+        'We require third parties receiving personal information from our app to provide protection at least equivalent to the protections described in this policy and required by Apple’s App Review Guidelines. We use applicable service agreements and privacy terms to support this requirement, including protections concerning permitted use, confidentiality, security and handling privacy requests. Some providers also process information for their own disclosed purposes and retain records as described in this policy. Removing a record from our database does not itself erase every provider or backup copy.',
         'The app stores profile/history information locally and uses Apple Keychain for order and privacy-access credentials. HTTPS protects service requests in transit. Customer and order records are also stored in our PostgreSQL database on Render. The ordering API is hosted in Ohio, United States; processing is not limited to Canada.',
         'Apple, Google/Firebase and OpenAI process information for the features described above. Resend handles operational alert emails to a staff mailbox; alert content can include order references and a dispatcher link. Operational logs can contain order references, service metadata and delivery/error information.',
         'The prepared account-deletion verification integration uses Resend for an eligible existing email address or Twilio Verify for an eligible existing phone number. A verification provider receives the destination, verification/message content and transaction metadata. The server selects the contact from credential-bound records, rather than treating a newly entered contact as authority over past orders. These production verification channels and the in-app request process are not currently enabled.',
