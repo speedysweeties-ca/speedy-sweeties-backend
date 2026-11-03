@@ -304,11 +304,11 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "pickup-locations",
     title: "Maintain pickup locations and routing priority",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-11-03",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "PICKUP_LOCATIONS",
-    evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/pickupLocation.controller.ts", "src/services/pickupStoreRouting.service.ts"],
-    content: "Open Show more > Pickup Locations. To add a location, enter Location Name, Select Pickup Type, Routing Priority, Street Address, City, Province and valid Latitude/Longitude; Postal Code is optional here. Choose Active and Add Pickup Location. Use a saved row's Edit, Save or Cancel to revise it. Deactivate asks for confirmation; inactive locations are excluded from pickup selection. Routing Priority applies to pickup-store selection and is different from an order's Normal/High priority. A saved active store is not a guarantee it is open or eligible at arrival. Refresh Locations reloads records. The current screen does not provide an opening-hours editor: ask the administrator to investigate incorrect store hours rather than inventing a button. The help assistant cannot supply unverified coordinates or change a live location.",
+    evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/pickupLocation.controller.ts", "src/services/pickupStoreRouting.service.ts", "src/services/pickupLocationHours.service.ts", "src/services/businessHours.service.ts"],
+    content: "Open Show more > Pickup Locations. To add a location, enter Location Name, Select Pickup Type, Routing Priority, Street Address, City, Province and valid Latitude/Longitude; Postal Code is optional here. Choose Active and Add Pickup Location. Use a saved row's Edit, Save or Cancel to revise it. Deactivate asks for confirmation; inactive locations are excluded from pickup selection. Routing Priority applies to pickup-store selection and is different from an order's Normal/High priority. A saved active store is not a guarantee it is open or eligible at arrival. Refresh Locations reloads records; it does not call Google to refresh hours. Pickup-store regular and special hours are fetched together at most once every seven days per active store, including after failures or server restarts. Speedy Sweeties opening hours refresh daily at 3 a.m. Toronto time; website and app checks use the saved schedule and local time. Same-day Google edits are picked up at the next scheduled refresh. There is no new refresh-hours button. The current screen does not provide an opening-hours editor: ask the administrator to investigate incorrect store hours rather than inventing a button. The help assistant cannot supply unverified coordinates or change a live location.",
   },
   {
     id: "driver-location",

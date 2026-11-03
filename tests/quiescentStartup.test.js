@@ -142,7 +142,7 @@ for (const mode of [undefined, 'normal']) test(`unchosen/explicit normal selects
   const c = await child(t, { API_STARTUP_MODE: mode, SYNTHETIC_ALLOW_NORMAL: 'yes' });
   assert.equal((await c.request('/')).text, 'synthetic normal app');
   const s = await c.snapshot(); assert.equal(s.normalLoaded, true);
-  assert.deepEqual(s.starts, ['sessions', 'repair', 'undispatched', 'hours', 'bnd', 'email']);
+  assert.deepEqual(s.starts, ['sessions', 'repair', 'undispatched', 'hours', 'business-hours', 'bnd', 'email']);
   assert.ok(!s.imports.includes('direct-prisma'));
   // Fixture rejects global timers, so normal stop uses its existing bounded timer:
   // use SIGKILL only on this synthetic process, with no live data/resources.

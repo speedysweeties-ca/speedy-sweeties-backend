@@ -32,7 +32,7 @@ const VERIFIED_PLACE_IDS = [
   }
 ] as const;
 
-const CLAIR_BEER_STORE = {
+export const CLAIR_BEER_STORE = {
   name: "The Beer Store - Clair Road East",
   addressLine1: "63 Clair Road East"
 } as const;
@@ -119,7 +119,7 @@ export const selectExactClairBeerStoreCandidate = (
   return matches.length === 1 ? matches[0] : null;
 };
 
-const findClairBeerStorePlaceId = async (
+export const findClairBeerStorePlaceId = async (
   latitude: number,
   longitude: number
 ): Promise<string | null> => {
@@ -218,43 +218,6 @@ export const repairUnresolvedPickupLocationPlaceIds = async (): Promise<void> =>
     }
   }
 
-  const clairLocation = await prisma.pickupLocation.findFirst({
-    where: {
-      name: CLAIR_BEER_STORE.name,
-      addressLine1: CLAIR_BEER_STORE.addressLine1,
-      googlePlaceId: null
-    },
-    select: {
-      id: true,
-      latitude: true,
-      longitude: true
-    }
-  });
-
-  if (!clairLocation) return;
-
-  try {
-    const googlePlaceId = await findClairBeerStorePlaceId(
-      clairLocation.latitude,
-      clairLocation.longitude
-    );
-
-    if (!googlePlaceId) {
-      console.warn(
-        "[Pickup Hours][PLACE ID REPAIR SKIPPED] The Beer Store - Clair Road East | no unique exact Google match"
-      );
-      return;
-    }
-
-    await applyPlaceId(clairLocation.id, googlePlaceId);
-    console.log(
-      `[Pickup Hours][PLACE ID REPAIRED] The Beer Store - Clair Road East | ${googlePlaceId}`
-    );
-  } catch (error) {
-    console.error(
-      `[Pickup Hours][PLACE ID REPAIR FAILED] The Beer Store - Clair Road East | ${
-        error instanceof Error ? error.message : typeof error
-      }`
-    );
-  }
+  // Unresolved stores are looked up by the weekly hours refresher. Do not spend
+  // another Google Text Search on every deployment/startup for an unresolved ID.
 };
