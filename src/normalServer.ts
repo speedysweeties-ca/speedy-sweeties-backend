@@ -8,6 +8,7 @@ import { startUndispatchedOrderAlertMonitor } from "./services/undispatchedOrder
 import { runPickupLocationDryRun } from "./services/pickupLocationDryRun.service";
 import { runPickupLocationApply } from "./services/pickupLocationApply.service";
 import { startPickupLocationHoursMonitor } from "./services/pickupLocationHours.service";
+import { startBusinessHoursMonitor } from "./services/businessHours.service";
 import { repairUnresolvedPickupLocationPlaceIds } from "./services/pickupLocationPlaceIdRepair.service";
 import { startBndOrderMonitor } from "./services/bndOrderMonitor.service";
 import { startBndEmailAlertMonitor } from "./services/bndEmailAlerts.service";
@@ -19,6 +20,7 @@ let server: Server | undefined;
 let isShuttingDown = false;
 let stopUndispatchedOrderAlertMonitor: (() => void) | undefined;
 let stopPickupLocationHoursMonitor: (() => void) | undefined;
+let stopBusinessHoursMonitor: (() => void) | undefined;
 let stopBndOrderMonitor: (() => void) | undefined;
 let stopBndEmailAlertMonitor: (() => void) | undefined;
 let stopSessionLogWriter: (() => void) | undefined;
@@ -34,6 +36,7 @@ async function shutdown(signal: string): Promise<void> {
   stopDriverAssignmentNotifications();
   stopUndispatchedOrderAlertMonitor?.();
   stopPickupLocationHoursMonitor?.();
+  stopBusinessHoursMonitor?.();
   stopBndOrderMonitor?.();
   stopBndEmailAlertMonitor?.();
   stopSessionLogWriter?.();
@@ -88,6 +91,7 @@ async function startServer(): Promise<void> {
 
     stopUndispatchedOrderAlertMonitor = startUndispatchedOrderAlertMonitor();
     stopPickupLocationHoursMonitor = startPickupLocationHoursMonitor();
+    stopBusinessHoursMonitor = startBusinessHoursMonitor();
     stopBndOrderMonitor = startBndOrderMonitor();
     stopBndEmailAlertMonitor = startBndEmailAlertMonitor();
 

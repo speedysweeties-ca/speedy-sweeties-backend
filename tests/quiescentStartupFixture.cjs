@@ -49,6 +49,7 @@ const normalServices = {
   undispatchedOrderAlert: { startUndispatchedOrderAlertMonitor: () => record('undispatched') },
   pickupLocationDryRun: { runPickupLocationDryRun: async () => { record('dry-run'); } },
   pickupLocationApply: { runPickupLocationApply: async () => { record('apply'); } },
+  businessHours: { startBusinessHoursMonitor: () => record('business-hours') },
   pickupLocationHours: { startPickupLocationHoursMonitor: () => record('hours') },
   pickupLocationPlaceIdRepair: { repairUnresolvedPickupLocationPlaceIds: async () => { record('repair'); } },
   bndOrderMonitor: { startBndOrderMonitor: () => record('bnd') },

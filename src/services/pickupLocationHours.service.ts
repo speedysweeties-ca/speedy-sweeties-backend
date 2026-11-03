@@ -1,12 +1,14 @@
 import { Prisma } from "@prisma/client";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
+import { CLAIR_BEER_STORE, findClairBeerStorePlaceId } from "./pickupLocationPlaceIdRepair.service";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-export const REGULAR_HOURS_REFRESH_MS = 30 * DAY_MS;
+export const REGULAR_HOURS_REFRESH_MS = 7 * DAY_MS;
 export const CURRENT_HOURS_REFRESH_MS = 7 * DAY_MS;
-const FAILED_REFRESH_RETRY_MS = 20 * 60 * 60 * 1000;
-const MONITOR_INTERVAL_MS = DAY_MS;
+
+// This timer only checks local due dates. Google is contacted at most weekly per store.
+const MONITOR_INTERVAL_MS = 60 * 60 * 1000;
 const INITIAL_MONITOR_DELAY_MS = 45_000;
 const GOOGLE_PLACES_TIMEOUT_MS = 6_000;
 const PLACE_MATCH_MAX_DISTANCE_METERS = 250;
@@ -241,6 +243,9 @@ const fetchWithTimeout = async (
 const findGooglePlaceId = async (
   location: PickupLocationForHours
 ): Promise<string | null> => {
+  if (location.name === CLAIR_BEER_STORE.name && location.addressLine1 === CLAIR_BEER_STORE.addressLine1) {
+    return findClairBeerStorePlaceId(location.latitude, location.longitude);
+  }
   const textQuery = [
     location.name,
     location.addressLine1,
@@ -359,38 +364,24 @@ export const refreshPickupLocationHours = async (
   })) as PickupLocationForHours[];
 
   for (const location of locations) {
-    const regularDue =
-      options.forceRegular === true ||
-      isHoursRefreshDue(
-        location.regularHoursUpdatedAt,
-        REGULAR_HOURS_REFRESH_MS,
-        now
-      );
-
-    const currentDue =
-      options.forceCurrent === true ||
-      isHoursRefreshDue(
-        location.currentHoursUpdatedAt,
-        CURRENT_HOURS_REFRESH_MS,
-        now
-      );
-
-    if (!regularDue && !currentDue) {
+    // Both schedules come from ONE weekly request. Even failed attempts and explicit
+    // refresh endpoints respect this cap. Persist the claim before any Google call.
+    const cutoff = new Date(now.getTime() - CURRENT_HOURS_REFRESH_MS);
+    if (location.hoursLastCheckedAt && location.hoursLastCheckedAt > cutoff) {
       summary.skipped += 1;
       continue;
     }
-
-    if (
-      !options.forceRegular &&
-      !options.forceCurrent &&
-      location.hoursLastCheckedAt &&
-      now.getTime() - location.hoursLastCheckedAt.getTime() < FAILED_REFRESH_RETRY_MS &&
-      ((regularDue && !location.regularHoursUpdatedAt) ||
-        (currentDue && !location.currentHoursUpdatedAt))
-    ) {
+    const claim = await prisma.pickupLocation.updateMany({
+      where: { id: location.id, isActive: true,
+        hoursLastCheckedAt: location.hoursLastCheckedAt },
+      data: { hoursLastCheckedAt: now }
+    });
+    if (claim.count !== 1) {
       summary.skipped += 1;
       continue;
     }
+    const regularDue = true;
+    const currentDue = true;
 
     summary.checked += 1;
 
