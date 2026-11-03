@@ -78,6 +78,8 @@ const needsReviewLocation = {
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
+
+
 test("website orders stop before database writes when Google cannot verify the address", async (t) => {
   replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
   let options;
@@ -590,4 +592,23 @@ test('ChatGPT order mapping callback runs inside the real create transaction and
  const res=responseRecorder();let mapped;
  await createChatGPTOrderController({body:firstOrderBody},res,async(tx,id)=>{mapped=(await tx.order.findUniqueOrThrow({where:{id}})).id;});
  assert.equal(res.statusCode,201);assert.equal(db.database.orders.length,1);assert.equal(mapped,res.body.order.id);
+});
+
+test("website precheck and actual order controller reuse the same strict lookup", async (t) => {
+  const database = installOrderCreationDatabase(t);
+  replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
+  let calls = 0;
+  replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async (_address, options) => {
+    calls++;
+    assert.equal(options.requireRooftop, true);
+    return verifiedLocation;
+  });
+  const body = { ...firstOrderBody, addressLine1: "12 Synthetic Street" };
+  const { getVerifiedDeliveryAddress } = require("../dist/services/verifiedDeliveryAddress.service.js");
+  await getVerifiedDeliveryAddress(body);
+  const response = responseRecorder();
+  await createOrderController({ body, headers: { origin: "https://www.speedysweeties.ca" } }, response);
+  assert.equal(response.statusCode, 201);
+  assert.equal(calls, 1);
+  assert.equal(database.database.orders[0].deliveryLatitude, verifiedLocation.deliveryLatitude);
 });
