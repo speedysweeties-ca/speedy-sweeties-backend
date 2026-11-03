@@ -3,7 +3,8 @@ const { timingSafeEqual } = require('node:crypto');
 const ISOLATED_ROUTES = Object.freeze({
   preflight: '/__privacy_test/preflight',
   fixture: '/__privacy_test/fixture',
-  unchanged: '/__privacy_test/unchanged'
+  unchanged: '/__privacy_test/unchanged',
+  outcome: '/__privacy_test/outcome'
 });
 
 const createControlAuthorizer = controlSecret => (req, res, next) => {
