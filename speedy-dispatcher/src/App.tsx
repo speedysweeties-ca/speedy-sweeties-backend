@@ -1,3 +1,4 @@
+import { RoutingPreviewMap } from "./RoutingPreviewEnhancerOriginalPins";
 import { useOrderEditPause, type EditTimingSnapshot } from "./useOrderEditPause";
 import { dispatchWaitingMilliseconds, isDispatchTimerPaused, type EditPause } from "./dispatchTiming";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -22,15 +23,12 @@ import { DispatcherLogout } from "./DispatcherLogout";
 import { StaffPasswordPage } from "./StaffPasswordPage";
 import { CreateStaffProfile } from "./CreateStaffProfile";
 import {
-  getVerifiedDeliveryPosition,
   needsDeliveryLocationReview,
-  shouldUseLegacyBrowserGeocoding,
   type DeliveryGeocodeStatus,
 } from "./deliveryLocation";
 import {
   buildAddressRequestFields,
   parseGoogleAutocompleteAddress,
-  type GoogleAddressComponent,
   type GoogleAutocompletePlace,
 } from "./addressFields";
 import {
@@ -548,16 +546,6 @@ const isValidEmail = (email: string) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 };
 
-type GoogleGeocodeResult = {
-  address_components?: GoogleAddressComponent[];
-  partial_match?: boolean;
-  types?: string[];
-  geometry?: {
-    location?: unknown;
-    location_type?: string;
-  };
-};
-
 type GoogleMapsEventListener = {
   remove?: () => void;
 };
@@ -587,118 +575,6 @@ type GooglePlacesWindow = Window & {
       places?: GooglePlacesNamespace;
     };
   };
-};
-
-const normalizeGeocodeText = (value: string | null | undefined) =>
-  String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-
-const civicStreetSuffixPattern =
-  /\b(?:street|st|road|rd|drive|dr|avenue|ave|lane|ln|boulevard|blvd|highway|hwy|court|ct|crescent|cres|way|trail|trl|terrace|ter|place|pl|circle|cir|parkway|pkwy|line|concession)\b/i;
-
-const trailingDeliveryInstructionPattern =
-  /\s+(?:[-–—,;|:]\s*)?(?:(?:please\s+)?(?:use\s+)?(?:side|back|rear|front)\s+(?:door|entrance)|basement(?:\s+(?:door|entrance|unit))?|buzz(?:\s+(?:code|unit|apartment|apt|suite))?|call\b|ring\s+(?:the\s+)?(?:doorbell|bell)|leave\s+(?:it\s+)?(?:at|by|near|beside)\b|door\s+code\b)/i;
-
-const sanitizeAddressLineForGeocoding = (addressLine1: string) => {
-  const normalizedAddress = addressLine1.trim().replace(/\s+/g, " ");
-  const instructionIndex = normalizedAddress.search(
-    trailingDeliveryInstructionPattern
-  );
-
-  if (instructionIndex <= 0) return normalizedAddress;
-
-  const civicAddress = normalizedAddress
-    .slice(0, instructionIndex)
-    .replace(/[\s,–—;|:-]+$/g, "")
-    .trim();
-
-  if (!/\d/.test(civicAddress) || !civicStreetSuffixPattern.test(civicAddress)) {
-    return normalizedAddress;
-  }
-
-  return civicAddress;
-};
-
-const getGeocodeComponent = (
-  result: GoogleGeocodeResult,
-  componentTypes: string[]
-) =>
-  result.address_components?.find((component) =>
-    component.types?.some((type) => componentTypes.includes(type))
-  );
-
-const geocodeComponentMatches = (
-  component: GoogleAddressComponent | undefined,
-  allowedValues: Set<string>
-) => {
-  if (!component) return false;
-
-  return [component.long_name, component.short_name]
-    .map(normalizeGeocodeText)
-    .some((value) => allowedValues.has(value));
-};
-
-const selectValidatedOrderGeocodeResult = (
-  results: GoogleGeocodeResult[] | null,
-  order: Order
-) => {
-  const submittedMunicipality = normalizeGeocodeText(order.city);
-  const allowedMunicipalities = new Set(
-    [submittedMunicipality, "guelph"].filter(Boolean)
-  );
-
-  const validCandidates = (results || []).flatMap((result) => {
-    const country = getGeocodeComponent(result, ["country"]);
-    const province = getGeocodeComponent(result, [
-      "administrative_area_level_1",
-    ]);
-    const municipality = getGeocodeComponent(result, [
-      "locality",
-      "postal_town",
-      "administrative_area_level_3",
-      "sublocality_level_1",
-    ]);
-    const locationType = result.geometry?.location_type || "";
-    const resultTypes = result.types || [];
-    const hasStreetNumber = Boolean(
-      getGeocodeComponent(result, ["street_number"])
-    );
-    const hasCivicResultType = resultTypes.some((type) =>
-      ["street_address", "premise", "subpremise", "establishment"].includes(
-        type
-      )
-    );
-
-    if (!result.geometry?.location || result.partial_match === true) return [];
-    if (locationType === "APPROXIMATE") return [];
-    if (!hasStreetNumber && !hasCivicResultType) return [];
-    if (!geocodeComponentMatches(country, new Set(["ca", "canada"]))) return [];
-    if (!geocodeComponentMatches(province, new Set(["on", "ontario"]))) return [];
-    if (!geocodeComponentMatches(municipality, allowedMunicipalities)) return [];
-    const municipalityValues = new Set(
-      [municipality?.long_name, municipality?.short_name].map(
-        normalizeGeocodeText
-      )
-    );
-    const score =
-      (submittedMunicipality && municipalityValues.has(submittedMunicipality)
-        ? 4
-        : 2) +
-      (locationType === "ROOFTOP"
-        ? 4
-        : locationType === "RANGE_INTERPOLATED"
-          ? 3
-          : 1) +
-      (resultTypes.includes("street_address") ? 2 : 0) +
-      (hasStreetNumber ? 1 : 0);
-
-    return [{ result, score }];
-  });
-
-  return validCandidates.sort((a, b) => b.score - a.score)[0]?.result || null;
 };
 
 const isValidPhone = (phone: string) => {
@@ -1224,17 +1100,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     if (token && (activeTab === "DELIVERED_HISTORY" || activeTab === "DRIVER_STATS")) void fetchHistoricalDrivers(token);
   }, [token, activeTab]);
 
-  const mapRef = useRef<HTMLDivElement | null>(null);
   const manualAddressInputRef = useRef<HTMLInputElement | null>(null);
   const editAddressInputRef = useRef<HTMLInputElement | null>(null);
-  const googleMapRef = useRef<any>(null);
-  const driverMarkersRef = useRef<Record<string, any>>({});
-  const orderMarkersRef = useRef<Record<string, any>>({});
-  const orderMarkerAddressesRef = useRef<Record<string, string>>({});
-  const orderAuthoritativeGeocodeKeysRef = useRef<Record<string, string>>({});
-  const orderGeocodingInFlightRef = useRef<Set<string>>(new Set());
-  const orderGeocodingFailedRef = useRef<Set<string>>(new Set());
-  const orderInfoWindowRef = useRef<any>(null);
   const ordersRequestSequenceRef = useRef(0);
   const ordersInFlightRef = useRef(0);
 
@@ -1332,362 +1199,6 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   }, [editingOrderId]);
 
 
-
-  useEffect(() => {
-    const clearMap = () => {
-      Object.values(driverMarkersRef.current).forEach((marker) => {
-        marker.setMap(null);
-      });
-
-      Object.values(orderMarkersRef.current).forEach((marker) => {
-        marker.setMap(null);
-      });
-
-      driverMarkersRef.current = {};
-      orderMarkersRef.current = {};
-      orderMarkerAddressesRef.current = {};
-      orderAuthoritativeGeocodeKeysRef.current = {};
-      orderGeocodingInFlightRef.current = new Set();
-      orderGeocodingFailedRef.current = new Set();
-
-      if (orderInfoWindowRef.current) {
-        orderInfoWindowRef.current.close();
-        orderInfoWindowRef.current = null;
-      }
-
-      googleMapRef.current = null;
-
-      if (mapRef.current) {
-        mapRef.current.innerHTML = "";
-      }
-    };
-
-    if (activeTab !== "DRIVER_LOCATION") {
-      clearMap();
-      return;
-    }
-
-    const googleMaps = (window as any).google?.maps;
-
-    if (!mapRef.current || !googleMaps) return;
-
-    const driversWithLocation = drivers.filter(
-      (driver) =>
-        driver.isOnline &&
-        typeof driver.latitude === "number" &&
-        typeof driver.longitude === "number"
-    );
-
-    const activeOrders = orders.filter((order) =>
-      ["PLACED", "DISPATCHED", "ACCEPTED", "OUT_FOR_DELIVERY"].includes(
-        order.orderStatus
-      )
-    );
-
-    if (driversWithLocation.length === 0 && activeOrders.length === 0) {
-      clearMap();
-      return;
-    }
-
-    if (!googleMapRef.current) {
-      googleMapRef.current = new googleMaps.Map(mapRef.current, {
-        center:
-          driversWithLocation.length > 0
-            ? {
-                lat: driversWithLocation[0].latitude as number,
-                lng: driversWithLocation[0].longitude as number,
-              }
-            : {
-                lat: 43.5448,
-                lng: -80.2482,
-              },
-        zoom: 13,
-      });
-    }
-
-    const map = googleMapRef.current;
-    const activeDriverIds = new Set(driversWithLocation.map((driver) => driver.id));
-
-    Object.entries(driverMarkersRef.current).forEach(([driverId, marker]) => {
-      if (!activeDriverIds.has(driverId)) {
-        marker.setMap(null);
-        delete driverMarkersRef.current[driverId];
-      }
-    });
-
-    driversWithLocation.forEach((driver) => {
-      const existingMarker = driverMarkersRef.current[driver.id];
-      const driverDisplayName = getDriverDisplayName(driver);
-      const isRobDriver =
-        driverDisplayName.replace(/\s+/g, "").toLowerCase() === "robdriver";
-
-      const position = {
-        lat: driver.latitude as number,
-        lng: driver.longitude as number,
-      };
-
-      const robDriverIcon = isRobDriver
-        ? {
-            url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
-            scaledSize: new googleMaps.Size(32, 32),
-            labelOrigin: new googleMaps.Point(16, 10),
-          }
-        : null;
-
-      const title = [
-        driverDisplayName,
-        `Status: ${getDriverLocationStatus(driver)}`,
-        `Updated: ${formatDriverLocationAge(driver)}`,
-        `Accuracy: ${formatDriverAccuracy(driver.locationAccuracyMeters)}`,
-        `Speed: ${formatDriverSpeed(driver.locationSpeedMetersPerSecond)}`,
-        `Orders: ${driver.activeOrderCount}`,
-      ].join("\n");
-
-      const label = {
-        text: driverDisplayName.charAt(0).toUpperCase(),
-        ...(isRobDriver ? { color: "#ffffff", fontWeight: "700" } : {}),
-      };
-
-      if (existingMarker) {
-        existingMarker.setPosition(position);
-        existingMarker.setTitle(title);
-        existingMarker.setIcon(robDriverIcon);
-        existingMarker.setLabel(label);
-      } else {
-        const marker = new googleMaps.Marker({
-          position,
-          map,
-          title,
-          icon: robDriverIcon,
-          label,
-        });
-
-        driverMarkersRef.current[driver.id] = marker;
-      }
-    });
-
-    const activeOrderIds = new Set(activeOrders.map((order) => order.id));
-
-    Object.keys(orderAuthoritativeGeocodeKeysRef.current).forEach((orderId) => {
-      if (!activeOrderIds.has(orderId)) {
-        delete orderAuthoritativeGeocodeKeysRef.current[orderId];
-      }
-    });
-
-    Object.entries(orderMarkersRef.current).forEach(([orderId, marker]) => {
-      if (!activeOrderIds.has(orderId)) {
-        marker.setMap(null);
-
-        if (orderInfoWindowRef.current?.__orderId === orderId) {
-          orderInfoWindowRef.current.close();
-          orderInfoWindowRef.current.__orderId = null;
-        }
-
-        delete orderMarkersRef.current[orderId];
-        delete orderMarkerAddressesRef.current[orderId];
-        delete orderAuthoritativeGeocodeKeysRef.current[orderId];
-      }
-    });
-
-    activeOrders.forEach((order) => {
-      const fullAddress = [
-        order.addressLine1,
-        order.unitNumber ? `Unit ${order.unitNumber}` : null,
-        order.city,
-        order.province,
-        "Canada",
-      ]
-        .filter(Boolean)
-        .join(", ");
-      const geocodingAddress = [
-        sanitizeAddressLineForGeocoding(order.addressLine1),
-        order.city?.trim(),
-        order.province?.trim(),
-        "Canada",
-      ]
-        .filter(Boolean)
-        .join(", ");
-      const geocodeKey = `${order.id}|${geocodingAddress.toLowerCase()}`;
-      const verifiedPosition = getVerifiedDeliveryPosition(order);
-      const useLegacyBrowserGeocoding =
-        shouldUseLegacyBrowserGeocoding(order);
-      const markerLocationKey = verifiedPosition
-        ? [
-            "verified",
-            order.geocodeAddressFingerprint || "no-fingerprint",
-            verifiedPosition.lat,
-            verifiedPosition.lng,
-          ].join("|")
-        : geocodeKey;
-
-      orderAuthoritativeGeocodeKeysRef.current[order.id] = markerLocationKey;
-
-      const driverName = getDriverDisplayName(order.assignedDriver);
-      const orderTime = formatOrderAge(order.createdAt);
-      const displayStatus = order.orderStatus.replace(/_/g, " ");
-
-      const title = [
-        `Order #${order.orderNumber}`,
-        order.customerName,
-        fullAddress,
-        `Status: ${displayStatus}`,
-        `Driver: ${driverName}`,
-        `Order Time: ${orderTime}`,
-      ].join("\n");
-
-      const escapeMapInfoText = (value: unknown) =>
-        String(value ?? "")
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#039;");
-
-      const infoWindowContent = `
-        <div style="min-width:220px;max-width:300px;padding:4px 2px;color:#18181b;font-family:Arial,sans-serif;line-height:1.4;">
-          <div style="font-size:17px;font-weight:700;margin-bottom:6px;">
-            Order #${escapeMapInfoText(order.orderNumber)}
-          </div>
-          <div style="font-weight:700;margin-bottom:4px;">
-            ${escapeMapInfoText(order.customerName)}
-          </div>
-          <div style="margin-bottom:8px;">
-            ${escapeMapInfoText(fullAddress)}
-          </div>
-          <div><strong>Status:</strong> ${escapeMapInfoText(displayStatus)}</div>
-          <div><strong>Driver:</strong> ${escapeMapInfoText(driverName)}</div>
-          <div><strong>Order Time:</strong> ${escapeMapInfoText(orderTime)}</div>
-        </div>
-      `;
-
-      const existingMarker = orderMarkersRef.current[order.id];
-      const existingAddress = orderMarkerAddressesRef.current[order.id];
-
-      if (existingMarker && existingAddress === markerLocationKey) {
-        existingMarker.setTitle(title);
-        existingMarker.setLabel({
-          text: String(order.orderNumber),
-          fontWeight: "700",
-        });
-        existingMarker.__orderInfoContent = infoWindowContent;
-
-        if (orderInfoWindowRef.current?.__orderId === order.id) {
-          orderInfoWindowRef.current.setContent(infoWindowContent);
-        }
-
-        return;
-      }
-
-      if (existingMarker && existingAddress !== markerLocationKey) {
-        existingMarker.setMap(null);
-
-        if (orderInfoWindowRef.current?.__orderId === order.id) {
-          orderInfoWindowRef.current.close();
-          orderInfoWindowRef.current.__orderId = null;
-        }
-
-        delete orderMarkersRef.current[order.id];
-        delete orderMarkerAddressesRef.current[order.id];
-      }
-
-      const installOrderMarker = (position: unknown, locationKey: string) => {
-        const marker = new googleMaps.Marker({
-          position,
-          map,
-          title,
-          label: {
-            text: String(order.orderNumber),
-            fontWeight: "700",
-          },
-        });
-
-        marker.__orderInfoContent = infoWindowContent;
-        marker.addListener("click", () => {
-          if (!orderInfoWindowRef.current) {
-            orderInfoWindowRef.current = new googleMaps.InfoWindow();
-          }
-
-          orderInfoWindowRef.current.__orderId = order.id;
-          orderInfoWindowRef.current.setContent(marker.__orderInfoContent);
-          orderInfoWindowRef.current.open(map, marker);
-        });
-
-        orderMarkersRef.current[order.id] = marker;
-        orderMarkerAddressesRef.current[order.id] = locationKey;
-
-        if (
-          driversWithLocation.length === 0 &&
-          Object.keys(orderMarkersRef.current).length === 1
-        ) {
-          map.setCenter(position);
-        }
-      };
-
-      if (verifiedPosition) {
-        installOrderMarker(verifiedPosition, markerLocationKey);
-        return;
-      }
-
-      if (!useLegacyBrowserGeocoding) {
-        if (!orderGeocodingFailedRef.current.has(markerLocationKey)) {
-          console.warn(
-            `Order ${order.id} was left unmapped because its delivery location is not verified.`
-          );
-          orderGeocodingFailedRef.current.add(markerLocationKey);
-        }
-        return;
-      }
-
-      if (orderGeocodingInFlightRef.current.has(geocodeKey)) return;
-      if (orderGeocodingFailedRef.current.has(geocodeKey)) return;
-
-      orderGeocodingInFlightRef.current.add(geocodeKey);
-
-      const geocoder = new googleMaps.Geocoder();
-
-      geocoder.geocode(
-        {
-          address: geocodingAddress,
-          componentRestrictions: {
-            country: "CA",
-          },
-          region: "CA",
-        },
-        (results: GoogleGeocodeResult[] | null, status: string) => {
-          orderGeocodingInFlightRef.current.delete(geocodeKey);
-
-          if (googleMapRef.current !== map) return;
-          if (
-            orderAuthoritativeGeocodeKeysRef.current[order.id] !== geocodeKey
-          ) {
-            return;
-          }
-
-          const selectedResult =
-            status === "OK"
-              ? selectValidatedOrderGeocodeResult(results, order)
-              : null;
-          const location = selectedResult?.geometry?.location;
-
-          if (!location) {
-            console.warn(
-              `Order ${order.id} was left unmapped: the rolling-deployment fallback found no validated result (${status}).`
-            );
-            orderGeocodingFailedRef.current.add(geocodeKey);
-            return;
-          }
-
-          const markerToReplace = orderMarkersRef.current[order.id];
-
-          if (markerToReplace) {
-            markerToReplace.setMap(null);
-          }
-
-          installOrderMarker(location, geocodeKey);
-        }
-      );
-    });
-  }, [activeTab, drivers, orders, nowMs]);
 
   const formatDateTime = (value?: string | null) => {
     if (!value) return "—";
@@ -6955,6 +6466,21 @@ const handleSaveEditedOrder = async (orderId: string) => {
    );
  };
 
+  const handleRefreshHistory = () => {
+    if (token) void fetchDeliveredOrders(token);
+  };
+
+  const handleHistorySearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const search = historySearchInput.trim();
+    if (search.length === 1) return;
+    setHistoryPage(1);
+    setHistoryCustomerSearch(search);
+    if (search === historyCustomerSearch && historyPage === 1 && token) {
+      void fetchDeliveredOrders(token);
+    }
+  };
+
   const renderDeliveredHistory = () => {
     return (
       <div className="space-y-6">
@@ -6973,7 +6499,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             </div>
 
             <button
-              onClick={() => token && void fetchDeliveredOrders(token)}
+              onClick={handleRefreshHistory}
               disabled={historyLoading}
               className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition disabled:opacity-50 font-semibold"
             >
@@ -6983,16 +6509,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
           <form
             className="mt-6"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const search = historySearchInput.trim();
-              if (search.length === 1) return;
-              setHistoryPage(1);
-              setHistoryCustomerSearch(search);
-              if (search === historyCustomerSearch && historyPage === 1 && token) {
-                void fetchDeliveredOrders(token);
-              }
-            }}
+            onSubmit={handleHistorySearchSubmit}
           >
             <label htmlFor="history-customer-search" className="block font-semibold mb-2">
               Search Customer
@@ -8363,14 +7880,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
               </p>
             </div>
 
-            <div
-              ref={mapRef}
-              style={{
-                width: "100%",
-                height: "500px",
-                borderRadius: "12px",
-              }}
-            />
+            <RoutingPreviewMap />
 
             {orders.some(
               (order) =>

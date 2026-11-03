@@ -316,7 +316,8 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "driver-location",
     title: "Read driver GPS and compare pickup routes",
-    reviewedAt: "2026-10-24",
+    // 2026-11-03: One directly mounted map preserves pins, previews and GPS controls.
+    reviewedAt: "2026-11-03",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "DRIVER_LOCATION",
     evidence: ["speedy-dispatcher/src/App.tsx", "speedy-dispatcher/src/RoutingPreviewEnhancerOriginalPins.tsx", "src/controllers/routingPreview.controller.ts"],

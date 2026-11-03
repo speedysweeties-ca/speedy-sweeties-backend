@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { API_V1_BASE_URL } from "./apiConfig";
 
 type DriverMapItem = {
@@ -153,26 +152,6 @@ const formatClosingTime = (value: string | null) => {
   return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix}`;
 };
 
-const findDriverLocationMap = (): HTMLDivElement | null => {
-  const heading = Array.from(document.querySelectorAll("h2")).find(
-    (candidate) => candidate.textContent?.trim() === "Driver Location",
-  );
-
-  if (!heading) return null;
-
-  const panel = heading.closest(".bg-zinc-900") ?? heading.parentElement?.parentElement;
-  if (!panel) return null;
-
-  return (
-    Array.from(panel.querySelectorAll("div")).find(
-      (candidate) =>
-        candidate instanceof HTMLDivElement &&
-        candidate.style.height === "500px" &&
-        candidate.style.width === "100%",
-    ) as HTMLDivElement | undefined
-  ) ?? null;
-};
-
 const makeTextElement = <K extends keyof HTMLElementTagNameMap>(
   tagName: K,
   text: string,
@@ -182,7 +161,7 @@ const makeTextElement = <K extends keyof HTMLElementTagNameMap>(
   return element;
 };
 
-function RoutingPreviewMap() {
+export function RoutingPreviewMap() {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const driverMarkersRef = useRef<Record<string, any>>({});
@@ -896,71 +875,4 @@ function RoutingPreviewMap() {
       />
     </div>
   );
-}
-
-export function RoutingPreviewEnhancer() {
-  const [mountNode, setMountNode] = useState<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    let originalMap: HTMLDivElement | null = null;
-    let portalMount: HTMLDivElement | null = null;
-
-    const restore = () => {
-      if (originalMap?.isConnected) {
-        originalMap.style.display = "";
-        originalMap.removeAttribute("data-routing-preview-original-pins");
-      }
-
-      if (portalMount?.isConnected) {
-        portalMount.remove();
-      }
-
-      originalMap = null;
-      portalMount = null;
-      setMountNode(null);
-    };
-
-    const scan = () => {
-      if (portalMount && !portalMount.isConnected) {
-        originalMap = null;
-        portalMount = null;
-        setMountNode(null);
-      }
-
-      if (portalMount?.isConnected) return;
-
-      const candidate = findDriverLocationMap();
-      if (!candidate || candidate.dataset.routingPreviewOriginalPins === "true") {
-        return;
-      }
-
-      const mount = document.createElement("div");
-      mount.dataset.routingPreviewOriginalPinsMount = "true";
-      mount.style.width = "100%";
-
-      candidate.dataset.routingPreviewOriginalPins = "true";
-      candidate.style.display = "none";
-      candidate.parentElement?.insertBefore(mount, candidate);
-
-      originalMap = candidate;
-      portalMount = mount;
-      setMountNode(mount);
-    };
-
-    const root = document.getElementById("root");
-    const observer = new MutationObserver(scan);
-
-    if (root) {
-      observer.observe(root, { childList: true, subtree: true });
-    }
-
-    scan();
-
-    return () => {
-      observer.disconnect();
-      restore();
-    };
-  }, []);
-
-  return mountNode ? createPortal(<RoutingPreviewMap />, mountNode) : null;
 }
