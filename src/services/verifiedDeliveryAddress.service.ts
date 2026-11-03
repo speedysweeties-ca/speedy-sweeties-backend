@@ -8,7 +8,7 @@ const MAX_ENTRIES = 1000;
 // client-supplied coordinates can authorize an address. Each process has its own
 // bounded cache; restart/eviction simply falls back to Google's normal validation.
 export function createVerifiedDeliveryAddressLookup(
-  lookup: typeof geocodeDeliveryAddress = geocodeDeliveryAddress,
+  lookup: typeof geocodeDeliveryAddress = (address, options) => geocodeDeliveryAddress(address, options),
   clock: () => number = Date.now
 ) {
   const entries = new Map<string, {
