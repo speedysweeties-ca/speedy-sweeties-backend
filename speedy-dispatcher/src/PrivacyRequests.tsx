@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PrivacyIntake } from './PrivacyIntake';
 import { API_V1_BASE_URL } from './apiConfig';
 import { privacyDecision, type PrivacyPreview } from './privacyRequest';
 
@@ -42,6 +43,7 @@ export function PrivacyRequests({ token }: { token: string }) {
     <h2 className="text-2xl font-bold">Privacy deletion requests</h2>
     <p>Restricted administrators only. Request received is not deletion completed. Each verified request has its own 30-calendar-day due date. Financial expiry is calculated from the applicable tax-year end; no fiscal year-end or external-copy period is assumed.</p>
     <p role="status">{notice}</p>
+    <PrivacyIntake key={token} api={api} />
     <fieldset disabled={busy} className="space-y-4">
       <button onClick={() => void run(reload)}>Load / refresh requests</button>
       <ul>{cases.map(c => <li key={c.id}><button onClick={() => { setSelected(c); setPreview(undefined); setConfirmed(false); }}>{c.id} — {c.status} — due {new Date(c.dueAt).toLocaleDateString()}{c.status !== 'COMPLETED' && Date.parse(c.dueAt) < refreshedAt ? ' — OVERDUE' : ''}</button></li>)}</ul>
