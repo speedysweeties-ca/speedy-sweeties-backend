@@ -125,7 +125,9 @@ test('current-main integration preserves driver pages and ordinary output while 
   const ordinaryHome = read('index.html');
   const ordinaryDriver = read('drive-with-us/index.html');
   const ordinarySitemap = read('sitemap.xml');
-  assert.equal(ordinaryHome, home.replace('<!--BUILD_ROBOTS-->', '<meta name="robots" content="noindex, nofollow">'));
+  const withoutCounter = ordinaryHome.replace('<link rel="stylesheet" href="/assets/page-counter.css">', '')
+    .replace(/<div class="page-counter"[\s\S]*?<script defer src="\/js\/page-counter.js"><\/script>/, '');
+  assert.equal(withoutCounter, home.replace('<!--BUILD_ROBOTS-->', '<meta name="robots" content="noindex, nofollow">'));
   assert.match(ordinaryDriver, /applicant-smartserve/);
   assert.match(ordinarySitemap, /drive-with-us/);
   assert.doesNotMatch(read('privacy-policy/index.html'), /voice-draft request/);

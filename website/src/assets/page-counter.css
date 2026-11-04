@@ -1,0 +1,11 @@
+.page-counter {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 16px 20px;
+  background: #fff;
+  color: #5b2029;
+  border-top: 1px solid #eadde0;
+  text-align: center;
+  font: 14px/1.5 Arial, sans-serif;
+}
+.page-counter [data-page-count] { font-weight: 700; font-variant-numeric: tabular-nums; }

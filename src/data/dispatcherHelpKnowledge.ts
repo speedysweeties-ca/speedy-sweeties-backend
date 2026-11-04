@@ -1,3 +1,6 @@
+// 2026-11-04: Reviewed help-guide for public page-view counters. No dispatcher
+// controls, permissions, order workflows or help answers change. Counters store
+// anonymous totals in an independent table (src/routes/pageViews.routes.ts).
 // 2026-11-02: Reviewed help-guide after the compatible CSS selector-parser patch.
 // Help answers, role filtering, source navigation and staff workflows are unchanged.
 export type HelpRole = "ADMIN" | "DISPATCHER";
@@ -89,7 +92,7 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "help-guide",
     title: "Use How do I…? and its source guides",
-    reviewedAt: "2026-11-02",
+    reviewedAt: "2026-11-04",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "HELP",
     evidence: ["speedy-dispatcher/src/DispatcherHelp.tsx", "src/services/dispatcherHelp.service.ts"],

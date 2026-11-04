@@ -181,3 +181,17 @@ The hosting migration does not resolve the agency's separate invoice dispute.
 - Backend and website npm audits: no advisories. Existing dispatcher audit reports
   two advisories; see PR validation notes. No dispatcher dependency was changed.
 - No production order, live database command, domain change or API deploy was made.
+
+## Public page counters
+
+The homepage, five service pages and driver application show separate aggregate
+page-load totals. Repeat loads count; these are not unique people or historical
+GA4 totals. Previews never call the counter API. No visitor identifier, cookie,
+IP address or referrer is stored in the counter table. Failed requests show an
+unavailable label and are never retried automatically. Public counters are
+approximate: blockers, bots and rate limiting can affect totals.
+
+Deploy the backend with the additive PageViewCounter migration before deploying
+the website. Both use existing services; no new provider, secret or paid service
+is needed. Preserve the current production build flags and Turnstile key.
+Totals survive deployments/restarts. Roll back code without dropping the table.

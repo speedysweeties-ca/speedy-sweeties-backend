@@ -772,3 +772,9 @@ model OrderEditPause {
 
   @@index([orderId, startedAt])
 }
+
+// Anonymous aggregate totals only; no customer or visitor relationship.
+model PageViewCounter {
+  page  String @id
+  views BigInt @default(0)
+}
