@@ -1,5 +1,6 @@
 // The homepage remains the published policy source so its existing fragment URL
 // and the standalone page cannot drift into different statements.
+import { createHash } from 'node:crypto';
 import { canonicalOrigin } from './render-service-pages.mjs';
 import { proposedPrivacyPolicy } from '../content/privacy-policy-proposed.mjs';
 
@@ -25,7 +26,12 @@ export function validateProposedPolicyPublication({ production = false, approved
   const today = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit'
   }).format(new Date());
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(publicationDate) || publicationDate !== today) {
+  // This exact policy was published on November 3. Unrelated site rebuilds
+  // retain that date; changed policy content still needs today's explicit date.
+  const unchangedPublishedPolicy = publicationDate === '2026-11-03' && publicationDate <= today &&
+    createHash('sha256').update(JSON.stringify(proposedPrivacyPolicy)).digest('hex') ===
+      '9ccee680c14fa75d27a220188ec847d01303b10326a15f9f15aed00f47a90631';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(publicationDate) || (publicationDate !== today && !unchangedPublishedPolicy)) {
     throw new Error('Policy publication requires the actual Toronto publication date as --privacy-policy-date=YYYY-MM-DD. Rebuild if publication moves to another date.');
   }
 }

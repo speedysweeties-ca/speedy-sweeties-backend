@@ -63,7 +63,7 @@ test('the legal page needs no login, order form, age prompt, analytics or bot ch
   assert.doesNotMatch(html, /href="\/support\/"|href="\/account-deletion\/"/);
 });
 
-test('previews cannot claim an effective date and publication requires approval and today', () => {
+test('previews cannot claim an effective date and new publication requires approval and today', () => {
   assert.match(renderer.proposedPolicyBlocks().join(' '), /Effective Date:<\/strong> Not assigned/);
   assert.throws(() => renderer.proposedPolicyBlocks({ publicationDate: today() }), /preview/);
   assert.throws(() => renderer.proposedPolicyBlocks({ production: true }), /separate approval/);
@@ -143,4 +143,19 @@ test('current-main integration preserves driver pages and ordinary output while 
     assert.match(read(name), /noindex/);
   }
   for (const route of ['support', 'account-deletion']) assert.equal(fs.existsSync(path.join(fixture, 'dist', route)), false);
+});
+
+
+test('unchanged published policy retains November 3 on later rebuilds; modified copy cannot reuse it', () => {
+  if (today() <= '2026-11-03') return;
+  const options = { production: true, approved: true, publicationDate: '2026-11-03' };
+  const blocks = renderer.proposedPolicyBlocks(options).join(' ');
+  assert.match(blocks, /Effective Date:<\/strong> 2026-11-03/);
+  assert.match(blocks, /Last updated:<\/strong> 2026-11-03/);
+  assert.throws(() => renderer.proposedPolicyBlocks({ ...options, approved: false }), /separate approval/);
+  const original = policy.introduction;
+  try {
+    policy.introduction += ' Changed policy text.';
+    assert.throws(() => renderer.proposedPolicyBlocks(options), /actual Toronto publication date/);
+  } finally { policy.introduction = original; }
 });
