@@ -1,3 +1,4 @@
+import pageViewsRoutes from "./pageViews.routes";
 import { Router } from "express";
 import privacyRoutes from "./privacy.routes";
 import orderRoutes from "./orders";
@@ -25,6 +26,7 @@ import { getReadiness } from "../services/readiness.service";
 import retentionSmsRoutes from "./retentionSms.routes";
 
 const router = Router();
+router.use("/page-views", pageViewsRoutes);
 router.use("/retention-sms", retentionSmsRoutes);
 router.use("/privacy/deletion", privacyRoutes);
 

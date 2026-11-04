@@ -5,6 +5,11 @@ import { canonicalOrigin, renderServicePage } from './render-service-pages.mjs';
 import { driverPath, renderDriverPage } from './render-driver-page.mjs';
 import { privacyPath, renderPrivacyPage, replaceHomepagePolicy, validateProposedPolicyPublication } from './render-privacy-page.mjs';
 
+function withPageCounter(html, page) {
+  return html.replace('</head>', '<link rel="stylesheet" href="/assets/page-counter.css"></head>')
+    .replace('</body>', `<div class="page-counter" data-page-counter="${page}" aria-live="polite">Page views: <span data-page-count>Loading…</span></div><script defer src="/js/page-counter.js"></script></body>`);
+}
+
 const root = fileURLToPath(new URL('../', import.meta.url));
 const production = process.argv.includes('--production');
 const proposed = process.argv.includes('--proposed-privacy-policy');
@@ -23,16 +28,16 @@ await cp(root + 'src', root + 'dist', { recursive: true });
 let html = await readFile(root + 'dist/index.html', 'utf8');
 html = html.replace('<!--BUILD_ROBOTS-->', production ? '' : '<meta name="robots" content="noindex, nofollow">');
 if (proposed) html = replaceHomepagePolicy(html, policyOptions);
-await writeFile(root + 'dist/index.html', html);
+await writeFile(root + 'dist/index.html', withPageCounter(html, 'home'));
 for (const [slug, legacy] of [['privacy-policy', false], ['privacy', true]]) {
   await mkdir(root + `dist/${slug}`, { recursive: true });
   await writeFile(root + `dist/${slug}/index.html`, renderPrivacyPage(html, { ...policyOptions, legacy, proposed }));
 }
 await mkdir(root + 'dist' + driverPath, { recursive: true });
-await writeFile(root + 'dist' + driverPath + 'index.html', renderDriverPage({ production }));
+await writeFile(root + 'dist' + driverPath + 'index.html', withPageCounter(renderDriverPage({ production }), 'drivers'));
 for (const service of services) {
   await mkdir(root + `dist/${service.slug}`, { recursive: true });
-  await writeFile(root + `dist/${service.slug}/index.html`, renderServicePage(service, { production }));
+  await writeFile(root + `dist/${service.slug}/index.html`, withPageCounter(renderServicePage(service, { production }), service.key));
 }
 await writeFile(root + 'dist/js/site-config.js', `/* Generated at build time. Preview is the default. */
 (() => {

@@ -12,7 +12,7 @@ assert.equal(process.env.CI, 'true');
 assert.ok(['127.0.0.1', 'localhost'].includes(url.hostname));
 assert.equal(url.pathname, '/speedy_sweeties_ci');
 const source = readFileSync('prisma/schema.prisma', 'utf8');
-const baseline = source.replace(/^  providerStatus\s+String\?\n/m, '').replace(/^  attemptedAt\s+DateTime\?\n/m, '').replace(/^  dispatchEditPauses\s+OrderEditPause\[\]\n/m, '')
+const baseline = source.replace(/model PageViewCounter \{[\s\S]*?\n\}/, '').replace(/^  providerStatus\s+String\?\n/m, '').replace(/^  attemptedAt\s+DateTime\?\n/m, '').replace(/^  dispatchEditPauses\s+OrderEditPause\[\]\n/m, '')
   .replace(/model OrderEditPause \{[\s\S]*?\n\}/, '')
   .replace(/model BndMonitorCheck \{[\s\S]*?\n\}/, '')
   .replace(/model BndWaitingPeriod \{[\s\S]*?\n\}/, '');
@@ -29,3 +29,7 @@ execFileSync('npx', ['--no-install', 'prisma', 'db', 'execute', '--schema', 'pri
 // Exercise the additive SMS migration against the pre-SMS baseline.
 execFileSync('npx', ['--no-install', 'prisma', 'db', 'execute', '--schema', 'prisma/schema.prisma',
   '--file', 'prisma/migrations/20261030160000_retention_sms_delivery/migration.sql'], { stdio: 'inherit' });
+
+// Verify the public aggregate-counter migration against a baseline without its table.
+execFileSync('npx', ['--no-install', 'prisma', 'db', 'execute', '--schema', 'prisma/schema.prisma',
+  '--file', 'prisma/migrations/20261104160000_page_view_counters/migration.sql'], { stdio: 'inherit' });
