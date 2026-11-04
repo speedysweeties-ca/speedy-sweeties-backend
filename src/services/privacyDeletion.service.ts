@@ -6,6 +6,7 @@ import type { VerificationChannel, VerificationDelivery } from "./privacyDeliver
 import { canonical, PrivacyRecoveryJournal, RecoveryError } from "./privacyRecoveryJournal";
 import { recoveryState, type RecoveryState } from "./privacyRecoveryState";
 import { scopedRecoveryEvidence } from "./privacyRecoveryEvidence";
+import { INTAKE_POLICY, INTAKE_PURPOSE, INTAKE_GRANT_MS, intakeIssueSchema, signIntakeGrant, readIntakeGrant, type IntakeClaims, type IntakeActor } from "./privacyIntakeGrant";
 
 export class PrivacyError extends Error {
   constructor(public status: number, public code: string) { super(code); }
@@ -71,7 +72,7 @@ export const retentionDecisionSchema = z.object({
   confirmed: z.literal(true)
 }).strict();
 export type RetentionDecision = z.infer<typeof retentionDecisionSchema>;
-export type ChallengeCredential = { trackingToken?: string; loyaltyToken?: string; accessToken?: string };
+export type ChallengeCredential = { trackingToken?: string; loyaltyToken?: string; accessToken?: string; intakeGrant?: string; destination?: string };
 type Tx = Prisma.TransactionClient;
 export async function privacyLock(tx: Tx) {
   // Shared with all order creation/update paths: no profile resurrection race.
@@ -161,6 +162,163 @@ export class PrivacyDeletionService {
     }
     throw new PrivacyError(409, "MANUAL_REVIEW_REQUIRED");
   }
+  private intakeClaims(grant: string) {
+    const claims = readIntakeGrant(grant, value => this.hash(value));
+    if (!claims) throw new PrivacyError(401, "INTAKE_UNAVAILABLE");
+    return claims;
+  }
+  private async intakeApprover(tx: Tx, actor: IntakeActor) {
+    const allowed = (process.env.PRIVACY_ADMIN_USER_IDS || "").split(",").filter(Boolean);
+    const user = await tx.user.findUnique({ where: { id: actor.userId } });
+    // This adopted exception is Robert-only. A changed multi-admin configuration
+    // must not silently extend personal-recognition authority to another person.
+    if (allowed.length !== 1 || allowed[0] !== actor.userId || !user || user.role !== "ADMIN" ||
+        !user.isActive || user.passwordChangeRequired || user.forceLogoutAt || user.authVersion !== actor.authVersion)
+      throw new PrivacyError(403, "PRIVACY_ADMIN_REQUIRED");
+    return user;
+  }
+  private async intakeScope(tx: Tx, subjectId: string, sourceOrderId: string) {
+    const p = await this.candidateScope(tx, subjectId, sourceOrderId);
+    const c = p.customer, o = p.sourceOrder;
+    const identities = await tx.customer.count({ where: { OR: [
+      { normalizedPhone: c.normalizedPhone }, ...(c.normalizedEmail ? [{ normalizedEmail: c.normalizedEmail }] : [])
+    ] } });
+    if (identities !== 1 || p.unlinkedOrderIds.length || p.conflictingLinkedOrderIds.length ||
+        o.customerName.trim().toLowerCase() !== c.normalizedFullName || phoneDigits(o.phone) !== c.normalizedPhone ||
+        normalizedEmail(o.email) !== normalizedEmail(c.normalizedEmail))
+      throw new PrivacyError(409, "INTAKE_OWNERSHIP_REVIEW_REQUIRED");
+    return p;
+  }
+  private async intakeHistoricalEmail(tx: Tx, p: Awaited<ReturnType<PrivacyDeletionService["candidateScope"]>>,
+    priorId: string, receivedAt: string) {
+    const old = await tx.privacyChallenge.findUnique({ where: { id: priorId } });
+    const contact = await this.contactFor(tx, p.customer, p.sourceOrder, "EMAIL");
+    if (!old || !["DELETE", "ENROLL_DELETE"].includes(old.purpose) || old.channel !== "EMAIL" || !old.verifiedAt ||
+        old.verifiedAt >= new Date(receivedAt) || old.subjectId !== p.customer.id || old.sourceOrderId !== p.sourceOrder.id ||
+        old.contactFingerprint !== this.fingerprint(p.customer) ||
+        old.destinationHash !== this.destinationHash("EMAIL", contact.destination))
+      throw new PrivacyError(409, "INTAKE_OWNERSHIP_REVIEW_REQUIRED");
+    return contact.destination;
+  }
+  async previewIntake(subjectId: string, sourceOrderId: string, actor: IntakeActor) {
+    await this.assertRecoveryReady();
+    return this.atomic(async tx => {
+      await this.intakeApprover(tx, actor);
+      const p = await this.intakeScope(tx, subjectId, sourceOrderId);
+      return { subjectId, sourceOrderId, scopeHash: p.hash, orderCount: p.orders.length, activeOrders: p.activeOrders,
+        policyReference: INTAKE_POLICY, message: "Preview only. Finding records does not establish ownership or send a code." };
+    });
+  }
+  async issueIntake(raw: unknown, actor: IntakeActor) {
+    const parsed = intakeIssueSchema.safeParse(raw);
+    if (!parsed.success) throw new PrivacyError(400, "INTAKE_EVIDENCE_REQUIRED");
+    const input = parsed.data;
+    if (new Date(input.receivedAt).getTime() > Date.now()) throw new PrivacyError(400, "INTAKE_EVIDENCE_REQUIRED");
+    await this.assertRecoveryReady();
+    return this.atomic(async tx => {
+      await this.intakeApprover(tx, actor);
+      const p = await this.intakeScope(tx, input.subjectId, input.sourceOrderId);
+      if (p.hash !== input.scopeHash) throw new PrivacyError(409, "STALE_PREVIEW");
+      const destination = normalizedEmail(input.destination);
+      if (input.evidence.method === "HISTORICAL_VERIFIED_EMAIL" && destination !==
+          await this.intakeHistoricalEmail(tx, p, input.evidence.priorChallengeId, input.receivedAt))
+        throw new PrivacyError(409, "INTAKE_OWNERSHIP_REVIEW_REQUIRED");
+      await this.intakeDestination(tx, p.customer.id, destination);
+      const destinationHash = this.destinationHash("EMAIL", destination), requesterHash = this.hash(`intake-admin:${actor.userId}`);
+      if (await tx.privacyChallenge.count({ where: { createdAt: { gte: new Date(Date.now() - 3600000) },
+        OR: [{ phoneHash: destinationHash }, { requesterHash }] } }) >= 5) throw new PrivacyError(429, "TRY_LATER");
+      const id = randomUUID(), now = Date.now();
+      const claims: IntakeClaims = { v: 1, policy: INTAKE_POLICY, id, actorId: actor.userId, authVersion: actor.authVersion,
+        scopeHash: p.hash, destinationHash, fingerprint: this.fingerprint(p.customer),
+        reviewHash: this.hash(`intake-review-v1:${canonical({ ...input, privateReviewReference:
+          this.hash(`intake-private-reference:${input.privateReviewReference}`), destination: destinationHash })}`),
+        receivedAt: input.receivedAt, method: input.evidence.method,
+        ...(input.evidence.method === "HISTORICAL_VERIFIED_EMAIL" ? { priorChallengeId: input.evidence.priorChallengeId } : {}),
+        issuedAt: now, expiresAt: now + INTAKE_GRANT_MS };
+      await tx.privacyChallenge.updateMany({ where: { subjectId: p.customer.id, purpose: INTAKE_PURPOSE, consumedAt: null },
+        data: { consumedAt: new Date(), codeHash: "superseded" } });
+      await tx.privacyChallenge.create({ data: { id, subjectId: p.customer.id, sourceOrderId: p.sourceOrder.id,
+        purpose: INTAKE_PURPOSE, channel: "EMAIL", destinationHash, phoneHash: destinationHash, requesterHash,
+        contactFingerprint: claims.fingerprint, completionTimeframe: this.completionTimeframe.trim(),
+        codeHash: "unissued", delivery: "INTAKE_READY", expiresAt: new Date(claims.expiresAt) } });
+      return { intakeGrant: signIntakeGrant(claims, value => this.hash(value)), expiresAt: new Date(claims.expiresAt).toISOString(),
+        maskedDestination: maskDestination("EMAIL", destination),
+        message: "Private one-use recovery reference. No email was sent and no deletion request was submitted." };
+    });
+  }
+  private async intakeDestination(tx: Tx, subjectId: string, destination: string) {
+    if (!z.string().email().max(254).safeParse(destination).success ||
+        await tx.customer.count({ where: { normalizedEmail: destination, id: { not: subjectId } } }))
+      throw new PrivacyError(401, "INTAKE_UNAVAILABLE");
+  }
+  private async intakeBound(tx: Tx, grant: string, sent: boolean, destination?: string) {
+    const claims = this.intakeClaims(grant);
+    await this.intakeApprover(tx, { userId: claims.actorId, authVersion: claims.authVersion });
+    const c = await tx.privacyChallenge.findUnique({ where: { id: claims.id } });
+    if (!c || c.purpose !== INTAKE_PURPOSE || !c.subjectId || !c.sourceOrderId || c.channel !== "EMAIL" || c.accessId ||
+        c.consumedAt || c.expiresAt <= new Date() || c.contactFingerprint !== claims.fingerprint ||
+        c.destinationHash !== claims.destinationHash || (sent && c.delivery !== "SENT"))
+      throw new PrivacyError(401, "INTAKE_UNAVAILABLE");
+    const p = await this.intakeScope(tx, c.subjectId, c.sourceOrderId);
+    if (p.hash !== claims.scopeHash || this.fingerprint(p.customer) !== claims.fingerprint)
+      throw new PrivacyError(409, "STALE_PREVIEW");
+    if (claims.method === "HISTORICAL_VERIFIED_EMAIL" && this.destinationHash("EMAIL",
+      await this.intakeHistoricalEmail(tx, p, claims.priorChallengeId!, claims.receivedAt)) !== claims.destinationHash)
+      throw new PrivacyError(401, "INTAKE_UNAVAILABLE");
+    if (destination !== undefined) {
+      const email = normalizedEmail(destination);
+      if (this.destinationHash("EMAIL", email) !== claims.destinationHash) throw new PrivacyError(401, "INTAKE_UNAVAILABLE");
+      await this.intakeDestination(tx, p.customer.id, email);
+    }
+    return { claims, c, ...p };
+  }
+  private intakeProof(claims: IntakeClaims) { return this.hash(`intake-proof-v1:${canonical(claims)}`); }
+  private async redeemIntake(grant: string, rawDestination: string, requester: string) {
+    await this.assertRecoveryReady();
+    const destination = normalizedEmail(rawDestination), code = String(randomInt(10000000, 100000000));
+    const id = await this.atomic(async tx => {
+      const { c } = await this.intakeBound(tx, grant, false, destination);
+      if (c.delivery !== "INTAKE_READY") throw new PrivacyError(409, "INTAKE_ALREADY_REDEEMED");
+      const requesterHash = this.hash(`ip:${requester}`);
+      if (await tx.privacyChallenge.count({ where: { id: { not: c.id }, createdAt: { gte: new Date(Date.now() - 3600000) },
+        OR: [{ phoneHash: c.phoneHash }, { requesterHash }] } }) >= 5) throw new PrivacyError(429, "TRY_LATER");
+      await tx.privacyChallenge.update({ where: { id: c.id }, data: { delivery: "PENDING", requesterHash,
+        codeHash: this.hash(`${c.id}:${code}`), expiresAt: new Date(Date.now() + 10 * 60000) } });
+      return c.id;
+    });
+    // Reservation commits before the only external call. No retry can send twice.
+    try {
+      const started = await this.delivery.start({ channel: "EMAIL", to: destination, code, id });
+      await this.atomic(async tx => {
+        const { c } = await this.intakeBound(tx, grant, false, destination);
+        if (c.delivery !== "PENDING") throw new PrivacyError(409, "INTAKE_ALREADY_REDEEMED");
+        await tx.privacyChallenge.update({ where: { id }, data: { delivery: "SENT", providerReference: started.reference } });
+      });
+    } catch {
+      // Leave the reservation unusable even if provider/DB outcome is uncertain.
+      throw new PrivacyError(503, "VERIFICATION_DELIVERY_UNAVAILABLE");
+    }
+    return { challengeId: id, channel: "EMAIL", maskedDestination: maskDestination("EMAIL", destination),
+      completionTimeframe: this.completionTimeframe.trim(), message: "A code was sent. Confirming the code alone does not submit deletion." };
+  }
+  private async verifyIntake(id: string, code: string, grant: string, destination?: string) {
+    await this.assertRecoveryReady();
+    const prepared = await this.atomic(async tx => {
+      const p = await this.intakeBound(tx, grant, true, destination);
+      if (p.c.id !== id || p.c.attempts >= 5) return null;
+      await tx.privacyChallenge.update({ where: { id }, data: { attempts: { increment: 1 } } });
+      return p;
+    });
+    if (!prepared || !secureEqual(prepared.c.codeHash, this.hash(`${id}:${code}`)))
+      throw new PrivacyError(400, "INVALID_OR_EXPIRED_CODE");
+    await this.atomic(async tx => {
+      const p = await this.intakeBound(tx, grant, true, destination);
+      if (p.c.id !== id || p.c.attempts > 5) throw new PrivacyError(400, "INVALID_OR_EXPIRED_CODE");
+      await tx.privacyChallenge.update({ where: { id }, data: { verifiedAt: new Date() } });
+    });
+    return { proof: this.intakeProof(prepared.claims) };
+  }
+
   private async bootstrap(tx: Tx, credential: ChallengeCredential) {
     const supplied = [credential.trackingToken, credential.loyaltyToken, credential.accessToken].filter(Boolean);
     if (supplied.length !== 1) throw new PrivacyError(400, "INVALID_REQUEST");
@@ -203,6 +361,11 @@ export class PrivacyDeletionService {
     }
   }
   async challenge(credential: ChallengeCredential, requester: string) {
+    if (credential.intakeGrant) {
+      if (credential.accessToken || credential.trackingToken || credential.loyaltyToken) throw new PrivacyError(400, "INVALID_REQUEST");
+      return this.redeemIntake(credential.intakeGrant, credential.destination || "", requester);
+    }
+    if (credential.destination) throw new PrivacyError(400, "INVALID_REQUEST");
     await this.assertRecoveryReady();
     const id = randomUUID(), code = String(randomInt(10000000, 100000000));
     const requesterHash = this.hash(`ip:${requester}`);
@@ -245,11 +408,16 @@ export class PrivacyDeletionService {
       completionTimeframe: this.completionTimeframe.trim(),
       message: `A verification code was sent to ${maskDestination(target.channel, target.destination)}. No account has been deleted.` };
   }
-  async verify(id: string, code: string, accessToken?: string) {
+  async verify(id: string, code: string, accessToken?: string, intakeGrant?: string, intakeDestination?: string) {
+    if (intakeGrant) {
+      if (accessToken) throw new PrivacyError(400, "INVALID_REQUEST");
+      if (!intakeDestination) throw new PrivacyError(400, "INVALID_REQUEST");
+      return this.verifyIntake(id, code, intakeGrant, intakeDestination);
+    }
     await this.assertRecoveryReady();
     const prepared = await this.atomic(async tx => {
       const c = await tx.privacyChallenge.findUnique({ where: { id } });
-      if (!c || c.expiresAt <= new Date() || c.consumedAt || c.attempts >= 5 || c.delivery !== "SENT" ||
+      if (!c || c.purpose === INTAKE_PURPOSE || c.expiresAt <= new Date() || c.consumedAt || c.attempts >= 5 || c.delivery !== "SENT" ||
           !c.subjectId || !c.sourceOrderId || !c.channel || !c.destinationHash) return null;
       // Commit failed attempts, rather than throwing and rolling back the attempt counter.
       await tx.privacyChallenge.update({ where: { id }, data: { attempts: { increment: 1 } } });
@@ -305,7 +473,8 @@ export class PrivacyDeletionService {
     });
     return { proof: this.hash(`proof:${id}`) };
   }
-  async submit(input: { id: string; token: string; challengeId: string; proof: string; accessToken: string }) {
+  async submit(input: { id: string; token: string; challengeId: string; proof: string; accessToken: string; intakeGrant?: string; intakeDestination?: string; confirmed?: boolean }) {
+    if (input.intakeGrant && (input.confirmed !== true || input.accessToken || !input.intakeDestination)) throw new PrivacyError(400, "EXPLICIT_CONFIRMATION_REQUIRED");
     return this.transition(input.id, "SUBMIT", async tx => {
       const existing = await tx.privacyDeletionRequest.findUnique({ where: { id: input.id } });
       if (existing) {
@@ -324,23 +493,33 @@ export class PrivacyDeletionService {
           throw new RecoveryError("RECOVERY_UNRECORDED_DECISION");
       }
       if (active && secureEqual(active.tokenHash, digest(input.token))) return this.publicStatus(active);
-      if (!c || !c.verifiedAt || c.consumedAt || c.expiresAt <= new Date() || !customer || !sourceOrder ||
-          sourceOrder.customerId !== customer.id || sourceOrder.privacyErasedAt || !access || access.revokedAt || access.id !== c.accessId ||
-          access.customerId !== customer.id || c.contactFingerprint !== this.fingerprint(customer) ||
-          !secureEqual(this.hash(`proof:${c.id}`), input.proof))
-        throw new PrivacyError(401, "VERIFICATION_REQUIRED");
+      if (input.intakeGrant) {
+        const bound = await this.intakeBound(tx, input.intakeGrant, true, input.intakeDestination);
+        if (!c || bound.c.id !== c.id || !c.verifiedAt ||
+            !secureEqual(this.intakeProof(bound.claims), input.proof) ||
+            (active && active.sourceOrderId !== sourceOrder?.id)) throw new PrivacyError(401, "VERIFICATION_REQUIRED");
+      } else {
+        if (!c || !c.verifiedAt || c.consumedAt || c.expiresAt <= new Date() || !customer || !sourceOrder ||
+            sourceOrder.customerId !== customer.id || sourceOrder.privacyErasedAt || !access || access.revokedAt || access.id !== c.accessId ||
+            access.customerId !== customer.id || c.contactFingerprint !== this.fingerprint(customer) ||
+            !secureEqual(this.hash(`proof:${c.id}`), input.proof))
+          throw new PrivacyError(401, "VERIFICATION_REQUIRED");
+      }
+      if (!c || !customer || !sourceOrder) throw new PrivacyError(401, "VERIFICATION_REQUIRED");
       await tx.privacyChallenge.update({ where: { id: c.id }, data: { consumedAt: new Date() } });
+      const intake = input.intakeGrant ? this.intakeClaims(input.intakeGrant) : null;
+      const intakeAudit = intake ? [{ actorId: intake.actorId, event: `ADMIN_INTAKE:${INTAKE_POLICY}:${intake.reviewHash}` }] : [];
       if (active) {
         return this.publicStatus(await tx.privacyDeletionRequest.update({ where: { id: active.id }, data: {
           tokenHash: digest(input.token), version: { increment: 1 },
-          audit: { create: { actorId: "customer", event: "STATUS_CREDENTIAL_RECOVERED" } }
+          audit: { create: [...intakeAudit, { actorId: "customer", event: "STATUS_CREDENTIAL_RECOVERED" }] }
         } }));
       }
       const request = await tx.privacyDeletionRequest.create({ data: {
         id: input.id, tokenHash: digest(input.token), challengeId: c.id, subjectId: customer.id, sourceOrderId: sourceOrder.id,
         activeSubject: customer.id, contactFingerprint: this.fingerprint(customer), completionTimeframe: c.completionTimeframe!,
         dueAt: new Date(Date.now() + 30 * DAY_MS),
-        audit: { create: { actorId: "customer", event: "SUBMITTED" } }
+        audit: { create: [...intakeAudit, { actorId: "customer", event: "SUBMITTED" }] }
       } });
       return this.publicStatus(request);
     });
@@ -385,13 +564,11 @@ export class PrivacyDeletionService {
       } }));
     });
   }
-  async preview(tx: Tx, id: string) {
-    const r = await tx.privacyDeletionRequest.findUniqueOrThrow({ where: { id } });
-    if (r.subjectId) await tx.$queryRaw`SELECT id FROM "Customer" WHERE id = ${r.subjectId} FOR UPDATE`;
-    const customer = r.subjectId && await tx.customer.findUnique({ where: { id: r.subjectId } });
+  private async candidateScope(tx: Tx, subjectId: string, sourceOrderId: string) {
+    await tx.$queryRaw`SELECT id FROM "Customer" WHERE id = ${subjectId} FOR UPDATE`;
+    const customer = await tx.customer.findUnique({ where: { id: subjectId } });
     if (!customer) throw new PrivacyError(409, "SUBJECT_UNAVAILABLE");
-    if (this.fingerprint(customer) !== r.contactFingerprint) throw new PrivacyError(409, "CONTACT_CHANGED_REVERIFY");
-    const sourceOrder = await tx.order.findUnique({ where: { id: r.sourceOrderId } });
+    const sourceOrder = await tx.order.findUnique({ where: { id: sourceOrderId } });
     if (!sourceOrder || sourceOrder.customerId !== customer.id || sourceOrder.privacyErasedAt) {
       throw new PrivacyError(409, "SOURCE_ORDER_UNAVAILABLE");
     }
@@ -405,9 +582,16 @@ export class PrivacyDeletionService {
     // Detached historical orders are deliberately flagged for human identity review, not swept by a phone/email guess.
     const unlinked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Order" WHERE "customerId" IS NULL AND "privacyErasedAt" IS NULL AND regexp_replace(phone, '[^0-9]', '', 'g') = ${phoneDigits(sourceOrder.phone)}`;
     const hash = digest(JSON.stringify({ customer, sourceOrder, orders, unlinked, conflictingLinkedOrderIds }));
-    return { request: r, customer, sourceOrder, orders, hash,
+    return { customer, sourceOrder, orders, hash,
       activeOrders: orders.filter(o => !closed.includes(o.orderStatus)).map(o => o.id),
       unlinkedOrderIds: unlinked.map(o => o.id), conflictingLinkedOrderIds };
+  }
+  async preview(tx: Tx, id: string) {
+    const r = await tx.privacyDeletionRequest.findUniqueOrThrow({ where: { id } });
+    if (!r.subjectId) throw new PrivacyError(409, "SUBJECT_UNAVAILABLE");
+    const scope = await this.candidateScope(tx, r.subjectId, r.sourceOrderId);
+    if (this.fingerprint(scope.customer) !== r.contactFingerprint) throw new PrivacyError(409, "CONTACT_CHANGED_REVERIFY");
+    return { request: r, ...scope };
   }
   async impact(id: string) {
     await this.assertRecoveryReady();

@@ -62,21 +62,32 @@ export function privacyRouter(service?: PrivacyDeletionService) {
   router.post("/challenges", safe(async (req, res) => {
     const input = body(z.object({
       trackingToken: z.string().min(32).max(128).optional(),
-      loyaltyToken: z.string().min(32).max(2048).optional()
+      loyaltyToken: z.string().min(32).max(2048).optional(),
+      intakeGrant: z.string().min(32).max(4096).optional(), destination: z.string().email().max(254).optional()
     }).strict(), req.body);
     res.json(await get().challenge({ ...input, accessToken: bearer(req) || undefined }, req.ip || "unknown"));
   }));
   router.post("/challenges/:id/verify", safe(async (req, res) => {
-    const input = body(z.object({ code: z.string().regex(/^\d{4,10}$/), accessToken: token.optional() }).strict(), req.body);
-    res.json(await get().verify(id(req), input.code, bearer(req) || input.accessToken));
+    const input = body(z.object({ code: z.string().regex(/^\d{4,10}$/), accessToken: token.optional(),
+      intakeGrant: z.string().min(32).max(4096).optional(), intakeDestination: z.string().email().max(254).optional() }).strict(), req.body);
+    res.json(await get().verify(id(req), input.code, bearer(req) || input.accessToken, input.intakeGrant, input.intakeDestination));
   }));
   router.post("/requests", safe(async (req, res) => {
-    const input = body(z.object({ id: uuid, token, challengeId: uuid, proof: token }).strict(), req.body);
+    const input = body(z.object({ id: uuid, token, challengeId: uuid, proof: token,
+      intakeGrant: z.string().min(32).max(4096).optional(), intakeDestination: z.string().email().max(254).optional(), confirmed: z.literal(true).optional() }).strict(), req.body);
     res.status(202).json(await get().submit({ ...input, accessToken: bearer(req) }));
   }));
   router.get("/requests/:id", safe(async (req, res) => { res.json(await get().status(id(req), bearer(req))); }));
   router.post("/requests/:id/cancel", safe(async (req, res) => { res.json(await get().cancel(id(req), bearer(req))); }));
   router.use("/admin", requireAuth, privacyAdminOnly);
+  const actor = (req: Request) => ({ userId: (req as any).user.userId, authVersion: (req as any).user.authVersion ?? 0 });
+  router.post("/admin/intakes/preview", safe(async (req, res) => {
+    const input = body(z.object({ subjectId: uuid, sourceOrderId: uuid }).strict(), req.body);
+    res.json(await get().previewIntake(input.subjectId, input.sourceOrderId, actor(req)));
+  }));
+  router.post("/admin/intakes/issue", safe(async (req, res) => {
+    res.status(201).json(await get().issueIntake(req.body, actor(req)));
+  }));
   router.get("/admin/requests", safe(async (req, res) => {
     await get().assertRecoveryReady();
     const after = req.query.after === undefined ? undefined : body(uuid, req.query.after);

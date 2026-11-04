@@ -341,3 +341,61 @@ job ran the privacy lifecycle, real-route mocked phone flow and delivery adapter
 serially (17 tests, zero failed/skipped), while validation passed the full backend,
 isolated timing and dispatcher checks. A passing review branch is not deployment or
 live-message approval.
+
+## Reviewed lost-credential intake — SS-PRIVACY-INTAKE-1.0
+
+Local implementation for review; production remains disabled. D1–D3 were adopted
+on November 3, 2026, after reconciliation with the five-step request procedure.
+There is no migration, digest-key change, new provider or recovery re-enrollment.
+
+The existing ADMIN router now provides `POST /admin/intakes/preview` and
+`POST /admin/intakes/issue` under `/api/v1/privacy/deletion`. They require current
+staff authentication plus ADMIN/allowlist checks. Issuance and every redemption,
+verification and submission additionally require the same active, non-revoked
+approver/authVersion and exactly one allowlisted privacy administrator. That
+configured identity must be Robert; this code does not infer personal recognition
+from an ADMIN role or assert that an attestation is true.
+
+Robert first checks an existing supported credential path. For this exception he
+must privately review either (A) a pre-intake independently verified exact EMAIL
+binding and attributable same-person continuity, using only that original email,
+or (B) his genuine prior personal recognition in a direct private interaction,
+supported by an existing attributable record linking that person to the exact
+Customer/source Order. Names, addresses, order facts or copied receipts alone do
+not qualify. Known sharing/reassignment, disputed or representative ownership,
+conflicting linked orders and detached matching orders prevent approval.
+
+Preview creates no request. Issue returns a signed, purpose-bound 24-hour recovery
+reference and an inactive challenge; it sends nothing. Both bind the full current
+scope, exact source, contact fingerprint, destination hash, reviewed method and
+opaque private-review digest. Changes invalidate the reference. The customer
+enters it and the agreed email through Account → Account deletion; the server
+matches the destination before making at most one email call. Delivery reservation
+commits first, so an unknown outcome cannot resend. The existing ten-minute code
+and five-attempt limit apply within the grant lifetime. A code alone creates no
+request. Explicit submission uses the existing journaled SUBMIT transition and
+consumes the challenge atomically. No general access credential or profile/contact
+rewrite is performed. Existing request status recovery rotates the status secret
+and preserves state/dueAt; an already closed request is never reopened.
+
+The app keeps only pending submission material in the existing protected Keychain,
+clears the grant/email after a confirmed response and retains the request-status
+secret. Retrying a known request with that secret is idempotent status access,
+not a second use of the grant to authorize another request. Staff must hand off
+references privately; do not put them in URLs, case notes, logs or screenshots.
+Database diagnostics emit safe categories instead of Prisma query arguments.
+
+Insufficient evidence remains an UNVERIFIED private intake, never a fabricated
+verified request. In Robert's existing protected register record first receipt,
+limited missing issue, decision/reason, one proportionate next check, next review
+within seven calendar days, and closed date/review date when applicable. Apply the
+adopted 24-month-after-closure REVIEW approach to minimized closed intake notes;
+this is not an automatic purge or a new retention period for originals. No new
+upload/ID collection, scheduler or intake-record database is introduced. Access
+and correction requests retain their separate original receipt clocks.
+
+Fulfillment still requires the existing version/hash, scope/active-delivery checks,
+strict retention decision, fulfillment configuration and independent journal.
+Pending external copies still prevent COMPLETED. Mock-provider and local synthetic
+results establish code behavior, not real ownership or actual external disposal.
+Release review/CI, deployment and production activation remain separate actions.
