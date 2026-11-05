@@ -104,7 +104,9 @@ test('the plain-text review copy contains current-state disclosure without an in
   const text = renderer.proposedPolicyReviewText();
   assert.match(text, /PROPOSED REPLACEMENT — NOT PUBLISHED/);
   assert.match(text, /Effective date: not assigned/);
-  assert.match(text, /in-app deletion-verification, request and fulfillment services are not currently enabled/);
+  assert.match(text, /Email verification and submission of eligible deletion requests are available in the app/);
+  assert.match(text, /Deletion fulfillment remains disabled/);
+  assert.match(text, /no deletion completion is promised while fulfillment is disabled/);
   assert.doesNotMatch(text, /\[EDITOR|PUBLICATION HOLD|INSERT ACTUAL/);
 });
 
@@ -146,16 +148,23 @@ test('current-main integration preserves driver pages and ordinary output while 
 });
 
 
-test('unchanged published policy retains November 3 on later rebuilds; modified copy cannot reuse it', () => {
-  if (today() <= '2026-11-03') return;
-  const options = { production: true, approved: true, publicationDate: '2026-11-03' };
-  const blocks = renderer.proposedPolicyBlocks(options).join(' ');
-  assert.match(blocks, /Effective Date:<\/strong> 2026-11-03/);
-  assert.match(blocks, /Last updated:<\/strong> 2026-11-03/);
+test('unpublished request-only copy cannot reuse a proposed day after that day', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-06T17:00:00Z') });
+  assert.throws(() => renderer.proposedPolicyBlocks({ production: true, approved: true, publicationDate: '2026-11-04' }), /actual Toronto publication date/);
+  assert.throws(() => renderer.proposedPolicyBlocks({ production: true, approved: true, publicationDate: '2026-11-05' }), /actual Toronto publication date/);
+  const options = { production: true, approved: true, publicationDate: today() };
+  assert.match(renderer.proposedPolicyBlocks(options).join(' '), /Effective Date:<\/strong> 2026-11-06/);
   assert.throws(() => renderer.proposedPolicyBlocks({ ...options, approved: false }), /separate approval/);
-  const original = policy.introduction;
+});
+
+test('unchanged previous policy still supports its exact November 3 rollback date', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-06T17:00:00Z') });
+  const provider = policy.sections.find(s => s.id === 'providers-storage').paragraphs;
+  const requests = policy.sections.find(s => s.id === 'requests').paragraphs;
+  const current = [provider[3], requests[2]];
   try {
-    policy.introduction += ' Changed policy text.';
-    assert.throws(() => renderer.proposedPolicyBlocks(options), /actual Toronto publication date/);
-  } finally { policy.introduction = original; }
+    provider[3] = "The prepared account-deletion verification integration uses Resend for an eligible existing email address or Twilio Verify for an eligible existing phone number. A verification provider receives the destination, verification/message content and transaction metadata. The server selects the contact from credential-bound records, rather than treating a newly entered contact as authority over past orders. These production verification channels and the in-app request process are not currently enabled.";
+    requests[2] = "The in-app deletion-verification, request and fulfillment services are not currently enabled. A complete manual-deletion process, including the handling of separately held and provider records, has not yet been verified as available. You can contact Robert to submit a request for review, but neither the account-deletion screen nor receipt of your request confirms that deletion can be completed today.";
+    assert.match(renderer.proposedPolicyBlocks({ production: true, approved: true, publicationDate: '2026-11-03' }).join(' '), /Last updated:<\/strong> 2026-11-03/);
+  } finally { [provider[3], requests[2]] = current; }
 });
