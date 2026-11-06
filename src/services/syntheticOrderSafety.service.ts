@@ -64,11 +64,13 @@ function classify(p: SyntheticPolicy | null, profile: SyntheticProfile, required
   if (p.profileHash !== f.profileHash || p.state !== "ACTIVE" || Date.parse(p.expiresAt) <= now.getTime() || p.ordersCreated >= p.maxOrders) throw stop();
   return p;
 }
-export async function precheckSyntheticOrder(db: Db, profile: SyntheticProfile, required: boolean, now = new Date()) {
-  return classify(parse(await db.systemSetting.findUnique({ where: { key: SYNTHETIC_ORDER_POLICY_KEY } })), profile, required, now);
+export async function precheckSyntheticOrder(db: Db, profile: SyntheticProfile, required: boolean, now?: Date) {
+  const p = parse(await db.systemSetting.findUnique({ where: { key: SYNTHETIC_ORDER_POLICY_KEY } }));
+  return classify(p, profile, required, now ?? new Date());
 }
-export async function reserveSyntheticOrder(tx: Db, profile: SyntheticProfile, required: boolean, now = new Date()) {
-  const p = classify(await lockedPolicy(tx), profile, required, now);
+export async function reserveSyntheticOrder(tx: Db, profile: SyntheticProfile, required: boolean, now?: Date) {
+  // Evaluate the clock after waiting: a queued request has not reserved capacity.
+  const p = classify(await lockedPolicy(tx), profile, required, now ?? new Date());
   if (!p) return null;
   const phone = profile.customerPhone.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
   const matches = await tx.customer.findMany({ where: { OR: [
@@ -98,10 +100,10 @@ export async function finishSyntheticOrder(tx: Db, p: SyntheticPolicy, customerI
   await tx.systemSetting.update({ where: { key: SYNTHETIC_ORDER_POLICY_KEY },
     data: { value: JSON.stringify({ ...p, customerId, ordersCreated: p.ordersCreated + 1 }) } });
 }
-export async function claimSyntheticEmail(tx: Db, customerId: string, channel: string, destination: string, now = new Date()) {
+export async function claimSyntheticEmail(tx: Db, customerId: string, channel: string, destination: string, now?: Date) {
   const p = await lockedPolicy(tx);
   if (!p || p.customerId !== customerId) return;
-  if (p.state !== "ACTIVE" || Date.parse(p.expiresAt) <= now.getTime() || channel !== "EMAIL" || p.emailHash !== h("email:" + text(destination)) || p.emailsClaimed >= p.maxEmails) throw stop(429);
+  if (p.state !== "ACTIVE" || Date.parse(p.expiresAt) <= (now ?? new Date()).getTime() || channel !== "EMAIL" || p.emailHash !== h("email:" + text(destination)) || p.emailsClaimed >= p.maxEmails) throw stop(429);
   // Claim is committed with the real challenge before a provider is called.
   // Failed/unknown deliveries consume the budget; there is no automatic resend.
   await tx.systemSetting.update({ where: { key: SYNTHETIC_ORDER_POLICY_KEY },
@@ -115,7 +117,9 @@ export async function assertNoSyntheticReceipt(tx: Db, orderId: string) {
   if (order?.customerId === p.customerId) throw stop();
 }
 export async function assertOrdinaryOrderContact(tx: Db, profile: SyntheticProfile) {
-  if (await precheckSyntheticOrder(tx, profile, false)) throw stop();
+  // Empty-policy edits must serialize with enrollment too; otherwise both could
+  // inspect an empty contact and then commit incompatible claims.
+  if (classify(await lockedPolicy(tx), profile, false, new Date())) throw stop();
 }
 export async function assertNotSyntheticIntake(tx: Db, subjectId: string) {
   const p = await lockedPolicy(tx);
@@ -128,15 +132,17 @@ export function assertSyntheticOwner(actor: { userId?: string; role?: string } |
   if (!actor || actor.role !== "ADMIN" || allowed.length !== 1 || allowed[0] !== actor.userId) throw new ApiError(403, "Owner administrator required.");
 }
 export async function enrollSyntheticProfile(db: Db, actor: { userId?: string; role?: string } | undefined,
-  input: { profile: SyntheticProfile; ownerConfirmedSynthetic: boolean; expiresAt: string; maxOrders: number; maxEmails: number }, now = new Date()) {
+  input: { profile: SyntheticProfile; ownerConfirmedSynthetic: boolean; expiresAt: string; maxOrders: number; maxEmails: number }, now?: Date) {
   assertSyntheticOwner(actor);
+  const requestedAt = now ?? new Date();
   if (!input || input.ownerConfirmedSynthetic !== true || !input.profile ||
       text(input.profile.customerEmail) !== "speedysweeties@hotmail.com" || !Number.isInteger(input.maxOrders) || input.maxOrders < 1 || input.maxOrders > 6 ||
       !Number.isInteger(input.maxEmails) || input.maxEmails < 1 || input.maxEmails > 3 ||
-      !Number.isFinite(Date.parse(input.expiresAt)) || Date.parse(input.expiresAt) <= now.getTime() || Date.parse(input.expiresAt) > now.getTime() + 7 * 86400000) throw stop();
+      !Number.isFinite(Date.parse(input.expiresAt)) || Date.parse(input.expiresAt) <= requestedAt.getTime() || Date.parse(input.expiresAt) > requestedAt.getTime() + 7 * 86400000) throw stop();
   const f = profileFingerprints(input.profile);
   return db.$transaction(async (tx: Db) => {
     if (await lockedPolicy(tx)) throw stop(); // Never replace/rearm a spent policy.
+    if (Date.parse(input.expiresAt) <= (now ?? new Date()).getTime()) throw stop();
     const phone = input.profile.customerPhone.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
     if (await tx.customer.count({ where: { OR: [{ normalizedPhone: { in: [phone, "1" + phone] } }, { normalizedEmail: text(input.profile.customerEmail) }] } })) throw stop();
     const p: SyntheticPolicy = { version: 1, state: "ACTIVE", expiresAt: new Date(input.expiresAt).toISOString(),

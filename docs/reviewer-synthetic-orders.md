@@ -138,3 +138,18 @@ Full ordering scope remains disclosed, including tobacco and voice. These safe
 cancelled orders demonstrate entry/credentials/cancellation, not paid purchases,
 receipts or physical delivery. Any later completion review uses a separately scoped
 active request and ordinary fulfillment/copy rules. Intake alone is not deletion.
+
+## Final lock/expiry review — November 6
+
+Ordinary-order edits share the enrollment transaction lock even when no policy yet
+exists. If an edit wins, it commits its customer before enrollment checks collisions;
+if enrollment wins, the edit sees the reservation and refuses. Requests waiting for
+that lock recheck the current time before accepting an order, email claim or new
+enrollment. A timestamp captured before waiting cannot extend the approved period.
+Already accepted/committed email claims may still finish their bounded provider call
+after closure/expiry; they remain counted, and an unknown outcome must not be retried.
+
+The live-call channel is owner-approved for inclusion in held instructions. This
+approves the preparation choice only. Apple coordination, a successful handoff and
+any live call/email/case remain unverified/unexecuted. Prior pending-adoption wording
+is historical; it does not request that decision again.

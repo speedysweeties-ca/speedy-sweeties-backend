@@ -141,6 +141,72 @@ test('reviewer ordering uses normal credentials and fail-closed synthetic safety
       const row=await db.order.findFirst();assert.equal(row.orderStatus,'CANCELLED');assert.equal(dispatches,0);assert.equal(pushes,0);
       for(const patch of [{customerPhone:'5195550117'},{customerEmail:'other@example.invalid'}]) await assert.rejects(call(body(patch),createOrderController));
     });
+    // Observe real PostgreSQL advisory-lock waiting without logging query text/rows.
+    const waiting = async () => {
+      const [r] = await db.$queryRaw`SELECT EXISTS (
+        SELECT 1 FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid
+        WHERE a.datname = current_database() AND l.locktype = 'advisory' AND NOT l.granted
+      ) AS waiting`;
+      return r.waiting;
+    };
+    const waitForBlockedOrSettled = async settled => {
+      for (let n=0;n<80;n++) {
+        if (await waiting()) return 'blocked';
+        if (settled()) return 'settled';
+        await new Promise(resolve=>setTimeout(resolve,10));
+      }
+      return 'timeout';
+    };
+    await t.test('ordinary edit and profile enrollment serialize before either can claim the contact',async()=>{
+      await reset();let release,entered;
+      const gate=new Promise(resolve=>{release=resolve;});const ready=new Promise(resolve=>{entered=resolve;});
+      const edit=db.$transaction(async tx=>{
+        await safety.assertOrdinaryOrderContact(tx,profile);entered();await gate;
+        await tx.customer.create({data:{fullName:profile.customerName,normalizedFullName:profile.customerName.toLowerCase(),phone:profile.customerPhone,normalizedPhone:profile.customerPhone,email:profile.customerEmail,normalizedEmail:profile.customerEmail,addressLine1:profile.addressLine1,city:profile.city,province:profile.province}});
+      },{timeout:10000});
+      await ready;let settled=false;
+      const enrollment=Promise.allSettled([safety.enrollSyntheticProfile(db,actor,input())]).then(result=>{settled=true;return result;});
+      let state;
+      try { state=await waitForBlockedOrSettled(()=>settled); }
+      finally { release();await edit; }
+      const [result]=await enrollment;
+      assert.equal(state,'blocked');assert.equal(result.status,'rejected');
+      assert.equal(await db.systemSetting.count(),0);assert.equal(await db.customer.count(),1);
+    });
+    await t.test('orders, email claims and enrollment recheck expiry after an actual lock wait',async()=>{
+      for(const mode of ['order','email','enroll']) {
+        await reset();let customerId;
+        if(mode!=='enroll') {
+          await safety.enrollSyntheticProfile(db,actor,input());
+          if(mode==='email')customerId=(await call()).body.order.customerId;
+        }
+        const RealDate=Date,at=RealDate.now(),expiresAt=at+60000;let clock=at;
+        if(mode!=='enroll')await write({...await read(),expiresAt:new RealDate(expiresAt).toISOString()});
+        let release,entered;
+        const gate=new Promise(resolve=>{release=resolve;});const ready=new Promise(resolve=>{entered=resolve;});
+        const blocker=db.$transaction(async tx=>{
+          await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))::text',safety.SYNTHETIC_ORDER_POLICY_KEY);
+          entered();await gate;
+        },{timeout:10000});
+        await ready;
+        global.Date=class extends RealDate { constructor(...args){super(...(args.length?args:[clock]));}static now(){return clock;} };
+        let settled=false;
+        const action=Promise.allSettled([mode==='enroll'
+          ? safety.enrollSyntheticProfile(db,actor,input({expiresAt:new RealDate(expiresAt).toISOString()}))
+          : db.$transaction(tx=>mode==='order'?safety.reserveSyntheticOrder(tx,profile,true):safety.claimSyntheticEmail(tx,customerId,'EMAIL',profile.customerEmail),{timeout:10000})
+        ]).then(result=>{settled=true;return result;});
+        let state,result;
+        try {
+          state=await waitForBlockedOrSettled(()=>settled);
+          clock=expiresAt+1;release();await blocker;[result]=await action;
+        } finally {
+          release();try { await blocker;await action; } finally { global.Date=RealDate; }
+        }
+        assert.equal(state,'blocked');assert.equal(result.status,'rejected',mode+' expiry must be checked after waiting');
+        if(mode==='enroll')assert.equal(await db.systemSetting.count(),0);
+        else assert.equal((await read())[mode==='order'?'ordersCreated':'emailsClaimed'],0);
+      }
+    });
     await t.test('provider failure is not retried and consumes its committed claim',async()=>{
       await reset();await safety.enrollSyntheticProfile(db,actor,input({maxEmails:1}));const r=await call();
       const recovery=await require('./privacyRecoveryFixture.cjs').syntheticJournal(process.env.PRIVACY_DIGEST_KEY);let sends=0;

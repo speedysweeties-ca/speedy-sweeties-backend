@@ -173,6 +173,7 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "edit-order",
     title: "Edit an existing delivery order",
+    // 2026-11-06 final review: edit/enrollment serialize; expiry is checked after lock waits.
     reviewedAt: "2026-11-06",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "LIVE_ORDERS",
