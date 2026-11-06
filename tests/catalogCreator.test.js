@@ -20,6 +20,11 @@ const replaceForTest = (t, target, key, replacement) => {
   t.after(() => { target[key] = original; });
 };
 
+// Ordinary-order fixtures explicitly have no enrolled synthetic policy.
+test.beforeEach(t => replaceForTest(t, prisma.systemSetting, "findUnique",
+  async ({ where }) => where.key === "syntheticOrderSafety.v1" ? null : { value: "false" }));
+
+
 const body = {
   customerName: "Test Customer", customerPhone: "519-555-0100",
   customerEmail: "customer@example.com", addressLine1: "10 Industrial Dr",
@@ -41,7 +46,9 @@ const installOrderDatabase = (t, existingItem = null) => {
   };
   const customer = { id: "customer-1", recurringDriverNotes: null };
   const tx = {
+    systemSetting: { findUnique: async () => null },
     $executeRaw: async () => 1,
+      $queryRawUnsafe: async () => [],
     privacyDeletedIdentity: { findUnique: async () => null, findFirst: async () => null },
     customer: {
       findFirst: async () => customer,

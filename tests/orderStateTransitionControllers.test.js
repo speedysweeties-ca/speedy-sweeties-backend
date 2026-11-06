@@ -185,6 +185,8 @@ const installTransitionHarness = (t, options = {}) => {
     const transactionOrderBefore = clone(currentOrder);
     const transactionReceiptBefore = clone(currentReceipt);
     const tx = {
+      $queryRawUnsafe: async () => [],
+      systemSetting: { findUnique: async () => null },
       $queryRaw: async (_queryStrings, ...queryValues) => {
         if (queryValues.includes(currentCustomer?.id)) {
           return [clone(currentCustomer)];

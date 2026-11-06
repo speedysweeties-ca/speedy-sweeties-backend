@@ -1,3 +1,4 @@
+import { assertNoSyntheticReceipt } from "../services/syntheticOrderSafety.service";
 import { Request, Response } from "express";
 import { OrderStatus, UserRole } from "@prisma/client";
 import { messaging } from "../config/firebase";
@@ -143,6 +144,7 @@ export const createOrUpdateReceiptController = async (
   }
 
   const receiptResult = await prisma.$transaction(async (tx) => {
+    await assertNoSyntheticReceipt(tx, orderId);
     if (user.role === UserRole.DRIVER) {
       const assignedOrders = await tx.$queryRaw<Array<LockedDriverOrder>>`
         SELECT
