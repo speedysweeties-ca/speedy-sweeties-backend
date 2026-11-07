@@ -104,9 +104,9 @@ test('the plain-text review copy contains current-state disclosure without an in
   const text = renderer.proposedPolicyReviewText();
   assert.match(text, /PROPOSED REPLACEMENT — NOT PUBLISHED/);
   assert.match(text, /Effective date: not assigned/);
-  assert.match(text, /Email verification and submission of eligible deletion requests are available in the app/);
-  assert.match(text, /Deletion fulfillment remains disabled/);
-  assert.match(text, /no deletion completion is promised while fulfillment is disabled/);
+  assert.match(text, /Following ownership and scope review, Robert uses the guarded deletion process/);
+  assert.match(text, /Completion is confirmed only after the applicable separately held and provider copies/);
+  assert.doesNotMatch(text, /Deletion fulfillment remains disabled during this request-only stage/);
   assert.doesNotMatch(text, /\[EDITOR|PUBLICATION HOLD|INSERT ACTUAL/);
 });
 
@@ -148,28 +148,39 @@ test('current-main integration preserves driver pages and ordinary output while 
 });
 
 
-test('request-only published policy retains its date on later rebuilds; changed copy needs new approval', t => {
+test('operational successor cannot reuse the request-only publication date', t => {
   t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-08T17:00:00Z') });
   const options = { production: true, approved: true, publicationDate: '2026-11-07' };
-  assert.match(renderer.proposedPolicyBlocks(options).join(' '), /Effective Date:<\/strong> 2026-11-07/);
   assert.throws(() => renderer.proposedPolicyBlocks({ ...options, approved: false }), /separate approval/);
+  assert.throws(() => renderer.proposedPolicyBlocks(options), /actual Toronto publication date/);
   assert.throws(() => renderer.proposedPolicyBlocks({ ...options, publicationDate: '2026-11-03' }), /actual Toronto publication date/);
   assert.throws(() => renderer.proposedPolicyBlocks({ ...options, publicationDate: '2026-11-04' }), /actual Toronto publication date/);
-  const original = policy.introduction;
+  assert.match(renderer.proposedPolicyBlocks({ ...options, publicationDate: '2026-11-08' }).join(' '), /Effective Date:<\/strong> 2026-11-08/);
+});
+
+test('request-only published policy retains its exact November 7 date as rollback evidence', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-08T17:00:00Z') });
+  const requests = policy.sections.find(s => s.id === 'requests').paragraphs;
+  const current = [requests[2], requests[3]], introduction = policy.introduction;
   try {
+    requests[2] = "Email verification and submission of eligible deletion requests are available in the app. Verification alone does not submit a request: you must explicitly confirm it. You can review its status and cancel while the request is still cancellable. If you cannot use your saved credentials, contact Robert for a private ownership review; you do not need to place another order. Deletion fulfillment remains disabled during this request-only stage. Submitting a request is not confirmation of deletion, and no deletion completion is promised while fulfillment is disabled.";
+    requests[3] = 'Our adopted normal target is completion within 30 calendar days after identity verification. This remains a target for the intended operational process, not confirmation that manual deletion can be completed today. It is not a promise of immediate or automatic erasure. Ownership disputes, active deliveries or applicable holds may require more time or a separately explained outcome. The adopted procedure calls for explaining completed actions and any information retained.';
+    const options = { production: true, approved: true, publicationDate: '2026-11-07' };
+    assert.match(renderer.proposedPolicyBlocks(options).join(' '), /Effective Date:<\/strong> 2026-11-07/);
     policy.introduction += ' Changed policy text.';
     assert.throws(() => renderer.proposedPolicyBlocks(options), /actual Toronto publication date/);
-  } finally { policy.introduction = original; }
+  } finally { [requests[2], requests[3]] = current; policy.introduction = introduction; }
 });
 
 test('unchanged previous policy still supports its exact November 3 rollback date', t => {
   t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-06T17:00:00Z') });
   const provider = policy.sections.find(s => s.id === 'providers-storage').paragraphs;
   const requests = policy.sections.find(s => s.id === 'requests').paragraphs;
-  const current = [provider[3], requests[2]];
+  const current = [provider[3], requests[2], requests[3]];
   try {
     provider[3] = "The prepared account-deletion verification integration uses Resend for an eligible existing email address or Twilio Verify for an eligible existing phone number. A verification provider receives the destination, verification/message content and transaction metadata. The server selects the contact from credential-bound records, rather than treating a newly entered contact as authority over past orders. These production verification channels and the in-app request process are not currently enabled.";
     requests[2] = "The in-app deletion-verification, request and fulfillment services are not currently enabled. A complete manual-deletion process, including the handling of separately held and provider records, has not yet been verified as available. You can contact Robert to submit a request for review, but neither the account-deletion screen nor receipt of your request confirms that deletion can be completed today.";
+    requests[3] = 'Our adopted normal target is completion within 30 calendar days after identity verification. This remains a target for the intended operational process, not confirmation that manual deletion can be completed today. It is not a promise of immediate or automatic erasure. Ownership disputes, active deliveries or applicable holds may require more time or a separately explained outcome. The adopted procedure calls for explaining completed actions and any information retained.';
     assert.match(renderer.proposedPolicyBlocks({ production: true, approved: true, publicationDate: '2026-11-03' }).join(' '), /Last updated:<\/strong> 2026-11-03/);
-  } finally { [provider[3], requests[2]] = current; }
+  } finally { [provider[3], requests[2], requests[3]] = current; }
 });
