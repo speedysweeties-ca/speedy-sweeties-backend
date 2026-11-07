@@ -148,13 +148,18 @@ test('current-main integration preserves driver pages and ordinary output while 
 });
 
 
-test('unpublished request-only copy cannot reuse a proposed day after that day', t => {
-  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-06T17:00:00Z') });
-  assert.throws(() => renderer.proposedPolicyBlocks({ production: true, approved: true, publicationDate: '2026-11-04' }), /actual Toronto publication date/);
-  assert.throws(() => renderer.proposedPolicyBlocks({ production: true, approved: true, publicationDate: '2026-11-05' }), /actual Toronto publication date/);
-  const options = { production: true, approved: true, publicationDate: today() };
-  assert.match(renderer.proposedPolicyBlocks(options).join(' '), /Effective Date:<\/strong> 2026-11-06/);
+test('request-only published policy retains its date on later rebuilds; changed copy needs new approval', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-08T17:00:00Z') });
+  const options = { production: true, approved: true, publicationDate: '2026-11-07' };
+  assert.match(renderer.proposedPolicyBlocks(options).join(' '), /Effective Date:<\/strong> 2026-11-07/);
   assert.throws(() => renderer.proposedPolicyBlocks({ ...options, approved: false }), /separate approval/);
+  assert.throws(() => renderer.proposedPolicyBlocks({ ...options, publicationDate: '2026-11-03' }), /actual Toronto publication date/);
+  assert.throws(() => renderer.proposedPolicyBlocks({ ...options, publicationDate: '2026-11-04' }), /actual Toronto publication date/);
+  const original = policy.introduction;
+  try {
+    policy.introduction += ' Changed policy text.';
+    assert.throws(() => renderer.proposedPolicyBlocks(options), /actual Toronto publication date/);
+  } finally { policy.introduction = original; }
 });
 
 test('unchanged previous policy still supports its exact November 3 rollback date', t => {

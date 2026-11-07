@@ -26,11 +26,15 @@ export function validateProposedPolicyPublication({ production = false, approved
   const today = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit'
   }).format(new Date());
-  // This exact policy was published on November 3. Unrelated site rebuilds
-  // retain that date; changed policy content still needs today's explicit date.
-  const unchangedPublishedPolicy = publicationDate === '2026-11-03' && publicationDate <= today &&
-    createHash('sha256').update(JSON.stringify(proposedPrivacyPolicy)).digest('hex') ===
-      '9ccee680c14fa75d27a220188ec847d01303b10326a15f9f15aed00f47a90631';
+  // Keep each approved publication's exact content/date on later rebuilds.
+  // Add the request-only entry only after observed approved 2026-11-07 publication.
+  // If the actual day differs, stop and update the reviewed release metadata.
+  const publishedDatesByHash = {
+    '9ccee680c14fa75d27a220188ec847d01303b10326a15f9f15aed00f47a90631': '2026-11-03',
+    'cbb53c7ea5d1077c787458a88b0b71ceddb6d6c8d76c74c7a35155bd78b5fd9a': '2026-11-07'
+  };
+  const policyHash = createHash('sha256').update(JSON.stringify(proposedPrivacyPolicy)).digest('hex');
+  const unchangedPublishedPolicy = publicationDate === publishedDatesByHash[policyHash] && publicationDate <= today;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(publicationDate) || (publicationDate !== today && !unchangedPublishedPolicy)) {
     throw new Error('Policy publication requires the actual Toronto publication date as --privacy-policy-date=YYYY-MM-DD. Rebuild if publication moves to another date.');
   }
