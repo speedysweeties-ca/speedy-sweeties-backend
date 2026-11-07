@@ -1,3 +1,4 @@
+import { enrollSyntheticController, closeSyntheticController } from "../controllers/syntheticOrderSafety.controller";
 import { orderEditPauseController } from "../controllers/orderEditPause.controller";
 import { Router } from "express";
 import { UserRole } from "@prisma/client";
@@ -23,6 +24,7 @@ import { assignDriverSchema } from "../validators/orderAssignment.validator";
 import {
   createManualOrderController,
   createOrderController,
+  createSyntheticOrderController,
   getAutoDispatchSettingsController,
   getGoogleLiveTrafficSettingsController,
   getOrderByIdController,
@@ -50,6 +52,18 @@ import {
 } from "../controllers/receipt.controller";
 
 const router = Router();
+
+// Public safety route shares normal creation/credentials; unknown profiles and
+// older deployments cannot fall back to a dispatchable operational order.
+router.post("/synthetic",
+  orderCreationRateLimiter,
+  validateRequest(createOrderSchema),
+  asyncHandler(requireWebsiteVerification),
+  asyncHandler(preventDuplicatePublicOrderSubmission),
+  asyncHandler(createSyntheticOrderController));
+router.post("/synthetic-safety/enroll", requireAuth, requireRole([UserRole.ADMIN]), asyncHandler(enrollSyntheticController));
+router.post("/synthetic-safety/close", requireAuth, requireRole([UserRole.ADMIN]), asyncHandler(closeSyntheticController));
+
 
 router.post(
   "/:id/edit-pause",

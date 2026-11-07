@@ -1,3 +1,4 @@
+import { precheckSyntheticOrder, reserveSyntheticOrder, finishSyntheticOrder, assertOrdinaryOrderContact } from "../services/syntheticOrderSafety.service";
 import { Request, Response } from "express";
 import { getVerifiedDeliveryAddress } from "../services/verifiedDeliveryAddress.service";
 import { assertPrivacyOrderAllowed } from "../services/privacyGuards.service";
@@ -522,6 +523,7 @@ export const updateGoogleLiveTrafficSettingsController = async (
 };
 
 type CreateOrderOptions = {
+  syntheticRequired?: boolean;
   bypassBusinessHours: boolean;
   acceptRecurringDriverNotes: boolean;
   catalogCreator: CatalogCreator;
@@ -597,6 +599,8 @@ const createOrder = async (
     referralCode
   } = req.body;
 
+  await precheckSyntheticOrder(prisma, req.body, options.syntheticRequired === true);
+
   const recurringDriverNotesSubmitted =
     options.acceptRecurringDriverNotes &&
     Object.prototype.hasOwnProperty.call(req.body, "recurringDriverNotes");
@@ -668,10 +672,15 @@ const createOrder = async (
 
   const transactionResult = await prisma.$transaction(async (tx) => {
     await assertPrivacyOrderAllowed(tx, normalizedPhone);
+    const syntheticPolicy = await reserveSyntheticOrder(tx, req.body, options.syntheticRequired === true);
+    if (syntheticPolicy && options.onOrderCreated) {
+      throw new Error("Synthetic safety does not permit external integration callbacks.");
+    }
     const customerId =
-      matchedCustomer?.id ??
+      (syntheticPolicy ? syntheticPolicy.customerId : matchedCustomer?.id) ??
       (await tx.customer.create({
         data: {
+          ...(syntheticPolicy ? { smsMarketingOptOut: true, smsMarketingOptOutAt: new Date() } : {}),
           fullName: customerName.trim(),
           normalizedFullName: normalizedName,
           phone: customerPhone.trim(),
@@ -740,7 +749,7 @@ const createOrder = async (
         manualEntryStartedAt: options.createdByUserId
           ? normalizeManualEntryStartedAt(manualEntryStartedAt)
           : null,
-        fcmToken: appFcmToken,
+        fcmToken: syntheticPolicy ? null : appFcmToken,
         trackingTokenHash: trackingCredential.hash,
         trackingTokenExpiresAt: trackingCredential.expiresAt,
         ...deliveryLocation
@@ -765,6 +774,13 @@ const createOrder = async (
 
       const cleanedItemName = item.name.trim();
       const normalizedItemName = normalize(cleanedItemName);
+
+      if (syntheticPolicy) {
+        await tx.orderItem.create({ data: { orderId: createdOrder.id, itemCatalogId: null,
+          name: cleanedItemName, quantity: item.quantity || 1, price: item.unitPrice ?? 0 } });
+        orderItemPickupTypes.push("UNKNOWN");
+        continue; // Synthetic items never pollute the shared catalogue.
+      }
 
       let catalogItem = await tx.itemCatalog.findFirst({
         where: { normalizedName: normalizedItemName }
@@ -793,6 +809,10 @@ const createOrder = async (
       });
     }
 
+    if (syntheticPolicy) {
+      await finishSyntheticOrder(tx, syntheticPolicy, customer.id, createdOrder.id);
+    }
+
     const pickupRouting = summarizePickupRouting(orderItemPickupTypes);
     logPickupRoutingAdvisory(createdOrder.id, pickupRouting);
 
@@ -807,15 +827,16 @@ const createOrder = async (
       order,
       trackingToken: trackingCredential.token,
       customerId: customer.id,
-      loyaltyResult: loyaltyRedemption.result
+      loyaltyResult: loyaltyRedemption.result,
+      syntheticOrder: syntheticPolicy !== null
     };
   });
 
   const { order: createdOrder, trackingToken, customerId, loyaltyResult } = transactionResult;
-  const autoDispatchResult = await autoDispatchCreatedOrderWithPickupPlan(
+  const autoDispatchResult = transactionResult.syntheticOrder ? null : await autoDispatchCreatedOrderWithPickupPlan(
     createdOrder.id
   );
-  const order = autoDispatchResult.dispatched
+  const order = autoDispatchResult?.dispatched
     ? await prisma.order.findUniqueOrThrow({
         where: { id: createdOrder.id },
         include: orderInclude
@@ -834,7 +855,7 @@ const createOrder = async (
     ...orderResponse
   } = order;
 
-  if (shouldNotifyAutoDispatchedDriver(autoDispatchResult) && autoDispatchResult.driverId) {
+  if (autoDispatchResult && shouldNotifyAutoDispatchedDriver(autoDispatchResult) && autoDispatchResult.driverId) {
     await sendDriverAssignmentNotification({
       orderId: order.id,
       driverId: autoDispatchResult.driverId,
@@ -847,15 +868,22 @@ const createOrder = async (
     });
   }
 
-  await sendCustomerLoyaltyNotification(appFcmToken, loyaltyResult);
+  if (!transactionResult.syntheticOrder) await sendCustomerLoyaltyNotification(appFcmToken, loyaltyResult);
 
   res.status(201).json({
     success: true,
-    message: "Order created successfully",
+    message: transactionResult.syntheticOrder
+      ? "Synthetic order recorded and cancelled; no purchase or delivery will occur."
+      : "Order created successfully",
     order: orderResponse,
     trackingToken,
     loyaltyAccessToken
   });
+};
+
+export const createSyntheticOrderController = async (req: Request, res: Response): Promise<void> => {
+  await createOrder(req, res, { syntheticRequired: true, bypassBusinessHours: false,
+    acceptRecurringDriverNotes: false, catalogCreator: CUSTOMER_CATALOG_CREATOR });
 };
 
 export const createOrderController = async (
@@ -1011,6 +1039,7 @@ export const updateOrderDetailsController = async (
 
   const updatedOrder = await prisma.$transaction(async (tx) => {
     await assertPrivacyOrderAllowed(tx, normalizedPhone);
+    await assertOrdinaryOrderContact(tx, req.body);
     let customer = await tx.customer.findFirst({
       where: buildCustomerLookupWhere({ normalizedPhone, normalizedEmail })
     });

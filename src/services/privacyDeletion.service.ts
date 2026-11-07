@@ -1,3 +1,4 @@
+import { claimSyntheticEmail, assertNotSyntheticIntake } from "./syntheticOrderSafety.service";
 import { createHash, createHmac, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
 import { Prisma, PrismaClient, Customer } from "@prisma/client";
 import { z } from "zod";
@@ -217,6 +218,7 @@ export class PrivacyDeletionService {
     await this.assertRecoveryReady();
     return this.atomic(async tx => {
       await this.intakeApprover(tx, actor);
+      await assertNotSyntheticIntake(tx, input.subjectId);
       const p = await this.intakeScope(tx, input.subjectId, input.sourceOrderId);
       if (p.hash !== input.scopeHash) throw new PrivacyError(409, "STALE_PREVIEW");
       const destination = normalizedEmail(input.destination);
@@ -278,6 +280,7 @@ export class PrivacyDeletionService {
     const destination = normalizedEmail(rawDestination), code = String(randomInt(10000000, 100000000));
     const id = await this.atomic(async tx => {
       const { c } = await this.intakeBound(tx, grant, false, destination);
+      await claimSyntheticEmail(tx, c.subjectId!, "EMAIL", destination);
       if (c.delivery !== "INTAKE_READY") throw new PrivacyError(409, "INTAKE_ALREADY_REDEEMED");
       const requesterHash = this.hash(`ip:${requester}`);
       if (await tx.privacyChallenge.count({ where: { id: { not: c.id }, createdAt: { gte: new Date(Date.now() - 3600000) },
@@ -375,6 +378,7 @@ export class PrivacyDeletionService {
       const since = new Date(Date.now() - 3600000);
       const attempts = await tx.privacyChallenge.count({ where: { createdAt: { gte: since }, OR: [{ phoneHash: contactHash }, { requesterHash }] } });
       if (attempts >= 5) throw new PrivacyError(429, "TRY_LATER");
+      await claimSyntheticEmail(tx, resolved.customer.id, resolved.contact.channel, resolved.contact.destination);
       await tx.privacyChallenge.create({ data: {
         id, subjectId: resolved.customer.id, sourceOrderId: resolved.sourceOrder.id,
         accessId: resolved.accessId, purpose: resolved.purpose, channel: resolved.contact.channel,

@@ -58,6 +58,11 @@ const replaceForTest = (t, target, property, replacement) => {
   });
 };
 
+// Ordinary-order fixtures explicitly have no enrolled synthetic policy.
+test.beforeEach(t => replaceForTest(t, prisma.systemSetting, "findUnique",
+  async ({ where }) => where.key === "syntheticOrderSafety.v1" ? null : { value: "false" }));
+
+
 const verifiedLocation = {
   deliveryLatitude: 43.53,
   deliveryLongitude: -80.22,
@@ -119,6 +124,7 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
     const checkpoint = clone(database);
     const tx = {
       $executeRaw: async () => 1,
+      $queryRawUnsafe: async () => [],
       privacyDeletedIdentity: { findUnique: async () => null, findFirst: async () => null },
       customer: {
         create: async ({ data }) => {
@@ -182,7 +188,7 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
         create: async () => ({ id: "order-item" })
       },
       systemSetting: {
-        findUnique: async () => ({ value: "false" })
+        findUnique: async ({ where }) => where.key === "syntheticOrderSafety.v1" ? null : { value: "false" }
       }
       };
       tx.$queryRaw = async (_queryStrings, ...queryValues) =>
@@ -440,6 +446,7 @@ test("a transaction failure rolls back a customer address update", async (t) => 
     const checkpoint = clone(database.database);
     const tx = {
       $executeRaw: async () => 1,
+      $queryRawUnsafe: async () => [],
       privacyDeletedIdentity: { findUnique: async () => null, findFirst: async () => null },
       $queryRaw: async (_queryStrings, ...queryValues) =>
         queryValues.includes(database.database.customer?.id)
@@ -480,7 +487,7 @@ test("a transaction failure rolls back a customer address update", async (t) => 
         }
       },
       systemSetting: {
-        findUnique: async () => ({ value: "false" })
+        findUnique: async ({ where }) => where.key === "syntheticOrderSafety.v1" ? null : { value: "false" }
       }
     };
 
