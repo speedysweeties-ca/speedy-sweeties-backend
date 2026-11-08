@@ -3,10 +3,28 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## November 7 S4 enrollment diagnostic successor — PR REVIEW ONLY
+
+- Branch `fix/s4-enrollment-diagnostics-2026-11-07` starts from merged website
+  revision `94f5cd977028aaa7643f6c03ffbfd7f1b1f47f09`. The stopped S4 execution made no
+  enrollment record, order or email and remains evidence; do not retry it.
+- ADMIN enrollment 409 responses now disclose only one safe category:
+  `ENROLLMENT_PRECONDITION`, `EXISTING_POLICY`, `EXPIRY_ELAPSED` or
+  `PROFILE_COLLISION`. Public protected-order errors stay generic.
+- The browser workflow collects a private profile once, validates it through the
+  exact server mailbox/policy/collision rules, and sends the identical serialized
+  request to enrollment only after confirmation. Enrollment repeats policy, clock
+  and collision checks under the shared lock. No private value belongs in Git,
+  logs, screenshots or general evidence.
+- No schema migration, dependency, environment/configuration or paid-service change.
+  Deployment of the exact reviewed API revision and a new bounded S4 authorization
+  are both separate prerequisites. Merge, deployment, enrollment, orders, email,
+  App Store Connect changes and Build 5 changes remain excluded from this PR.
+
 ## October 29 consolidated enrollment preparation — REVIEW ONLY
 
-This section is current and supersedes dated operator/paper prerequisite statements
-in the historical evidence below.
+This historical section superseded earlier operator/paper prerequisite statements
+at the time; the November 7 section above is the current S4 source-review state.
 
 - Draft PR100 contains fetched main `bb753d4f552ed763d9045375d3c5605ea79d9b91`
   through integration merge revision `8c376ac539605f6e5aaa6a199bf4d1ded0eef466`.

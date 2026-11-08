@@ -12,6 +12,12 @@ export type SyntheticProfile = {
   unitNumber?: string | null; buzzCode?: string | null;
 };
 type Db = any;
+export type SyntheticEnrollmentConflict =
+  "ENROLLMENT_PRECONDITION" | "EXISTING_POLICY" | "EXPIRY_ELAPSED" | "PROFILE_COLLISION";
+export type SyntheticEnrollmentInput = {
+  profile: SyntheticProfile; ownerConfirmedSynthetic: boolean; expiresAt: string;
+  maxOrders: number; maxEmails: number;
+};
 export type SyntheticPolicy = {
   version: 1; state: "ACTIVE" | "CLOSED"; expiresAt: string;
   maxOrders: number; ordersCreated: number; maxEmails: number; emailsClaimed: number;
@@ -20,6 +26,8 @@ export type SyntheticPolicy = {
 };
 const stop = (status = 409) => new ApiError(status,
   "Synthetic test safety is unavailable or the enrolled profile does not match. Stop and contact dispatch.");
+const enrollmentStop = (code: SyntheticEnrollmentConflict) => new ApiError(409,
+  "Synthetic reviewer enrollment was refused. Stop and review the safe refusal category.", { code });
 const text = (v: unknown) => typeof v === "string" ? v.trim().toLowerCase().replace(/\s+/g, " ") : "";
 function h(value: string, key = process.env.PRIVACY_DIGEST_KEY || "") {
   if (key.length < 32) throw stop(503);
@@ -131,20 +139,42 @@ export function assertSyntheticOwner(actor: { userId?: string; role?: string } |
   const allowed = (process.env.PRIVACY_ADMIN_USER_IDS || "").split(",").filter(Boolean);
   if (!actor || actor.role !== "ADMIN" || allowed.length !== 1 || allowed[0] !== actor.userId) throw new ApiError(403, "Owner administrator required.");
 }
-export async function enrollSyntheticProfile(db: Db, actor: { userId?: string; role?: string } | undefined,
-  input: { profile: SyntheticProfile; ownerConfirmedSynthetic: boolean; expiresAt: string; maxOrders: number; maxEmails: number }, now?: Date) {
-  assertSyntheticOwner(actor);
-  const requestedAt = now ?? new Date();
+function validateEnrollmentInput(input: SyntheticEnrollmentInput, requestedAt: Date) {
   if (!input || input.ownerConfirmedSynthetic !== true || !input.profile ||
       text(input.profile.customerEmail) !== "speedysweeties@hotmail.com" || !Number.isInteger(input.maxOrders) || input.maxOrders < 1 || input.maxOrders > 6 ||
       !Number.isInteger(input.maxEmails) || input.maxEmails < 1 || input.maxEmails > 3 ||
-      !Number.isFinite(Date.parse(input.expiresAt)) || Date.parse(input.expiresAt) <= requestedAt.getTime() || Date.parse(input.expiresAt) > requestedAt.getTime() + 7 * 86400000) throw stop();
-  const f = profileFingerprints(input.profile);
+      !Number.isFinite(Date.parse(input.expiresAt)) || Date.parse(input.expiresAt) <= requestedAt.getTime() || Date.parse(input.expiresAt) > requestedAt.getTime() + 7 * 86400000) throw enrollmentStop("ENROLLMENT_PRECONDITION");
+  try { return profileFingerprints(input.profile); }
+  catch (error) {
+    if (error instanceof ApiError && error.statusCode === 409) throw enrollmentStop("ENROLLMENT_PRECONDITION");
+    throw error;
+  }
+}
+async function assertEnrollmentAvailable(tx: Db, input: SyntheticEnrollmentInput, now?: Date) {
+  if (await lockedPolicy(tx)) throw enrollmentStop("EXISTING_POLICY"); // Never replace/rearm a spent policy.
+  if (Date.parse(input.expiresAt) <= (now ?? new Date()).getTime()) throw enrollmentStop("EXPIRY_ELAPSED");
+  const phone = input.profile.customerPhone.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+  if (await tx.customer.count({ where: { OR: [{ normalizedPhone: { in: [phone, "1" + phone] } }, { normalizedEmail: text(input.profile.customerEmail) }] } })) {
+    throw enrollmentStop("PROFILE_COLLISION");
+  }
+}
+export async function validateSyntheticEnrollmentProfile(db: Db, actor: { userId?: string; role?: string } | undefined,
+  input: SyntheticEnrollmentInput, now?: Date) {
+  assertSyntheticOwner(actor);
+  validateEnrollmentInput(input, now ?? new Date());
   return db.$transaction(async (tx: Db) => {
-    if (await lockedPolicy(tx)) throw stop(); // Never replace/rearm a spent policy.
-    if (Date.parse(input.expiresAt) <= (now ?? new Date()).getTime()) throw stop();
-    const phone = input.profile.customerPhone.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
-    if (await tx.customer.count({ where: { OR: [{ normalizedPhone: { in: [phone, "1" + phone] } }, { normalizedEmail: text(input.profile.customerEmail) }] } })) throw stop();
+    await assertEnrollmentAvailable(tx, input, now);
+    return { eligible: true as const };
+  });
+}
+export async function enrollSyntheticProfile(db: Db, actor: { userId?: string; role?: string } | undefined,
+  input: SyntheticEnrollmentInput, now?: Date) {
+  assertSyntheticOwner(actor);
+  const f = validateEnrollmentInput(input, now ?? new Date());
+  return db.$transaction(async (tx: Db) => {
+    // This repeats every availability check after browser validation. A customer
+    // or policy created between the two requests must still stop enrollment.
+    await assertEnrollmentAvailable(tx, input, now);
     const p: SyntheticPolicy = { version: 1, state: "ACTIVE", expiresAt: new Date(input.expiresAt).toISOString(),
       maxOrders: input.maxOrders, maxEmails: input.maxEmails, ordersCreated: 0, emailsClaimed: 0, customerId: null, ...f };
     await tx.systemSetting.create({ data: { key: SYNTHETIC_ORDER_POLICY_KEY, value: JSON.stringify(p) } });
