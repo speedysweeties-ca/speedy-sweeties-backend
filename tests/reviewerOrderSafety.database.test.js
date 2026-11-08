@@ -5,6 +5,9 @@ const enabled = process.env.REVIEWER_SAFETY_SYNTHETIC === 'yes';
 
 test('reviewer ordering uses normal credentials and fail-closed synthetic safety on PostgreSQL', {skip: !enabled}, async t => {
   assert.equal(process.env.NODE_ENV, 'test');
+  const previousApprovedEmail=process.env.SYNTHETIC_REVIEWER_APPROVED_EMAIL;
+  process.env.SYNTHETIC_REVIEWER_APPROVED_EMAIL='synthetic-reviewer@example.invalid';
+  t.after(()=>{if(previousApprovedEmail===undefined)delete process.env.SYNTHETIC_REVIEWER_APPROVED_EMAIL;else process.env.SYNTHETIC_REVIEWER_APPROVED_EMAIL=previousApprovedEmail;});
   const u = new URL(process.env.DATABASE_URL);
   assert.equal(u.hostname, '127.0.0.1');
   assert.equal(u.pathname, '/reviewer_safety_synthetic');
@@ -20,7 +23,7 @@ test('reviewer ordering uses normal credentials and fail-closed synthetic safety
   const {PrivacyDeletionService} = require('../dist/services/privacyDeletion.service');
   const {evaluateOrderStatusTransition} = require('../dist/services/orderStateTransition.service');
   const actor = {userId:'synthetic-owner',role:'ADMIN'};
-  const profile = {customerName:'Synthetic Reviewer',customerPhone:'5195550188',customerEmail:'speedysweeties@hotmail.com',addressLine1:'1 Synthetic Street',city:'Guelph',province:'ON'};
+  const profile = {customerName:'Synthetic Reviewer',customerPhone:'5195550188',customerEmail:'synthetic-reviewer@example.invalid',addressLine1:'1 Synthetic Street',city:'Guelph',province:'ON'};
   const input = (extra={}) => ({profile,ownerConfirmedSynthetic:true,expiresAt:new Date(Date.now()+86400000).toISOString(),maxOrders:2,maxEmails:2,...extra});
   const body = (extra={}) => ({...profile,orderSource:'IOS_APP',paymentMethod:'CASH',fcmToken:'synthetic-never-send',items:[{name:'Tobacco test item',quantity:1,unitPrice:0},{name:'Cannabis test item',quantity:1,unitPrice:0}],...extra});
   let geocodes=0, dispatches=0, pushes=0;
@@ -47,6 +50,11 @@ test('reviewer ordering uses normal credentials and fail-closed synthetic safety
     await t.test('ADMIN diagnostics distinguish preconditions, collisions and existing policy without weakening rechecks',async()=>{
       await reset();
       for(const a of [undefined,{...actor,role:'DISPATCHER'},{...actor,userId:'other'}]) await assert.rejects(safety.enrollSyntheticProfile(db,a,input()),e=>e.statusCode===403);
+      for(const configured of [undefined,'not-an-email']) {
+        if(configured===undefined)delete process.env.SYNTHETIC_REVIEWER_APPROVED_EMAIL;else process.env.SYNTHETIC_REVIEWER_APPROVED_EMAIL=configured;
+        await assert.rejects(safety.validateSyntheticEnrollmentProfile(db,actor,input()),conflict('ENROLLMENT_PRECONDITION'));
+      }
+      process.env.SYNTHETIC_REVIEWER_APPROVED_EMAIL=profile.customerEmail;
       for(const i of [undefined,input({ownerConfirmedSynthetic:false}),input({profile:{...profile,customerEmail:'wrong@example.invalid'}}),input({maxOrders:7}),input({maxEmails:4}),input({expiresAt:new Date(Date.now()-1000).toISOString()}),input({expiresAt:new Date(Date.now()+8*86400000).toISOString()})]) {
         await assert.rejects(safety.enrollSyntheticProfile(db,actor,i),conflict('ENROLLMENT_PRECONDITION'));
       }
