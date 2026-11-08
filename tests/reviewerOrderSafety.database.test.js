@@ -42,14 +42,23 @@ test('reviewer ordering uses normal credentials and fail-closed synthetic safety
   };
   const read=async()=>JSON.parse((await db.systemSetting.findUnique({where:{key:safety.SYNTHETIC_ORDER_POLICY_KEY}})).value);
   const write=async p=>db.systemSetting.update({where:{key:safety.SYNTHETIC_ORDER_POLICY_KEY},data:{value:JSON.stringify(p)}});
+  const conflict=code=>error=>error?.statusCode===409&&error?.details?.code===code;
   try {
-    await t.test('only singleton owner ADMIN can enroll; attestation, bounds and contact collisions refuse',async()=>{
+    await t.test('ADMIN diagnostics distinguish preconditions, collisions and existing policy without weakening rechecks',async()=>{
       await reset();
       for(const a of [undefined,{...actor,role:'DISPATCHER'},{...actor,userId:'other'}]) await assert.rejects(safety.enrollSyntheticProfile(db,a,input()),e=>e.statusCode===403);
-      for(const i of [undefined,input({ownerConfirmedSynthetic:false}),input({profile:{...profile,customerEmail:'wrong@example.invalid'}}),input({maxOrders:7}),input({maxEmails:4}),input({expiresAt:new Date(Date.now()+8*86400000).toISOString()})]) await assert.rejects(safety.enrollSyntheticProfile(db,actor,i));
-      await db.customer.create({data:{fullName:'Other synthetic',normalizedFullName:'other',phone:profile.customerPhone,normalizedPhone:profile.customerPhone,addressLine1:'Other',city:'Guelph',province:'ON'}});
-      await assert.rejects(safety.enrollSyntheticProfile(db,actor,input()));
+      for(const i of [undefined,input({ownerConfirmedSynthetic:false}),input({profile:{...profile,customerEmail:'wrong@example.invalid'}}),input({maxOrders:7}),input({maxEmails:4}),input({expiresAt:new Date(Date.now()-1000).toISOString()}),input({expiresAt:new Date(Date.now()+8*86400000).toISOString()})]) {
+        await assert.rejects(safety.enrollSyntheticProfile(db,actor,i),conflict('ENROLLMENT_PRECONDITION'));
+      }
+      assert.deepEqual(await safety.validateSyntheticEnrollmentProfile(db,actor,input()),{eligible:true});
       assert.equal(await db.systemSetting.count(),0);
+      await db.customer.create({data:{fullName:'Other synthetic',normalizedFullName:'other',phone:profile.customerPhone,normalizedPhone:profile.customerPhone,addressLine1:'Other',city:'Guelph',province:'ON'}});
+      await assert.rejects(safety.enrollSyntheticProfile(db,actor,input()),conflict('PROFILE_COLLISION'));
+      assert.equal(await db.systemSetting.count(),0);
+      await db.customer.deleteMany();
+      await safety.enrollSyntheticProfile(db,actor,input());
+      await assert.rejects(safety.validateSyntheticEnrollmentProfile(db,actor,input()),conflict('EXISTING_POLICY'));
+      await assert.rejects(safety.enrollSyntheticProfile(db,actor,input()),conflict('EXISTING_POLICY'));
     });
     await t.test('missing enrollment and every near-match refuse before geocoding or order writes',async()=>{
       await reset();await assert.rejects(call());assert.equal(geocodes,0);
@@ -203,7 +212,10 @@ test('reviewer ordering uses normal credentials and fail-closed synthetic safety
           release();try { await blocker;await action; } finally { global.Date=RealDate; }
         }
         assert.equal(state,'blocked');assert.equal(result.status,'rejected',mode+' expiry must be checked after waiting');
-        if(mode==='enroll')assert.equal(await db.systemSetting.count(),0);
+        if(mode==='enroll'){
+          assert.equal(result.reason?.details?.code,'EXPIRY_ELAPSED');
+          assert.equal(await db.systemSetting.count(),0);
+        }
         else assert.equal((await read())[mode==='order'?'ordersCreated':'emailsClaimed'],0);
       }
     });

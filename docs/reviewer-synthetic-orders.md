@@ -1,4 +1,9 @@
-# Protected synthetic ordering — local proposal, not deployed
+# Protected synthetic ordering
+
+Current production has the protected ordering base. The November 7 diagnostic
+successor described below is review-only until its exact PR revision is separately
+approved, merged and deployed. It does not authorize enrollment, an order, an email
+or an App Store Connect change.
 
 This is a visible safety feature in the normal Release app, available to any
 operator-enrolled synthetic profile. It is not an authentication bypass or a
@@ -12,13 +17,24 @@ Existing authenticated ADMIN plus the singleton PRIVACY_ADMIN_USER_IDS may POST
 `/api/v1/orders/synthetic-safety/enroll` with `ownerConfirmedSynthetic: true`,
 `profile` (the exact approved synthetic name, phone, email, civic address, city,
 province and optional unit/buzz), `expiresAt`, `maxOrders` (1–6), `maxEmails` (1–3).
-Expiry must be within seven days. This narrow implementation enrolls only the
-already approved speedysweeties@hotmail.com destination; a different mailbox
-requires a reviewed successor, not a silent input change. Enter contacts privately, not in Git/arguments/
-logs. Enrollment refuses any existing policy or matching Customer phone/email.
+Expiry must be within seven days. This narrow implementation enrolls only the exact
+source-approved mailbox; a different mailbox requires a reviewed successor, not a
+silent input change. Enter contacts privately, not in Git, arguments or logs.
+Enrollment refuses any existing policy or matching Customer phone/email.
 It creates only a hashed SystemSetting reservation; it does not invent historical
 ownership or an email-verified flag. Existing normal code verification proves
 control of that contact, not ownership of other people's historical records.
+
+The corrected browser workflow collects the private profile once and serializes it
+once. It first sends that immutable request body to authenticated ADMIN POST
+`/api/v1/orders/synthetic-safety/validate`. That endpoint applies the service's exact
+mailbox, format, attestation, limit, expiry, policy and Customer-collision rules but
+does not create a policy, order or email. The browser sends the identical serialized
+body to `/enroll` only after validation and explicit confirmation. Enrollment repeats
+the policy, clock and collision checks under the shared database lock, so a change
+after validation still stops. The ADMIN-only 409 response exposes one non-sensitive
+category and no profile values: `ENROLLMENT_PRECONDITION`, `EXISTING_POLICY`,
+`EXPIRY_ELAPSED` or `PROFILE_COLLISION`. Public ordering errors remain generic.
 
 Enroll only after a private read-only collision/fixture inspection, operator
 confirmation of a synthetic profile with an owner-authorized routable address and
@@ -81,9 +97,10 @@ App Review correspondence daily 22:00–00:00 Toronto is selected but not valida
 Apple's availability and handoff latency must support the existing ten-minute code
 window. No static code, shared owner password or fictional D1–D3 declaration.
 
-R1 remains paused. Its approved pins are not approval to deploy this successor.
-No live enrollment, messages, cases, deployment, gate change or upload is authorized
-by this document. Existing Health-containing IPA does not include these new sources.
+Historical R1 preparation statements below are retained as evidence; R1 and the
+fulfillment rollout were completed separately. This document does not authorize a
+new deployment or S4 enrollment. No live enrollment, messages, cases, gate change
+or App Store action is authorized by this review-only successor.
 
 ## Review corrections — November 6 (local, not live)
 
