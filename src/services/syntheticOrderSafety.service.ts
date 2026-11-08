@@ -29,6 +29,13 @@ const stop = (status = 409) => new ApiError(status,
 const enrollmentStop = (code: SyntheticEnrollmentConflict) => new ApiError(409,
   "Synthetic reviewer enrollment was refused. Stop and review the safe refusal category.", { code });
 const text = (v: unknown) => typeof v === "string" ? v.trim().toLowerCase().replace(/\s+/g, " ") : "";
+function approvedReviewerEmail() {
+  const configured = text(process.env.SYNTHETIC_REVIEWER_APPROVED_EMAIL);
+  if (!configured || configured.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(configured)) {
+    throw enrollmentStop("ENROLLMENT_PRECONDITION");
+  }
+  return configured;
+}
 function h(value: string, key = process.env.PRIVACY_DIGEST_KEY || "") {
   if (key.length < 32) throw stop(503);
   return createHmac("sha256", key).update("synthetic-order-safety-v1:" + value).digest("hex");
@@ -141,7 +148,7 @@ export function assertSyntheticOwner(actor: { userId?: string; role?: string } |
 }
 function validateEnrollmentInput(input: SyntheticEnrollmentInput, requestedAt: Date) {
   if (!input || input.ownerConfirmedSynthetic !== true || !input.profile ||
-      text(input.profile.customerEmail) !== "speedysweeties@hotmail.com" || !Number.isInteger(input.maxOrders) || input.maxOrders < 1 || input.maxOrders > 6 ||
+      text(input.profile.customerEmail) !== approvedReviewerEmail() || !Number.isInteger(input.maxOrders) || input.maxOrders < 1 || input.maxOrders > 6 ||
       !Number.isInteger(input.maxEmails) || input.maxEmails < 1 || input.maxEmails > 3 ||
       !Number.isFinite(Date.parse(input.expiresAt)) || Date.parse(input.expiresAt) <= requestedAt.getTime() || Date.parse(input.expiresAt) > requestedAt.getTime() + 7 * 86400000) throw enrollmentStop("ENROLLMENT_PRECONDITION");
   try { return profileFingerprints(input.profile); }

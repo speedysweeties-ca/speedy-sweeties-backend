@@ -18,8 +18,10 @@ Existing authenticated ADMIN plus the singleton PRIVACY_ADMIN_USER_IDS may POST
 `profile` (the exact approved synthetic name, phone, email, civic address, city,
 province and optional unit/buzz), `expiresAt`, `maxOrders` (1–6), `maxEmails` (1–3).
 Expiry must be within seven days. This narrow implementation enrolls only the exact
-source-approved mailbox; a different mailbox requires a reviewed successor, not a
-silent input change. Enter contacts privately, not in Git, arguments or logs.
+mailbox privately configured in `SYNTHETIC_REVIEWER_APPROVED_EMAIL`; a missing,
+malformed or different mailbox fails closed as `ENROLLMENT_PRECONDITION`. Changing
+the configured mailbox requires a reviewed configuration rollout, not a silent input
+change. Enter contacts privately, not in Git, arguments or logs.
 Enrollment refuses any existing policy or matching Customer phone/email.
 It creates only a hashed SystemSetting reservation; it does not invent historical
 ownership or an email-verified flag. Existing normal code verification proves
@@ -28,9 +30,9 @@ control of that contact, not ownership of other people's historical records.
 The corrected browser workflow collects the private profile once and serializes it
 once. It first sends that immutable request body to authenticated ADMIN POST
 `/api/v1/orders/synthetic-safety/validate`. That endpoint applies the service's exact
-mailbox, format, attestation, limit, expiry, policy and Customer-collision rules but
-does not create a policy, order or email. The browser sends the identical serialized
-body to `/enroll` only after validation and explicit confirmation. Enrollment repeats
+configured mailbox, format, attestation, limit, expiry, policy and Customer-collision
+rules but does not create a policy, order or email. The browser sends the identical
+serialized body to `/enroll` only after validation and explicit confirmation. Enrollment repeats
 the policy, clock and collision checks under the shared database lock, so a change
 after validation still stops. The ADMIN-only 409 response exposes one non-sensitive
 category and no profile values: `ENROLLMENT_PRECONDITION`, `EXISTING_POLICY`,
@@ -39,8 +41,8 @@ category and no profile values: `ENROLLMENT_PRECONDITION`, `EXISTING_POLICY`,
 Enroll only after a private read-only collision/fixture inspection, operator
 confirmation of a synthetic profile with an owner-authorized routable address and
 phone, and separate live provisioning authorization. Do not reuse a real customer.
-Use the existing approved mailbox and staff availability; do not obtain a new
-provider credential or alter account settings for this proposal.
+Use only the privately approved configured mailbox and staff availability; do not
+obtain a new provider credential or alter account settings without separate approval.
 
 ## Normal app flow
 
@@ -148,8 +150,8 @@ only in the later authorized review submission/communications. A local timed pho
 rehearsal verifies the operator flow only. Actual reviewer availability/full access
 remain unverified until observed. If Apple cannot coordinate, stop and agree an
 alternative direct reviewer-controlled recipient for a NEW synthetic profile through
-normal authentication before claiming readiness; the current hard-bound mailbox
-cannot be silently replaced. No such mailbox/provider provisioning is authorized now.
+normal authentication before claiming readiness; the configured mailbox cannot be
+silently replaced. No such mailbox/provider provisioning is authorized by this document.
 
 Full ordering scope remains disclosed, including tobacco and voice. These safe
 cancelled orders demonstrate entry/credentials/cancellation, not paid purchases,

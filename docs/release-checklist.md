@@ -3,6 +3,24 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## November 8 S4 reviewer-mailbox configuration successor — LOCAL REVIEW ONLY
+
+- The stopped corrected S4 validation made no enrollment record and consumed no
+  order, email or SMS allowance. Read-only diagnosis established a phone-clear,
+  mailbox-only Customer collision; the privately selected replacement mailbox was
+  checked collision-free and is not retained in source or evidence.
+- `SYNTHETIC_REVIEWER_APPROVED_EMAIL` replaces the source literal. It must contain
+  the one privately approved owner-controlled mailbox. Missing, malformed or
+  mismatched configuration fails closed as `ENROLLMENT_PRECONDITION`.
+- Validation and enrollment continue to use one byte-identical in-memory profile.
+  Enrollment still repeats policy, expiry and phone/email Customer-collision checks
+  under the shared lock. Existing ADMIN, seven-day, six-order, three-email and
+  zero-SMS protections are unchanged.
+- No schema migration or dependency change. Before any deployment, obtain normal
+  review/CI and separate authorization for an API-only exact-revision deployment
+  that privately sets the new variable. Do not push, merge, deploy, enroll, order,
+  send a message or change App Store Connect under this local preparation.
+
 ## November 7 S4 enrollment diagnostic successor — PR REVIEW ONLY
 
 - Branch `fix/s4-enrollment-diagnostics-2026-11-07` starts from merged website
