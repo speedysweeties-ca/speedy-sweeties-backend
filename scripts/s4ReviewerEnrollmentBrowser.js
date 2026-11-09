@@ -8,7 +8,8 @@
 
   const OWNER_ADMIN_USER_ID = "afca21ae-4c43-4c14-a2a7-f3ad790b12dc";
   const SAFE_CONFLICTS = new Set([
-    "ENROLLMENT_PRECONDITION", "EXISTING_POLICY", "EXPIRY_ELAPSED", "PROFILE_COLLISION"
+    "ENROLLMENT_PRECONDITION", "EXISTING_POLICY", "EXPIRY_ELAPSED", "PROFILE_COLLISION",
+    "INVALID_DELIVERY_ADDRESS", "UNUSED_POLICY_CORRECTION_REFUSED"
   ]);
   const API = "https://speedy-api-lbfe.onrender.com";
   const ORIGIN = "https://speedy-dispatcher.onrender.com";
@@ -90,7 +91,7 @@
     dialog.style.cssText = "max-width:520px;width:calc(100% - 32px);border:1px solid #777;border-radius:12px;padding:20px;font:16px system-ui;background:white;color:#111";
     const form = document.createElement("form"); form.method = "dialog"; form.autocomplete = "off";
     const title = document.createElement("h2"); title.textContent = "Protected reviewer enrollment";
-    const note = document.createElement("p"); note.textContent = "Enter the private profile once. The server validates the exact approved mailbox and collisions before enrollment. SMS remains disabled.";
+    const note = document.createElement("p"); note.textContent = "Enter the private profile once. The server validates the exact approved mailbox, collisions and the same civic address rules used by order creation before enrollment. SMS remains disabled.";
     dialog.append(title, note, form);
     const fields = {};
     for (const [key, labelText, required] of [

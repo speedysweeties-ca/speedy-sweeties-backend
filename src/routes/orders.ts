@@ -1,4 +1,4 @@
-import { closeSyntheticController, enrollSyntheticController, validateSyntheticEnrollmentController } from "../controllers/syntheticOrderSafety.controller";
+import { closeSyntheticController, correctUnusedSyntheticAddressController, enrollSyntheticController, validateSyntheticEnrollmentController } from "../controllers/syntheticOrderSafety.controller";
 import { orderEditPauseController } from "../controllers/orderEditPause.controller";
 import { Router } from "express";
 import { UserRole } from "@prisma/client";
@@ -63,6 +63,7 @@ router.post("/synthetic",
   asyncHandler(createSyntheticOrderController));
 router.post("/synthetic-safety/enroll", requireAuth, requireRole([UserRole.ADMIN]), asyncHandler(enrollSyntheticController));
 router.post("/synthetic-safety/validate", requireAuth, requireRole([UserRole.ADMIN]), asyncHandler(validateSyntheticEnrollmentController));
+router.post("/synthetic-safety/correct-unused-address", requireAuth, requireRole([UserRole.ADMIN]), asyncHandler(correctUnusedSyntheticAddressController));
 router.post("/synthetic-safety/close", requireAuth, requireRole([UserRole.ADMIN]), asyncHandler(closeSyntheticController));
 
 
