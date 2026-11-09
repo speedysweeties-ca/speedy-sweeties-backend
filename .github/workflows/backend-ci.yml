@@ -62,7 +62,7 @@ jobs:
         run: |
           docker exec "${{ job.services.postgres.id }}" createdb -U privacy_test reviewer_safety_synthetic
           npx prisma db push --skip-generate
-          node --test --test-concurrency=1 tests/reviewerOrderSafety.database.test.js
+          node --test --test-concurrency=1 tests/reviewerOrderSafety.database.test.js tests/syntheticCredentialRevocation.database.test.js
   validate:
     runs-on: ubuntu-latest
     services:

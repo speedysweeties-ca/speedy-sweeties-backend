@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { closeSyntheticProfile, correctUnusedSyntheticProfileAddress, enrollSyntheticProfile, validateSyntheticEnrollmentProfile } from "../services/syntheticOrderSafety.service";
+import { revokeExposedSyntheticCredentials } from "../services/syntheticCredentialRevocation.service";
 function actor(req: Request) { return (req as Request & { user?: { userId: string; role: string } }).user; }
 export async function validateSyntheticEnrollmentController(req: Request, res: Response) {
   res.setHeader("Cache-Control", "no-store");
@@ -20,5 +21,10 @@ export async function correctUnusedSyntheticAddressController(req: Request, res:
 export async function closeSyntheticController(req: Request, res: Response) {
   res.setHeader("Cache-Control", "no-store");
   const result = await closeSyntheticProfile(prisma, actor(req));
+  res.status(200).json({ success: true, ...result });
+}
+export async function revokeSyntheticCredentialsController(req: Request, res: Response) {
+  res.setHeader("Cache-Control", "no-store");
+  const result = await revokeExposedSyntheticCredentials(prisma, actor(req), req.body);
   res.status(200).json({ success: true, ...result });
 }
