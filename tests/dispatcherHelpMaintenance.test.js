@@ -43,7 +43,7 @@ test("guides have unique source IDs, valid review dates and existing evidence", 
 });
 
 test("administration guides cannot be supplied as dispatcher sources", () => {
-  const privateIds = ["manage-standards", "staff-accounts", "dispatcher-logout", "logout-log", "dispatcher-performance", "bnd-emails"];
+  const privateIds = ["manage-standards", "staff-accounts", "dispatcher-logout", "logout-log", "dispatcher-performance", "bnd-emails", "privacy-requests"];
   for (const id of privateIds) {
     assert.ok(helpArticlesForRole("ADMIN").some(a => a.id === id));
     assert.ok(!helpArticlesForRole("DISPATCHER").some(a => a.id === id));
