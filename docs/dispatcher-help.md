@@ -67,6 +67,29 @@ guide fails tests. Deployment must include the backend knowledge; if help links
 or suggested questions changed, deploy the dispatcher too. Neither branch tests
 nor a PR mean the guide is already live.
 
+## Released-source review — 2026-11-09
+
+Compared main/API `25088ebd668dc0fd050d82166d91dfe288588182` with dispatcher
+`41eafa2cc097aa85941952758954e806795afc24`; the dispatcher subtree is identical.
+PR 93 is merged. Both services track main with Auto-Deploy off. Help content is
+served by the API, so these changes need only an API release. No environment,
+schema, dependency, UI styling or operational behavior changes are included.
+
+Reviewed destination coverage and the changes since the initial refresh, including
+privacy intake/recovery, synthetic-order guards, standards publication dates,
+auto-dispatch priority, store-hours refresh, map mounting and receipt evidence.
+Corrected `navigation`, `edit-order` and `privacy-requests`: administrator links,
+required edit fields/driver refresh, request-received timestamp (not purchase
+receipt date), exact intake labels/confirmations, preview invalidation, private
+reference clearing, pagination and review-date meaning. Other guide content is
+preserved; individual dates are not bulk-stamped as freshly reviewed.
+
+Focused smoke questions: “Which fields are required to edit an order?”, “Does
+First receipt of this request mean the purchase receipt date?”, “Why did my intake
+preview disappear?”, and “How do I load more privacy requests?” Confirm privacy
+sources are absent for DISPATCHER. Live model answers and signed-in navigation
+remain unverified until an authorized staff session is available.
+
 ## Audit notes and smoke questions (2026-10-26)
 
 - Dispatcher Standards is the destination for expectations and consequences.
