@@ -24,7 +24,7 @@ test('reviewer ordering uses normal credentials and fail-closed synthetic safety
   const {evaluateOrderStatusTransition} = require('../dist/services/orderStateTransition.service');
   const actor = {userId:'synthetic-owner',role:'ADMIN'};
   const profile = {customerName:'Synthetic Reviewer',customerPhone:'5195550188',customerEmail:'synthetic-reviewer@example.invalid',addressLine1:'1 Synthetic Street',city:'Guelph',province:'ON'};
-  const correctedProfile = {...profile,addressLine1:'2 Corrected Street',unitNumber:'2',buzzCode:'42'};
+  const correctedProfile = {...profile,addressLine1:'2 Corrected Street',unitNumber:'Unit-Private-Fixture',buzzCode:'Buzz-Private-Fixture'};
   const invalidAddressLine = '999 Invalid Address';
   const input = (extra={}) => ({profile,ownerConfirmedSynthetic:true,expiresAt:new Date(Date.now()+86400000).toISOString(),maxOrders:2,maxEmails:2,...extra});
   const body = (extra={}) => ({...profile,orderSource:'IOS_APP',paymentMethod:'CASH',fcmToken:'synthetic-never-send',items:[{name:'Tobacco test item',quantity:1,unitPrice:0},{name:'Cannabis test item',quantity:1,unitPrice:0}],...extra});
