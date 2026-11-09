@@ -1,4 +1,5 @@
-import { claimSyntheticEmail, assertNotSyntheticIntake } from "./syntheticOrderSafety.service";
+import { claimSyntheticEmail, assertNotSyntheticIntake, lockedPolicy } from "./syntheticOrderSafety.service";
+import { assertSyntheticLoyaltyCredentialActive } from "./syntheticCredentialRevocation.service";
 import { createHash, createHmac, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
 import { Prisma, PrismaClient, Customer } from "@prisma/client";
 import { z } from "zod";
@@ -325,6 +326,9 @@ export class PrivacyDeletionService {
   private async bootstrap(tx: Tx, credential: ChallengeCredential) {
     const supplied = [credential.trackingToken, credential.loyaltyToken, credential.accessToken].filter(Boolean);
     if (supplied.length !== 1) throw new PrivacyError(400, "INVALID_REQUEST");
+    // Revocation uses the same privacy->policy locks. A request waiting behind it
+    // must resolve the tracking hash/loyalty cutoff again before any email claim.
+    await lockedPolicy(tx);
     if (credential.accessToken) {
       const access = await tx.privacyAccessCredential.findUnique({ where: { tokenHash: digest(credential.accessToken) } });
       if (!access || access.revokedAt) throw new PrivacyError(401, "VERIFICATION_REQUIRED");
@@ -352,6 +356,7 @@ export class PrivacyDeletionService {
     }
     try {
       const payload = verifyCustomerLoyaltyToken(credential.loyaltyToken!);
+      await assertSyntheticLoyaltyCredentialActive(tx, payload);
       const customer = await tx.customer.findUnique({ where: { id: payload.sub } });
       const sourceOrder = customer && await tx.order.findFirst({
         where: { customerId: customer.id, privacyErasedAt: null }, orderBy: [{ createdAt: "desc" }, { id: "desc" }]

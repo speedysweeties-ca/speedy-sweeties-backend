@@ -85,7 +85,7 @@ function parse(row: { value: string } | null | undefined): SyntheticPolicy | nul
   if (p.keyFingerprint !== h("key-fingerprint")) throw stop(503);
   return p;
 }
-async function lockedPolicy(tx: Db) {
+export async function lockedPolicy(tx: Db) {
   // Enrollment, closing, order creation and message claims share this lock.
   // No timer/automatic reopening; CLOSED/expired profiles remain reserved.
   await tx.$queryRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))::text", SYNTHETIC_ORDER_POLICY_KEY);

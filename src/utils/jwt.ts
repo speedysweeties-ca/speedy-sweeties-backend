@@ -13,6 +13,7 @@ export type AuthTokenPayload = {
 export type CustomerLoyaltyTokenPayload = {
   sub: string;
   scope: "customer-loyalty";
+  iat?: number;
 };
 
 const getJwtSecret = (): string => {

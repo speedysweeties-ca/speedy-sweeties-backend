@@ -85,6 +85,10 @@ export interface HelpArticle {
 // 2026-11-09 S4 address review: reviewer enrollment now reuses native civic-address
 // validation. A singleton-owner-only unused-policy correction has no dispatcher UI,
 // cannot reset allowances, and does not change privacy-request processing.
+// 2026-11-09 S4 credential review: singleton-owner API revokes only the first
+// protected order's tracking credential and this synthetic subject's older loyalty
+// tokens. Fresh app credentials, policy/counters/expiry and ordinary customers are
+// unchanged. No dispatcher control, ownership exception or resend is introduced.
 export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "navigation",
@@ -343,7 +347,9 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
     content: "Open Show more > Live Traffic. Turn Live Traffic On enables Google traffic-aware routing, which may be billable. Turn Live Traffic Off makes new routing calculations use coordinate-based estimates without new Google Routes requests. Check the saved ON/OFF status and the routing-mode notice in the map preview. This is a shared server setting. Turning traffic off does not mean all Google services or the map are disabled or free. Route estimates and automatic dispatch use the configured routing mode, but the map preview includes pickup stops while automatic driver selection estimates the direct customer leg. Neither mode guarantees the real arrival time.",
   },
   {
-    // 2026-11-09 S4 re-review: shared address preflight/correction changes no staff step and remains separate from D1-D3 intake.
+    // 2026-11-09 S4 credential re-review: owner-only revocation is API-only; privacy-request UI/D1-D3 steps stay unchanged.
+    // Additional evidence: docs/s4-exposed-credential-revocation.md,
+    // src/services/syntheticCredentialRevocation.service.ts and tests/syntheticCredentialRevocation.database.test.js.
     id: "privacy-requests",
     title: "Review and complete a verified privacy deletion request",
     reviewedAt: "2026-11-09",

@@ -3,6 +3,23 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## November 9 S4 exposed credentials — PR REVIEW ONLY
+
+- S4 backend/browser readiness remains PASSED. Existing policy expiry and 1/6
+  orders, 2/3 emails remain unchanged; no additional production order/email.
+- Owner-only targeted revocation atomically clears the sole protected order's
+  tracking hash and records a subject-scoped loyalty cutoff checked by both
+  rewards lookup and privacy bootstrap. No Customer deletion, policy closure,
+  shared-secret rotation, migration or unrelated-customer change.
+- Require relevant tests, real isolated PostgreSQL revocation/rollback/concurrency
+  and fresh-access regressions, help review and both required CI jobs at exact head.
+- Merge/deploy/production revocation require exact-revision approval. Old-code
+  rollback after revocation reopens loyalty access; preserve the tombstone and use
+  the recovery limits in [s4-exposed-credential-revocation.md](s4-exposed-credential-revocation.md).
+- Owner conditionally authorized final review-note save/privacy14 publication only
+  after confirmed revocation AND usable private reviewer access. No submission;
+  missing physical-iPhone testing stays a disclosed validation gap.
+
 ## November 9 S4 invalid-address successor — PR REVIEW ONLY
 
 - Production failure evidence is preserved: exact live source `17a428f7f4befafcd97035cc8dbfdea492fd3824`

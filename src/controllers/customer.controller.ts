@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { getCustomerLoyaltySnapshot } from "../services/loyalty.service";
 import { RECURRING_DRIVER_NOTES_MAX_LENGTH } from "../services/recurringDriverNotes.service";
 import { verifyCustomerLoyaltyToken } from "../utils/jwt";
+import { assertSyntheticLoyaltyCredentialActive } from "../services/syntheticCredentialRevocation.service";
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
@@ -229,6 +230,7 @@ export const getCustomerLoyaltyByTokenController = async (
 
   try {
     const payload = verifyCustomerLoyaltyToken(token);
+    await assertSyntheticLoyaltyCredentialActive(prisma, payload);
     const loyaltyResponse = await getLoyaltyResponseForCustomerId(payload.sub);
 
     if (!loyaltyResponse) {
