@@ -3,6 +3,32 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+## November 9 S4 invalid-address successor — PR REVIEW ONLY
+
+- Production failure evidence is preserved: exact live source `17a428f7f4befafcd97035cc8dbfdea492fd3824`
+  enrolled the bounded policy, then the first protected order returned HTTP 400
+  `INVALID_DELIVERY_ADDRESS`. Read-only state confirms ACTIVE through
+  `2026-11-16T14:47:30.000Z`, 0/6 orders, 0/3 emails, no Customer link and zero
+  protected orders. No production retry or policy edit belongs to this PR.
+- Root cause is a validation-order gap: enrollment checked profile structure,
+  mailbox and collisions but did not call the civic-address verifier that native
+  order creation calls before its transaction. Private address text was neither
+  logged nor retained, so evidence supports the refusal class only.
+- Validation and enrollment now reuse the public order address schema plus the
+  native geocoder. The one-time correction endpoint is singleton-owner ADMIN only
+  and only updates the existing unused policy's profile hash. It preserves identity,
+  approved mailbox, original expiry, limits, counters and contact hashes; records a
+  value-free actor/time audit marker; and repeats eligibility under the shared lock.
+- Required review evidence: focused unit/browser tests; actual PostgreSQL valid/
+  invalid, authorization, expired/used/linked/protected-order and correction/order
+  concurrency cases; ordinary ordering regression; full backend/dispatcher checks,
+  Prisma format/validate, dependency audits, dispatcher-help gate and both required
+  CI jobs on the exact PR head.
+- No migration, dependency, configuration, dispatcher bundle or iOS change. Merge,
+  deployment, production correction, order/email/SMS and App Store Connect actions
+  require separate approval. Deployment/correction/recovery limits are in
+  [s4-unused-policy-address-recovery.md](s4-unused-policy-address-recovery.md).
+
 ## November 8 S4 reviewer-mailbox configuration successor — LOCAL REVIEW ONLY
 
 - The stopped corrected S4 validation made no enrollment record and consumed no

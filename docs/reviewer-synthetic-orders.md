@@ -31,12 +31,38 @@ The corrected browser workflow collects the private profile once and serializes 
 once. It first sends that immutable request body to authenticated ADMIN POST
 `/api/v1/orders/synthetic-safety/validate`. That endpoint applies the service's exact
 configured mailbox, format, attestation, limit, expiry, policy and Customer-collision
-rules but does not create a policy, order or email. The browser sends the identical
+rules and calls the same civic-address schema and geocoder used by native order
+creation, but does not create a policy, order or email. A native
+`INVALID_DELIVERY_ADDRESS` is therefore refused before enrollment. Provider
+unavailability retains the native order path's `NEEDS_REVIEW` behavior rather than
+inventing a stricter reviewer-only rule. The browser sends the identical
 serialized body to `/enroll` only after validation and explicit confirmation. Enrollment repeats
-the policy, clock and collision checks under the shared database lock, so a change
-after validation still stops. The ADMIN-only 409 response exposes one non-sensitive
-category and no profile values: `ENROLLMENT_PRECONDITION`, `EXISTING_POLICY`,
-`EXPIRY_ELAPSED` or `PROFILE_COLLISION`. Public ordering errors remain generic.
+the address verification plus policy, clock and collision checks under the shared
+database lock, so a change after validation still stops. The ADMIN-only 409 response
+exposes one non-sensitive category and no profile values: `ENROLLMENT_PRECONDITION`,
+`EXISTING_POLICY`, `EXPIRY_ELAPSED`, `PROFILE_COLLISION` or
+`INVALID_DELIVERY_ADDRESS`. Public ordering errors remain generic.
+
+### One unused-policy address correction
+
+An exact profile may still have been enrolled by an older release before the shared
+address preflight existed. Authenticated singleton-owner ADMIN POST
+`/api/v1/orders/synthetic-safety/correct-unused-address` accepts the exact current
+private profile and one corrected profile. It is deliberately narrower than normal
+customer editing: name, canonical phone, approved mailbox, city and province must
+remain identical, and only Address Line 1, Unit and Buzz Code may change. The new
+civic address passes the same native schema/geocoder before the policy is touched.
+
+The service locks and rechecks the policy both before the provider lookup and in the
+final update transaction. It refuses unless the policy is ACTIVE and unexpired with
+zero orders, zero email claims, no linked Customer, no protected order, no contact
+collision and no previous correction. The existing row is updated in place: only
+`profileHash` changes and a single `UNUSED_ADDRESS_CORRECTED` audit marker records
+actor/time without an address. Identity hashes, approved mailbox, expiry, limits and
+counters are preserved. It never deletes/recreates the policy or rearms allowances.
+Concurrent correction/order activity serializes on the existing advisory lock; only
+one can win. `UNUSED_POLICY_CORRECTION_REFUSED` is a stop category, not permission to
+retry. If the outcome is uncertain, inspect policy/audit/order state read-only.
 
 Enroll only after a private read-only collision/fixture inspection, operator
 confirmation of a synthetic profile with an owner-authorized routable address and
@@ -88,6 +114,9 @@ anonymous proof. Its purpose, retention/review and any later decommission requir
 a case disposition alongside Customer/Order, journal, logs, address provider,
 Resend and mailbox/device copies actually created. Do not claim erasure from a
 cancelled request. No general backup-erasure promise is added.
+
+The November 9 address-recovery design and deployment/rollback limits are recorded
+in [s4-unused-policy-address-recovery.md](s4-unused-policy-address-recovery.md).
 
 ## Review limits
 

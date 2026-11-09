@@ -50,6 +50,17 @@ const optionalAddressAccessField = z
   .optional()
   .nullable();
 
+// Shared by public order creation and the synthetic-reviewer preflight. Keep
+// civic-address format limits in one schema so enrollment cannot accept a
+// profile that the eventual order route would reject before geocoding.
+export const deliveryAddressSchema = z.object({
+  addressLine1: z.string().trim().min(3).max(200),
+  unitNumber: optionalAddressAccessField,
+  buzzCode: optionalAddressAccessField,
+  city: z.string().trim().min(2).max(100),
+  province: z.string().trim().min(2).max(100)
+});
+
 const compatiblePaymentMethodSchema = z.union([
   z.nativeEnum(PaymentMethod),
   z.literal(LEGACY_ETRANSFER_PAYMENT_METHOD)
@@ -60,11 +71,7 @@ export const createOrderSchema = z.object({
     customerName: z.string().trim().min(2).max(120),
     customerPhone: z.string().trim().regex(phoneRegex, "Invalid phone number"),
     customerEmail: z.string().trim().email(),
-    addressLine1: z.string().trim().min(3).max(200),
-    unitNumber: optionalAddressAccessField,
-    buzzCode: optionalAddressAccessField,
-    city: z.string().trim().min(2).max(100),
-    province: z.string().trim().min(2).max(100),
+    ...deliveryAddressSchema.shape,
     deliveryInstructions: z.string().trim().max(500).optional(),
     notes: z.string().trim().max(1000).optional(),
     dispatcherNotes: z.string().trim().max(1000).optional(),

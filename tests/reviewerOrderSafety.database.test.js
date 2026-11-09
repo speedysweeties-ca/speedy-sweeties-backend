@@ -24,12 +24,18 @@ test('reviewer ordering uses normal credentials and fail-closed synthetic safety
   const {evaluateOrderStatusTransition} = require('../dist/services/orderStateTransition.service');
   const actor = {userId:'synthetic-owner',role:'ADMIN'};
   const profile = {customerName:'Synthetic Reviewer',customerPhone:'5195550188',customerEmail:'synthetic-reviewer@example.invalid',addressLine1:'1 Synthetic Street',city:'Guelph',province:'ON'};
+  const correctedProfile = {...profile,addressLine1:'2 Corrected Street',unitNumber:'Unit-Private-Fixture',buzzCode:'Buzz-Private-Fixture'};
+  const invalidAddressLine = '999 Invalid Address';
   const input = (extra={}) => ({profile,ownerConfirmedSynthetic:true,expiresAt:new Date(Date.now()+86400000).toISOString(),maxOrders:2,maxEmails:2,...extra});
   const body = (extra={}) => ({...profile,orderSource:'IOS_APP',paymentMethod:'CASH',fcmToken:'synthetic-never-send',items:[{name:'Tobacco test item',quantity:1,unitPrice:0},{name:'Cannabis test item',quantity:1,unitPrice:0}],...extra});
   let geocodes=0, dispatches=0, pushes=0;
   const replace=(obj,key,value)=>{const old=obj[key];obj[key]=value;t.after(()=>{obj[key]=old;});};
   replace(business,'isBusinessConfirmedClosed',async()=>false);
-  replace(geocoding,'geocodeDeliveryAddress',async()=>{geocodes++;return {geocodeStatus:'VERIFIED',deliveryLatitude:43.5,deliveryLongitude:-80.2};});
+  replace(geocoding,'geocodeDeliveryAddress',async address=>{
+    geocodes++;
+    if(address.addressLine1===invalidAddressLine)throw new geocoding.DeliveryAddressValidationError('Invalid test address');
+    return {geocodeStatus:'VERIFIED',deliveryLatitude:43.5,deliveryLongitude:-80.2};
+  });
   replace(dispatch,'autoDispatchCreatedOrderWithPickupPlan',async()=>{dispatches++;return {dispatched:false,reason:'AUTO_DISPATCH_DISABLED'};});
   replace(loyalty,'sendCustomerLoyaltyNotification',async()=>{pushes++;});
   replace(messaging,'send',async()=>{pushes++;throw new Error('Mock provider must not be called');});
@@ -46,6 +52,7 @@ test('reviewer ordering uses normal credentials and fail-closed synthetic safety
   const read=async()=>JSON.parse((await db.systemSetting.findUnique({where:{key:safety.SYNTHETIC_ORDER_POLICY_KEY}})).value);
   const write=async p=>db.systemSetting.update({where:{key:safety.SYNTHETIC_ORDER_POLICY_KEY},data:{value:JSON.stringify(p)}});
   const conflict=code=>error=>error?.statusCode===409&&error?.details?.code===code;
+  const correction=(currentProfile=profile,nextProfile=correctedProfile,correctionActor=actor,now)=>safety.correctUnusedSyntheticProfileAddress(db,correctionActor,{ownerConfirmedSynthetic:true,currentProfile,correctedProfile:nextProfile},now);
   try {
     await t.test('ADMIN diagnostics distinguish preconditions, collisions and existing policy without weakening rechecks',async()=>{
       await reset();
@@ -68,11 +75,95 @@ test('reviewer ordering uses normal credentials and fail-closed synthetic safety
       await assert.rejects(safety.validateSyntheticEnrollmentProfile(db,actor,input()),conflict('EXISTING_POLICY'));
       await assert.rejects(safety.enrollSyntheticProfile(db,actor,input()),conflict('EXISTING_POLICY'));
     });
+    await t.test('enrollment and ordinary ordering share the native invalid-address refusal',async()=>{
+      await reset();const invalidProfile={...profile,addressLine1:invalidAddressLine};
+      for(const action of [
+        ()=>safety.validateSyntheticEnrollmentProfile(db,actor,input({profile:invalidProfile})),
+        ()=>safety.enrollSyntheticProfile(db,actor,input({profile:invalidProfile}))
+      ]) await assert.rejects(action(),conflict('INVALID_DELIVERY_ADDRESS'));
+      assert.equal(await db.systemSetting.count(),0);
+      const ordinary=await call(body({customerName:'Ordinary Customer',customerPhone:'5195550199',customerEmail:'ordinary@example.invalid',addressLine1:invalidAddressLine}),createOrderController);
+      assert.equal(ordinary.code,400);assert.equal(ordinary.body.code,'INVALID_DELIVERY_ADDRESS');
+      assert.equal(await db.customer.count(),0);assert.equal(await db.order.count(),0);
+      const tooLong={...profile,addressLine1:'1'.repeat(201)};
+      await assert.rejects(safety.validateSyntheticEnrollmentProfile(db,actor,input({profile:tooLong})),conflict('INVALID_DELIVERY_ADDRESS'));
+    });
     await t.test('missing enrollment and every near-match refuse before geocoding or order writes',async()=>{
       await reset();await assert.rejects(call());assert.equal(geocodes,0);
       await safety.enrollSyntheticProfile(db,actor,input());
+      const enrollmentGeocodes=geocodes;
       for(const patch of [{customerName:'Other'},{customerPhone:'5195550189'},{customerEmail:'other@example.invalid'},{addressLine1:'Other'},{unitNumber:'3'},{city:'Toronto'},{province:'QC'},{customerPhone:'5195550189',customerEmail:'other@example.invalid'}]) await assert.rejects(call(body(patch)));
-      assert.equal(geocodes,0);assert.equal(await db.customer.count(),0);assert.equal(await db.order.count(),0);
+      assert.equal(geocodes,enrollmentGeocodes);assert.equal(await db.customer.count(),0);assert.equal(await db.order.count(),0);
+    });
+    await t.test('unused policy address correction is in-place, private and preserves identity, expiry and allowances',async()=>{
+      await reset();await safety.enrollSyntheticProfile(db,actor,input());const before=await read();
+      const result=await correction();const after=await read();
+      assert.deepEqual(result,{state:'ACTIVE',expiresAt:before.expiresAt,ordersCreated:0,emailsClaimed:0,maxOrders:2,maxEmails:2,addressCorrected:true});
+      for(const key of ['version','state','expiresAt','maxOrders','ordersCreated','maxEmails','emailsClaimed','phoneHash','emailHash','keyFingerprint','customerId']) assert.deepEqual(after[key],before[key],key);
+      assert.notEqual(after.profileHash,before.profileHash);
+      assert.deepEqual(after.addressCorrectionAudit,{event:'UNUSED_ADDRESS_CORRECTED',actorId:actor.userId,correctedAt:after.addressCorrectionAudit.correctedAt});
+      assert.ok(Number.isFinite(Date.parse(after.addressCorrectionAudit.correctedAt)));
+      const stored=JSON.stringify(after);
+      for(const privateValue of [profile.customerName,profile.customerPhone,profile.customerEmail,profile.addressLine1,correctedProfile.addressLine1,correctedProfile.unitNumber,correctedProfile.buzzCode]) assert.equal(stored.includes(privateValue),false);
+      await assert.rejects(correction(),conflict('UNUSED_POLICY_CORRECTION_REFUSED'));
+      await assert.rejects(call(body()));
+      const order=await call(body(correctedProfile));assert.equal(order.code,201);assert.equal(order.body.order.orderStatus,'CANCELLED');
+      assert.equal((await read()).ordersCreated,1);
+    });
+    await t.test('unused policy correction fails closed for authorization, identity, expiry and any consumed or linked state',async()=>{
+      await reset();
+      for(const correctionActor of [undefined,{...actor,role:'DISPATCHER'},{...actor,userId:'other'}]) await assert.rejects(
+        safety.correctUnusedSyntheticProfileAddress(db,correctionActor,{ownerConfirmedSynthetic:true,currentProfile:profile,correctedProfile}),
+        error=>error?.statusCode===403
+      );
+      await assert.rejects(correction(),conflict('UNUSED_POLICY_CORRECTION_REFUSED'));
+      await safety.enrollSyntheticProfile(db,actor,input());
+      const unchanged=await read();
+      await assert.rejects(correction(profile,{...correctedProfile,addressLine1:invalidAddressLine}),conflict('INVALID_DELIVERY_ADDRESS'));
+      await assert.rejects(correction(profile,{...correctedProfile,addressLine1:'1'.repeat(201)}),conflict('INVALID_DELIVERY_ADDRESS'));
+      assert.deepEqual(await read(),unchanged);
+      for(const changed of [
+        {...correctedProfile,customerName:'Changed Reviewer'},
+        {...correctedProfile,customerPhone:'5195550189'},
+        {...correctedProfile,customerEmail:'other@example.invalid'},
+        {...correctedProfile,city:'Toronto'},
+        {...correctedProfile,province:'QC'},
+        {...profile}
+      ]) await assert.rejects(correction(profile,changed),conflict('UNUSED_POLICY_CORRECTION_REFUSED'));
+      const original=await read();
+      for(const [patch,code] of [
+        [{state:'CLOSED'},'UNUSED_POLICY_CORRECTION_REFUSED'],
+        [{expiresAt:new Date(0).toISOString()},'EXPIRY_ELAPSED'],
+        [{ordersCreated:1},'UNUSED_POLICY_CORRECTION_REFUSED'],
+        [{emailsClaimed:1},'UNUSED_POLICY_CORRECTION_REFUSED'],
+        [{customerId:randomUUID()},'UNUSED_POLICY_CORRECTION_REFUSED'],
+        [{addressCorrectionAudit:{event:'UNUSED_ADDRESS_CORRECTED',actorId:actor.userId,correctedAt:new Date().toISOString()}},'UNUSED_POLICY_CORRECTION_REFUSED']
+      ]) {
+        await write({...original,...patch});await assert.rejects(correction(),conflict(code));
+      }
+      await write(original);
+      await db.customer.create({data:{fullName:'Concurrent collision',normalizedFullName:'concurrent collision',phone:profile.customerPhone,normalizedPhone:profile.customerPhone,email:profile.customerEmail,normalizedEmail:profile.customerEmail,addressLine1:'Other',city:'Guelph',province:'ON'}});
+      await assert.rejects(correction(),conflict('UNUSED_POLICY_CORRECTION_REFUSED'));
+      await db.customer.deleteMany();
+      const protectedOrder=await call();assert.equal(protectedOrder.code,201);
+      const afterOrder=await read();await write({...afterOrder,ordersCreated:0,customerId:null});
+      await assert.rejects(correction(),conflict('UNUSED_POLICY_CORRECTION_REFUSED'));
+    });
+    await t.test('concurrent unused-policy correction and order serialize so only one can claim the original profile',async()=>{
+      await reset();await safety.enrollSyntheticProfile(db,actor,input());
+      const results=await Promise.allSettled([correction(),call()]);
+      assert.equal(results.filter(result=>result.status==='fulfilled').length,1);
+      const p=await read(),orders=await db.order.count();
+      assert.equal((p.addressCorrectionAudit?1:0)+orders,1);
+      if(p.addressCorrectionAudit){assert.equal(p.ordersCreated,0);assert.equal(p.customerId,null);}
+      else {assert.equal(p.ordersCreated,1);assert.notEqual(p.customerId,null);}
+    });
+    await t.test('two concurrent unused-policy corrections cannot both commit',async()=>{
+      await reset();await safety.enrollSyntheticProfile(db,actor,input());
+      const results=await Promise.allSettled([correction(),correction()]);
+      assert.equal(results.filter(result=>result.status==='fulfilled').length,1);
+      assert.equal(results.filter(result=>result.status==='rejected'&&conflict('UNUSED_POLICY_CORRECTION_REFUSED')(result.reason)).length,1);
+      const p=await read();assert.equal(p.ordersCreated,0);assert.equal(p.emailsClaimed,0);assert.equal(p.customerId,null);assert.equal(p.addressCorrectionAudit.event,'UNUSED_ADDRESS_CORRECTED');
     });
     await t.test('normal pipeline returns real credentials; cancellation commits before observation; no catalogue/dispatch/push',async()=>{
       await reset();await safety.enrollSyntheticProfile(db,actor,input());

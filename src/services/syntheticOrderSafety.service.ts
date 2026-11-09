@@ -1,6 +1,8 @@
 import { createHmac } from "node:crypto";
 import { OrderStatus } from "@prisma/client";
 import { ApiError } from "../utils/ApiError";
+import { deliveryAddressSchema } from "../validators/order.validator";
+import { DeliveryAddressValidationError, geocodeDeliveryAddress } from "./deliveryGeocoding.service";
 
 // Operator-enrolled synthetic data only. These fingerprints are NOT credentials
 // or ownership attestations. Normal tracking/loyalty/email guards still apply.
@@ -13,16 +15,28 @@ export type SyntheticProfile = {
 };
 type Db = any;
 export type SyntheticEnrollmentConflict =
-  "ENROLLMENT_PRECONDITION" | "EXISTING_POLICY" | "EXPIRY_ELAPSED" | "PROFILE_COLLISION";
+  "ENROLLMENT_PRECONDITION" | "EXISTING_POLICY" | "EXPIRY_ELAPSED" | "PROFILE_COLLISION" |
+  "INVALID_DELIVERY_ADDRESS" | "UNUSED_POLICY_CORRECTION_REFUSED";
 export type SyntheticEnrollmentInput = {
   profile: SyntheticProfile; ownerConfirmedSynthetic: boolean; expiresAt: string;
   maxOrders: number; maxEmails: number;
+};
+export type SyntheticUnusedPolicyAddressCorrectionInput = {
+  ownerConfirmedSynthetic: boolean;
+  currentProfile: SyntheticProfile;
+  correctedProfile: SyntheticProfile;
+};
+type SyntheticAddressCorrectionAudit = {
+  event: "UNUSED_ADDRESS_CORRECTED";
+  actorId: string;
+  correctedAt: string;
 };
 export type SyntheticPolicy = {
   version: 1; state: "ACTIVE" | "CLOSED"; expiresAt: string;
   maxOrders: number; ordersCreated: number; maxEmails: number; emailsClaimed: number;
   profileHash: string; phoneHash: string; emailHash: string;
   keyFingerprint: string; customerId: string | null;
+  addressCorrectionAudit?: SyntheticAddressCorrectionAudit;
 };
 const stop = (status = 409) => new ApiError(status,
   "Synthetic test safety is unavailable or the enrolled profile does not match. Stop and contact dispatch.");
@@ -40,16 +54,18 @@ function h(value: string, key = process.env.PRIVACY_DIGEST_KEY || "") {
   if (key.length < 32) throw stop(503);
   return createHmac("sha256", key).update("synthetic-order-safety-v1:" + value).digest("hex");
 }
+const canonicalPhone = (value: unknown) => typeof value === "string"
+  ? value.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "") : "";
 export function profileFingerprints(p: SyntheticProfile) {
   if (!p || ![p.customerName, p.customerPhone, p.customerEmail, p.addressLine1, p.city, p.province]
     .every(x => typeof x === "string" && x.length <= 500)) throw stop();
   const phone = p.customerPhone.replace(/\D/g, "");
   if (!/^(?:1)?[2-9]\d{9}$/.test(phone) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text(p.customerEmail)) ||
       !text(p.customerName) || !text(p.addressLine1) || text(p.city) !== "guelph" || text(p.province) !== "ontario" && text(p.province) !== "on") throw stop();
-  const canonicalPhone = phone.length === 11 ? phone.slice(1) : phone;
-  return { profileHash: h(JSON.stringify([text(p.customerName), canonicalPhone, text(p.customerEmail),
+  const phoneCanonical = phone.length === 11 ? phone.slice(1) : phone;
+  return { profileHash: h(JSON.stringify([text(p.customerName), phoneCanonical, text(p.customerEmail),
     text(p.addressLine1), text(p.unitNumber), text(p.buzzCode), "guelph", "on"])),
-    phoneHash: h("phone:" + canonicalPhone), emailHash: h("email:" + text(p.customerEmail)), keyFingerprint: h("key-fingerprint") };
+    phoneHash: h("phone:" + phoneCanonical), emailHash: h("email:" + text(p.customerEmail)), keyFingerprint: h("key-fingerprint") };
 }
 function parse(row: { value: string } | null | undefined): SyntheticPolicy | null {
   if (!row) return null;
@@ -62,6 +78,10 @@ function parse(row: { value: string } | null | undefined): SyntheticPolicy | nul
       !Number.isInteger(p.maxEmails) || p.maxEmails < 1 || p.maxEmails > 3 ||
       !Number.isInteger(p.emailsClaimed) || p.emailsClaimed < 0 || p.emailsClaimed > p.maxEmails ||
       !(p.customerId === null || typeof p.customerId === "string")) throw stop(503);
+  if (p.addressCorrectionAudit !== undefined &&
+      (p.addressCorrectionAudit?.event !== "UNUSED_ADDRESS_CORRECTED" ||
+       typeof p.addressCorrectionAudit.actorId !== "string" || !p.addressCorrectionAudit.actorId || p.addressCorrectionAudit.actorId.length > 128 ||
+       !Number.isFinite(Date.parse(p.addressCorrectionAudit.correctedAt)))) throw stop(503);
   if (p.keyFingerprint !== h("key-fingerprint")) throw stop(503);
   return p;
 }
@@ -146,6 +166,20 @@ export function assertSyntheticOwner(actor: { userId?: string; role?: string } |
   const allowed = (process.env.PRIVACY_ADMIN_USER_IDS || "").split(",").filter(Boolean);
   if (!actor || actor.role !== "ADMIN" || allowed.length !== 1 || allowed[0] !== actor.userId) throw new ApiError(403, "Owner administrator required.");
 }
+async function assertOrderCreationAddressAccepted(profile: SyntheticProfile) {
+  if (!deliveryAddressSchema.safeParse(profile).success) {
+    throw enrollmentStop("INVALID_DELIVERY_ADDRESS");
+  }
+  try {
+    // Reuse the exact native-order verifier. NEEDS_REVIEW remains acceptable here
+    // because the native order path accepts it; only its explicit civic-address
+    // refusal must prevent a policy from being created or corrected.
+    await geocodeDeliveryAddress({ addressLine1: profile.addressLine1, city: profile.city, province: profile.province });
+  } catch (error) {
+    if (error instanceof DeliveryAddressValidationError) throw enrollmentStop("INVALID_DELIVERY_ADDRESS");
+    throw error;
+  }
+}
 function validateEnrollmentInput(input: SyntheticEnrollmentInput, requestedAt: Date) {
   if (!input || input.ownerConfirmedSynthetic !== true || !input.profile ||
       text(input.profile.customerEmail) !== approvedReviewerEmail() || !Number.isInteger(input.maxOrders) || input.maxOrders < 1 || input.maxOrders > 6 ||
@@ -157,6 +191,31 @@ function validateEnrollmentInput(input: SyntheticEnrollmentInput, requestedAt: D
     throw error;
   }
 }
+function validateUnusedAddressCorrectionInput(input: SyntheticUnusedPolicyAddressCorrectionInput) {
+  if (!input || input.ownerConfirmedSynthetic !== true || !input.currentProfile || !input.correctedProfile) {
+    throw enrollmentStop("UNUSED_POLICY_CORRECTION_REFUSED");
+  }
+  let current, corrected;
+  try {
+    current = profileFingerprints(input.currentProfile);
+    corrected = profileFingerprints(input.correctedProfile);
+  } catch {
+    throw enrollmentStop("UNUSED_POLICY_CORRECTION_REFUSED");
+  }
+  const sameIdentity = text(input.currentProfile.customerName) === text(input.correctedProfile.customerName) &&
+    canonicalPhone(input.currentProfile.customerPhone) === canonicalPhone(input.correctedProfile.customerPhone) &&
+    text(input.currentProfile.customerEmail) === text(input.correctedProfile.customerEmail) &&
+    text(input.currentProfile.city) === text(input.correctedProfile.city) &&
+    text(input.currentProfile.province) === text(input.correctedProfile.province);
+  const addressChanged = ["addressLine1", "unitNumber", "buzzCode"].some(key =>
+    text((input.currentProfile as any)[key]) !== text((input.correctedProfile as any)[key]));
+  if (!sameIdentity || !addressChanged || current.phoneHash !== corrected.phoneHash || current.emailHash !== corrected.emailHash ||
+      text(input.currentProfile.customerEmail) !== approvedReviewerEmail() ||
+      text(input.correctedProfile.customerEmail) !== approvedReviewerEmail()) {
+    throw enrollmentStop("UNUSED_POLICY_CORRECTION_REFUSED");
+  }
+  return { current, corrected };
+}
 async function assertEnrollmentAvailable(tx: Db, input: SyntheticEnrollmentInput, now?: Date) {
   if (await lockedPolicy(tx)) throw enrollmentStop("EXISTING_POLICY"); // Never replace/rearm a spent policy.
   if (Date.parse(input.expiresAt) <= (now ?? new Date()).getTime()) throw enrollmentStop("EXPIRY_ELAPSED");
@@ -165,10 +224,29 @@ async function assertEnrollmentAvailable(tx: Db, input: SyntheticEnrollmentInput
     throw enrollmentStop("PROFILE_COLLISION");
   }
 }
+async function assertUnusedAddressCorrectionAvailable(tx: Db, input: SyntheticUnusedPolicyAddressCorrectionInput,
+  current: ReturnType<typeof profileFingerprints>, now: Date) {
+  const p = await lockedPolicy(tx);
+  if (!p || p.state !== "ACTIVE" || p.addressCorrectionAudit || p.ordersCreated !== 0 || p.emailsClaimed !== 0 || p.customerId !== null ||
+      p.profileHash !== current.profileHash || p.phoneHash !== current.phoneHash || p.emailHash !== current.emailHash) {
+    throw enrollmentStop("UNUSED_POLICY_CORRECTION_REFUSED");
+  }
+  if (Date.parse(p.expiresAt) <= now.getTime()) throw enrollmentStop("EXPIRY_ELAPSED");
+  const phone = canonicalPhone(input.currentProfile.customerPhone);
+  const [protectedOrders, collisions] = await Promise.all([
+    tx.order.count({ where: { cancellationReason: SYNTHETIC_CANCELLATION_REASON } }),
+    tx.customer.count({ where: { OR: [
+      { normalizedPhone: { in: [phone, "1" + phone] } }, { normalizedEmail: text(input.currentProfile.customerEmail) }
+    ] } })
+  ]);
+  if (protectedOrders !== 0 || collisions !== 0) throw enrollmentStop("UNUSED_POLICY_CORRECTION_REFUSED");
+  return p;
+}
 export async function validateSyntheticEnrollmentProfile(db: Db, actor: { userId?: string; role?: string } | undefined,
   input: SyntheticEnrollmentInput, now?: Date) {
   assertSyntheticOwner(actor);
   validateEnrollmentInput(input, now ?? new Date());
+  await assertOrderCreationAddressAccepted(input.profile);
   return db.$transaction(async (tx: Db) => {
     await assertEnrollmentAvailable(tx, input, now);
     return { eligible: true as const };
@@ -178,6 +256,7 @@ export async function enrollSyntheticProfile(db: Db, actor: { userId?: string; r
   input: SyntheticEnrollmentInput, now?: Date) {
   assertSyntheticOwner(actor);
   const f = validateEnrollmentInput(input, now ?? new Date());
+  await assertOrderCreationAddressAccepted(input.profile);
   return db.$transaction(async (tx: Db) => {
     // This repeats every availability check after browser validation. A customer
     // or policy created between the two requests must still stop enrollment.
@@ -186,6 +265,26 @@ export async function enrollSyntheticProfile(db: Db, actor: { userId?: string; r
       maxOrders: input.maxOrders, maxEmails: input.maxEmails, ordersCreated: 0, emailsClaimed: 0, customerId: null, ...f };
     await tx.systemSetting.create({ data: { key: SYNTHETIC_ORDER_POLICY_KEY, value: JSON.stringify(p) } });
     return { state: p.state, expiresAt: p.expiresAt, ordersCreated: 0, emailsClaimed: 0, maxOrders: p.maxOrders, maxEmails: p.maxEmails };
+  });
+}
+export async function correctUnusedSyntheticProfileAddress(db: Db,
+  actor: { userId?: string; role?: string } | undefined,
+  input: SyntheticUnusedPolicyAddressCorrectionInput, now?: Date) {
+  assertSyntheticOwner(actor);
+  const f = validateUnusedAddressCorrectionInput(input);
+  // Refuse clearly ineligible policies before sending a private civic address to
+  // the existing provider, then repeat every check under the final policy lock.
+  await db.$transaction((tx: Db) => assertUnusedAddressCorrectionAvailable(tx, input, f.current, now ?? new Date()));
+  await assertOrderCreationAddressAccepted(input.correctedProfile);
+  return db.$transaction(async (tx: Db) => {
+    const correctedAt = now ?? new Date();
+    const p = await assertUnusedAddressCorrectionAvailable(tx, input, f.current, correctedAt);
+    const updated: SyntheticPolicy = { ...p, profileHash: f.corrected.profileHash,
+      addressCorrectionAudit: { event: "UNUSED_ADDRESS_CORRECTED", actorId: actor!.userId!, correctedAt: correctedAt.toISOString() } };
+    await tx.systemSetting.update({ where: { key: SYNTHETIC_ORDER_POLICY_KEY }, data: { value: JSON.stringify(updated) } });
+    return { state: updated.state, expiresAt: updated.expiresAt, ordersCreated: updated.ordersCreated,
+      emailsClaimed: updated.emailsClaimed, maxOrders: updated.maxOrders, maxEmails: updated.maxEmails,
+      addressCorrected: true as const };
   });
 }
 export async function closeSyntheticProfile(db: Db, actor: { userId?: string; role?: string } | undefined) {
