@@ -3,6 +3,32 @@
 Use this checklist for backend or dispatcher changes. Mobile app publication is
 a separate release and requires its own signed build and store submission.
 
+
+## Current mobile handoff — November 9, 2026 submission closeout
+
+Start with [Apple closeout and Android customer handoff](START_HERE_ANDROID_CUSTOMER_HANDOFF.md)
+when continuing on another laptop. It records the dated owner/VS Code-reported
+production and ASC results, merged source references, privacy snapshot, evidence
+limits, and APP-04 Android comparison scope.
+
+- Apple version 1.0 Build 5: submitted November 9 at 22:27 EST; Waiting for Review;
+  automatic release after approval, Canada-only, C$0.
+- Reviewer notes saved and 14 privacy disclosures published. S4 readiness PASSED.
+- PR #130 integration 09870ec9cd87ba81f23b4b3047dd5f728bb2da7d deployed and targeted
+  exposed-credential revocation completed per owner closeout.
+- Reviewer policy original expiry 2026-11-16T14:47:30Z; 5 orders and 1 email remain.
+  Reserve these for Apple; do not consume them in Android comparison.
+- Physical-iPhone testing remains a disclosed validation gap, not an established
+  submission blocker. No new device-test pass or Apple approval is claimed.
+- Next master-list work: Android CUSTOMER app interface/release review (APP-04).
+  Inspect actual Android source/build/Play status; do not infer it from backend main.
+- Historical preparation-only sections below are retained as evidence. Their old
+  pending-action statements do not override this completed closeout.
+- **Rollback exception:** after targeted revocation, old code that ignores the
+  loyalty cutoff can reactivate exposed credentials. Preserve the revocation record
+  and use the recovery limits in [s4-exposed-credential-revocation.md](s4-exposed-credential-revocation.md).
+  Generic rollback guidance below does not authorize that unsafe rollback.
+
 ## November 9 S4 exposed credentials — PR REVIEW ONLY
 
 - S4 backend/browser readiness remains PASSED. Existing policy expiry and 1/6
