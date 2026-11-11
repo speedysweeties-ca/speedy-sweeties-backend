@@ -32,7 +32,9 @@ export function validateProposedPolicyPublication({ production = false, approved
   const publishedDatesByHash = {
     '9ccee680c14fa75d27a220188ec847d01303b10326a15f9f15aed00f47a90631': '2026-11-03',
     'cbb53c7ea5d1077c787458a88b0b71ceddb6d6c8d76c74c7a35155bd78b5fd9a': '2026-11-07',
-    'dad48fe960a4bc0f6cf4b5f4e4cd9cdb2304ddfe833a9255553d7511a375baa6': '2026-11-07'
+    'dad48fe960a4bc0f6cf4b5f4e4cd9cdb2304ddfe833a9255553d7511a375baa6': '2026-11-07',
+    // November 11 traffic-source disclosure; exact content/date for future rebuilds.
+    'e4a9ae2e4c5089058b1c2122e40de9f006b23a1f53c017322d5471a845126ee9': '2026-11-11'
   };
   const policyHash = createHash('sha256').update(JSON.stringify(proposedPrivacyPolicy)).digest('hex');
   const unchangedPublishedPolicy = publicationDate === publishedDatesByHash[policyHash] && publicationDate <= today;

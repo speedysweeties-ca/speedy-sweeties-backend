@@ -35,7 +35,7 @@ ${production ? '' : '<meta name="robots" content="noindex, nofollow">'}
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escape(s.title)}"><meta name="twitter:description" content="${escape(s.description)}"><meta name="twitter:image" content="${canonicalOrigin}/assets/social-preview.png">
 <link rel="icon" href="/assets/e01b881a93044127.png"><link rel="stylesheet" href="/assets/service-pages.css">
 <script type="application/ld+json">${JSON.stringify(metadata).replace(/</g, '\\u003c')}</script>
-<script src="/js/site-config.js"></script><script src="/js/tracking-link.js"></script><script src="/js/analytics.js"></script>
+<script src="/js/site-config.js"></script><script src="/js/tracking-link.js"></script><script src="/js/order-attribution.js"></script><script src="/js/analytics.js"></script>
 <script src="/js/service-pages.js" defer></script>
 </head><body data-service="${s.key}">
 <div id="service-content" inert>

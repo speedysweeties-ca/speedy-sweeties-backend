@@ -39,6 +39,7 @@ test('five independent pages have unique metadata, working assets, navigation an
     assert.equal(document.querySelector('link[rel="canonical"]').getAttribute('href'), `https://www.speedysweeties.ca/${service.slug}/`);
     assert.equal(document.querySelectorAll('form').length, 0);
     assert.equal(document.querySelectorAll('[src="/js/analytics.js"]').length, 1);
+    assert.equal(document.querySelectorAll('[src="/js/order-attribution.js"]').length, 1);
     assert.ok(document.querySelector('a[data-landing-destination]'));
     assert.ok(home.querySelector(`a[href="/${service.slug}/"]`));
     assert.equal(document.querySelectorAll('footer nav a').length, 5);

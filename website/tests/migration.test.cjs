@@ -14,10 +14,10 @@ const acknowledgement = {
   trackingToken: 'a'.repeat(43)
 };
 
-function harness({ live = true, closed = false, order = acknowledgement, status = 200, failOrder = false, token = 'synthetic-token' } = {}) {
+function harness({ live = true, closed = false, order = acknowledgement, status = 200, failOrder = false, token = 'synthetic-token', attribution } = {}) {
   const { document, CustomEvent, Event } = parseHTML(html);
   const calls = [];
-  const window = { speedySite: { live }, location: { hostname: 'www.speedysweeties.ca' }, addEventListener() {},
+  const window = { speedyOrderAttribution: attribution, speedySite: { live }, location: { hostname: 'www.speedysweeties.ca' }, addEventListener() {},
     speedyAddress: { verify: async () => {}, matches: () => true },
     speedyHumanVerification: { ready: () => Boolean(token), getToken: () => token, mount() {}, reset() {} } };
   const fetch = async (url, options) => {
@@ -188,5 +188,19 @@ test('server verification rejection is retryable and never claims an order was r
     assert.equal(posts(h).length, 2);
     assert.notEqual(h.form.style.display, 'none');
     assert.match(h.document.querySelector('.w-form-fail').textContent, /Please verify again/);
+  }
+});
+
+
+test('optional attribution accompanies the existing order POST and cannot block ordering', async () => {
+  for (const [attribution, expectedSource] of [[{ fields: () => ({ utmSource: 'google', utmMedium: 'organic', utmContent: 'web_v1:beer:referrer' }) }, 'google'],
+    [{ fields: () => { throw Error('Unavailable'); } }, undefined], [undefined, undefined]]) {
+    const h = harness({ attribution }); await settle(); h.submit(); await settle();
+    assert.equal(posts(h).length, 1);
+    const payload = JSON.parse(posts(h)[0].options.body);
+    assert.equal(payload.customerName, 'Synthetic Test');
+    assert.equal(payload.turnstileToken, 'synthetic-token');
+    assert.equal(payload.utmSource, expectedSource);
+    assert.equal(h.form.style.display, 'none');
   }
 });

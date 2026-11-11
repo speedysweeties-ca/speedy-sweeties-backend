@@ -502,7 +502,11 @@ topHoursNotice.hidden = businessState !== "closed";
           notes.push("Customer has empties to return.");
         }
 
+        // Attribution is optional: a blocked/failed script must not prevent ordering.
+        let attribution = {};
+        try { attribution = window.speedyOrderAttribution?.fields() || {}; } catch (_) {}
         const payload = {
+          ...attribution,
           customerName: document.getElementById("Name-5").value.trim(),
           customerPhone: document.getElementById("Phone").value.trim(),
           customerEmail: email,
