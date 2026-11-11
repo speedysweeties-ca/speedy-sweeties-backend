@@ -105,7 +105,7 @@ All purposes not listed remain unselected/blank, especially Marketing.
 | Diagnostics (`PSL_PERFORMANCE_DIAGNOSTICS`) | C + S | Required | F, A | F, A |
 | App interactions (`PSL_USER_INTERACTION`) | C + S | Optional | F, A | F, A |
 
-Keep all 20 remaining data-type choices unselected/blank and their conditional
+Keep all 21 remaining data-type choices unselected/blank and their conditional
 handling blank. In particular, payment-method choice/receipts are transaction
 information, not card/bank-account number collection; the app does not read contact
 lists, inbox/SMS, files/photos, fitness/Health Connect, installed-app lists or web
