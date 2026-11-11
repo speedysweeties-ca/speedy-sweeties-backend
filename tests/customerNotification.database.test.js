@@ -44,6 +44,15 @@ test('notification concurrency and erasure on isolated PostgreSQL', { skip: proc
       await assert.rejects(service.mutate(f.id, f.token, winner), /NOTIFICATION_REVISION_CONFLICT/);
       assert.equal((await db.order.findUnique({ where: { id: f.id } })).fcmToken, null);
     });
+    await t.test('public routing reference cannot open legacy UUID tracking or authorize mutation', async () => {
+      const f = await seed(); const { customerNotificationReference } = require('../dist/utils/customerNotificationReference');
+      const reference = customerNotificationReference(f.id);
+      const { getPublicOrderTrackingController } = require('../dist/controllers/order.controller');
+      const res = { code: 200, status(code) { this.code = code; return this; }, json(value) { this.value = value; return this; } };
+      await getPublicOrderTrackingController({ params: { id: reference } }, res); assert.equal(res.code, 404);
+      await assert.rejects(service.mutate(f.id, reference, input(0, 'device')), /CUSTOMER_ORDER_ACCESS_REJECTED/);
+      assert.equal((await service.read(f.id, f.token)).orderReference, reference);
+    });
     await t.test('expiry is rechecked after a real row-lock wait', async () => {
       const f = await seed(), expiry = new Date(Date.now() + 250);
       await db.order.update({ where: { id: f.id }, data: { trackingTokenExpiresAt: expiry } });

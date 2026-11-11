@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import { customerNotificationReference } from "../utils/customerNotificationReference";
 
 export const notificationMutationSchema = z.object({
   expectedRevision: z.number().int().min(0).max(2147483646),
@@ -17,7 +18,8 @@ const select = {
   fcmToken: true, fcmTokenRevision: true, fcmTokenMutationId: true, orderStatus: true
 } satisfies Prisma.OrderSelect;
 type Order = Prisma.OrderGetPayload<{ select: typeof select }>;
-const snapshot = (order: Order) => ({ revision: order.fcmTokenRevision, registered: order.fcmToken !== null });
+const snapshot = (order: Order) => ({ revision: order.fcmTokenRevision, registered: order.fcmToken !== null,
+  orderReference: customerNotificationReference(order.id) });
 
 /** An existing opaque order credential authorizes only that order, never a customer lookup. */
 export class CustomerNotificationTokens {

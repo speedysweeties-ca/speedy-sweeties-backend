@@ -40,7 +40,7 @@ app.get('/fixture/state', wrap(async () => {
 }));
 app.get('/fixture/event', wrap(async () => {
   const row = await db.order.findUniqueOrThrow({ where: { id } });
-  return customerNotificationMessage(row, 'ORDER_OUT_FOR_DELIVERY')?.data || {};
+  return customerNotificationMessage({ ...row, fcmToken: 'synthetic-render-only' }, 'ORDER_OUT_FOR_DELIVERY')?.data || {};
 }));
 app.get('/fixture/ready', (_req, res) => res.json({ ready: true }));
 const server = app.listen(8123, '127.0.0.1', () => console.log('Synthetic notification contract server ready'));

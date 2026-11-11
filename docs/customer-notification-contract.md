@@ -13,7 +13,7 @@ recovered through an order, phone/email lookup, privacy token or a weaker route.
 
 New routes under `/api/v1/customer-notifications`:
 
-- `GET /orders/:id/token` returns `{success:true,data:{revision,registered}}`.
+- `GET /orders/:id/token` returns `{success:true,data:{revision,registered,orderReference}}`.
 - `PUT /orders/:id/token` accepts only `{expectedRevision,operationId,fcmToken}`.
   `operationId` is a UUID; `fcmToken` is a nonempty, bounded, control/whitespace-free
   device token, or explicit `null` to remove the association.
@@ -67,10 +67,9 @@ introduced. Removed/erased/closed-inappropriate/expired events are skipped.
 
 The existing notification+data envelope, type and Android channel are retained.
 Bodies are generic; no amount, address, name, phone/email, item description or
-access/tracking credential is included. New data strings are `orderId` (a
-non-secret reference), `notificationSchema: "1"`, `eventId`, `occurredAtMillis`
-and `expiresAtMillis`. Event identity is a SHA-256 digest of the persisted order,
-event type and committed event time. Retries do not refresh identity or age.
+access/tracking credential is included. New data strings are `orderReference` (a
+non-secret `nr1_` routing reference), `notificationSchema: "1"`, `eventId`, `occurredAtMillis`
+and `expiresAtMillis`. The reference and event identity are domain-separated HMAC-SHA-256 values using the existing server JWT key and persisted order/event facts. Neither is accepted for authentication or legacy UUID tracking. The actual UUID is a legacy access capability and is never included in customer notifications. Android matches the reference through authenticated metadata for its own held order; there is no public reference-to-order lookup. A separate JWT-key rotation changes references: previously queued unmatched hints become unavailable safely until metadata is refreshed. Retries do not refresh identity or age.
 Status remains a routing hint, never an authoritative client status update.
 
 Expiry is 15 minutes after the persisted event. Android TTL, notification tag,

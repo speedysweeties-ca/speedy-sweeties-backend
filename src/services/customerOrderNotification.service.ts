@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
 import type { Message } from "firebase-admin/messaging";
 import { prisma } from "../lib/prisma";
 import { messaging } from "../config/firebase";
+import { customerNotificationReference, customerNotificationEventId } from "../utils/customerNotificationReference";
 
 export const CUSTOMER_NOTIFICATION_TTL_MS = 15 * 60_000;
 export type CustomerNotificationType = "ORDER_OUT_FOR_DELIVERY" | "LOYALTY_REWARD_EARNED" | "LOYALTY_REWARD_APPLIED" | "LOYALTY_PROGRESS_UPDATE";
@@ -18,12 +18,12 @@ export function customerNotificationMessage(order: Snapshot, type: CustomerNotif
   const expiresAt = occurredAt.getTime() + CUSTOMER_NOTIFICATION_TTL_MS;
   if (occurredAt.getTime() > now || expiresAt <= now) return null;
   // Identity derives from the committed event, not a provider attempt ID or a fresh retry clock.
-  const eventId = createHash("sha256").update(`customer-order:v1|${order.id}|${type}|${occurredAt.toISOString()}`).digest("hex");
+  const eventId = customerNotificationEventId(order.id, type, occurredAt);
   return {
     token: order.fcmToken,
     notification: { title: delivery ? "Speedy Sweeties" : "Speedy Sweeties Rewards",
       body: delivery ? "Open the app to check your order update." : "Open the app to check your rewards." },
-    data: { type, orderId: order.id, eventId, notificationSchema: "1",
+    data: { type, orderReference: customerNotificationReference(order.id), eventId, notificationSchema: "1",
       occurredAtMillis: String(occurredAt.getTime()), expiresAtMillis: String(expiresAt),
       ...(delivery ? { status: "OUT_FOR_DELIVERY" } : {}) },
     android: { priority: "high", ttl: expiresAt - now,

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { randomUUID, randomBytes, createHash } = require('node:crypto');
 const { CustomerNotificationTokens, notificationMutationSchema } = require('../dist/services/customerNotificationToken.service');
 const { customerNotificationMessage, createCustomerOrderNotifier, CUSTOMER_NOTIFICATION_TTL_MS } = require('../dist/services/customerOrderNotification.service');
+const { customerNotificationReference } = require('../dist/utils/customerNotificationReference');
 const token = randomBytes(32).toString('base64url');
 const id = randomUUID();
 const row = () => ({ id, trackingTokenHash: createHash('sha256').update(token).digest('hex'),
@@ -22,12 +23,12 @@ const mutation = (expectedRevision, fcmToken) => ({ expectedRevision, fcmToken, 
 
 test('order-scoped mutation recovers a lost response and fences stale writes/removal', async () => {
   const f = fixture(), first = mutation(0, 'rotated-device');
-  assert.deepEqual(await f.service.mutate(id, token, first), { revision: 1, registered: true });
-  assert.deepEqual(await f.service.mutate(id, token, first), { revision: 1, registered: true });
+  assert.deepEqual(await f.service.mutate(id, token, first), { revision: 1, registered: true, orderReference: customerNotificationReference(id) });
+  assert.deepEqual(await f.service.mutate(id, token, first), { revision: 1, registered: true, orderReference: customerNotificationReference(id) });
   assert.equal(f.writes(), 1);
   await assert.rejects(f.service.mutate(id, token, { ...first, fcmToken: 'different' }), /NOTIFICATION_OPERATION_CONFLICT/);
   const remove = mutation(1, null);
-  assert.deepEqual(await f.service.mutate(id, token, remove), { revision: 2, registered: false });
+  assert.deepEqual(await f.service.mutate(id, token, remove), { revision: 2, registered: false, orderReference: customerNotificationReference(id) });
   await assert.rejects(f.service.mutate(id, token, first), /NOTIFICATION_REVISION_CONFLICT/);
   assert.equal(f.current().fcmToken, null);
   assert.equal(f.locks(), 5);
@@ -42,7 +43,7 @@ test('removing an already empty association still fences an earlier registration
 
 test('expiry, revocation, deletion, foreign IDs and unrelated credentials never authorize mutation', async () => {
   const f = fixture();
-  for (const wrong of ['', id, '5190000000', 'person@example.invalid', 'Bearer staff.jwt', randomBytes(32).toString('base64url')]) {
+  for (const wrong of ['', id, customerNotificationReference(id), '5190000000', 'person@example.invalid', 'Bearer staff.jwt', randomBytes(32).toString('base64url')]) {
     await assert.rejects(f.service.mutate(id, wrong, mutation(0, 'device')), /CUSTOMER_ORDER_ACCESS_REJECTED/);
   }
   await assert.rejects(f.service.read(randomUUID(), token), /CUSTOMER_ORDER_ACCESS_REJECTED/);
@@ -69,11 +70,12 @@ test('customer messages contain stable reference/freshness metadata and no recei
   const first = customerNotificationMessage(order, 'ORDER_OUT_FOR_DELIVERY');
   const retry = customerNotificationMessage(order, 'ORDER_OUT_FOR_DELIVERY', Date.now() + 1000);
   assert.equal(first.data.eventId, retry.data.eventId);
-  assert.equal(first.data.orderId, id);
+  assert.equal(first.data.orderReference, customerNotificationReference(id));
+  assert.equal(first.data.orderId, undefined);
   assert.equal(Number(first.data.expiresAtMillis) - Number(first.data.occurredAtMillis), CUSTOMER_NOTIFICATION_TTL_MS);
   assert.equal(first.data.status, 'OUT_FOR_DELIVERY');
   const visible = JSON.stringify({ ...first, token: undefined });
-  for (const privateValue of [token, '987.65', 'private', 'synthetic-device']) assert(!visible.includes(privateValue));
+  for (const privateValue of [id, token, '987.65', 'private', 'synthetic-device']) assert(!visible.includes(privateValue));
   assert.equal(customerNotificationMessage({ ...order, privacyErasedAt: new Date() }, 'ORDER_OUT_FOR_DELIVERY'), null);
   assert.equal(customerNotificationMessage({ ...order, fcmToken: null }, 'ORDER_OUT_FOR_DELIVERY'), null);
   assert.equal(customerNotificationMessage(order, 'ORDER_OUT_FOR_DELIVERY', Date.now() + CUSTOMER_NOTIFICATION_TTL_MS + 1), null);
@@ -106,5 +108,8 @@ test('mounted customer API requires Bearer order access and returns only safe me
   const missing = await fetch(url); assert.equal(missing.status, 401);
   const valid = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   assert.equal(valid.status, 200); assert.equal(valid.headers.get('cache-control'), 'no-store');
-  assert.deepEqual(await valid.json(), { success: true, data: { revision: 0, registered: true } });
+  assert.deepEqual(await valid.json(), { success: true, data: { revision: 0, registered: true, orderReference: customerNotificationReference(id) } });
+  const publicReference = customerNotificationReference(id);
+  assert.equal((await fetch(url, { headers: { Authorization: `Bearer ${publicReference}` } })).status, 401);
+  assert.equal((await fetch(url.replace(id, publicReference), { headers: { Authorization: `Bearer ${token}` } })).status, 400);
 });
