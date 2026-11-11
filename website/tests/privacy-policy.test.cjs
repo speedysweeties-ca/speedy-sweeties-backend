@@ -149,6 +149,10 @@ test('current-main integration preserves driver pages and ordinary output while 
 
 
 test('published operational policy preserves November 7 while changed content needs a new date', t => {
+  const website = policy.sections.find(s => s.id === 'website');
+  const currentWebsite = website.paragraphs;
+  website.paragraphs = currentWebsite.filter(p => !p.startsWith('To understand which sources'));
+  t.after(() => { website.paragraphs = currentWebsite; });
   t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-08T17:00:00Z') });
   const options = { production: true, approved: true, publicationDate: '2026-11-07' };
   assert.throws(() => renderer.proposedPolicyBlocks({ ...options, approved: false }), /separate approval/);
@@ -164,6 +168,10 @@ test('published operational policy preserves November 7 while changed content ne
 });
 
 test('request-only published policy retains its exact November 7 date as rollback evidence', t => {
+  const website = policy.sections.find(s => s.id === 'website');
+  const currentWebsite = website.paragraphs;
+  website.paragraphs = currentWebsite.filter(p => !p.startsWith('To understand which sources'));
+  t.after(() => { website.paragraphs = currentWebsite; });
   t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-08T17:00:00Z') });
   const requests = policy.sections.find(s => s.id === 'requests').paragraphs;
   const current = [requests[2], requests[3]], introduction = policy.introduction;
@@ -178,6 +186,10 @@ test('request-only published policy retains its exact November 7 date as rollbac
 });
 
 test('unchanged previous policy still supports its exact November 3 rollback date', t => {
+  const website = policy.sections.find(s => s.id === 'website');
+  const currentWebsite = website.paragraphs;
+  website.paragraphs = currentWebsite.filter(p => !p.startsWith('To understand which sources'));
+  t.after(() => { website.paragraphs = currentWebsite; });
   t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-06T17:00:00Z') });
   const provider = policy.sections.find(s => s.id === 'providers-storage').paragraphs;
   const requests = policy.sections.find(s => s.id === 'requests').paragraphs;
@@ -188,4 +200,38 @@ test('unchanged previous policy still supports its exact November 3 rollback dat
     requests[3] = 'Our adopted normal target is completion within 30 calendar days after identity verification. This remains a target for the intended operational process, not confirmation that manual deletion can be completed today. It is not a promise of immediate or automatic erasure. Ownership disputes, active deliveries or applicable holds may require more time or a separately explained outcome. The adopted procedure calls for explaining completed actions and any information retained.';
     assert.match(renderer.proposedPolicyBlocks({ production: true, approved: true, publicationDate: '2026-11-03' }).join(' '), /Last updated:<\/strong> 2026-11-03/);
   } finally { [provider[3], requests[2], requests[3]] = current; }
+});
+
+
+test('new attribution disclosure cannot be published with the older November 7 date', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-11T17:00:00Z') });
+  const options = { production: true, approved: true, publicationDate: '2026-11-11' };
+  assert.match(renderer.proposedPolicyBlocks(options).join(' '), /up to 30 minutes/);
+  assert.throws(() => renderer.proposedPolicyBlocks({ ...options, publicationDate: '2026-11-07' }), /actual Toronto publication date/);
+});
+
+
+test('attribution policy rebuild preserves its November 11 date and rejects content drift', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-12T17:00:00Z') });
+  const options = { production: true, approved: true, publicationDate: '2026-11-11' };
+  assert.match(renderer.proposedPolicyBlocks(options).join(' '), /Last updated:<\/strong> 2026-11-11/);
+  const introduction = policy.introduction;
+  try {
+    policy.introduction += ' Unpublished change.';
+    assert.throws(() => renderer.proposedPolicyBlocks(options), /actual Toronto publication date/);
+  } finally { policy.introduction = introduction; }
+});
+
+test('deployment date override supersedes an old saved command but preserves approval checks', t => {
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'speedy-policy-date-'));
+  t.after(() => fs.rmSync(fixture, { recursive: true, force: true }));
+  for (const name of ['scripts', 'content', 'src']) fs.cpSync(path.join(root, name), path.join(fixture, name), { recursive: true });
+  const run = approved => spawnSync(process.execPath, [path.join(fixture, 'scripts/build.mjs'), '--production', '--proposed-privacy-policy', '--privacy-policy-date=2026-11-07'], {
+    env: { ...process.env, PUBLIC_CUSTOMER_PAGES_APPROVED: approved, PUBLIC_PRIVACY_POLICY_DATE: today(), TURNSTILE_SITE_KEY: '0xSYNTHETIC_BUILD_ONLY_12345' }, encoding: 'utf8'
+  });
+  const denied = run('false'); assert.notEqual(denied.status, 0); assert.match(denied.stderr, /separate approval/);
+  const approved = run('true'); assert.equal(approved.status, 0, approved.stderr);
+  const output = fs.readFileSync(path.join(fixture, 'dist/privacy-policy/index.html'), 'utf8');
+  assert.match(output, new RegExp('Last updated:</strong> ' + today()));
+  assert.match(output, /up to 30 minutes/);
 });

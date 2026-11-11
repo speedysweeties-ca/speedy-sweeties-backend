@@ -195,3 +195,36 @@ Deploy the backend with the additive PageViewCounter migration before deploying
 the website. Both use existing services; no new provider, secret or paid service
 is needed. Preserve the current production build flags and Turnstile key.
 Totals survive deployments/restarts. Roll back code without dropping the table.
+
+
+### Website order traffic sources (November 11, 2026)
+
+`order-attribution.js` retains a coarse entry source/medium and landing-page category
+for at most 30 minutes in a tab. A recognized external arrival, allowlisted UTM pair
+or advertising click-tag presence establishes a new entry; internal navigation
+preserves the existing entry without extending its expiry. Storage failure leaves
+in-memory attribution available only on the current page. Missing sources stay
+untagged; `utmContent` contains a fixed `web_v1` entry/method marker. It is never a
+customer identifier. No full URL, arbitrary campaign/term/content text, click ID
+or GA4 identifier is sent in these fields. These are best-effort observations,
+not verified GA4 attribution, unique customers or evidence of causation.
+
+The existing order POST accepts these optional fields; there is no new endpoint,
+database migration, subscription or extra analytics request. Legacy `WEBFLOW`
+continues to identify the website order surface, despite Render hosting it.
+Existing orders are not backfilled. Growth > campaign rows separate Orders from
+Completed (DELIVERED). Help guide `growth` explains how to interpret the fields.
+The source-label data becomes useful only as future genuine orders arrive.
+
+Rollout: publish the website and the backend help update after current-head CI.
+Set website-only `PUBLIC_PRIVACY_POLICY_DATE=2026-11-11` (merge with existing env,
+never replace all variables). It supersedes the old date in Render's saved build
+command; publication approval and exact-content/date validation still apply.
+All three public privacy copies share the new disclosure. Auto-Deploy remains off.
+No dispatcher bundle, mobile app, database, API environment or DNS change is needed.
+
+Rollback targets: website `4e1956a3a49c94e270778ee66daac37b28e49e71`, API
+`f21813ff38c1bf936d59ad84bea2a8e80ab3a1ad`. The old website build ignores the new
+date variable and uses its original November 7 command. Retained source tags on
+existing orders need no reversal. Validation must not place real test orders or
+label a successful browser acknowledgement as a completed delivery.

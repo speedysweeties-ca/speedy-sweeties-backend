@@ -410,11 +410,11 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "growth",
     title: "Read the Growth Command Centre",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-11-11",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "GROWTH_COMMAND_CENTRE",
-    evidence: ["speedy-dispatcher/src/GrowthCommandCentre.tsx", "src/controllers/growthDashboard.controller.ts", "speedy-dispatcher/src/App.tsx"],
-    content: "Open Show more > Growth. Choose Last 7 days, Last 30 days, Last 90 days or Start date and End date, then Apply. Review completed orders, new/returning customers, second-order conversion, order sources, campaigns, trends, busiest times and operational timing. Comparisons use the displayed previous period. Data Confidence shows coverage for missing customer links, receipts, timestamps and source/campaign tags; blanks or unknown attribution are not confirmed zero performance. Delivery Fees Recorded totals the delivery-charge field on completed digital receipts. Receipt Sales Total includes purchased items and is not Speedy Sweeties profit. The help assistant can explain the screen but cannot read its current figures or claim a campaign caused a sale.",
+    evidence: ["speedy-dispatcher/src/GrowthCommandCentre.tsx", "src/controllers/growthDashboard.controller.ts", "src/services/growthDashboard.service.ts", "website/src/js/order-attribution.js", "speedy-dispatcher/src/App.tsx"],
+    content: "Open Show more > Growth. Choose Last 7 days, Last 30 days, Last 90 days or Start date and End date, then Apply. Review completed orders, new/returning customers, second-order conversion, order sources, campaigns, trends, busiest times and operational timing. Comparisons use the displayed previous period. Data Confidence shows coverage for missing customer links, receipts, timestamps and source/campaign tags; blanks or unknown attribution are not confirmed zero performance. Future website orders can carry broad traffic-source categories in the existing campaign rows. These are best-effort browser referrer, allowlisted link tags or advertising click-tag presence, retained for up to 30 minutes in a tab; they are not verified Google Analytics attribution. Empty tags are unknown, and older orders are not backfilled. Compare Completed with Orders in each row; a submitted order is not a fulfilled delivery. Source/campaign tag coverage does not prove accuracy or causation. Delivery Fees Recorded totals the delivery-charge field on completed digital receipts. Receipt Sales Total includes purchased items and is not Speedy Sweeties profit. The help assistant can explain the screen but cannot read its current figures or claim a campaign caused a sale.",
   },
   {
     id: "check-in-results",
