@@ -3,6 +3,9 @@
 import { createHash } from 'node:crypto';
 import { canonicalOrigin } from './render-service-pages.mjs';
 import { proposedPrivacyPolicy } from '../content/privacy-policy-proposed.mjs';
+import { androidPrivacyPolicy } from '../content/privacy-policy-android-proposed.mjs';
+
+const reviewPolicy = options => options.android ? androidPrivacyPolicy : proposedPrivacyPolicy;
 
 export const privacyPath = '/privacy-policy/';
 const headings = new Map([
@@ -17,7 +20,8 @@ const escape = value => String(value).replace(/[&<>"']/g, character => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[character]);
 
-export function validateProposedPolicyPublication({ production = false, approved = false, publicationDate = '' } = {}) {
+export function validateProposedPolicyPublication({ production = false, approved = false, publicationDate = '', android = false } = {}) {
+  if (production && android) throw new Error('Android policy review is preview-only; publication requires a separately reviewed release.');
   if (!production) {
     if (publicationDate) throw new Error('A policy preview must not assign an effective date.');
     return;
@@ -45,12 +49,13 @@ export function validateProposedPolicyPublication({ production = false, approved
 
 export function proposedPolicyBlocks(options = {}) {
   validateProposedPolicyPublication(options);
+  const policy = reviewPolicy(options);
   const date = options.production ? options.publicationDate : 'Not assigned — proposed policy; publication pending';
   return [
     `<strong>Effective Date:</strong> ${escape(date)}`,
     `<strong>Last updated:</strong> ${options.production ? escape(date) : 'Publication pending; this is a proposed replacement'}`,
-    `<strong>Speedy Sweeties</strong> — ${escape(proposedPrivacyPolicy.introduction)}`,
-    ...proposedPrivacyPolicy.sections.flatMap(section => [
+    `<strong>Speedy Sweeties</strong> — ${escape(policy.introduction)}`,
+    ...policy.sections.flatMap(section => [
       section.title, ...section.paragraphs.map(escape),
       ...(section.links ?? []).map(([label, url]) => `<a href="${escape(url)}" rel="noopener noreferrer">${escape(label)}</a>`)
     ])
@@ -64,22 +69,24 @@ export function replaceHomepagePolicy(homeHtml, options = {}) {
   return homeHtml.replace(pattern, (_match, beginning, end) => `${beginning}${body}${end}`);
 }
 
-export function proposedPolicyReviewText() {
+export function proposedPolicyReviewText(options = {}) {
+  const policy = reviewPolicy(options);
   return [
     'PROPOSED REPLACEMENT — NOT PUBLISHED; NOT APPLE SUBMISSION APPROVAL',
     'Canonical URL: ' + canonicalOrigin + privacyPath,
     'Effective date: not assigned. Use the actual publication date only after approval.',
-    '', proposedPrivacyPolicy.title, '', proposedPrivacyPolicy.introduction,
-    ...proposedPrivacyPolicy.sections.flatMap(section => [
+    '', policy.title, '', policy.introduction,
+    ...policy.sections.flatMap(section => [
       '', section.title, '', ...section.paragraphs.flatMap(paragraph => [paragraph, '']),
       ...(section.links ?? []).map(([label, url]) => `${label}: ${url}`)
     ])
   ].join('\n').trim() + '\n';
 }
 
-export function renderPrivacyPage(homeHtml, { production = false, legacy = false, proposed = false, approved = false, publicationDate = '' } = {}) {
-  if (proposed) validateProposedPolicyPublication({ production, approved, publicationDate });
-  const sectionHeadings = proposed ? new Map(proposedPrivacyPolicy.sections.map(section => [section.title, [section.id, section.title]])) : headings;
+export function renderPrivacyPage(homeHtml, { production = false, legacy = false, proposed = false, approved = false, publicationDate = '', android = false } = {}) {
+  if (android && !proposed) throw new Error('Android policy review requires the explicit proposed-policy path.');
+  if (proposed) validateProposedPolicyPublication({ production, approved, publicationDate, android });
+  const sectionHeadings = proposed ? new Map(reviewPolicy({ android }).sections.map(section => [section.title, [section.id, section.title]])) : headings;
   const match = homeHtml.match(/<span id="privacy-policy">[\s\S]*?<\/span>([\s\S]*?)<\/div>/);
   if (!match) throw new Error('The published homepage privacy section is missing.');
   const blocks = match[1].split(/<br\s*\/?>/i).map(block => block.replace(/\u200d/g, '').trim()).filter(Boolean);
