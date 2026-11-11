@@ -1,5 +1,5 @@
 import { OrderSource, Prisma } from "@prisma/client";
-import { messaging } from "../config/firebase";
+import { sendCustomerOrderNotification } from "./customerOrderNotification.service";
 import { prisma } from "../lib/prisma";
 
 const LOYALTY_TIME_ZONE = "America/Toronto";
@@ -294,51 +294,7 @@ export const getCustomerLoyaltySnapshot = async (
   });
 };
 
-export const sendCustomerLoyaltyNotification = async (
-  fcmToken: string | null,
-  result: LoyaltyMutationResult
-): Promise<void> => {
-  if (!result.notificationShouldBeAttempted || !result.notification || !fcmToken) {
-    return;
-  }
-
-  const notification =
-    result.notification === "LOYALTY_REWARD_EARNED"
-      ? {
-          title: "Speedy Sweeties 🎉",
-          body: "You earned a free delivery on your next order!"
-        }
-      : result.notification === "LOYALTY_REWARD_APPLIED"
-        ? {
-            title: "Speedy Sweeties 🎉",
-            body: "Your free delivery reward has been applied to this order."
-          }
-        : {
-            title: "Speedy Sweeties Rewards",
-            body: `You only have ${LOYALTY_DELIVERIES_PER_REWARD - result.completedOrders} ${
-              LOYALTY_DELIVERIES_PER_REWARD - result.completedOrders === 1
-                ? "delivery"
-                : "deliveries"
-            } left for your next free delivery.`
-          };
-
-  try {
-    await messaging.send({
-      token: fcmToken,
-      notification,
-      data: { type: result.notification },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "speedy_sweeties_orders",
-          sound: "default"
-        }
-      }
-    });
-  } catch (error) {
-    console.error(
-      `${result.notification} push failed:`,
-      error instanceof Error ? error.name : typeof error
-    );
-  }
+export const sendCustomerLoyaltyNotification = async (orderId: string, result: LoyaltyMutationResult): Promise<void> => {
+  if (!result.notificationShouldBeAttempted || !result.notification) return;
+  await sendCustomerOrderNotification(orderId, result.notification);
 };

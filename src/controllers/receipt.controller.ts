@@ -1,7 +1,7 @@
 import { assertNoSyntheticReceipt } from "../services/syntheticOrderSafety.service";
 import { Request, Response } from "express";
 import { OrderStatus, UserRole } from "@prisma/client";
-import { messaging } from "../config/firebase";
+import { sendCustomerOrderNotification } from "../services/customerOrderNotification.service";
 import { prisma } from "../lib/prisma";
 import {
   buildOrderTransitionTimestampData,
@@ -42,42 +42,6 @@ type LockedDriverOrder = {
   outForDeliveryAt: Date | null;
   deliveredAt: Date | null;
   fcmToken: string | null;
-};
-
-const sendOutForDeliveryNotification = async (
-  fcmToken: string | null,
-  grandTotal: number
-): Promise<void> => {
-  if (!fcmToken) {
-    return;
-  }
-
-  try {
-    await messaging.send({
-      token: fcmToken,
-      notification: {
-        title: "Speedy Sweeties 🚗",
-        body: `Your order is now out for delivery! Total: $${grandTotal.toFixed(2)}.`
-      },
-      data: {
-        type: "ORDER_OUT_FOR_DELIVERY",
-        status: OrderStatus.OUT_FOR_DELIVERY,
-        receiptTotal: grandTotal.toFixed(2)
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "speedy_sweeties_orders",
-          sound: "default"
-        }
-      }
-    });
-  } catch (error) {
-    console.error(
-      "ORDER_OUT_FOR_DELIVERY push failed:",
-      error instanceof Error ? error.name : typeof error
-    );
-  }
 };
 
 function getOrderIdFromParams(req: Request): string {
@@ -281,7 +245,7 @@ export const createOrUpdateReceiptController = async (
   }
 
   if (receiptResult.transitionedToOutForDelivery) {
-    await sendOutForDeliveryNotification(receiptResult.fcmToken, grandTotal);
+    await sendCustomerOrderNotification(orderId, "ORDER_OUT_FOR_DELIVERY");
   }
 
   res.status(200).json({

@@ -39,5 +39,6 @@ test('privacy migrations are applied in their reviewed order', () => {
     '20261023190000_adopt_retention_policy',
     '20261023220000_approved_privacy_review_dates',
     '20261030160000_retention_sms_delivery',
+    '20261110160000_customer_notification_revision',
   ]);
 });

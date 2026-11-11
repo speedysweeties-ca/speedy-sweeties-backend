@@ -182,6 +182,11 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
       const erased = await db.order.findUnique({ where: { id: source.order.id }, include: { digitalReceipt: true, items: true, helpRequest: true } });
       assert.equal(erased.phone, ''); assert.equal(erased.addressLine1, ''); assert.equal(erased.customerId, null);
       assert.equal(erased.trackingTokenHash, null); assert.equal(erased.fcmToken, null); assert.equal(erased.helpRequest, null);
+      assert.equal(erased.fcmTokenMutationId, null); assert(erased.fcmTokenRevision > 0);
+      const notifications = new (require('../dist/services/customerNotificationToken.service').CustomerNotificationTokens)(db);
+      await assert.rejects(notifications.mutate(input.source.order.id, input.source.trackingToken, {
+        expectedRevision: erased.fcmTokenRevision, operationId: randomUUID(), fcmToken: 'late-synthetic-device'
+      }), /CUSTOMER_ORDER_ACCESS_REJECTED/);
       assert.equal(erased.digitalReceipt.grandTotal.toFixed(2), '19.00'); assert.equal(erased.digitalReceipt.notes, null);
       assert.equal(erased.digitalReceipt.createdAt.toISOString(), receiptCreatedAt.toISOString());
       assert.deepEqual(erased.digitalReceipt.retainedChargeEvidence, { extraStops: 2, extraStopCharge: '8.00', distanceSurcharge: '4.00' });
