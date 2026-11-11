@@ -52,7 +52,8 @@
     gate.setAttribute('aria-describedby', 'age-description');
     yes.focus();
   });
-  if (window.speedySite?.live !== true) document.getElementById('landing-preview').hidden = false;
+  const preview = document.getElementById('landing-preview');
+  if (preview && window.speedySite?.live !== true) preview.hidden = false;
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target.closest('[data-landing-destination]') : null;
     const destination = target?.dataset.landingDestination;

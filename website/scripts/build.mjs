@@ -28,6 +28,7 @@ await mkdir(root + 'dist', { recursive: true });
 await cp(root + 'src', root + 'dist', { recursive: true });
 let html = await readFile(root + 'dist/index.html', 'utf8');
 html = html.replace('<!--BUILD_ROBOTS-->', production ? '' : '<meta name="robots" content="noindex, nofollow">');
+if (production) html = html.replace(/<aside id="preview-notice" hidden>[\s\S]*?<\/aside>\n?/, '');
 if (proposed) html = replaceHomepagePolicy(html, policyOptions);
 await writeFile(root + 'dist/index.html', withPageCounter(html, 'home'));
 for (const [slug, legacy] of [['privacy-policy', false], ['privacy', true]]) {
