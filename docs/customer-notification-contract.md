@@ -87,17 +87,23 @@ and authenticates taps; generic content limits disclosure from old remote alerts
 No existing order/tracking/loyalty/privacy endpoint or driver payload is removed.
 New fields are additive. Existing notification type/channel/envelope continue;
 private receipt totals move out of notification content into existing tracking
-responses. Committed iOS release records were inspected at release-branch revision
-`f4704086e3f6aac519ed9f2e507f91d1398c2848`, including RELEASE_CHECKLIST,
-VERIFICATION, PRE_ROLLOUT_READINESS and PRIVACY_ACTIVATION_SUBMISSION_CLOSEOUT.
-They describe an older Build 4 archive and proposed Build 5, with no explicit
-submitted Build 5 archive/source association. Backend submission handoff records
-submission but supplies no iOS source/archive identity. The inspected release
-source refreshes from customer pushes and reads totals from tracking; it is not
-proven to be submitted Build 5. Neither that branch nor the September default
-branch is a substitute. The owner confirmed exact-build provenance is unverified.
-Exact Build 5 compatibility and physical-device behavior remain evidence gaps;
-no iOS edit, rebuild, upload or reviewer action is authorized by this work.
+responses. The owner-supplied original-Mac investigation now associates submitted
+iOS 1.0 Build 5 with exact source `f4704086e3f6aac519ed9f2e507f91d1398c2848`:
+all 64 source hashes and the complete path manifest matched, with no uncommitted
+source included; Build 5 was a command-line override. This is owner-supplied Mac
+evidence, not independent inspection of the archive/IPA by this reviewer.
+
+Independent review of that exact Git source confirms existing creation, tracking,
+loyalty and notification handling remain source-compatible. Build 5 does not
+implement the new token API or Android routing, and no iOS rebuild is required
+merely to add that feature. Alert text is deliberately generic and event lifetime
+bounded; physical-device delivery remains unverified. See the
+[compatibility review, provenance filenames and coordinated execution plan](customer-notification-compatibility-review.md).
+
+The November 6 PREPARE_FOR_SUBMISSION records predate the later owner/VS Code
+reported November 9 10:27 p.m. EST submission and Waiting for Review closeout.
+They do not establish failure of that later submission or authorize resubmission.
+No ASC inspection/change or new device pass is claimed.
 
 Review PR bodies cross-link exact backend/Android candidates and final CI. Nothing
 in these PRs is deployed or merged under this task. Future authorized order:
@@ -137,18 +143,10 @@ live order/deletion request or Apple allowance use is part of this validation.
 Notification synchronization is not complete until both revisions are integrated
 and verified together; isolated checks do not establish production/device delivery.
 
-## Read-only prompt for the original Mac
+## Original-Mac provenance investigation: completed
 
-> Locate the submitted Speedy Sweeties version 1.0 Build 5 archive and retained
-> release evidence on this Mac, using read-only inspection. Verify archive and
-> embedded app Info.plist identity (bundle ID, version/build, creation date),
-> retained IPA/archive checksums, build/export/upload logs and toolchain records.
-> Find explicit evidence linking that archive to a full Git SHA, branch and
-> checkout, including staged, unstaged and untracked changes at archive time.
-> Current Git status alone cannot prove the historical source state. Preserve
-> all local work and report missing/ambiguous evidence without guessing a SHA.
-> Report a concise, secret-free provenance table and the notification/API source
-> corresponding to the actual archive. Do not check out/reset/stash, edit files,
-> rebuild/sign/export/upload, change ASC/iOS/production, send notifications, make
-> live requests or use reviewer allowances. Do not print credentials, customer
-> data, signing keys or private configuration.
+The owner supplied its result; the previous request to locate Build 5 is completed.
+The source/archive association, precise filenames, submission chronology,
+independent source review and remaining device checks are recorded in the
+[coordinated compatibility review](customer-notification-compatibility-review.md).
+Do not reopen provenance or submission merely from older preparation records.
