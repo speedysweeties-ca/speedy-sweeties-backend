@@ -8,6 +8,11 @@ androidPrivacyPolicy.introduction = androidPrivacyPolicy.introduction.replace(
 );
 const section = id => androidPrivacyPolicy.sections.find(value => value.id === id);
 
+// Owner-confirmed November 11: service, receipts and loyalty only; no promotion.
+section('customer-details').paragraphs[1] = section('customer-details').paragraphs[1]
+  .split(' The backend supports customer follow-up analysis')[0] +
+  ' We currently use customer contact details and order history for service, receipts and loyalty, not promotional follow-up or targeting.';
+
 section('location').paragraphs[0] = 'On iPhone and iPad, ' + section('location').paragraphs[0].replace(/^You/, 'you');
 section('speech-ai').title = 'Optional speech recognition and OpenAI';
 section('speech-ai').paragraphs[0] = 'On iPhone and iPad, ' + section('speech-ai').paragraphs[0].replace(/^You/, 'you');

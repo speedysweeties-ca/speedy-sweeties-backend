@@ -3,6 +3,14 @@
 November 11, 2026 (America/Toronto). Review preparation only. No declarations are
 entered/saved/submitted, no signed build is created and no production changes occur.
 
+Owner-export addendum: the current Console answer evidence is now resolved by
+`data_safety_export.csv`, SHA-256
+`30df563c8f0be1c9820b7dc9dde6e2b8054b7ad536c440dfb442cb6425836709`.
+The owner also confirmed service/receipts/loyalty use only, with no promotion.
+The [final proposed answer set](android-play-final-proposed-answers-2026-11-11.md)
+supersedes this worksheet's earlier conditional proposals and evidence gaps.
+No further Console-navigation handoff is needed to compare the saved answers.
+
 ## Completed Android review and merge
 
 PR #15 reviewed head `57514ef86163710ceffc8da7a6371a17b3542314` merged normally as
@@ -72,9 +80,9 @@ deletion request information appeared. Absence of a deletion badge does not prov
 that the private deletion answer is No. The listing showed September 20 as its
 update date; that does not identify every current active track/version.
 
-The private Console form/active-track inventory is not accessible through available
-browser tools. A read-only owner handoff was requested; do not substitute old
-screenshots for current state. Historical evidence showed production/internal 4
+The owner-exported CSV now supplies all saved form values, including explicit
+false and genuinely blank cells; it does not encode a track/version inventory.
+Historical evidence showed production/internal 4
 and closed alpha 2; the later owner-reported Play update and installed code 5 do
 not establish its distribution beyond that handset. Internal-only artifacts are
 exempt from the Data safety section. Include the union for applicable production,
@@ -93,7 +101,7 @@ for changing a public label. Keep applicable older voice/SDK behavior in scope.
 | Optional / ephemeral | Notification permission does not stop automatic Firebase identifiers. DataStore-only age answers are local; no birth date is sent. Neither `store:false` nor a live response proves memory-only retention across providers. |
 | Account creation | Draft Yes / Other for automatic customer/loyalty identity with scoped access, an explicit source-based classification rather than a claim of password/SSO/phone OTP login. A sign-up button's absence alone does not resolve account scope. Explain this in Other if the current form permits it; do not invent a login method. |
 | Deletion | Draft Yes: My Details request path plus public `https://www.speedysweeties.ca/privacy-policy/#requests` and existing verified support recovery. Scope, 30-day target and justified financial/audit/provider retention are disclosed. Neither code/request creation nor real completion was tested here. |
-| Marketing purposes | Unresolved business fact: whether contacts/order history are actually used for promotion/targeting today. Backend draft capability is not evidence a message was sent. If service/receipt/loyalty only, do not add marketing solely from that capability; if actual promotional use, add it to the fields used. No messages are sent to answer this. |
+| Marketing purposes | Resolved owner fact: service, receipts and loyalty only; no promotional follow-up/targeting. Leave Advertising or marketing unselected. Backend drafting capability alone does not change that answer. |
 
 These are draft proposals, not final saved answers. Do not change forms, pause a
 track, alter account classification or modify provider settings in this task.

@@ -20,9 +20,15 @@ test('Android review does not mutate approved policy, attribution, retention or 
   assert.equal(createHash('sha256').update(JSON.stringify(published)).digest('hex'),
     'e4a9ae2e4c5089058b1c2122e40de9f006b23a1f53c017322d5471a845126ee9');
   assert.doesNotMatch(published.introduction, /Android/);
-  for (const id of ['retention', 'requests', 'website', 'customer-details', 'order-sharing']) {
+  for (const id of ['retention', 'requests', 'website', 'order-sharing']) {
     assert.deepEqual(android.sections.find(s => s.id === id), published.sections.find(s => s.id === id));
   }
+  const details = android.sections.find(s => s.id === 'customer-details').paragraphs;
+  const oldDetails = published.sections.find(s => s.id === 'customer-details').paragraphs;
+  assert.equal(details[0], oldDetails[0]);
+  assert.equal(details[2], oldDetails[2]);
+  assert.match(details[1], /not promotional follow-up or targeting/);
+  assert.doesNotMatch(details[1], /preparation of draft messages|optional promotional communications/);
 });
 
 test('one opt-in preview supplies consistent Android and iOS wording on all policy copies', () => {
