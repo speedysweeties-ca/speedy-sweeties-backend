@@ -12,8 +12,8 @@ populated answers (33 true, 7 false) and 742 blanks. The original CSV is preserv
 outside Git. A blank is not an exported false, even where a control is unselected
 or conditionally inapplicable.
 
-The final proposal changes 101 cells: 98 blank cells receive explicit proposed
-answers and three selected cells are cleared to blank. The other 681 cells are
+The final proposal changes 106 cells: 103 blank cells receive explicit proposed
+answers and three selected cells are cleared to blank. The other 676 cells are
 unchanged, including 37 of the 40 saved answers. The three clears are account
 creation None and the two location Optional choices, replaced by Other and
 Required respectively. No existing explicit false is silently reinterpreted.
@@ -97,6 +97,7 @@ All purposes not listed remain unselected/blank, especially Marketing.
 | Precise location (`PSL_PRECISE_LOCATION`) | C + S | Required | F, A, Sec | F, A |
 | In-app search history (`PSL_IN_APP_SEARCH_HISTORY`) | C + S | Required | F, A | F, A |
 | Other user content (`PSL_USER_GENERATED_CONTENT`) | C | Optional | F | — |
+| Other in-app messages (`PSL_OTHER_MESSAGES`) | C | Optional | F | — |
 | Health info (`PSL_HEALTH`) | C | Optional | F | — |
 | Voice/sound recordings (`PSL_AUDIO`) | C | Optional | F | — |
 | Device/other IDs (`PSL_DEVICE_ID`) | C + S | Required | F, A | F, A |
@@ -104,7 +105,7 @@ All purposes not listed remain unselected/blank, especially Marketing.
 | Diagnostics (`PSL_PERFORMANCE_DIAGNOSTICS`) | C + S | Required | F, A | F, A |
 | App interactions (`PSL_USER_INTERACTION`) | C + S | Optional | F, A | F, A |
 
-Keep all 21 remaining data-type choices unselected/blank and their conditional
+Keep all 20 remaining data-type choices unselected/blank and their conditional
 handling blank. In particular, payment-method choice/receipts are transaction
 information, not card/bank-account number collection; the app does not read contact
 lists, inbox/SMS, files/photos, fitness/Health Connect, installed-app lists or web
@@ -116,6 +117,9 @@ Why these changes from the export/earlier worksheet:
 - User ID, order history and user-content handling were blank despite actual
   persistent loyalty/order/draft flows. Operational reports justify purchase/ID
   analytics; owner-confirmed service/loyalty use does not imply promotional targeting.
+- Sweetie user/assistant turns and clarification history are conversation messages,
+  represented separately as Other in-app messages. Notes/instructions remain Other
+  user-generated content; this does not imply reading the customer's email or SMS.
 - Handset GPS assistance is optional, but a confirmed order requires city/civic
   address and authoritative server geocoding. The retained delivery location is
   still collected without GPS permission. Required in the aggregate form does not
