@@ -136,6 +136,8 @@ test('build keeps previews isolated and requires owner key on the canonical prod
     return window.speedySite.live;
   };
   const checkLandingOutput = production => {
+    const home = parseHTML(fs.readFileSync(path.join(root, 'dist/index.html'), 'utf8')).document;
+    assert.equal(Boolean(home.getElementById('preview-notice')), !production);
     const slugs = ['beer', 'alcohol', 'vape', 'cannabis', 'convenience'].map(name => `${name}-delivery-guelph`);
     const sitemap = fs.readFileSync(path.join(root, 'dist/sitemap.xml'), 'utf8');
     assert.equal([...sitemap.matchAll(/<loc>/g)].length, 8);
@@ -153,6 +155,7 @@ test('build keeps previews isolated and requires owner key on the canonical prod
       const { document } = parseHTML(fs.readFileSync(path.join(root, `dist/${slug}/index.html`), 'utf8'));
       assert.equal(Boolean(document.querySelector('meta[name="robots"]')), !production);
       assert.ok(sitemap.includes(`https://www.speedysweeties.ca/${slug}/`));
+      assert.equal(Boolean(document.getElementById('landing-preview')), !production);
     }
   };
   try {
