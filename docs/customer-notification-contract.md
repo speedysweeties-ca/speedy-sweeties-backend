@@ -87,11 +87,17 @@ and authenticates taps; generic content limits disclosure from old remote alerts
 No existing order/tracking/loyalty/privacy endpoint or driver payload is removed.
 New fields are additive. Existing notification type/channel/envelope continue;
 private receipt totals move out of notification content into existing tracking
-responses. Available iOS source at `d2fd1ef778f50a18bbd108801fb6720022b91873`
-(September 7) refreshes on customer pushes and reads totals from tracking. That
-repository revision is not proven to be the submitted Build 5 source. Its exact
-revision and physical-device compatibility remain evidence gaps; no iOS edit,
-rebuild or reviewer action is authorized by this work.
+responses. Committed iOS release records were inspected at release-branch revision
+`f4704086e3f6aac519ed9f2e507f91d1398c2848`, including RELEASE_CHECKLIST,
+VERIFICATION, PRE_ROLLOUT_READINESS and PRIVACY_ACTIVATION_SUBMISSION_CLOSEOUT.
+They describe an older Build 4 archive and proposed Build 5, with no explicit
+submitted Build 5 archive/source association. Backend submission handoff records
+submission but supplies no iOS source/archive identity. The inspected release
+source refreshes from customer pushes and reads totals from tracking; it is not
+proven to be submitted Build 5. Neither that branch nor the September default
+branch is a substitute. The owner confirmed exact-build provenance is unverified.
+Exact Build 5 compatibility and physical-device behavior remain evidence gaps;
+no iOS edit, rebuild, upload or reviewer action is authorized by this work.
 
 Review PR bodies cross-link exact backend/Android candidates and final CI. Nothing
 in these PRs is deployed or merged under this task. Future authorized order:
@@ -130,3 +136,19 @@ No paid infrastructure, production environment change, real notification,
 live order/deletion request or Apple allowance use is part of this validation.
 Notification synchronization is not complete until both revisions are integrated
 and verified together; isolated checks do not establish production/device delivery.
+
+## Read-only prompt for the original Mac
+
+> Locate the submitted Speedy Sweeties version 1.0 Build 5 archive and retained
+> release evidence on this Mac, using read-only inspection. Verify archive and
+> embedded app Info.plist identity (bundle ID, version/build, creation date),
+> retained IPA/archive checksums, build/export/upload logs and toolchain records.
+> Find explicit evidence linking that archive to a full Git SHA, branch and
+> checkout, including staged, unstaged and untracked changes at archive time.
+> Current Git status alone cannot prove the historical source state. Preserve
+> all local work and report missing/ambiguous evidence without guessing a SHA.
+> Report a concise, secret-free provenance table and the notification/API source
+> corresponding to the actual archive. Do not check out/reset/stash, edit files,
+> rebuild/sign/export/upload, change ASC/iOS/production, send notifications, make
+> live requests or use reviewer allowances. Do not print credentials, customer
+> data, signing keys or private configuration.
