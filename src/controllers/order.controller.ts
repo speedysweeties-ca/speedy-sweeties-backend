@@ -11,7 +11,7 @@ import {
   PaymentMethod,
   UserRole
 } from "@prisma/client";
-import { messaging } from "../config/firebase";
+
 import { sendDriverAssignmentNotification } from "../services/driverAssignmentNotification.service";
 import { normalizePickupTypeOrUnknown } from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
@@ -304,63 +304,6 @@ const receiptTotalToNumber = (value: unknown): number | null => {
   }
 
   return Number(numberValue.toFixed(2));
-};
-
-const receiptTotalToCurrencyText = (value: unknown): string | null => {
-  const numberValue = receiptTotalToNumber(value);
-
-  if (numberValue === null) {
-    return null;
-  }
-
-  return `$${numberValue.toFixed(2)}`;
-};
-
-const sendCustomerOutForDeliveryNotification = async (
-  fcmToken: string | null,
-  orderNumber?: number | null,
-  receiptTotal?: unknown
-): Promise<void> => {
-  if (!fcmToken) {
-    console.log("No customer FCM token found for this order");
-    return;
-  }
-
-  const receiptTotalText = receiptTotalToCurrencyText(receiptTotal);
-
-  const body = orderNumber
-    ? receiptTotalText
-      ? `Order #${orderNumber} is now out for delivery. Total: ${receiptTotalText}.`
-      : `Order #${orderNumber} is now out for delivery.`
-    : receiptTotalText
-      ? `Your order is now out for delivery. Total: ${receiptTotalText}.`
-      : "Your order is now out for delivery.";
-
-  try {
-    await messaging.send({
-      token: fcmToken,
-      notification: {
-        title: "Speedy Sweeties",
-        body
-      },
-      data: {
-        type: "ORDER_STATUS_UPDATE",
-        status: OrderStatus.OUT_FOR_DELIVERY,
-        ...(receiptTotalText ? { receiptTotal: receiptTotalText } : {})
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "speedy_sweeties_orders",
-          sound: "default"
-        }
-      }
-    });
-
-    console.log("Customer OUT_FOR_DELIVERY notification sent");
-  } catch (error) {
-    console.error("Failed to send customer OUT_FOR_DELIVERY notification:", error instanceof Error ? error.name : typeof error);
-  }
 };
 
 /* ================= AUTO DISPATCH ================= */
@@ -868,7 +811,7 @@ const createOrder = async (
     });
   }
 
-  if (!transactionResult.syntheticOrder) await sendCustomerLoyaltyNotification(appFcmToken, loyaltyResult);
+  if (!transactionResult.syntheticOrder) await sendCustomerLoyaltyNotification(order.id, loyaltyResult);
 
   res.status(201).json({
     success: true,

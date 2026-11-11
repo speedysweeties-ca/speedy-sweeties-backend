@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { OrderStatus, Prisma, UserRole } from "@prisma/client";
-import { messaging } from "../config/firebase";
+import { sendCustomerOrderNotification } from "../services/customerOrderNotification.service";
 import { prisma } from "../lib/prisma";
 import {
   recordDeliveredOrderLoyalty,
@@ -43,35 +43,6 @@ const orderInclude = {
     }
   }
 } satisfies Prisma.OrderInclude;
-
-const sendPushNotification = async (
-  fcmToken: string | null,
-  title: string,
-  body: string,
-  type: string
-): Promise<void> => {
-  if (!fcmToken) {
-    console.log(`No customer FCM token found for ${type}`);
-    return;
-  }
-
-  try {
-    await messaging.send({
-      token: fcmToken,
-      notification: { title, body },
-      data: { type },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "speedy_sweeties_orders",
-          sound: "default"
-        }
-      }
-    });
-  } catch (error) {
-    console.error(`${type} push failed:`, error instanceof Error ? error.name : typeof error);
-  }
-};
 
 export const driverActionController = async (
   req: Request<{ id: string }, {}, DriverActionBody>,
@@ -211,12 +182,7 @@ export const driverActionController = async (
       include: orderInclude
     });
 
-      await sendPushNotification(
-        order.fcmToken,
-        "Speedy Sweeties 🚗",
-        "Your order is now out for delivery!",
-        "ORDER_OUT_FOR_DELIVERY"
-      );
+      await sendCustomerOrderNotification(id, "ORDER_OUT_FOR_DELIVERY");
 
     res.status(200).json({
       success: true,
@@ -265,7 +231,7 @@ export const driverActionController = async (
       order.customerId,
       order.orderSource
     );
-    await sendCustomerLoyaltyNotification(order.fcmToken, loyaltyResult);
+    await sendCustomerLoyaltyNotification(id, loyaltyResult);
 
     res.status(200).json({
       success: true,

@@ -61,6 +61,10 @@ const installLoyaltyDatabase = (t, initialCustomers) => {
   const lockedCustomerIds = new Set();
   const notifications = [];
   let committedTransactions = 0;
+  replaceForTest(t, prisma.order, "findUnique", async ({ where }) => ({
+    id: where.id, fcmToken: "customer-token", privacyErasedAt: null, orderStatus: "DELIVERED",
+    createdAt: new Date(), deliveredAt: new Date(), outForDeliveryAt: new Date()
+  }));
 
   const acquireCustomerLock = async (customerId) => {
     if (!lockedCustomerIds.has(customerId)) {

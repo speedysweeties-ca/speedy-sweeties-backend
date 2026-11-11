@@ -658,6 +658,7 @@ export class PrivacyDeletionService {
         privacyErasedAt: now, privacyRetainUntil: new Date(decision.financialRetainUntil), customerId: null, customerName: "Deleted customer", phone: "", email: "",
         addressLine1: "", unitNumber: null, buzzCode: null, city: "", province: "", postalCode: null,
         itemsText: "", additionalNotes: null, cancellationReason: null, fcmToken: null,
+        fcmTokenMutationId: null, fcmTokenRevision: { increment: 1 },
         trackingTokenHash: null, trackingTokenExpiresAt: null,
         deliveryLatitude: null, deliveryLongitude: null, geocodeStatus: null, geocodedAddress: null,
         geocodePlaceId: null, geocodeAddressFingerprint: null,

@@ -295,6 +295,8 @@ model Order {
   id                     String        @id @default(uuid())
   orderNumber            Int           @unique @default(autoincrement())
   fcmToken               String?
+  fcmTokenRevision       Int           @default(0)
+  fcmTokenMutationId     String?
   customerName           String
   addressLine1           String
   unitNumber             String?

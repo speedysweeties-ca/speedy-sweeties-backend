@@ -53,6 +53,14 @@ jobs:
           RECOVERY_POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: node --test --test-concurrency=1 tests/privacyRecovery.database.test.js tests/privacyRecoveryOperator.database.test.js
       - run: node --test --test-concurrency=1 tests/privacyBaseline.test.js tests/privacyDeletion.database.test.js tests/privacyRoutes.database.test.js tests/privacyDelivery.test.js tests/privacyIntake.database.test.js
+      - name: Verify customer notification concurrency on separate synthetic PostgreSQL
+        env:
+          CHECK_CUSTOMER_NOTIFICATION_DATABASE: '1'
+          DATABASE_URL: postgresql://privacy_test:synthetic-only@127.0.0.1:5432/speedy_notification_synthetic
+        run: |
+          docker exec "${{ job.services.postgres.id }}" createdb -U privacy_test speedy_notification_synthetic
+          npx prisma db push --skip-generate
+          node --test --test-concurrency=1 tests/customerNotification.database.test.js
       - name: Verify protected reviewer orders against separate synthetic PostgreSQL
         env:
           REVIEWER_SAFETY_SYNTHETIC: 'yes'
