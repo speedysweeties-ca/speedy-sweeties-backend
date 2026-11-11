@@ -148,11 +148,16 @@ test('current-main integration preserves driver pages and ordinary output while 
 });
 
 
-test('operational successor cannot reuse the request-only publication date', t => {
+test('published operational policy preserves November 7 while changed content needs a new date', t => {
   t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-08T17:00:00Z') });
   const options = { production: true, approved: true, publicationDate: '2026-11-07' };
   assert.throws(() => renderer.proposedPolicyBlocks({ ...options, approved: false }), /separate approval/);
-  assert.throws(() => renderer.proposedPolicyBlocks(options), /actual Toronto publication date/);
+  assert.match(renderer.proposedPolicyBlocks(options).join(' '), /Effective Date:<\/strong> 2026-11-07/);
+  const introduction = policy.introduction;
+  try {
+    policy.introduction += ' Unpublished change.';
+    assert.throws(() => renderer.proposedPolicyBlocks(options), /actual Toronto publication date/);
+  } finally { policy.introduction = introduction; }
   assert.throws(() => renderer.proposedPolicyBlocks({ ...options, publicationDate: '2026-11-03' }), /actual Toronto publication date/);
   assert.throws(() => renderer.proposedPolicyBlocks({ ...options, publicationDate: '2026-11-04' }), /actual Toronto publication date/);
   assert.match(renderer.proposedPolicyBlocks({ ...options, publicationDate: '2026-11-08' }).join(' '), /Effective Date:<\/strong> 2026-11-08/);

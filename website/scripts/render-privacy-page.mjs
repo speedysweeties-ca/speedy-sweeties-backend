@@ -27,11 +27,12 @@ export function validateProposedPolicyPublication({ production = false, approved
     timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit'
   }).format(new Date());
   // Keep each approved publication's exact content/date on later rebuilds.
-  // Add the request-only entry only after observed approved 2026-11-07 publication.
-  // If the actual day differs, stop and update the reviewed release metadata.
+  // Operational-policy publication verified against live HTML and Render deploy
+  // dep-dbnscvnf3r2c739h4rhg on 2026-11-10; preserve its November 7 dates.
   const publishedDatesByHash = {
     '9ccee680c14fa75d27a220188ec847d01303b10326a15f9f15aed00f47a90631': '2026-11-03',
-    'cbb53c7ea5d1077c787458a88b0b71ceddb6d6c8d76c74c7a35155bd78b5fd9a': '2026-11-07'
+    'cbb53c7ea5d1077c787458a88b0b71ceddb6d6c8d76c74c7a35155bd78b5fd9a': '2026-11-07',
+    'dad48fe960a4bc0f6cf4b5f4e4cd9cdb2304ddfe833a9255553d7511a375baa6': '2026-11-07'
   };
   const policyHash = createHash('sha256').update(JSON.stringify(proposedPrivacyPolicy)).digest('hex');
   const unchangedPublishedPolicy = publicationDate === publishedDatesByHash[policyHash] && publicationDate <= today;
