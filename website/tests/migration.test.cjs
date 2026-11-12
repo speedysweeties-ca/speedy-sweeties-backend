@@ -17,18 +17,19 @@ const acknowledgement = {
 function harness({ live = true, closed = false, order = acknowledgement, status = 200, failOrder = false, token = 'synthetic-token', attribution } = {}) {
   const { document, CustomEvent, Event } = parseHTML(html);
   const calls = [];
+  let isClosed = closed, refreshHours;
   const window = { speedyOrderAttribution: attribution, speedySite: { live }, location: { hostname: 'www.speedysweeties.ca' }, addEventListener() {},
     speedyAddress: { verify: async () => {}, matches: () => true },
     speedyHumanVerification: { ready: () => Boolean(token), getToken: () => token, mount() {}, reset() {} } };
   const fetch = async (url, options) => {
     calls.push({ url, options });
-    if (url.endsWith('/business/status')) return { ok: true, json: async () => ({ success: true, source: 'google_places', isOpen: !closed }) };
+    if (url.endsWith('/business/status')) return { ok: true, json: async () => ({ success: true, source: 'google_places', isOpen: !isClosed }) };
     if (!url.endsWith('/orders')) throw Error('Unexpected request: ' + url);
     if (failOrder) throw Error('Connection lost after sending');
     return { ok: status >= 200 && status < 300, status, json: async () => order };
   };
   const context = vm.createContext({ window, document, fetch, AbortController, CustomEvent, console,
-    setTimeout, clearTimeout, setInterval() {} });
+    setTimeout, clearTimeout, setInterval(callback) { refreshHours = callback; } });
   const form = document.getElementById('email-form');
   form.checkValidity = () => true;
   form.reportValidity = () => {};
@@ -40,7 +41,9 @@ function harness({ live = true, closed = false, order = acknowledgement, status 
   // LinkeDOM does not implement the native select.value setter.
   Object.defineProperty(document.getElementById('City'), 'value', { value: 'Guelph', writable: true });
   document.getElementById('Payment-Method---Cash').checked = true;
-  return { document, calls, form, submit: () => form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })) };
+  return { document, calls, form, Event,
+    setClosed: value => { isClosed = value; refreshHours(); },
+    submit: () => form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })) };
 }
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const posts = h => h.calls.filter(call => call.options?.method === 'POST');
@@ -214,5 +217,63 @@ test('optional attribution accompanies the existing order POST and cannot block 
     assert.equal(payload.turnstileToken, 'synthetic-token');
     assert.equal(payload.utmSource, expectedSource);
     assert.equal(h.form.style.display, 'none');
+  }
+});
+
+test('same-page help starts on real input, focuses an unfinished field and never submits', async () => {
+  const h = harness(); await settle();
+  const help = h.document.getElementById('speedy-order-resume');
+  const name = h.document.getElementById('Name-5');
+  name.dispatchEvent(new h.Event('focusin', { bubbles: true }));
+  assert.equal(help.hidden, true, 'Focus alone must not show recovery help');
+  name.dispatchEvent(new h.Event('input', { bubbles: true }));
+  assert.equal(help.hidden, false);
+  for (const link of h.document.querySelectorAll('[data-order-start]')) assert.equal(link.textContent.trim(), 'Continue my order');
+  const email = h.document.getElementById('Confirm-Email');
+  Object.defineProperties(email, { willValidate: { value: true }, validity: { value: { valid: false } } });
+  let focused = false; email.focus = () => { focused = true; };
+  help.querySelector('button').click();
+  assert.equal(focused, true);
+  assert.equal(posts(h).length, 0);
+  assert.equal(h.calls.length, 1, 'Resuming must not request hours or an address again');
+  assert.equal(help.querySelector('a').getAttribute('href'), 'tel:5198268097');
+  assert.equal(h.document.getElementById('Address').value, '1 Example Street');
+  h.form.dispatchEvent(new h.Event('reset'));
+  assert.equal(help.hidden, true);
+  assert.match(h.document.querySelector('[data-order-start]').textContent, /Start my order/);
+});
+
+test('recovery help follows current hours and is absent on previews', async () => {
+  for (const options of [{ closed: true }, { live: false }]) {
+    const h = harness(options); await settle();
+    h.document.getElementById('Items').dispatchEvent(new h.Event('input', { bubbles: true }));
+    assert.equal(h.document.getElementById('speedy-order-resume').hidden, true);
+    assert.match(h.document.querySelector('[data-order-start]').textContent, /Start my order/);
+  }
+  const h = harness(); await settle();
+  h.document.getElementById('Items').dispatchEvent(new h.Event('input', { bubbles: true }));
+  assert.equal(h.document.getElementById('speedy-order-resume').hidden, false);
+  h.setClosed(true); await settle();
+  assert.equal(h.document.getElementById('speedy-order-resume').hidden, true);
+  h.setClosed(false); await settle();
+  assert.equal(h.document.getElementById('speedy-order-resume').hidden, false);
+});
+
+test('success and uncertain receipt suppress recovery; known rejection remains correctable', async () => {
+  for (const options of [{}, { failOrder: true }, { order: { success: true } },
+    { status: 400, order: { success: false, code: 'INVALID_DELIVERY_ADDRESS', message: 'Check the address.' } }]) {
+    const h = harness(options); await settle();
+    h.document.getElementById('Items').dispatchEvent(new h.Event('input', { bubbles: true }));
+    assert.equal(h.document.getElementById('speedy-order-resume').hidden, false);
+    h.submit();
+    assert.equal(h.document.getElementById('speedy-order-resume').hidden, true, 'Hide while submitting');
+    await settle();
+    assert.equal(h.document.getElementById('speedy-order-resume').hidden, options.status !== 400);
+    if (options.failOrder || options.order?.success === true) {
+      h.document.getElementById('Items').dispatchEvent(new h.Event('input', { bubbles: true }));
+      assert.equal(h.document.getElementById('speedy-order-resume').hidden, true, 'Editing cannot undo uncertain-receipt protection');
+      h.submit(); await settle();
+      assert.equal(posts(h).length, 1);
+    }
   }
 });
