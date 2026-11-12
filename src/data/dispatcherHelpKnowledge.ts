@@ -102,11 +102,11 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "help-guide",
     title: "Use How do I…? and its source guides",
-    reviewedAt: "2026-11-04",
+    reviewedAt: "2026-11-12",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "HELP",
     evidence: ["speedy-dispatcher/src/DispatcherHelp.tsx", "src/services/dispatcherHelp.service.ts"],
-    content: "Open How do I…?, type a workflow question and click Ask the guide, or choose a suggested question. Ask follow-up questions in the same conversation. Expand a Source guide to read the instructions and reviewed date, and use its navigation button to open that screen. New conversation clears the conversation. Chat survives switching dashboard tabs but clears on browser reload or logout. This AI explains the maintained guide; it does not watch screens, learn procedures from chats, read live records, or perform actions. New features need an updated guide released with the software. Do not enter private customer details, passwords or credentials. If a procedure or policy is undocumented, ask the manager or owner; the assistant must not invent it.",
+    content: "Open How do I…?, type a workflow question and click Ask the guide, or choose a suggested question. Ask follow-up questions in the same conversation. Expand a Source guide to read the instructions and reviewed date, and use its navigation button to open that screen. New conversation clears the conversation. Chat survives switching dashboard tabs but clears on browser reload or logout. This AI explains the maintained guide; it does not watch screens, learn procedures from chats, read live records, or perform actions. New features need an updated guide released with the software. Do not enter private customer details, passwords or credentials. If a procedure or policy is undocumented, ask the manager or owner; the assistant must not invent it. A source-verification error means the answer could not be verified, not that the procedure is undocumented. Your question stays in the input; use Try again or read an available Source guide. Clarify an ambiguous follow-up when asked.",
   },
   {
     id: "dispatcher-standards",
