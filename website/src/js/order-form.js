@@ -280,6 +280,7 @@
     let pendingStatus = null;
     let submitting = false;
     let unconfirmedOrder = false;
+    let orderStarted = false;
     const unconfirmedMessage =
       "We can't confirm whether your order was received. To avoid a duplicate order, call dispatch at 519-826-8097 before placing it again. Your entered details have been kept.";
 
@@ -362,6 +363,8 @@ submitGate.id = "speedy-order-submit-gate";
 submitGate.style.cssText = "border:0;padding:0;margin:0;min-width:0;width:100%;";
 const orderActions = document.createElement("div");
 orderActions.className = "speedy-order-actions";
+orderActions.tabIndex = -1;
+orderActions.setAttribute("aria-label", "Order verification and submission");
 if (submitButton) {
 submitButton.before(hoursNotice, orderActions);
 window.speedyHumanVerification?.mount(orderActions);
@@ -374,7 +377,50 @@ submitButton.setAttribute("aria-describedby",
 form.append(hoursNotice);
 }
 
+// Same-page help only: never persist form values or contact an unfinished order.
+const resumeHelp = document.createElement("section");
+resumeHelp.className = "speedy-order-resume";
+resumeHelp.id = "speedy-order-resume";
+resumeHelp.hidden = true;
+resumeHelp.setAttribute("aria-label", "Continue your unfinished order");
+resumeHelp.innerHTML = '<p>Your order hasn’t been sent. Finish the form below, then select Submit Order. Need help? <a href="tel:5198268097">Call dispatch at 519-826-8097</a>.</p><button type="button">Continue my order</button>';
+topHoursNotice.after(resumeHelp);
+const orderLinks = [...document.querySelectorAll("[data-order-start]")].map(link => ({
+  label: link.querySelector("span") || link,
+  original: (link.querySelector("span") || link).textContent
+}));
+const renderResumeHelp = () => {
+  const available = live && orderStarted && businessState === "open" &&
+    !submitting && !unconfirmedOrder && form.style.display !== "none";
+  resumeHelp.hidden = !available;
+  for (const { label, original } of orderLinks) {
+    label.textContent = available ? "Continue my order" : original;
+  }
+};
+resumeHelp.querySelector("button").addEventListener("click", () => {
+  if (resumeHelp.hidden) return;
+  const incomplete = [...form.querySelectorAll("input, select, textarea")]
+    .find(field => field.willValidate && field.validity?.valid === false);
+  const target = incomplete || (submitGate.disabled ? orderActions : submitButton);
+  target?.focus();
+  target?.scrollIntoView?.({ block: "center" });
+});
+const noticeOrderInput = (event) => {
+  const field = event.target;
+  if (!field?.matches?.("input, select, textarea") ||
+      field.closest(".speedy-order-actions") || field.type === "submit" || field.type === "hidden") return;
+  // Focus alone is not an unfinished order. The flag exists only in this page.
+  if ((field.type === "checkbox" || field.type === "radio") ? field.checked : field.value?.trim()) {
+    orderStarted = true;
+    renderResumeHelp();
+  }
+};
+form.addEventListener("input", noticeOrderInput);
+form.addEventListener("change", noticeOrderInput);
+form.addEventListener("reset", () => { orderStarted = false; renderResumeHelp(); });
+
 const renderBusinessState = () => {
+renderResumeHelp();
 submitGate.disabled = submitting || unconfirmedOrder || businessState === "checking" ||
 businessState === "closed" || (live && !window.speedyHumanVerification?.ready());
 let message = "Checking whether we're open for delivery…";
