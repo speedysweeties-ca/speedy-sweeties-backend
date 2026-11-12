@@ -138,10 +138,14 @@ test('build keeps previews isolated and requires owner key on the canonical prod
   const checkLandingOutput = production => {
     const home = parseHTML(fs.readFileSync(path.join(root, 'dist/index.html'), 'utf8')).document;
     assert.equal(Boolean(home.getElementById('preview-notice')), !production);
-    const slugs = ['beer', 'alcohol', 'vape', 'cannabis', 'convenience'].map(name => `${name}-delivery-guelph`);
+    const slugs = ['beer', 'alcohol', 'convenience'].map(name => `${name}-delivery-guelph`);
     const sitemap = fs.readFileSync(path.join(root, 'dist/sitemap.xml'), 'utf8');
-    assert.equal([...sitemap.matchAll(/<loc>/g)].length, 8);
+    assert.equal([...sitemap.matchAll(/<loc>/g)].length, 6);
     assert.ok(sitemap.includes('https://www.speedysweeties.ca/privacy-policy/'));
+    for (const retired of ['vape-delivery-guelph', 'cannabis-delivery-guelph']) {
+      assert.equal(fs.existsSync(path.join(root, 'dist', retired)), false, 'Retired pages must not be published');
+      assert.equal(sitemap.includes(retired), false);
+    }
     for (const slug of ['privacy-policy', 'privacy']) {
       const { document } = parseHTML(fs.readFileSync(path.join(root, `dist/${slug}/index.html`), 'utf8'));
       assert.equal(document.querySelector('link[rel="canonical"]').getAttribute('href'), 'https://www.speedysweeties.ca/privacy-policy/');
