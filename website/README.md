@@ -50,9 +50,11 @@ Previews remain noindex, make no order requests and emit no analytics.
 On November 11, 2026, the owner authorized the website changes requested in
 Google Ads support case 7-9441000042376. Prescription-pickup offers were removed
 from the homepage. The vape and cannabis information pages are retired: the
-build no longer generates their directories, navigation or sitemap entries.
-Their former URLs should return the host's normal not-found response, rather
-than redirect visitors to an unrelated page. This is the same public content
+build no longer generates their service content, navigation or sitemap entries.
+Initial live checks still returned cached old content at slash URLs after source
+removal. The build therefore explicitly overwrites both old resources with a
+generic retirement notice containing no service offers, scripts or forms and
+`noindex, nofollow`. These are static notices, not a claim of HTTP 404/410 status. This is the same public content
 for users and crawlers; no user-agent-specific treatment is introduced.
 Alcohol age/ID safeguards and privacy disclosures remain in place. A privacy
 statement about sensitive order data is not a prescription-service offer and

@@ -143,7 +143,12 @@ test('build keeps previews isolated and requires owner key on the canonical prod
     assert.equal([...sitemap.matchAll(/<loc>/g)].length, 6);
     assert.ok(sitemap.includes('https://www.speedysweeties.ca/privacy-policy/'));
     for (const retired of ['vape-delivery-guelph', 'cannabis-delivery-guelph']) {
-      assert.equal(fs.existsSync(path.join(root, 'dist', retired)), false, 'Retired pages must not be published');
+      const retiredHtml = fs.readFileSync(path.join(root, 'dist', retired, 'index.html'), 'utf8');
+      const retiredDocument = parseHTML(retiredHtml).document;
+      assert.equal(retiredDocument.querySelector('meta[name="robots"]').getAttribute('content'), 'noindex, nofollow');
+      assert.match(retiredDocument.body.textContent, /This page is no longer available/);
+      assert.doesNotMatch(retiredDocument.body.textContent, /prescription|cannabis|marijuana|vape|tobacco/i);
+      assert.equal(retiredDocument.querySelectorAll('form,script,dialog').length, 0);
       assert.equal(sitemap.includes(retired), false);
     }
     for (const slug of ['privacy-policy', 'privacy']) {
