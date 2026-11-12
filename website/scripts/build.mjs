@@ -41,6 +41,13 @@ for (const service of services) {
   await mkdir(root + `dist/${service.slug}`, { recursive: true });
   await writeFile(root + `dist/${service.slug}/index.html`, withPageCounter(renderServicePage(service, { production }), service.key));
 }
+// Overwrite formerly published resources explicitly: deleted paths can remain
+// cached at the CDN. These notices offer no service and are not sitemap entries.
+const retiredNotice = '<!doctype html>\n<html lang="en-CA"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>Page no longer available | Speedy Sweeties</title></head><body><main><h1>This page is no longer available.</h1><p>This service information page has been retired.</p><p><a href="/">Visit the Speedy Sweeties homepage</a></p></main></body></html>\n';
+for (const retired of ['vape-delivery-guelph', 'cannabis-delivery-guelph']) {
+  await mkdir(root + `dist/${retired}`, { recursive: true });
+  await writeFile(root + `dist/${retired}/index.html`, retiredNotice);
+}
 await writeFile(root + 'dist/js/site-config.js', `/* Generated at build time. Preview is the default. */
 (() => {
   const production = ${production};
