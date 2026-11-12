@@ -220,10 +220,11 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "driver-assignment",
     title: "Assign a driver or change order priority",
-    reviewedAt: "2026-10-24",
+    // 2026-11-12 TEC-04: Re-read assignment/notifier implementation after SDK transitive-dependency maintenance; controls, roles, acceptance checks and push semantics are unchanged.
+    reviewedAt: "2026-11-12",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "LIVE_ORDERS",
-    evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/orderAssignment.controller.ts", "docs/dispatch-reliability.md"],
+    evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/orderAssignment.controller.ts", "src/services/driverAssignmentNotification.service.ts", "src/config/firebase.ts", "docs/dispatch-reliability.md"],
     content: "In Live Orders, locate the order, choose an online driver from Select Driver and click Assign to Driver. Each driver's active order count is shown in the selector. Verify Assigned and the order status after saving. Choosing a name alone does not assign the order. The button stays disabled until a different driver is selected. Closed orders cannot be assigned. Changing Normal / High saves priority immediately. Assignment moves a new order to DISPATCHED; the driver still needs to accept it. A notification being sent is not proof that the driver saw it. Monitor acceptance and contact the driver or reassign if necessary. Check Staff for visibility and online status if a driver is missing.",
   },
   {
@@ -242,7 +243,8 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
     id: "order-lifecycle",
     title: "Understand statuses, receipts and late-order warnings",
     // 2026-10-29: Website verification runs before creation; staff lifecycle and timers remain unchanged.
-    reviewedAt: "2026-11-10",
+    // 2026-11-12 TEC-04: Dependency changes preserve Firebase Messaging imports and generic customer push behavior; no lifecycle, receipt, role or privacy guard changes.
+    reviewedAt: "2026-11-12",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "LIVE_ORDERS",
     evidence: ["src/utils/customerNotificationReference.ts", "src/services/customerNotificationToken.service.ts", "src/services/customerOrderNotification.service.ts", "docs/reviewer-synthetic-orders.md", "src/services/syntheticOrderSafety.service.ts", "src/controllers/receipt.controller.ts", "speedy-dispatcher/src/App.tsx", "docs/order-status-state-machine.md", "docs/dispatcher-edit-pauses.md", "src/middleware/websiteVerification.ts"],
