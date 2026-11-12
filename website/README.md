@@ -27,19 +27,17 @@ to the script, so the command also works from inside this folder.
 
 ## Service landing pages
 
-The build generates five separate pages from `content/services.mjs`:
+The build generates three separate pages from `content/services.mjs`:
 
 | Page | Path |
 | --- | --- |
 | Beer | `/beer-delivery-guelph/` |
 | Alcohol | `/alcohol-delivery-guelph/` |
-| Vape information | `/vape-delivery-guelph/` |
-| Cannabis information | `/cannabis-delivery-guelph/` |
 | Convenience | `/convenience-delivery-guelph/` |
 
 Each page has unique copy, title, description, canonical/social metadata,
 WebPage/breadcrumb structured data, a shared 19+ self-declaration and navigation
-back to the main website. The homepage service section and sitemap link all five.
+back to the main website. The homepage service section and sitemap link all three.
 Ordering remains on the existing homepage; landing pages do not submit orders.
 The acknowledgement stores only `19-plus` in sessionStorage for the current tab
 session. It is not verified age or identity and does not replace delivery checks.
@@ -49,15 +47,20 @@ Production landing-page analytics use the existing GA4 loader and add
 category and destination type. Neither event is an accepted-order conversion.
 Previews remain noindex, make no order requests and emit no analytics.
 
-Vape and cannabis pages contain information rather than product sales. Cannabis
-copy makes no retailer-licence/partnership claim and describes Ontario's retailer
-delivery requirement. Google Ads restricts vaping; its Canadian cannabis pilot
-has specific licence/eligibility requirements. A page's existence does not mean
-an advertising platform has approved it. No campaign or ad spend is included.
-Sources checked October 29, 2026:
-- https://www.ontario.ca/laws/regulation/180468 (section 20.2)
-- https://support.google.com/adspolicy/answer/16489929
-- https://support.google.com/adspolicy/answer/16851502
+On November 11, 2026, the owner authorized the website changes requested in
+Google Ads support case 7-9441000042376. Prescription-pickup offers were removed
+from the homepage. The vape and cannabis information pages are retired: the
+build no longer generates their directories, navigation or sitemap entries.
+Their former URLs should return the host's normal not-found response, rather
+than redirect visitors to an unrelated page. This is the same public content
+for users and crawlers; no user-agent-specific treatment is introduced.
+Alcohol age/ID safeguards and privacy disclosures remain in place. A privacy
+statement about sensitive order data is not a prescription-service offer and
+must not be removed merely to change ad classification. Historical attribution
+codes are retained for records from previously published pages.
+Google reports that alcohol Approved (limited) is expected and the destination
+accessibility label is stale. Publication does not itself establish Google Ads
+re-approval; a separate platform re-review is still needed.
 
 Release scope is website-only. It requires no API, dispatcher, mobile, database,
 environment-variable or DNS change. Use the existing website production build
@@ -72,8 +75,8 @@ remain separate. Dispatcher guide IDs: not applicable; no staff workflow changes
 The build also generates `/privacy-policy/`, the canonical standalone privacy
 page, and `/privacy/`, a noindex compatibility copy. The original homepage
 `/#privacy-policy` section and full published text remain available. Its heading
-and all five service-page footers link to the dedicated page. The sitemap contains
-seven canonical URLs; the compatibility copy is omitted. The static host resolves
+and all three service-page footers link to the dedicated page. The sitemap contains
+six canonical URLs; the compatibility copy is omitted. The static host resolves
 the slashless privacy paths to their directory pages; verify that behavior live.
 
 Legal pages are readable without JavaScript, an age acknowledgement, login or
