@@ -233,3 +233,24 @@ Rollback targets: website `4e1956a3a49c94e270778ee66daac37b28e49e71`, API
 date variable and uses its original November 7 command. Retained source tags on
 existing orders need no reversal. Validation must not place real test orders or
 label a successful browser acknowledgement as a completed delivery.
+
+### Neutral privacy wording — November 12, 2026
+
+Robert authorized the wording update and policy re-review requested in Google Ads
+support case 7-9441000042376. The shared policy now says: "An order request may
+itself reveal sensitive personal information." It retains the sensitive-data
+warning without a named service example. No other disclosure or ordering behavior
+changes. Homepage, canonical privacy page and compatibility privacy page use the
+same source. Publication is not Google Ads re-approval.
+
+For this website-only release, merge `PUBLIC_PRIVACY_POLICY_DATE=2026-11-12` into
+the existing website service configuration, never replace its variable collection.
+Keep the current production flags, owner-held Turnstile key and Auto-Deploy Off.
+The renderer pins this exact policy hash/date for later unchanged rebuilds and
+preserves historical hashes for rollback. Current-head checks and the owner's
+explicit implementation authorization apply before merge/publication.
+
+Prior healthy website/rollback source: `440df36c6bea67478bcb2bb35f3d0bf54e460627`.
+Restoring that source requires restoring its policy date `2026-11-11` as well.
+No API, dispatcher, app, database, DNS, provider or budget change belongs to this
+release. Dispatcher help guide IDs: not applicable.
