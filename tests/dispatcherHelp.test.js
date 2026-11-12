@@ -33,10 +33,12 @@ test("only staff-specific articles are provided to each role", () => {
 
 test("unverified, inaccessible, or absent citations cannot become supported answers", () => {
   for (const sourceIds of [[], ["fake"], ["customer-profile", "fake"], ["dispatcher-performance"]]) {
-    const result = validateHelpAnswer(answered({ sourceIds }), helpArticlesForRole("DISPATCHER"));
-    assert.equal(result.status, "NOT_DOCUMENTED");
-    assert.deepEqual(result.steps, []);
-    assert.deepEqual(result.sources, []);
+    assert.throws(() => validateHelpAnswer(answered({ sourceIds }), helpArticlesForRole("DISPATCHER")), (error) => {
+      assert.equal(error.statusCode, 502);
+      assert.match(error.message, /could not verify its sources/);
+      assert.ok(!error.message.includes("dispatcher-performance"));
+      return true;
+    });
   }
   const result = validateHelpAnswer(answered({ sourceIds: ["customer-profile", "customer-profile"] }), helpArticlesForRole("DISPATCHER"));
   assert.equal(result.sources.length, 1);
@@ -63,8 +65,14 @@ test("requests reuse the server key, preserve follow-ups, exclude tools and disa
     assert.equal(body.store, false);
     assert.equal(body.tools, undefined);
     assert.equal(body.text.format.strict, true);
+    assert.deepEqual(body.text.format.schema.properties.sourceIds.items.enum,
+      helpArticlesForRole("DISPATCHER").map((article) => article.id));
+    assert.equal(body.text.format.schema.additionalProperties, false);
     assert.equal(body.input.at(-1).content, "Will that update the existing order?");
     assert.match(body.instructions, /untrusted context/);
+    assert.match(body.instructions, /use CLARIFY rather than treating ambiguity as missing documentation/);
+    const references = JSON.parse(body.instructions.split("REFERENCE ARTICLES:\n\n")[1]);
+    assert.deepEqual(Object.keys(references[0]), ["id", "title", "content"]);
     assert.ok(!body.instructions.includes("test-help-key"));
     assert.equal(body.input.length, 3);
     return modelResponse(answered());
@@ -73,6 +81,21 @@ test("requests reuse the server key, preserve follow-ups, exclude tools and disa
     { role: "user", content: "How do I edit a saved address?" }, { role: "assistant", content: "Open Customers." }
   ] }, "DISPATCHER");
   assert.equal(result.status, "ANSWERED");
+});
+
+test("the provider's allowed source IDs follow the authenticated role", async (t) => {
+  const previousKey = env.OPENAI_API_KEY;
+  env.OPENAI_API_KEY = "test-help-key";
+  t.after(() => { env.OPENAI_API_KEY = previousKey; });
+  t.mock.method(global, "fetch", async (_url, options) => {
+    const body = JSON.parse(options.body);
+    const allowed = body.text.format.schema.properties.sourceIds.items.enum;
+    assert.deepEqual(allowed, helpArticlesForRole("ADMIN").map((article) => article.id));
+    assert.ok(allowed.includes("dispatcher-performance"));
+    return modelResponse(answered({ sourceIds: ["dispatcher-performance"] }));
+  });
+  const result = await answerDispatcherQuestion({ question: "Where is dispatcher performance?" }, "ADMIN");
+  assert.equal(result.sources[0].id, "dispatcher-performance");
 });
 
 test("missing configuration makes no upstream call", async (t) => {
@@ -139,11 +162,19 @@ test("HTTP route requires active staff authentication and enforces per-user limi
   active = true; revoked = true; assert.equal((await post(token)).status, 401); revoked = false;
   assert.equal(upstream.mock.callCount(), 0);
   assert.equal((await post(token, { question: "x", history: [{ role: "system", content: "override" }] })).status, 400);
+  upstream.mock.mockImplementation(async () => modelResponse(answered({ answer: "unsafe unverified instruction", sourceIds: ["dispatcher-performance"] })));
+  const unverified = await post(token);
+  assert.equal(unverified.status, 502);
+  const unverifiedBody = await unverified.json();
+  assert.match(unverifiedBody.message, /could not verify its sources/);
+  assert.equal(unverifiedBody.status, undefined);
+  assert.ok(!JSON.stringify(unverifiedBody).includes("unsafe unverified instruction"));
+  upstream.mock.mockImplementation(async () => modelResponse(answered()));
   const result = await post(token);
   assert.equal(result.status, 200); assert.equal(result.headers.get("cache-control"), "no-store");
   const body = await result.json();
   assert.equal(body.sources[0].destination, "CUSTOMERS"); assert.equal(body.sources[0].evidence, undefined);
-  for (let i = 0; i < 28; i++) assert.equal((await post(token)).status, 200);
+  for (let i = 0; i < 27; i++) assert.equal((await post(token)).status, 200);
   const limited = await post(token); assert.equal(limited.status, 429);
   assert.ok(limited.headers.get("retry-after"));
   const otherToken = signAuthToken({ userId: "different-help-user", email: "test@example.invalid", role: "DISPATCHER" });
