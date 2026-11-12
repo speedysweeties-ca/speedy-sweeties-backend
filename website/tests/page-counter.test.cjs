@@ -8,12 +8,12 @@ const { parseHTML } = require('linkedom');
 const root = path.join(__dirname, '..');
 const code = fs.readFileSync(path.join(root, 'src/js/page-counter.js'), 'utf8');
 
-test('build adds exactly seven separate counters and excludes privacy pages', t => {
+test('build adds exactly five separate counters and excludes privacy pages', t => {
   const fixture = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'speedy-counter-'));
   t.after(() => fs.rmSync(fixture, { recursive: true, force: true }));
   for (const name of ['scripts', 'content', 'src']) fs.cpSync(path.join(root, name), path.join(fixture, name), { recursive: true });
   execFileSync(process.execPath, [path.join(fixture, 'scripts/build.mjs')]);
-  const pages = [['', 'home'], ['drive-with-us', 'drivers'], ['beer-delivery-guelph', 'beer'], ['alcohol-delivery-guelph', 'alcohol'], ['vape-delivery-guelph', 'vapes'], ['cannabis-delivery-guelph', 'cannabis'], ['convenience-delivery-guelph', 'convenience']];
+  const pages = [['', 'home'], ['drive-with-us', 'drivers'], ['beer-delivery-guelph', 'beer'], ['alcohol-delivery-guelph', 'alcohol'], ['convenience-delivery-guelph', 'convenience']];
   for (const [slug, key] of pages) {
     const { document } = parseHTML(fs.readFileSync(path.join(fixture, 'dist', slug, 'index.html'), 'utf8'));
     assert.equal(document.querySelectorAll('[data-page-counter]').length, 1);
