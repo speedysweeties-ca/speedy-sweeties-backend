@@ -385,11 +385,11 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "bnd-emails",
     title: "Control B&D email notifications",
-    reviewedAt: "2026-10-26",
+    reviewedAt: "2026-11-13",
     roles: ["ADMIN"],
     destination: "LIVE_ORDERS",
-    evidence: ["speedy-dispatcher/src/BndEmailControls.tsx", "src/routes/bndAlerts.routes.ts"],
-    content: "Administrators open Show more > B&D Emails and use Turn B&D Emails On or Turn B&D Emails Off. Check the displayed recipient and saved state. This separate server setting sends one email per waiting order during B&D's published opening hours and can work while the dispatcher page is closed. The control does not edit the recipient. Browser B&D Alerts and browser sound are separate controls. If Email setup needs attention or a loading/saving error appears, have the administrator check configuration; an unknown setting is not proof that emails are off. The help assistant cannot change the setting, inspect delivery or guarantee that an email reached the recipient.",
+    evidence: ["speedy-dispatcher/src/BndEmailControls.tsx", "src/routes/bndAlerts.routes.ts", "src/services/bndEmailAlerts.service.ts"],
+    content: "Administrators open Show more > B&D Emails and use Turn B&D Emails On or Turn B&D Emails Off. Check the displayed recipients and saved state. Alerts go to the primary mailbox and any configured temporary copy. This separate server setting sends one alert per waiting order to the displayed recipients during B&D's published opening hours and can work while the dispatcher page is closed. Previously sent alerts are not sent again when a copy is added. The control does not edit the recipients; the owner must arrange configuration or removal of a temporary copy. If the expected copy address is missing from the displayed recipients, ask the owner to check its configuration. Browser B&D Alerts and browser sound are separate controls. If Email setup needs attention or a loading/saving error appears, have the administrator check configuration; an unknown setting is not proof that emails are off. The help assistant cannot change the setting, inspect delivery or guarantee that an email reached either recipient.",
   },
   {
     id: "customer-retention",

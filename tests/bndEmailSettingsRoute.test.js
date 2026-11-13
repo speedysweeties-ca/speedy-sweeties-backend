@@ -7,12 +7,13 @@ const { env } = require("../dist/config/env.js");
 const { signAuthToken } = require("../dist/utils/jwt.js");
 const { BND_EMAIL_SETTING_KEY, prismaBndEmailStore } = require("../dist/services/bndEmailAlerts.service.js");
 
-test("B&D email settings require an active admin and cannot change the fixed recipient", async t => {
+test("B&D email settings require an active admin and display configured recipients without allowing recipient edits", async t => {
   let role = "ADMIN", isActive = true, forceLogoutAt = null, value = null;
   const original = { user: prisma.user.findUnique, find: prisma.systemSetting.findUnique,
-    save: prisma.systemSetting.upsert, apiKey: env.RESEND_API_KEY };
+    save: prisma.systemSetting.upsert, apiKey: env.RESEND_API_KEY, copyTo: env.BND_EMAIL_COPY_TO };
   t.after(() => { prisma.user.findUnique = original.user; prisma.systemSetting.findUnique = original.find;
-    prisma.systemSetting.upsert = original.save; env.RESEND_API_KEY = original.apiKey; });
+    prisma.systemSetting.upsert = original.save; env.RESEND_API_KEY = original.apiKey;
+    env.BND_EMAIL_COPY_TO = original.copyTo; });
   prisma.user.findUnique = async () => ({ id: "admin", email: "admin@example.invalid", role, isActive, forceLogoutAt });
   prisma.systemSetting.findUnique = async ({ where }) => { assert.equal(where.key, BND_EMAIL_SETTING_KEY); return value === null ? null : { value }; };
   let writes = 0;
@@ -21,6 +22,7 @@ test("B&D email settings require an active admin and cannot change the fixed rec
     value = update.value; writes++; return { value };
   };
   env.RESEND_API_KEY = "test-key";
+  env.BND_EMAIL_COPY_TO = "copy@example.invalid";
   const app = express(); app.use(express.json()); app.use("/bnd-alerts", routes);
   const server = app.listen(0, "127.0.0.1");
   await new Promise(resolve => server.once("listening", resolve));
@@ -45,7 +47,10 @@ test("B&D email settings require an active admin and cannot change the fixed rec
   assert.equal(writes, 0);
   const initial = await request(); assert.equal(initial.status, 200);
   assert.equal(initial.headers.get("cache-control"), "no-store");
-  assert.deepEqual(await initial.json(), { enabled: false, recipient: "rstubbings@hotmail.com", configured: true });
+  assert.deepEqual(await initial.json(), { enabled: false, recipient: "rstubbings@hotmail.com, copy@example.invalid", configured: true });
+  env.BND_EMAIL_COPY_TO = "";
+  assert.equal((await (await request()).json()).recipient, "rstubbings@hotmail.com");
+  env.BND_EMAIL_COPY_TO = "copy@example.invalid";
   for (const body of [{}, { enabled: "true" }, { enabled: 1 }, { enabled: true, recipient: "elsewhere@example.invalid" }]) {
     assert.equal((await request("PUT", body)).status, 400);
   }
