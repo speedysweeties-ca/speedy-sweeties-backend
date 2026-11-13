@@ -1,3 +1,6 @@
+// 2026-11-13: Re-reviewed bnd-emails for safe provider diagnostics and an
+// owner-triggered, ten-minute delivery check. Normal alert controls and recipients
+// are unchanged; a TEST ONLY email creates no order and requires no collection.
 // 2026-11-04: Reviewed help-guide for public page-view counters. No dispatcher
 // controls, permissions, order workflows or help answers change. Counters store
 // anonymous totals in an independent table (src/routes/pageViews.routes.ts).
