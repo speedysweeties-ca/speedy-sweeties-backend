@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { createBndEmailProcessor, getBndEmailRecipients, sendBndEmailWithResend } = require("../dist/services/bndEmailAlerts.service.js");
+const { createBndEmailProcessor, getBndEmailRecipients, sendBndEmailWithResend, sendBndEmailRoutingCheck, bndEmailFailureReason } = require("../dist/services/bndEmailAlerts.service.js");
 const { env } = require("../dist/config/env.js");
 
 function harness() {
@@ -96,6 +96,50 @@ test("optional copy validates one address and preserves the primary recipient", 
     assert.deepEqual(getBndEmailRecipients(copy), ["rstubbings@hotmail.com"]);
   }
   assert.deepEqual(getBndEmailRecipients(" copy@example.invalid "), ["rstubbings@hotmail.com", "copy@example.invalid"]);
+});
+
+test("delivery checks require a fresh explicit timestamp and keep a stable clearly labelled request", async t => {
+  const originalCopy = env.BND_EMAIL_COPY_TO;
+  t.after(() => { env.BND_EMAIL_COPY_TO = originalCopy; });
+  env.BND_EMAIL_COPY_TO = "copy@example.invalid";
+  const now = Date.parse("2026-11-13T18:15:00Z"), requests = [];
+  const options = { apiKey: "test-key", from: "alerts@example.invalid", fetchImpl: async (url, init) => {
+    requests.push(init); return Response.json({ id: "test-message" });
+  } };
+  for (const timestamp of ["", "invalid", "2026-11-13T18:15:01Z", "2026-11-13T18:05:00Z", "2026-11-12T18:15:00Z"]) {
+    assert.equal(await sendBndEmailRoutingCheck(timestamp, options, now), false);
+  }
+  assert.equal(requests.length, 0);
+  for (let i = 0; i < 2; i++) assert.equal(await sendBndEmailRoutingCheck("2026-11-13T18:15:00Z", options, now), true);
+  assert.equal(requests[0].headers["Idempotency-Key"], requests[1].headers["Idempotency-Key"]);
+  assert.equal(requests[0].body, requests[1].body);
+  const body = JSON.parse(requests[0].body);
+  assert.deepEqual(body.to, ["rstubbings@hotmail.com", "copy@example.invalid"]);
+  assert.match(body.subject, /^TEST ONLY/); assert.match(body.text, /No order has been created/);
+});
+
+test("provider failures expose only HTTP status and fixed categories, never raw provider or database text", async () => {
+  for (const [status, message, expected] of [
+    [403, "You can only send testing emails to PRIVATE@example.invalid", "testing_sender_restriction"],
+    [403, "The PRIVATE domain is not verified", "unverified_sender_domain"],
+    [429, "daily limit exceeded PRIVATE", "sending_quota"],
+    [429, "PRIVATE too many requests", "rate_limit"],
+    [409, "PRIVATE conflict", "idempotency_conflict"],
+    [500, "PRIVATE", "provider_rejection"],
+  ]) {
+    await assert.rejects(sendBndEmailWithResend({ id: "test-1", number: "1" }, {
+      apiKey: "test-key", from: "alerts@example.invalid", fetchImpl: async () => Response.json({ message }, { status }),
+    }), error => {
+      assert.equal(bndEmailFailureReason(error), `HTTP ${status}: ${expected}`);
+      assert.doesNotMatch(bndEmailFailureReason(error), /PRIVATE/); return true;
+    });
+  }
+  assert.equal(bndEmailFailureReason(new Error("PRIVATE connection details")), "delivery unconfirmed");
+  const h = harness(), reasons = [];
+  h.options.onError = reason => reasons.push(reason);
+  h.options.send = async () => { throw new Error("PRIVATE"); };
+  await createBndEmailProcessor(h.options).check();
+  assert.deepEqual(reasons, ["delivery unconfirmed"]);
 });
 
 test("provider requests include the configured copy, carry no customer data, and use a stable idempotency key", async t => {

@@ -112,6 +112,7 @@ export const env = {
 
   RESEND_API_KEY: process.env.RESEND_API_KEY ?? "",
   BND_EMAIL_COPY_TO: process.env.BND_EMAIL_COPY_TO ?? "",
+  BND_EMAIL_ROUTING_CHECK_AT: process.env.BND_EMAIL_ROUTING_CHECK_AT ?? "",
   UNDISPATCHED_ALERT_EMAIL:
     process.env.UNDISPATCHED_ALERT_EMAIL ?? "rstubbings@hotmail.com",
   UNDISPATCHED_ALERT_FROM:

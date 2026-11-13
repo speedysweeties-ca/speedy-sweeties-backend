@@ -74,9 +74,17 @@ export const prismaBndEmailStore: BndEmailStore = {
   },
 };
 
-export async function sendBndEmailWithResend(order: BndPendingOrder, options: {
+type ResendOptions = {
   apiKey: string; from: string; fetchImpl?: typeof fetch;
-}): Promise<void> {
+};
+
+class BndEmailProviderError extends Error {}
+export const bndEmailFailureReason = (error: unknown): string =>
+  error instanceof BndEmailProviderError ? error.message : "delivery unconfirmed";
+
+async function sendBndMessageWithResend(message: {
+  idempotencyKey: string; subject: string; text: string;
+}, options: ResendOptions): Promise<void> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   timeout.unref();
@@ -85,23 +93,25 @@ export async function sendBndEmailWithResend(order: BndPendingOrder, options: {
       method: "POST", redirect: "error", signal: controller.signal,
       headers: {
         Authorization: `Bearer ${options.apiKey}`, "Content-Type": "application/json",
-        "Idempotency-Key": `bnd-waiting-order/${order.id}`,
+        "Idempotency-Key": message.idempotencyKey,
       },
       body: JSON.stringify({
         from: options.from, to: getBndEmailRecipients(),
-        subject: `New B&D order to collect — #${order.number}`,
-        text: [
-          `B&D order #${order.number} is waiting to be collected.`,
-          "Please check B&D using your usual process.", "",
-          "Open Dispatcher: https://speedy-dispatcher.onrender.com", "",
-          "Manage these emails with the admin-only B&D Emails switch in Dispatcher.",
-        ].join("\n"),
+        subject: message.subject, text: message.text,
       }),
     });
     // Never include provider responses, credentials or customer data in logs.
     if (!response.ok) {
-      await response.body?.cancel();
-      throw new Error(`B&D email provider returned HTTP ${response.status}`);
+      const rejection: unknown = await response.json().catch((): null => null);
+      const detail = rejection && typeof rejection === "object" && "message" in rejection &&
+        typeof rejection.message === "string" ? rejection.message.toLowerCase() : "";
+      // Only fixed categories may enter logs; never include the provider's text.
+      const category = detail.includes("only send testing emails") ? "testing_sender_restriction"
+        : detail.includes("domain is not verified") ? "unverified_sender_domain"
+        : detail.includes("quota") || detail.includes("daily limit") || detail.includes("monthly limit") ? "sending_quota"
+        : response.status === 429 ? "rate_limit"
+        : response.status === 409 ? "idempotency_conflict" : "provider_rejection";
+      throw new BndEmailProviderError(`HTTP ${response.status}: ${category}`);
     }
     const body = await response.json();
     if (!body || typeof body !== "object" || !("id" in body) || typeof body.id !== "string" || !body.id) {
@@ -110,12 +120,39 @@ export async function sendBndEmailWithResend(order: BndPendingOrder, options: {
   } finally { clearTimeout(timeout); }
 }
 
+export async function sendBndEmailWithResend(order: BndPendingOrder, options: ResendOptions): Promise<void> {
+  return sendBndMessageWithResend({
+    idempotencyKey: `bnd-waiting-order/${order.id}`,
+    subject: `New B&D order to collect — #${order.number}`,
+    text: [
+      `B&D order #${order.number} is waiting to be collected.`,
+      "Please check B&D using your usual process.", "",
+      "Open Dispatcher: https://speedy-dispatcher.onrender.com", "",
+      "Manage these emails with the admin-only B&D Emails switch in Dispatcher.",
+    ].join("\n"),
+  }, options);
+}
+
+export async function sendBndEmailRoutingCheck(requestedAt: string, options: ResendOptions, now = Date.now()): Promise<boolean> {
+  if (!z.string().datetime({ offset: true }).safeParse(requestedAt).success) return false;
+  const requested = Date.parse(requestedAt);
+  // An explicit operator timestamp permits one idempotent check for ten minutes.
+  // Old configuration cannot send again after the provider's 24-hour key expiry.
+  if (now < requested || now - requested >= 10 * 60_000) return false;
+  await sendBndMessageWithResend({
+    idempotencyKey: `bnd-email-routing-check/${requested}`,
+    subject: "TEST ONLY — B&D email delivery check",
+    text: "Speedy Sweeties email delivery check.\n\nThis is a test of B&D alert delivery. No order has been created; there is nothing to collect.",
+  }, options);
+  return true;
+}
+
 export function createBndEmailProcessor(options: {
   store: BndEmailStore;
   getStatus: () => BndStatus;
   send: (order: BndPendingOrder) => Promise<void>;
   now?: () => number;
-  onError?: () => void;
+  onError?: (reason: string) => void;
 }) {
   const now = options.now ?? Date.now;
   let running = false;
@@ -144,14 +181,14 @@ export function createBndEmailProcessor(options: {
         try {
           await options.send(claim.order);
           await options.store.markSent(claim, new Date(now()));
-        } catch {
+        } catch (error) {
           // Keep the claim for a two-minute retry delay. The same durable ID
           // protects retries after a timeout, crash, restart or overlapping deploy.
-          options.onError?.();
+          options.onError?.(bndEmailFailureReason(error));
         }
         if (++attempted >= 10) break;
       }
-    } catch { options.onError?.(); }
+    } catch (error) { options.onError?.(bndEmailFailureReason(error)); }
     finally { running = false; }
   }
   return { check, stop: () => { stopped = true; } };
@@ -159,12 +196,17 @@ export function createBndEmailProcessor(options: {
 
 export function startBndEmailAlertMonitor(): () => void {
   if (!env.RESEND_API_KEY.trim() || !env.UNDISPATCHED_ALERT_FROM.trim()) return () => {};
+  void sendBndEmailRoutingCheck(env.BND_EMAIL_ROUTING_CHECK_AT, {
+    apiKey: env.RESEND_API_KEY, from: env.UNDISPATCHED_ALERT_FROM,
+  }).then(sent => {
+    if (sent) console.info("B&D email routing test accepted by provider; inbox delivery still needs verification.");
+  }).catch(error => console.error("B&D email routing test failed:", bndEmailFailureReason(error)));
   const processor = createBndEmailProcessor({
     store: prismaBndEmailStore, getStatus: getBndMonitorStatus,
     send: order => sendBndEmailWithResend(order, {
       apiKey: env.RESEND_API_KEY, from: env.UNDISPATCHED_ALERT_FROM,
     }),
-    onError: () => console.error("B&D email alert failed; delivery is unconfirmed. Check email service and database health."),
+    onError: reason => console.error("B&D email alert failed;", reason),
   });
   // Read the existing cache; email outages never slow or break B&D monitoring.
   const timer = setInterval(() => void processor.check(), 10_000);

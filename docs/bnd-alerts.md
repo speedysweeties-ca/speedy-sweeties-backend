@@ -222,6 +222,23 @@ fake emails and never contact B&D or send a real message.
   Check the sending account's shared quota and billing settings before enabling
   additional recipients; one provider request does not mean one quota unit.
 
+### Operator delivery check
+
+To diagnose delivery without creating an order, explicitly set the backend-only
+`BND_EMAIL_ROUTING_CHECK_AT` to the current UTC ISO timestamp and deploy. Startup
+sends one `TEST ONLY — B&D email delivery check` message to the configured B&D
+recipients only when that timestamp is no more than ten minutes old and is not in
+the future. The timestamp supplies a stable provider idempotency key, so overlapping
+instances/restarts reuse the same request. Expired or absent configuration sends
+nothing, including after the provider's 24-hour idempotency window. Clear the setting
+after the check; never change its recipient payload while reusing its timestamp.
+
+This operator-requested check is independent of waiting calls and the normal alert
+toggle, creates no order or receipt row, and costs one email quota unit per recipient.
+Acceptance is logged separately from inbox delivery. Provider failures log only HTTP
+status and fixed categories; raw provider bodies, addresses and credentials are never
+included. The same safe diagnostics apply to normal B&D email failures.
+
 ## Bandwidth estimate for published hours
 
 The prior daily 10am–9pm window was 77 hours/week. Published regular hours total
