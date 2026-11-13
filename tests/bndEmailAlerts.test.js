@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { createBndEmailProcessor, sendBndEmailWithResend } = require("../dist/services/bndEmailAlerts.service.js");
+const { createBndEmailProcessor, getBndEmailRecipients, sendBndEmailWithResend } = require("../dist/services/bndEmailAlerts.service.js");
+const { env } = require("../dist/config/env.js");
 
 function harness() {
   let time = Date.parse("2026-10-05T16:00:00Z");
@@ -90,7 +91,17 @@ test("a database failure after provider acceptance retries the same email identi
   assert.equal(h.errors.length, 1);
 });
 
-test("provider requests go only to the fixed recipient, carry no customer data, and use a stable idempotency key", async () => {
+test("optional copy validates one address and preserves the primary recipient", () => {
+  for (const copy of ["", "  ", "bad-address", "one@example.invalid,two@example.invalid", "RSTUBBINGS@HOTMAIL.COM"]) {
+    assert.deepEqual(getBndEmailRecipients(copy), ["rstubbings@hotmail.com"]);
+  }
+  assert.deepEqual(getBndEmailRecipients(" copy@example.invalid "), ["rstubbings@hotmail.com", "copy@example.invalid"]);
+});
+
+test("provider requests include the configured copy, carry no customer data, and use a stable idempotency key", async t => {
+  const originalCopy = env.BND_EMAIL_COPY_TO;
+  t.after(() => { env.BND_EMAIL_COPY_TO = originalCopy; });
+  env.BND_EMAIL_COPY_TO = "copy@example.invalid";
   const requests = [];
   const options = { apiKey: "test-key", from: "alerts@example.invalid", fetchImpl: async (url, init) => {
     requests.push({ url, init }); return Response.json({ id: "email-1" });
@@ -100,7 +111,7 @@ test("provider requests go only to the fixed recipient, carry no customer data, 
   const { url, init } = requests[0]; const body = JSON.parse(init.body);
   assert.equal(url, "https://api.resend.com/emails");
   assert.equal(init.redirect, "error"); assert.equal(init.method, "POST");
-  assert.deepEqual(body.to, ["rstubbings@hotmail.com"]);
+  assert.deepEqual(body.to, ["rstubbings@hotmail.com", "copy@example.invalid"]);
   assert.match(body.subject, /New B&D order to collect.*1001/);
   assert.doesNotMatch(init.body, /PRIVATE|customer|address|phone/i);
   assert.equal(init.headers["Idempotency-Key"], "bnd-waiting-order/1");

@@ -1,9 +1,19 @@
+import { z } from "zod";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
 import { BND_POLL_MS, BndPendingOrder, BndStatus } from "../integrations/bnd/monitor";
 import { getBndMonitorStatus } from "./bndOrderMonitor.service";
 
 export const BND_EMAIL_RECIPIENT = "rstubbings@hotmail.com";
+// Keep the optional copy address in private service configuration.
+export const getBndEmailRecipients = (copyTo = env.BND_EMAIL_COPY_TO): string[] => {
+  const copy = copyTo.trim();
+  // Invalid optional configuration must not interrupt the original alerts.
+  if (!z.string().email().safeParse(copy).success || copy.toLowerCase() === BND_EMAIL_RECIPIENT) {
+    return [BND_EMAIL_RECIPIENT];
+  }
+  return [BND_EMAIL_RECIPIENT, copy];
+};
 export const BND_EMAIL_SETTING_KEY = "bndEmailAlertsEnabled";
 const CLAIM_MS = 2 * 60_000;
 // Resend retains idempotency keys for 24 hours. Stop ambiguous retries before
@@ -17,7 +27,7 @@ export const getBndEmailEnabled = async (): Promise<boolean> => {
 
 export const getBndEmailSettings = async () => ({
   enabled: await getBndEmailEnabled(),
-  recipient: BND_EMAIL_RECIPIENT,
+  recipient: getBndEmailRecipients().join(", "),
   configured: Boolean(env.RESEND_API_KEY.trim() && env.UNDISPATCHED_ALERT_FROM.trim()),
 });
 
@@ -78,7 +88,7 @@ export async function sendBndEmailWithResend(order: BndPendingOrder, options: {
         "Idempotency-Key": `bnd-waiting-order/${order.id}`,
       },
       body: JSON.stringify({
-        from: options.from, to: [BND_EMAIL_RECIPIENT],
+        from: options.from, to: getBndEmailRecipients(),
         subject: `New B&D order to collect — #${order.number}`,
         text: [
           `B&D order #${order.number} is waiting to be collected.`,

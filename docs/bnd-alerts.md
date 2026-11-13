@@ -156,8 +156,9 @@ deployment, rollback is the prior main commit; no database rollback is necessary
   accounts. Both GET and PUT `/api/v1/bnd-alerts/email-settings` also require a
   currently active admin on the server, including when an old token says ADMIN.
 - It defaults **OFF**. Turning it ON saves a shared system setting and sends to
-  **rstubbings@hotmail.com** only. Dispatchers cannot read/change this setting or
-  change the recipient. Closing Dispatcher or switching off desktop B&D Alerts
+  **rstubbings@hotmail.com**, plus the optional privately configured copy below.
+  Dispatchers cannot read/change this setting or change the recipients.
+  Closing Dispatcher or switching off desktop B&D Alerts
   does not stop emails; use the admin email toggle to stop future sends.
 - The existing B&D monitor's next fresh snapshot is checked for waiting calls.
   Normal detection remains roughly 60–90 seconds, plus email-provider delivery
@@ -165,8 +166,8 @@ deployment, rollback is the prior main commit; no database rollback is necessary
   Calls that arrive and are claimed between B&D polls cannot be detected.
 - One email per B&D order ID contains its number and a reminder to check B&D.
   No customer details, screenshots, claiming, or Speedy order creation is involved.
-  The email service reuses `RESEND_API_KEY` and `UNDISPATCHED_ALERT_FROM`, with a
-  fixed recipient independent of other email settings. Missing email setup is
+  The email service reuses `RESEND_API_KEY` and `UNDISPATCHED_ALERT_FROM`, with
+  B&D recipients independent of other email settings. Missing email setup is
   shown in the admin control and blocks enabling, but never blocks disabling.
 - The additive `20261005160000_bnd_email_alerts` migration creates `BndEmailAlert`
   receipts. Run `npx prisma migrate deploy` before starting the new backend, then
@@ -189,6 +190,37 @@ Verification before enabling: backend and dispatcher checks; apply migration;
 confirm admin-only visibility and on/off persistence; then verify one real waiting
 call produces one email and no repeat after a refresh/restart. Offline tests use
 fake emails and never contact B&D or send a real message.
+
+### Optional temporary copy — November 13, 2026
+
+- Set `BND_EMAIL_COPY_TO` privately on the backend service to one email address.
+  It defaults to empty (primary mailbox only). Surrounding whitespace is trimmed;
+  an invalid address, a list of addresses, or a case-insensitive duplicate of the
+  primary address is ignored so original alerts continue. Verify the expected
+  addresses in the administrator control after deployment. Do not commit the
+  actual copy address to source, documentation, fixtures or a Blueprint.
+- When configured, both addresses are included in the same provider request; the existing
+  per-order receipt and idempotency key still prevent repeated notifications.
+  Already accepted alerts are not replayed to the copy. Delivery to each mailbox
+  remains provider-controlled; acceptance is not proof of inbox delivery.
+- The existing admin control displays both addresses from the backend's
+  `recipient` string, so no dispatcher layout or frontend deployment is required.
+  The How do I guide `bnd-emails` explains the optional recipient.
+- No schema, dependency, credential, subscription or service change. Only the
+  optional backend environment variable and a backend deployment are needed.
+  Before deploying/removing this copy, pause B&D Emails using the admin control,
+  allow any in-flight request to finish, and confirm there are no unconfirmed email
+  receipts (`sentAt IS NULL`): changing the recipient payload while an old send
+  is awaiting a retry could conflict with the provider's idempotency key.
+  If any are present, resolve their delivery status before changing recipients;
+  do not delete receipts or create replacement keys to force a resend. Restore the
+  previous enabled state after the new deployment and recipient display are verified.
+- Removal is an explicit follow-up: clear `BND_EMAIL_COPY_TO` and deploy the
+  backend with the updated environment. A restart alone uses the old environment.
+  No automatic expiry has been set because the owner did not specify an end date.
+- Resend counts each recipient, including multiple recipients in one request.
+  Check the sending account's shared quota and billing settings before enabling
+  additional recipients; one provider request does not mean one quota unit.
 
 ## Bandwidth estimate for published hours
 
