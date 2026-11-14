@@ -74,6 +74,21 @@ remain separate. Dispatcher guide IDs: not applicable; no staff workflow changes
 
 ## Dedicated privacy page and compatibility
 
+Android-specific policy wording is prepared separately from published policy.
+Review it locally with
+`node website/scripts/build.mjs --proposed-android-privacy-policy`.
+This explicit opt-in renders one consistent homepage/standalone/compatibility
+review copy, with no assigned effective date and preview isolation. Production
+rejects this flag even with existing approval/date settings. The default output,
+published policy source, historical rebuild hashes and iOS behavior remain intact.
+Publication needs a separate reviewed release after wording and applicable client
+versions are confirmed; do not change Render configuration to preview this branch.
+
+The policy-logo rendering report has not been reproduced in an actual browser.
+The public JPEG downloads and decodes; HTTP success alone does not establish the
+reported browser's rendering. No asset/CSS change is included or required for
+Android submission unless evidence shows the policy cannot be accessed.
+
 The build also generates `/privacy-policy/`, the canonical standalone privacy
 page, and `/privacy/`, a noindex compatibility copy. The original homepage
 `/#privacy-policy` section and full published text remain available. Its heading
