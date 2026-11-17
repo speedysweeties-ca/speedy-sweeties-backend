@@ -12,10 +12,11 @@ function withPageCounter(html, page) {
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const production = process.argv.includes('--production');
-const proposed = process.argv.includes('--proposed-privacy-policy');
+const android = process.argv.includes('--proposed-android-privacy-policy');
+const proposed = android || process.argv.includes('--proposed-privacy-policy');
 // A deployment-specific date can supersede an older date in Render's saved command.
 const publicationDate = process.env.PUBLIC_PRIVACY_POLICY_DATE ?? process.argv.find(value => value.startsWith('--privacy-policy-date='))?.slice('--privacy-policy-date='.length) ?? '';
-const policyOptions = { production, publicationDate, approved: process.env.PUBLIC_CUSTOMER_PAGES_APPROVED === 'true' };
+const policyOptions = { production, publicationDate, approved: process.env.PUBLIC_CUSTOMER_PAGES_APPROVED === 'true', android };
 if (proposed) validateProposedPolicyPublication(policyOptions);
 else if (publicationDate) throw new Error('A policy date requires --proposed-privacy-policy.');
 const turnstileSiteKey = production ? (process.env.TURNSTILE_SITE_KEY ?? '').trim() : '';
