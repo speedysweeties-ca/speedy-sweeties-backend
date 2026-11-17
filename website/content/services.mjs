@@ -1,3 +1,5 @@
+import { getBeerDeliveryPriceAnswer } from './delivery-rates.mjs';
+
 // Public landing-page copy. No stock, retailer affiliation or licensing is implied.
 export const services = [
   {
@@ -13,12 +15,12 @@ export const services = [
     highlights: ['Name your beer and pack size', 'Add ice, snacks or mixers', 'Have your valid ID ready'],
     steps: ['Open the main order form and enter your delivery details.', 'Describe your beer request, quantity and any extras.', 'Dispatch confirms availability and delivery details. Show valid ID at the door.'],
     note: 'Alcohol delivery is for adults aged 19 and over. Valid government-issued photo ID is required. Delivery remains subject to eligibility and responsible-service requirements.',
-    questions: [
+    get questions() { return [
       ['Can I add snacks or ice?', 'Include the extras in the same request. Additional store stops may carry a charge; check the rates on our main website.'],
       ['How long does delivery take?', 'Most deliveries take 15–45 minutes. This is an estimate, not a guarantee; store availability, traffic and demand can affect timing.'],
-      ['Where do I check the delivery price?', 'The main website lists current delivery rates and payment information. Call dispatch to confirm availability and pricing outside Guelph.'],
+      ['Where do I check the delivery price?', getBeerDeliveryPriceAnswer()],
       ['How do I request an empty return?', 'Select “I have empties to be returned” in the order form. Add the quantity under “Anything else we should know?” Check our current rates for the empty-return charge. For accepted containers or deposit-refund details, call 519-826-8097.']
-    ]
+    ]; }
   },
   {
     slug: 'alcohol-delivery-guelph', key: 'alcohol', label: 'Alcohol delivery', short: 'Alcohol',
