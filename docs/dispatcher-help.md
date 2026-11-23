@@ -67,6 +67,57 @@ guide fails tests. Deployment must include the backend knowledge; if help links
 or suggested questions changed, deploy the dispatcher too. Neither branch tests
 nor a PR mean the guide is already live.
 
+## Released-source review — 2026-11-23
+
+Reviewed main `b6eebb07ecc3e848db5a80298d2facb9487eeebd`, API
+`21df44b0399cd4ea0ee015b8d6a150a5d4475b6a` and dispatcher
+`41eafa2cc097aa85941952758954e806795afc24`. Since the November 16 review
+(`bf2c181799d4715691de2c9c43bff3cb3f2bea64`), main changed only website FAQ
+files. All differences from the live API are website files already released on
+the website at `b6eebb0`; no new backend workflow is being published with this
+help update. The dispatcher source/UI matches its live revision; its newer
+build-only dependency maintenance is outside this API-only release.
+PR 93 is merged. API and dispatcher both track main with Auto-Deploy off.
+
+Rechecked all 38 articles and coverage of all 20 dispatcher destinations, their
+client links and seven administrator-only guides. Source review covered navigation
+and refresh timing; customer/manual-order validation and saved notes; assignment,
+auto-dispatch, edit pauses, lifecycle/receipt guards and cancellation; alarms and
+B&D controls; standards/pinboard/checklist/staff permissions; history/receipts;
+catalog, pickup hours and routing; follow-ups, retention, statistics, Growth/QR;
+and privacy intake/preview/completion boundaries. Existing procedures and theme
+remain unchanged. Correct guides are not bulk-stamped with new dates.
+
+Re-reviewed `help-guide` and corrected the maintainer validation description below
+to match the already released source-verification error behavior. Updated the
+administrator-only `bnd-emails` guide to explain TEST ONLY delivery-check emails:
+no order, nothing to collect, independent of the normal alert switch, and no
+Dispatcher test button. Provider acceptance still does not prove inbox delivery.
+Evidence paths and the two affected review dates are updated.
+
+Smoke questions: “Does TEST ONLY — B&D email delivery check mean there is an order
+to collect?”, follow-up “Why did it arrive while B&D Emails were off?”, and
+“Does a source-verification error mean the procedure is undocumented?” Verify the
+B&D email source remains unavailable to DISPATCHER. Existing automated navigation,
+role-filtering, citation-validation and mocked email tests cover the unchanged
+behavior. Live answers and signed-in source navigation require an authorized
+staff session; source review and local tests do not establish that live check.
+
+Local validation: pinned Node 24.22.1; backend check passed (623 tests, 14
+database/CI-only skips), dispatcher check passed (72 tests, build and lint with
+seven existing warnings), Prisma formatting and help gate passed. No signed-in
+browser session was available. API liveness/readiness returned HTTP 200 with
+database OK; dispatcher returned HTTP 200.
+
+Release is blocked by the current backend audit: Effect 3.21.0 is reported under
+GHSA-7589-6fvf-x4pw through @prisma/config and prisma (three high entries for one
+advisory). npm audit --omit=dev also fails; the lockfile marks these packages
+devOptional, so this is not dismissed as dev-only. Reachability of the vulnerable
+TemplateLiteral path in this application has not been established. The dispatcher
+audit is clear. Dependency changes require a separate maintenance review; this
+help-only change does not alter them. Before release, resolve that gate, recheck
+the then-current base/live revisions, and obtain passing exact-head CI.
+
 ## Released-source review — 2026-11-09
 
 Compared main/API `25088ebd668dc0fd050d82166d91dfe288588182` with dispatcher
@@ -146,10 +197,14 @@ follow-ups and catalog visibility.
 ## Boundaries and validation
 
 The model returns a structured answer, steps, notes and source IDs. The server
-resolves citations and navigation from its own permitted articles. An answer
-without valid sources becomes a fixed undocumented response. This verifies
-citations, not the factual accuracy of every generated sentence; check real
-answers against their source guides during rollout and after knowledge changes.
+resolves citations and navigation from its own permitted articles. An unknown or
+role-inaccessible source ID, or an ANSWERED result without sources, returns a
+source-verification error (HTTP 502); the UI retains the question for Try again.
+This is not evidence that the procedure is undocumented. A valid NOT_DOCUMENTED
+result uses the fixed manager/owner referral; CLARIFY results omit steps, notes
+and sources. This verifies citations, not the factual accuracy of every generated
+sentence; check real answers against their source guides during rollout and after
+knowledge changes.
 Questions/history are explicitly untrusted; there are no execution tools.
 Only user/assistant turns are accepted, with 2,000-character questions and the
 last 8 history messages (6,000 characters each). Requests are limited to 30 per
