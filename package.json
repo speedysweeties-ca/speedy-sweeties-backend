@@ -71,6 +71,9 @@
           "minimatch": "11.0.8"
         }
       }
+    },
+    "@prisma/config@6.19.3": {
+      "effect": "3.22.1"
     }
   }
 }

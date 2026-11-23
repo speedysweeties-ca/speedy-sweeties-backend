@@ -1,3 +1,6 @@
+// 2026-11-23: Re-reviewed help-guide after the scoped Prisma config Effect security
+// patch. Help answers, permissions, source navigation and staff workflows remain
+// unchanged; only dependency parsing is patched. See tests/dependencyCompatibility.test.js.
 // 2026-11-13: Re-reviewed bnd-emails for safe provider diagnostics and an
 // owner-triggered, ten-minute delivery check. Normal alert controls and recipients
 // are unchanged; a TEST ONLY email creates no order and requires no collection.
@@ -105,7 +108,7 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "help-guide",
     title: "Use How do I…? and its source guides",
-    reviewedAt: "2026-11-12",
+    reviewedAt: "2026-11-23",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "HELP",
     evidence: ["speedy-dispatcher/src/DispatcherHelp.tsx", "src/services/dispatcherHelp.service.ts"],
