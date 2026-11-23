@@ -283,11 +283,11 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "order-history",
     title: "Search delivered and cancelled order history",
-    reviewedAt: "2026-10-24",
+    reviewedAt: "2026-11-23",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "DELIVERED_HISTORY",
-    evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/orderList.controller.ts"],
-    content: "Open Show more > Delivered History. In Order History, enter at least 2 characters in Search Customer using a name, phone number or street address, then Search. The search covers saved history with the selected driver and date filters, not only the current page. Leave driver and date filters clear to search all dates and drivers. Use Filter by Driver, Start Date and End Date to narrow results. Clear Search removes the text search; Clear Filters resets the driver/date filters. Refresh History reloads results. Use the page controls for more matches. Check the assigned driver, status and timestamps on the correct order. Delivered and cancelled records are closed: this screen does not edit, reassign or reopen them.",
+    evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/orderList.controller.ts", "src/controllers/driverHistory.controller.ts"],
+    content: "Open Show more > Delivered History. In Order History, enter at least 2 characters in Search Customer using a name, phone number or street address, then Search. The search covers saved history with the selected driver and date filters, not only the current page. Leave driver and date filters clear to search all dates and drivers. Use Filter by Driver, Start Date and End Date to narrow results. Clear Search removes the text search; Clear Filters resets the driver/date filters. Refresh History reloads results. Use the page controls for more matches. Check the assigned driver, status and timestamps on the correct order. Delivered and cancelled records are closed: this screen does not edit, reassign or reopen them. The separate Android driver My Delivery History feature requires the updated app and backend. It shows only that signed-in driver’s completed deliveries, with From and To dates based on delivery completion in Guelph local time and Previous/Next pages. It cannot change deliveries. Dispatcher history controls and their existing date behaviour are unchanged.",
   },
   {
     id: "address-verification",
