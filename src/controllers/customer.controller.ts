@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { getCustomerLoyaltySnapshot } from "../services/loyalty.service";
@@ -34,6 +35,7 @@ type CustomerSearchResult = {
 };
 
 export const dispatcherCustomerLookupSelect = {
+  savedAddresses: { orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }, { id: "asc" }] },
   id: true,
   fullName: true,
   phone: true,
@@ -53,7 +55,7 @@ export const dispatcherCustomerLookupSelect = {
       orders: true
     }
   }
-} as const;
+} satisfies Prisma.CustomerSelect;
 
 const cleanStringOrNull = (value: unknown): string | null => {
   if (typeof value !== "string") return null;

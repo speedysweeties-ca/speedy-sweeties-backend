@@ -53,6 +53,14 @@ jobs:
           RECOVERY_POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: node --test --test-concurrency=1 tests/privacyRecovery.database.test.js tests/privacyRecoveryOperator.database.test.js
       - run: node --test --test-concurrency=1 tests/privacyBaseline.test.js tests/privacyDeletion.database.test.js tests/privacyRoutes.database.test.js tests/privacyDelivery.test.js tests/privacyIntake.database.test.js
+      - name: Verify saved address migration and concurrency on separate synthetic PostgreSQL
+        env:
+          CHECK_SAVED_ADDRESSES_DATABASE: 'yes'
+          DATABASE_URL: postgresql://privacy_test:synthetic-only@127.0.0.1:5432/speedy_addresses_synthetic
+        run: |
+          docker exec "${{ job.services.postgres.id }}" createdb -U privacy_test speedy_addresses_synthetic
+          npx prisma db push --skip-generate
+          node --test --test-concurrency=1 tests/customerSavedAddresses.database.test.js
       - name: Verify customer notification concurrency on separate synthetic PostgreSQL
         env:
           CHECK_CUSTOMER_NOTIFICATION_DATABASE: '1'
