@@ -1,3 +1,4 @@
+import { useReleaseBlocker } from "./useReleaseBlocker";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { API_V1_BASE_URL } from "./apiConfig";
@@ -29,6 +30,7 @@ export function DispatcherPinboard({ token, visible, refreshKey, onUnreadCountCh
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
+  useReleaseBlocker(!!title || !!message || important || !!saving);
   const pending = useRef(false);
   const postId = useRef<string | null>(null);
   const saveController = useRef<AbortController | null>(null);

@@ -7,9 +7,9 @@
     "node": "24.22.1"
   },
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev": "node scripts/dispatcherRelease.cjs && ts-node-dev --respawn --transpile-only src/server.ts",
     "prebuild": "node -e \"require('node:assert/strict').equal(process.versions.node, require('./package.json').engines.node, 'Use the pinned Node.js runtime before building')\"",
-    "build": "tsc",
+    "build": "node scripts/dispatcherRelease.cjs && tsc",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

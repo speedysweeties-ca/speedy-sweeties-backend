@@ -16,7 +16,13 @@ import { requestDiagnostics, safeRouteTemplate } from "./middleware/requestDiagn
 // 🔥 ADD THIS LINE (initializes Firebase Admin)
 import "./config/firebase";
 
+import { DISPATCHER_RELEASE } from "./generated/dispatcherRelease";
+
 const app = express();
+app.use((_req, res, next) => {
+  res.set("X-Dispatcher-Release", DISPATCHER_RELEASE);
+  next();
+});
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -49,7 +55,8 @@ app.use(
 
       return callback(new ApiError(403, "CORS origin is not allowed"));
     },
-    credentials: true
+    credentials: true,
+    exposedHeaders: ["X-Dispatcher-Release"]
   })
 );
 

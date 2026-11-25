@@ -1,3 +1,4 @@
+import { useReleaseBlocker } from "./useReleaseBlocker";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { API_V1_BASE_URL } from "./apiConfig";
@@ -24,6 +25,7 @@ export function CreateStaffProfile({ token, onCreated }: {
 }) {
   const [form, setForm] = useState<StaffForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  useReleaseBlocker(saving || JSON.stringify(form) !== JSON.stringify(emptyForm));
   const [error, setError] = useState("");
   const [created, setCreated] = useState<CreatedProfile | null>(null);
   const pending = useRef(false);

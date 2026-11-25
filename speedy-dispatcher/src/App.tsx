@@ -1,3 +1,7 @@
+import { dispatcherRelease } from "./dispatcherRelease";
+import { RELEASE_LOGIN_KEY } from "./releaseController";
+import { useReleaseBlocker } from "./useReleaseBlocker";
+import { DispatcherUpdate } from "./DispatcherUpdate";
 import { CustomerAddresses, type SavedAddress } from "./CustomerAddresses";
 import { RoutingPreviewMap } from "./RoutingPreviewEnhancerOriginalPins";
 import { useOrderEditPause, type EditTimingSnapshot } from "./useOrderEditPause";
@@ -804,6 +808,15 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     return JSON.stringify(manualOrderForm) !== JSON.stringify(initialManualOrderForm);
   }, [manualOrderForm]);
 
+  useReleaseBlocker(!token || loginLoading || activeTab !== "LIVE_ORDERS" ||
+    manualFormIsDirty || manualOrderLoading || dashboardLoading ||
+    !!editingOrderId || !!editOrderForm || !!editingCustomerId || !!customerEditForm ||
+    !!editingCatalogItemId || !!catalogEditForm || !!editingPickupLocationId || !!pickupLocationEditForm ||
+    JSON.stringify(pickupLocationForm) !== JSON.stringify(initialPickupLocationForm) ||
+    !!updatingOrderId || !!updatingDriverVisibilityId || !!updatingCatalogPickupTypeId ||
+    autoDispatchUpdating || googleLiveTrafficUpdating || !!completingChecklistItemId ||
+    orders.some(order => (driverSelections[order.id] ?? order.assignedDriver?.id ?? "") !== (order.assignedDriver?.id ?? "")));
+
   const autoRefreshPaused =
     activeTab === "HELP" ||
     activeTab === "CUSTOMER_FOLLOW_UPS" ||
@@ -963,7 +976,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   }, [driverStats]);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("token");
+    const savedToken = sessionStorage.getItem(RELEASE_LOGIN_KEY) ? null : localStorage.getItem("token");
+    void dispatcherRelease.check();
 
     if (savedToken) {
       setToken(savedToken);
@@ -2857,6 +2871,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
       if (response.ok) {
         if (!Array.isArray(data.orders)) throw new Error("Invalid order response");
+        dispatcherRelease.observe(response.headers.get("X-Dispatcher-Release"));
         const fetchedOrders: Order[] = [...data.orders];
         // The API paginates active orders in batches of 100. Observe a complete
         // snapshot so an order moving between pages is never a false arrival.
@@ -2921,6 +2936,11 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     loginPending.current = true;
     try {
       setLoginLoading(true);
+      await dispatcherRelease.check();
+      if (dispatcherRelease.pending) {
+        dispatcherRelease.reload();
+        return;
+      }
 
       const response = await fetch(`${API_V1_BASE_URL}/auth/login`, {
         method: "POST",
@@ -2943,6 +2963,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       }
       if (response.ok) {
         setPassword("");
+        sessionStorage.removeItem(RELEASE_LOGIN_KEY);
         localStorage.setItem("token", data.token);
         setToken(data.token);
         await fetchCurrentUser(data.token);
@@ -7265,6 +7286,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-white px-4">
         <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-2xl">
+          <DispatcherUpdate signedIn={false} />
+          {sessionStorage.getItem(RELEASE_LOGIN_KEY) && <p role="status" className="mb-4 text-amber-200">The dispatcher was updated. Please sign in again.</p>}
           <h1 className="text-3xl font-bold mb-2 text-center">Dispatcher Login</h1>
           <p className="text-zinc-400 text-center mb-6">
             Sign in to manage live delivery orders.
@@ -7303,6 +7326,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
+      <DispatcherUpdate signedIn />
       <div className="border-b border-zinc-800 bg-zinc-900/70 backdrop-blur">
         <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col gap-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

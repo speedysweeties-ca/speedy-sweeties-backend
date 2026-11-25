@@ -1,3 +1,4 @@
+import { useReleaseBlocker } from "./useReleaseBlocker";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { API_V1_BASE_URL } from "./apiConfig";
@@ -32,6 +33,7 @@ export function DispatcherStandards({ token, visible, refreshKey }: { token: str
   const [saveError, setSaveError] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
+  useReleaseBlocker(editor !== null || saving);
   const pending = useRef(false);
   const generation = useRef(0);
   const saveController = useRef<AbortController | null>(null);
