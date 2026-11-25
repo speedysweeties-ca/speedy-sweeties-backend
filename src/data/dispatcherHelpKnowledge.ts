@@ -207,8 +207,6 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
     content: "Opening Edit Order before first dispatch starts a server-confirmed pause in dispatch waiting time. The Dispatch Wait display can show paused for editing. Save, cancel, leaving Live Orders, hiding/closing the browser tab or logout stops the pause. Only time before first dispatch is deducted; earlier waiting time is retained and overlapping editors are not double-counted. A disconnected editor's pause expires, and an unconfirmed pause shows a connection warning. Editing after dispatch does not change dispatch performance. This allowance affects dispatch timing and the acceptance warning, but does not reset order age or the 40-minute delivery warning. If the timer pause cannot be confirmed, do not assume the time was excluded.",
   },
   {
-    // 2026-11-25: iOS product restriction re-review. Manual/Android/web ordering is unchanged;
-    // iOS rejects restricted requests before they become dispatchable orders.
     id: "manual-order",
     title: "Create a telephone order",
     reviewedAt: "2026-11-25",
