@@ -69,6 +69,7 @@ const installOrderDatabase = (t, existingItem = null) => {
     },
     orderItem: { create: async () => ({}), deleteMany: async () => ({ count: 1 }) }
   };
+  replaceForTest(t, prisma.itemCatalog, "findMany", async () => catalog);
   replaceForTest(t, prisma, "$transaction", async callback => callback(tx));
   replaceForTest(t, prisma.customer, "findFirst", async () => customer);
   replaceForTest(t, prisma.order, "findUnique", async () => order);

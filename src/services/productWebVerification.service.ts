@@ -1,3 +1,4 @@
+import { assertIOSCatalogProduct, IOSProductUnavailableError } from "../utils/iosProductPolicy";
 import { Prisma } from "@prisma/client";
 import { CUSTOMER_CATALOG_CREATOR } from "../utils/catalogCreator";
 import { z } from "zod";
@@ -714,19 +715,25 @@ const catalogSummarySelect = {
 } as const;
 
 export const persistWebVerifiedCatalogItem = async (
-  verifiedItem: WebVerifiedCatalogItem
+  verifiedItem: WebVerifiedCatalogItem,
+  iosCustomer = false
 ): Promise<StoredWebVerifiedCatalogItem> => {
+  if (iosCustomer) assertIOSCatalogProduct(verifiedItem);
   const existingByUrl = await prisma.itemCatalog.findUnique({
     where: { webVerificationUrl: verifiedItem.webVerificationUrl },
     select: catalogSummarySelect
   });
-  if (existingByUrl) return existingByUrl;
+  if (existingByUrl) {
+    if (iosCustomer) assertIOSCatalogProduct(existingByUrl);
+    return existingByUrl;
+  }
 
   const existingByName = await prisma.itemCatalog.findFirst({
     where: { normalizedName: verifiedItem.normalizedName }
   });
 
   if (existingByName) {
+    if (iosCustomer) assertIOSCatalogProduct(existingByName);
     return prisma.itemCatalog.update({
       where: { id: existingByName.id },
       data: {
@@ -762,14 +769,18 @@ export const persistWebVerifiedCatalogItem = async (
         where: { webVerificationUrl: verifiedItem.webVerificationUrl },
         select: catalogSummarySelect
       });
-      if (concurrentItem) return concurrentItem;
+      if (concurrentItem) {
+        if (iosCustomer) assertIOSCatalogProduct(concurrentItem);
+        return concurrentItem;
+      }
     }
     throw error;
   }
 };
 
 export const verifyAndPersistRequestedProducts = async (
-  requestedNames: string[]
+  requestedNames: string[],
+  iosCustomer = false
 ): Promise<StoredWebVerifiedCatalogItem[]> => {
   if (!env.AI_PRODUCT_WEB_LOOKUP_ENABLED || requestedNames.length === 0) {
     return [];
@@ -792,8 +803,9 @@ export const verifyAndPersistRequestedProducts = async (
   for (const verifiedItem of verifiedItems) {
     if (!verifiedItem) continue;
     try {
-      storedItems.push(await persistWebVerifiedCatalogItem(verifiedItem));
+      storedItems.push(await persistWebVerifiedCatalogItem(verifiedItem, iosCustomer));
     } catch (error) {
+      if (error instanceof IOSProductUnavailableError) throw error;
       console.warn("[Product Web Verification] Could not store verified product.", error);
     }
   }

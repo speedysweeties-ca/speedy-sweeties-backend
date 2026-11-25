@@ -1,3 +1,4 @@
+import { assertIOSProductText, assertIOSCatalogProduct, assertIOSCatalogRequests, IOS_CUSTOMER_HEADER, isIOSCustomerRequest } from "../utils/iosProductPolicy";
 import { precheckSyntheticOrder, reserveSyntheticOrder, finishSyntheticOrder, assertOrdinaryOrderContact } from "../services/syntheticOrderSafety.service";
 import { Request, Response } from "express";
 import { getVerifiedDeliveryAddress } from "../services/verifiedDeliveryAddress.service";
@@ -542,8 +543,6 @@ const createOrder = async (
     referralCode
   } = req.body;
 
-  await precheckSyntheticOrder(prisma, req.body, options.syntheticRequired === true);
-
   const recurringDriverNotesSubmitted =
     options.acceptRecurringDriverNotes &&
     Object.prototype.hasOwnProperty.call(req.body, "recurringDriverNotes");
@@ -554,6 +553,32 @@ const createOrder = async (
     requestOrigin: req.headers?.origin,
     override: options.orderSourceOverride
   });
+
+  const iosCustomer = resolvedOrderSource !== OrderSource.DISPATCHER_MANUAL &&
+    isIOSCustomerRequest(resolvedOrderSource, req.headers?.[IOS_CUSTOMER_HEADER]);
+  if (iosCustomer) assertIOSProductText([
+    ...(Array.isArray(items) ? items.map((item: { name?: unknown }) => item.name) : []),
+    additionalNotes, deliveryInstructions, notes
+  ]);
+
+  if (iosCustomer) {
+    const restrictedCatalog = await prisma.itemCatalog.findMany({
+      where: { OR: [
+        { pickupType: "VAPE" },
+        { category: { contains: "tobacco", mode: "insensitive" } },
+        { category: { contains: "nicotine", mode: "insensitive" } },
+        { category: { contains: "vap", mode: "insensitive" } },
+        { category: { contains: "cig", mode: "insensitive" } }
+      ] },
+      select: { name: true, brand: true, size: true, category: true, pickupType: true }
+    });
+    assertIOSCatalogRequests([
+      ...(Array.isArray(items) ? items.map((item: { name?: unknown }) => item.name) : []),
+      additionalNotes, deliveryInstructions, notes
+    ], restrictedCatalog);
+  }
+
+  await precheckSyntheticOrder(prisma, req.body, options.syntheticRequired === true);
 
   const deliveryAddress: DeliveryAddressInput = {
     addressLine1,
@@ -718,16 +743,17 @@ const createOrder = async (
       const cleanedItemName = item.name.trim();
       const normalizedItemName = normalize(cleanedItemName);
 
+      let catalogItem = !syntheticPolicy || iosCustomer
+        ? await tx.itemCatalog.findFirst({ where: { normalizedName: normalizedItemName } })
+        : null;
+      if (iosCustomer && catalogItem) assertIOSCatalogProduct(catalogItem);
+
       if (syntheticPolicy) {
         await tx.orderItem.create({ data: { orderId: createdOrder.id, itemCatalogId: null,
           name: cleanedItemName, quantity: item.quantity || 1, price: item.unitPrice ?? 0 } });
         orderItemPickupTypes.push("UNKNOWN");
         continue; // Synthetic items never pollute the shared catalogue.
       }
-
-      let catalogItem = await tx.itemCatalog.findFirst({
-        where: { normalizedName: normalizedItemName }
-      });
 
       if (!catalogItem) {
         catalogItem = await tx.itemCatalog.create({

@@ -1,3 +1,4 @@
+import { assertIOSProductText, assertIOSCatalogProduct, assertIOSCatalogRequests, isIOSCatalogProductAllowed } from "../utils/iosProductPolicy";
 import { z } from "zod";
 import { CurrentCart, orderEditSchema, ORDER_EDIT_INSTRUCTIONS, applyOrderEdit } from "./aiOrderEdit";
 import { env } from "../config/env";
@@ -49,6 +50,7 @@ export interface AiOrderDraftRequest {
   history: AiConversationTurn[];
   catalogItems: CatalogItemSummary[];
   currentCart?: CurrentCart;
+  iosCustomer?: boolean;
 }
 
 const ORDER_DRAFT_JSON_SCHEMA = {
@@ -247,13 +249,23 @@ export const buildCatalogReference = (
     .join("\n");
 
 const buildModelInstructions = (
-  catalogItems: CatalogItemSummary[]
+  catalogItems: CatalogItemSummary[],
+  iosCustomer = false
 ): string => {
   const catalogReference = buildCatalogReference(catalogItems);
-  if (!catalogReference) return SWEETIE_INSTRUCTIONS;
+  const instructions = iosCustomer
+    ? SWEETIE_INSTRUCTIONS.split("\n").filter(line => !/nicotine/i.test(line)).join("\n") +
+      "\nIOS CUSTOMER PRODUCT AVAILABILITY: Tobacco, nicotine, cigarettes, cigars, " +
+      "vaping products and related accessories are not offered in this app. " +
+      "Do not recommend, substitute, draft, or route requests for them to dispatch, " +
+      "a website or another channel. If requested, return NEEDS_CLARIFICATION with " +
+      "no items and ask the customer to choose an available product. " +
+      "This rule overrides product-preservation and unlisted-product instructions."
+    : SWEETIE_INSTRUCTIONS;
+  if (!catalogReference) return instructions;
 
   return [
-    SWEETIE_INSTRUCTIONS,
+    instructions,
     "",
     "ACTIVE CATALOG REFERENCE DATA:",
     "Use these names and package descriptions only to recognize likely products and speech-to-text errors. Do not claim an item is available or change the customer's request merely because a similar catalog entry exists.",
@@ -600,7 +612,8 @@ const requestModelDraft = async (
   transcript: string,
   history: AiConversationTurn[],
   catalogItems: CatalogItemSummary[],
-  currentCart: CurrentCart = []
+  currentCart: CurrentCart = [],
+  iosCustomer = false
 ): Promise<ModelOrderDraft> => {
   if (!env.OPENAI_API_KEY) {
     throw new ApiError(
@@ -672,7 +685,7 @@ const requestModelDraft = async (
         reasoning: {
           effort: "none"
         },
-        instructions: buildModelInstructions(catalogItems) + (editing ? "\n" + ORDER_EDIT_INSTRUCTIONS : ""),
+        instructions: buildModelInstructions(catalogItems, iosCustomer) + (editing ? "\n" + ORDER_EDIT_INSTRUCTIONS : ""),
         input,
         max_output_tokens: 2400,
         store: false,
@@ -871,8 +884,17 @@ export const createAiOrderDraft = async ({
   transcript,
   history,
   catalogItems,
-  currentCart
+  currentCart,
+  iosCustomer = false
 }: AiOrderDraftRequest) => {
+  const restrictedCatalog = iosCustomer ? catalogItems.filter(item => !isIOSCatalogProductAllowed(item)) : [];
+  if (iosCustomer) {
+    assertIOSProductText([transcript, ...history.map(turn => turn.content),
+      ...(currentCart ?? []).map(item => item.name)]);
+    assertIOSCatalogRequests([transcript, ...history.map(turn => turn.content),
+      ...(currentCart ?? []).map(item => item.name)], catalogItems);
+    catalogItems = catalogItems.filter(isIOSCatalogProductAllowed);
+  }
   catalogItems = catalogItems.filter((item) => isRoutablePickupType(item.pickupType));
   const sizeQuestion =
     ambiguous26erQuestion(transcript, catalogItems) ??
@@ -889,18 +911,26 @@ export const createAiOrderDraft = async ({
     transcript,
     history,
     catalogItems,
-    currentCart
+    currentCart,
+    iosCustomer
   );
+  if (iosCustomer) {
+    const modelText = [modelDraft.assistantMessage, modelDraft.clarificationQuestion,
+      modelDraft.additionalNotes, ...modelDraft.items.flatMap(item => [item.requestedName, item.packageDescription])];
+    assertIOSProductText(modelText);
+    assertIOSCatalogRequests(modelText, restrictedCatalog);
+  }
   const explicitAdditionalNotes =
     extractExplicitDeliveryInstructions(transcript);
   const webVerifiedCatalogItems =
     modelDraft.status === "READY"
       ? await verifyAndPersistRequestedProducts(
-          findUnmatchedRequestedNames(modelDraft, catalogItems)
+          findUnmatchedRequestedNames(modelDraft, catalogItems), iosCustomer
         )
       : [];
 
-  return buildOrderDraftResponse(
+  if (iosCustomer) webVerifiedCatalogItems.forEach(assertIOSCatalogProduct);
+  const response = buildOrderDraftResponse(
     modelDraft,
     // A previously verified URL can still refer to an item awaiting categorization.
     [...catalogItems, ...webVerifiedCatalogItems].filter((item) =>
@@ -908,4 +938,10 @@ export const createAiOrderDraft = async ({
     ),
     explicitAdditionalNotes
   );
+  if (iosCustomer) {
+    assertIOSProductText([response.assistantMessage, response.clarificationQuestion,
+      response.draft.additionalNotes, ...response.draft.items.map(item => item.requestedName)]);
+    response.draft.items.forEach(item => { if (item.catalogMatch) assertIOSCatalogProduct(item.catalogMatch); });
+  }
+  return response;
 };

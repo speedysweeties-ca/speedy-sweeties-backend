@@ -1,3 +1,4 @@
+import { assertIOSProductText, IOS_CUSTOMER_HEADER, isIOSCustomerRequest } from "../utils/iosProductPolicy";
 import { Request, Response } from "express";
 import { env } from "../config/env";
 import { prisma } from "../lib/prisma";
@@ -19,6 +20,10 @@ export const createAiOrderDraftController = async (
   req: Request<Record<string, never>, unknown, AiOrderDraftRequestBody>,
   res: Response
 ) => {
+  const iosCustomer = isIOSCustomerRequest(undefined, req.headers?.[IOS_CUSTOMER_HEADER]);
+  if (iosCustomer) assertIOSProductText([req.body.transcript,
+    ...(req.body.history ?? []).map(turn => turn.content),
+    ...(req.body.currentCart ?? []).map(item => item.name)]);
   const catalogItems = await prisma.itemCatalog.findMany({
     where: selectableCatalogWhere(),
     select: {
@@ -47,7 +52,8 @@ export const createAiOrderDraftController = async (
     transcript: req.body.transcript.trim(),
     history: Array.isArray(req.body.history) ? req.body.history : [],
     catalogItems,
-    currentCart: req.body.currentCart
+    currentCart: req.body.currentCart,
+    iosCustomer
   });
 
   res.set("Cache-Control", "no-store");

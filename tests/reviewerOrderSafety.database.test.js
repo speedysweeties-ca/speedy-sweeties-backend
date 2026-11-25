@@ -27,7 +27,7 @@ test('reviewer ordering uses normal credentials and fail-closed synthetic safety
   const correctedProfile = {...profile,addressLine1:'2 Corrected Street',unitNumber:'Unit-Private-Fixture',buzzCode:'Buzz-Private-Fixture'};
   const invalidAddressLine = '999 Invalid Address';
   const input = (extra={}) => ({profile,ownerConfirmedSynthetic:true,expiresAt:new Date(Date.now()+86400000).toISOString(),maxOrders:2,maxEmails:2,...extra});
-  const body = (extra={}) => ({...profile,orderSource:'IOS_APP',paymentMethod:'CASH',fcmToken:'synthetic-never-send',items:[{name:'Tobacco test item',quantity:1,unitPrice:0},{name:'Cannabis test item',quantity:1,unitPrice:0}],...extra});
+  const body = (extra={}) => ({...profile,orderSource:'IOS_APP',paymentMethod:'CASH',fcmToken:'synthetic-never-send',items:[{name:'Bottled water test item',quantity:1,unitPrice:0},{name:'Cannabis test item',quantity:1,unitPrice:0}],...extra});
   let geocodes=0, dispatches=0, pushes=0;
   const replace=(obj,key,value)=>{const old=obj[key];obj[key]=value;t.after(()=>{obj[key]=old;});};
   replace(business,'isBusinessConfirmedClosed',async()=>false);
@@ -87,6 +87,19 @@ test('reviewer ordering uses normal credentials and fail-closed synthetic safety
       assert.equal(await db.customer.count(),0);assert.equal(await db.order.count(),0);
       const tooLong={...profile,addressLine1:'1'.repeat(201)};
       await assert.rejects(safety.validateSyntheticEnrollmentProfile(db,actor,input({profile:tooLong})),conflict('INVALID_DELIVERY_ADDRESS'));
+    });
+    await t.test('iOS product policy also applies to protected orders and rejects restricted catalogue matches',async()=>{
+      await reset();await safety.enrollSyntheticProfile(db,actor,input());
+      const before=await read();const beforeGeocodes=geocodes;
+      await assert.rejects(call(body({items:[{name:'Cigarettes',quantity:1}]})),e=>e.statusCode===400);
+      assert.equal(geocodes,beforeGeocodes);
+      assert.equal((await read()).ordersCreated,before.ordersCreated);
+      assert.equal(await db.order.count(),0);
+      await db.itemCatalog.create({data:{name:'Blue Ice',normalizedName:'blue ice',category:'VAPE',pickupType:'VAPE'}});
+      await assert.rejects(call(body({items:[{name:'Blue Ice 20 mg',quantity:1}]})),e=>e.statusCode===400);
+      assert.equal((await read()).ordersCreated,before.ordersCreated);
+      assert.equal(await db.order.count(),0);
+      assert.equal(dispatches,0);assert.equal(pushes,0);
     });
     await t.test('missing enrollment and every near-match refuse before geocoding or order writes',async()=>{
       await reset();await assert.rejects(call());assert.equal(geocodes,0);
