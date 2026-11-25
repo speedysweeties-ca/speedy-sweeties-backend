@@ -1,3 +1,4 @@
+import { useReleaseBlocker } from "./useReleaseBlocker";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { API_V1_BASE_URL } from "./apiConfig";
@@ -34,6 +35,7 @@ export function StaffManagement({ token, visible, refreshKey, onChanged, onDrive
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [saving, setSaving] = useState(false);
+  useReleaseBlocker(action !== null || saving);
   const pending = useRef(false);
   const readSequence = useRef(0);
   const panel = useRef<HTMLDivElement>(null);

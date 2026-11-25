@@ -1,3 +1,4 @@
+import { useReleaseBlocker } from "./useReleaseBlocker";
 import { useEffect, useRef, useState } from "react";
 import { API_V1_BASE_URL } from "./apiConfig";
 import { DispatchToggleControl } from "./DispatchToggleControl";
@@ -18,6 +19,7 @@ async function readSettings(response: Response): Promise<Settings> {
 export function BndEmailControls({ token }: { token: string }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [saving, setSaving] = useState(false);
+  useReleaseBlocker(saving);
   const [error, setError] = useState("");
   const requestVersion = useRef(0);
   const saveInFlight = useRef(false);

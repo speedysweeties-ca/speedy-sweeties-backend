@@ -1,3 +1,4 @@
+import { useReleaseBlocker } from "./useReleaseBlocker";
 import { useEffect, useState } from "react";
 import { API_V1_BASE_URL } from "./apiConfig";
 
@@ -31,6 +32,7 @@ export function CustomerAddresses({ customerId, token, currentAddress, onSelect,
   const [form, setForm] = useState<Form | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  useReleaseBlocker(form !== null || busy);
   const base = `${API_V1_BASE_URL}/customers/${customerId}/addresses`;
   useEffect(() => {
     const abort = new AbortController();
