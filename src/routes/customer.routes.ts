@@ -15,7 +15,14 @@ import {
   updateCustomerDispatcherNotesController
 } from "../controllers/customer.controller";
 
+import { listCustomerAddressesController, mutateCustomerAddressController } from "../controllers/customerAddress.controller";
+
 const router = Router();
+const addressStaff = [requireAuth, requireRole([UserRole.ADMIN, UserRole.DISPATCHER])];
+router.get("/:id/addresses", ...addressStaff, asyncHandler(listCustomerAddressesController));
+router.post("/:id/addresses", ...addressStaff, asyncHandler(mutateCustomerAddressController));
+router.put("/:id/addresses/:addressId", ...addressStaff, asyncHandler(mutateCustomerAddressController));
+router.delete("/:id/addresses/:addressId", ...addressStaff, asyncHandler(mutateCustomerAddressController));
 
 // 🌎 PUBLIC — customer app loyalty progress lookup
 router.get(

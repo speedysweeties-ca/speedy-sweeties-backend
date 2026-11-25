@@ -1,3 +1,4 @@
+import { CustomerAddresses, type SavedAddress } from "./CustomerAddresses";
 import { RoutingPreviewMap } from "./RoutingPreviewEnhancerOriginalPins";
 import { useOrderEditPause, type EditTimingSnapshot } from "./useOrderEditPause";
 import { dispatchWaitingMilliseconds, isDispatchTimerPaused, type EditPause } from "./dispatchTiming";
@@ -279,6 +280,7 @@ type EditOrderForm = {
 };
 
 type CustomerSuggestion = {
+  savedAddresses?: SavedAddress[];
   id: string;
   fullName: string;
   phone: string;
@@ -3580,16 +3582,17 @@ const handleSaveEditedOrder = async (orderId: string) => {
   const selectCustomerSuggestion = (customer: CustomerSuggestion) => {
     customerSearchRequestIdRef.current += 1;
     setSelectedCustomer(customer);
+    const address = customer.savedAddresses?.find(a => a.isDefault) || customer;
     setManualOrderForm((prev) => ({
       ...prev,
       customerName: customer.fullName || "",
       customerPhone: customer.phone || "",
       customerEmail: customer.email || "",
-      addressLine1: customer.addressLine1 || "",
-      unitNumber: customer.unitNumber || "",
-      buzzCode: customer.buzzCode || "",
-      city: customer.city || "Guelph",
-      province: customer.province || "ON",
+      addressLine1: address.addressLine1 || "",
+      unitNumber: address.unitNumber || "",
+      buzzCode: address.buzzCode || "",
+      city: address.city || "Guelph",
+      province: address.province || "ON",
       recurringDriverNotes: recurringDriverNotesForCustomer(
         customer.recurringDriverNotes
       ),
@@ -6061,6 +6064,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                             </td>
 
                             <td className="p-2 align-top text-zinc-300">
+                              <p className="text-xs text-zinc-500">Last-used profile address</p>
                               <p>{customer.addressLine1}</p>
                               {customer.unitNumber && (
                                 <p className="text-zinc-300 text-xs mt-1">
@@ -6077,6 +6081,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                   .filter(Boolean)
                                   .join(", ")}
                               </p>
+                              {token && <CustomerAddresses key={customer.id} customerId={customer.id} token={token}
+                                currentAddress={{ addressLine1: customer.addressLine1, unitNumber: customer.unitNumber || null,
+                                  buzzCode: customer.buzzCode || null, city: customer.city, province: customer.province }} />}
                             </td>
 
                             <td className="p-2 align-top">
@@ -8198,6 +8205,12 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 <option value="ETRANSFER">E-Transfer</option>
               </select>
             </div>
+
+            {selectedCustomer && token && <CustomerAddresses key={`addresses-${selectedCustomer.id}`}
+              customerId={selectedCustomer.id} token={token} currentAddress={manualOrderForm} disabled={manualOrderLoading}
+              onSelect={address => setManualOrderForm(prev => ({ ...prev,
+                addressLine1: address.addressLine1, unitNumber: address.unitNumber || "",
+                buzzCode: address.buzzCode || "", city: address.city, province: address.province }))} />}
 
             {selectedCustomer && token && (
               <LoadPreviousOrder
