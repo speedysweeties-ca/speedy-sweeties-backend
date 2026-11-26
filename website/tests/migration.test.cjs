@@ -143,16 +143,21 @@ test('build keeps previews isolated and requires owner key on the canonical prod
     assert.equal(Boolean(home.getElementById('preview-notice')), !production);
     const slugs = ['beer', 'alcohol', 'convenience'].map(name => `${name}-delivery-guelph`);
     const sitemap = fs.readFileSync(path.join(root, 'dist/sitemap.xml'), 'utf8');
-    assert.equal([...sitemap.matchAll(/<loc>/g)].length, 6);
+    assert.equal([...sitemap.matchAll(/<loc>/g)].length, 8);
     assert.ok(sitemap.includes('https://www.speedysweeties.ca/privacy-policy/'));
-    for (const retired of ['vape-delivery-guelph', 'cannabis-delivery-guelph']) {
-      const retiredHtml = fs.readFileSync(path.join(root, 'dist', retired, 'index.html'), 'utf8');
-      const retiredDocument = parseHTML(retiredHtml).document;
-      assert.equal(retiredDocument.querySelector('meta[name="robots"]').getAttribute('content'), 'noindex, nofollow');
-      assert.match(retiredDocument.body.textContent, /This page is no longer available/);
-      assert.doesNotMatch(retiredDocument.body.textContent, /prescription|cannabis|marijuana|vape|tobacco/i);
-      assert.equal(retiredDocument.querySelectorAll('form,script,dialog').length, 0);
-      assert.equal(sitemap.includes(retired), false);
+    for (const slug of ['vape-delivery-guelph', 'cannabis-delivery-guelph']) {
+      const { document } = parseHTML(fs.readFileSync(path.join(root, 'dist', slug, 'index.html'), 'utf8'));
+      assert.equal(Boolean(document.querySelector('meta[name="robots"]')), !production);
+      assert.equal(document.querySelector('link[rel="canonical"]').getAttribute('href'), `https://www.speedysweeties.ca/${slug}/`);
+      assert.match(document.body.textContent, /Official Ontario sources/);
+      assert.doesNotMatch(document.body.textContent, /This page is no longer available/);
+      assert.equal(document.querySelectorAll('form,script,dialog,iframe,[data-page-counter]').length, 0);
+      for (const link of document.querySelectorAll('a[href]')) {
+        const href = link.getAttribute('href');
+        if (href.startsWith('#')) assert.ok(document.getElementById(href.slice(1)));
+        else assert.equal(new URL(href).origin, 'https://www.ontario.ca', 'Information pages must not direct readers to orders or commercial destinations');
+      }
+      assert.ok(sitemap.includes(`https://www.speedysweeties.ca/${slug}/`));
     }
     for (const slug of ['privacy-policy', 'privacy']) {
       const { document } = parseHTML(fs.readFileSync(path.join(root, `dist/${slug}/index.html`), 'utf8'));
