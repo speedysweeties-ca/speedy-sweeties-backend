@@ -170,6 +170,7 @@ test("manual creation atomically snapshots and persists against the resolved cus
           return customerId ? [{ id: customerId }] : [];
         },
         customer: {
+          findFirst: async () => customerToResolve,
           create: async ({ data }) => {
             transactionCustomer = {
               ...existingCustomer,
@@ -188,6 +189,8 @@ test("manual creation atomically snapshots and persists against the resolved cus
           }
         },
         order: {
+          findFirst: async ({ where }) => createdOrders.find(order =>
+            order.customerId === where.OR[0].customerId && order.orderStatus !== "CANCELLED") ?? null,
           create: async ({ data }) => {
             if (failOrderCreation) throw new Error("simulated order failure");
             createdOrder = { id: `order-${createdOrders.length + 1}`, ...data };

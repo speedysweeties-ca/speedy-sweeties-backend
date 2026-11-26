@@ -55,7 +55,8 @@ const installOrderDatabase = (t, existingItem = null) => {
       update: async () => customer
     },
     order: {
-      create: async ({ data }) => (order = { id: "order-1", ...data }),
+      findFirst: async () => null,
+      create: async ({ data }) => (order = { id: "order-1", items: [], ...data }),
       update: async ({ data }) => (order = { ...order, ...data }),
       findUniqueOrThrow: async () => ({ ...order, items: [] })
     },

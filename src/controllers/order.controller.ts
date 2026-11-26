@@ -57,6 +57,7 @@ import {
   normalizePaymentMethod
 } from "../utils/paymentMethod";
 import { buildCustomerLookupWhere } from "../utils/customerIdentity";
+import { isFirstCustomerOrder, isWelcomeFlyerItem, welcomeFlyerItem } from "../services/welcomeFlyer.service";
 import { normalizeManualEntryStartedAt } from "../services/dispatcherPerformanceTracking.service";
 import {
   getGoogleLiveTrafficEnabled,
@@ -606,12 +607,11 @@ const createOrder = async (
   };
 
   const incomingItems: CreateOrderItemInput[] = Array.isArray(items) ? items : [];
-  const rawItems: CreateOrderItemInput[] = expandCreateOrderItems(incomingItems);
-
-  const matchedCustomer = await prisma.customer.findFirst({
-    where: buildCustomerLookupWhere({ normalizedPhone, normalizedEmail }),
-    select: { id: true }
-  });
+  const requestedItems = expandCreateOrderItems(incomingItems).filter(item => !isWelcomeFlyerItem(item));
+  if (requestedItems.length === 0) {
+    res.status(400).json({ success: false, message: "Add at least one item to the order. The welcome flyer is added automatically." });
+    return;
+  }
 
   const transactionResult = await prisma.$transaction(async (tx) => {
     await assertPrivacyOrderAllowed(tx, normalizedPhone);
@@ -619,6 +619,12 @@ const createOrder = async (
     if (syntheticPolicy && options.onOrderCreated) {
       throw new Error("Synthetic safety does not permit external integration callbacks.");
     }
+    // Resolve only after the shared order/privacy lock, so concurrent first orders
+    // cannot both create a customer or both receive the welcome flyer.
+    const matchedCustomer = syntheticPolicy ? null : await tx.customer.findFirst({
+      where: buildCustomerLookupWhere({ normalizedPhone, normalizedEmail }),
+      select: { id: true }
+    });
     const customerId =
       (syntheticPolicy ? syntheticPolicy.customerId : matchedCustomer?.id) ??
       (await tx.customer.create({
@@ -647,6 +653,12 @@ const createOrder = async (
     if (!customer) {
       throw new Error("Customer disappeared before loyalty redemption could be completed.");
     }
+
+    const includeWelcomeFlyer = !syntheticPolicy &&
+      await isFirstCustomerOrder(tx, customer.id, normalizedPhone);
+    const rawItems: CreateOrderItemInput[] = includeWelcomeFlyer
+      ? [...requestedItems, welcomeFlyerItem()]
+      : requestedItems;
 
     const recurringDriverNotesPlan = resolveRecurringDriverNotes({
       isManualOrder: options.acceptRecurringDriverNotes,
@@ -717,6 +729,12 @@ const createOrder = async (
 
       const cleanedItemName = item.name.trim();
       const normalizedItemName = normalize(cleanedItemName);
+
+      if (isWelcomeFlyerItem(item)) {
+        await tx.orderItem.create({ data: { orderId: createdOrder.id, itemCatalogId: null,
+          name: item.name, quantity: 1, price: 0 } });
+        continue; // Driver-carried flyer: no catalogue entry or store pickup.
+      }
 
       if (syntheticPolicy) {
         await tx.orderItem.create({ data: { orderId: createdOrder.id, itemCatalogId: null,
@@ -940,6 +958,12 @@ export const updateOrderDetailsController = async (
     return;
   }
 
+  const requestedItems = items.filter(item => !isWelcomeFlyerItem(item));
+  if (requestedItems.length === 0) {
+    res.status(400).json({ success: false, message: "Add at least one item to the order. The welcome flyer is added automatically." });
+    return;
+  }
+
   const normalizedEmail = customerEmail ? normalize(customerEmail) : null;
   const normalizedPhone = normalizePhone(customerPhone);
   const normalizedName = normalize(customerName);
@@ -1023,14 +1047,28 @@ export const updateOrderDetailsController = async (
       });
     }
 
+    // Preserve the system item through ordinary edits, even if a newer order now
+    // exists. Re-evaluate only when the order is moved to another customer.
+    const includeWelcomeFlyer = customer.id === existingOrder.customerId
+      ? existingOrder.items.some(isWelcomeFlyerItem)
+      : await isFirstCustomerOrder(tx, customer.id, normalizedPhone, id);
+    const updatedItems: UpdateOrderItemInput[] = [...requestedItems];
+    if (includeWelcomeFlyer) updatedItems.push(welcomeFlyerItem());
+
     await tx.orderItem.deleteMany({
       where: { orderId: id }
     });
 
     const orderItemPickupTypes: Array<string | null | undefined> = [];
 
-    for (const item of items) {
+    for (const item of updatedItems) {
       if (!item.name) continue;
+
+      if (isWelcomeFlyerItem(item)) {
+        await tx.orderItem.create({ data: { orderId: id, itemCatalogId: null,
+          name: item.name, quantity: 1, price: 0 } });
+        continue;
+      }
 
       const normalizedItemName = normalize(item.name);
 
@@ -1076,7 +1114,7 @@ export const updateOrderDetailsController = async (
         buzzCode: nextBuzzCode,
         city: city.trim(),
         province: province.trim(),
-        itemsText: items.map((i) => `${i.quantity}x ${i.name}`).join(", "),
+        itemsText: updatedItems.map((i) => `${i.quantity}x ${i.name}`).join(", "),
         additionalNotes:
           typeof additionalNotes === "string" && additionalNotes.trim()
             ? additionalNotes.trim()

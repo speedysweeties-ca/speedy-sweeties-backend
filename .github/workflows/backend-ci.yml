@@ -69,6 +69,14 @@ jobs:
           docker exec "${{ job.services.postgres.id }}" createdb -U privacy_test speedy_notification_synthetic
           npx prisma db push --skip-generate
           node --test --test-concurrency=1 tests/customerNotification.database.test.js
+      - name: Verify welcome flyer orders and concurrency on separate synthetic PostgreSQL
+        env:
+          CHECK_WELCOME_FLYER_DATABASE: 'yes'
+          DATABASE_URL: postgresql://privacy_test:synthetic-only@127.0.0.1:5432/speedy_flyer_synthetic
+        run: |
+          docker exec "${{ job.services.postgres.id }}" createdb -U privacy_test speedy_flyer_synthetic
+          npx prisma db push --skip-generate
+          node --test --test-concurrency=1 tests/welcomeFlyer.database.test.js
       - name: Verify protected reviewer orders against separate synthetic PostgreSQL
         env:
           REVIEWER_SAFETY_SYNTHETIC: 'yes'
