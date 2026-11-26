@@ -127,6 +127,7 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
       $queryRawUnsafe: async () => [],
       privacyDeletedIdentity: { findUnique: async () => null, findFirst: async () => null },
       customer: {
+        findFirst: async () => database.customer,
         create: async ({ data }) => {
           database.customer = {
             id: "customer-1",
@@ -169,6 +170,8 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
         }
       },
       order: {
+        findFirst: async ({ where }) => database.orders.find(order =>
+          order.customerId === where.OR[0].customerId && order.orderStatus !== "CANCELLED") ?? null,
         create: async ({ data }) => {
           const order = { id: `order-${database.orders.length + 1}`, ...data };
           database.orders.push(order);
@@ -456,6 +459,7 @@ test("a transaction failure rolls back a customer address update", async (t) => 
         create: async () => {
           throw new Error("unexpected customer creation");
         },
+        findFirst: async () => database.database.customer,
         findUnique: async ({ where }) =>
           where.id === database.database.customer?.id
             ? database.database.customer
@@ -473,6 +477,7 @@ test("a transaction failure rolls back a customer address update", async (t) => 
           database.database.orders.push(order);
           return order;
         },
+        findFirst: async () => null,
         findUniqueOrThrow: async () => {
           throw new Error("should not read a failed order");
         }

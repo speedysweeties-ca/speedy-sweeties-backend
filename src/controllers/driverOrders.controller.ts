@@ -5,6 +5,7 @@ import {
   normalizePickupTypeOrUnknown
 } from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
+import { isWelcomeFlyerItem } from "../services/welcomeFlyer.service";
 import { buildRoutablePickupLocationWhere } from "../utils/pickupLocationAvailability";
 
 type AuthenticatedUser = {
@@ -94,9 +95,10 @@ export const getDriverOrdersController = async (
   });
 
   const pickupRequirements = orders.map((order) => {
+    const pickupItems = order.items.filter(item => !isWelcomeFlyerItem(item));
     const requiredPickupTypes = Array.from(
       new Set(
-        order.items
+        pickupItems
           .map((item) =>
             normalizePickupTypeOrUnknown(item.itemCatalog?.pickupType)
           )
@@ -104,7 +106,7 @@ export const getDriverOrdersController = async (
       )
     );
 
-    const unknownPickupItemCount = order.items.filter(
+    const unknownPickupItemCount = pickupItems.filter(
       (item) =>
         normalizePickupTypeOrUnknown(item.itemCatalog?.pickupType) === "UNKNOWN"
     ).length;
