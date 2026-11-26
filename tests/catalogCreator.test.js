@@ -174,3 +174,6 @@ test("customer AI product lookup attributes new entries and preserves existing c
   assert.equal(updated.createdByName, "Shannon");
   assert.equal(updated.createdByUserId, "shannon-1");
 });
+
+// Address-book persistence is covered by customerAddressPersistence and database regressions.
+test.beforeEach(t => replaceForTest(t, require("../dist/services/customerSavedAddress.service.js"), "rememberOrderAddress", async () => true));

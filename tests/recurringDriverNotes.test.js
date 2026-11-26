@@ -612,3 +612,6 @@ test("driver order responses retain additionalNotes and exclude customer-only no
   assert.equal(Object.hasOwn(responseOrder, "dispatcherNotes"), false);
   assert.equal(Object.hasOwn(responseOrder, "recurringDriverNotes"), false);
 });
+
+// Address-book persistence is covered by customerAddressPersistence and database regressions.
+test.beforeEach(t => replaceForTest(t, require("../dist/services/customerSavedAddress.service.js"), "rememberOrderAddress", async () => true));

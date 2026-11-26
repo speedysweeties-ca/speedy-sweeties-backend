@@ -3,6 +3,7 @@ import { RELEASE_LOGIN_KEY } from "./releaseController";
 import { useReleaseBlocker } from "./useReleaseBlocker";
 import { DispatcherUpdate } from "./DispatcherUpdate";
 import { CustomerAddresses, type SavedAddress } from "./CustomerAddresses";
+import { initialCustomerAddress } from "./customerAddressSelection";
 import { RoutingPreviewMap } from "./RoutingPreviewEnhancerOriginalPins";
 import { useOrderEditPause, type EditTimingSnapshot } from "./useOrderEditPause";
 import { dispatchWaitingMilliseconds, isDispatchTimerPaused, type EditPause } from "./dispatchTiming";
@@ -3603,7 +3604,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
   const selectCustomerSuggestion = (customer: CustomerSuggestion) => {
     customerSearchRequestIdRef.current += 1;
     setSelectedCustomer(customer);
-    const address = customer.savedAddresses?.find(a => a.isDefault) || customer;
+    const address = initialCustomerAddress({ ...customer, unitNumber: customer.unitNumber || null, buzzCode: customer.buzzCode || null });
     setManualOrderForm((prev) => ({
       ...prev,
       customerName: customer.fullName || "",
@@ -3978,7 +3979,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
       const data = await response.json();
 
       if (response.ok) {
-        alert("Manual order created successfully");
+        alert(data.addressBookFull
+          ? "Manual order created successfully. The address was saved to the customer profile, but the saved-address list is full (20). Remove an unused saved address to make room."
+          : "Manual order created successfully");
         setManualOrderForm(initialManualOrderForm);
         setSelectedCustomer(null);
         customerSearchRequestIdRef.current += 1;
@@ -8171,6 +8174,22 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 Select a suggestion to fill the street address. Apartment/unit and buzz code stay separate from Google Maps.
               </p>
 
+              {selectedCustomer && token && (
+                <div className="md:col-span-2">
+                  <CustomerAddresses
+                    key={`addresses-${selectedCustomer.id}`}
+                    customerId={selectedCustomer.id}
+                    token={token}
+                    currentAddress={manualOrderForm}
+                    profileAddress={{ ...selectedCustomer, unitNumber: selectedCustomer.unitNumber || null, buzzCode: selectedCustomer.buzzCode || null }}
+                    disabled={manualOrderLoading}
+                    onSelect={address => setManualOrderForm(prev => ({ ...prev,
+                      addressLine1: address.addressLine1, unitNumber: address.unitNumber || "",
+                      buzzCode: address.buzzCode || "", city: address.city, province: address.province }))}
+                  />
+                </div>
+              )}
+
               <input
                 type="text"
                 maxLength={50}
@@ -8229,12 +8248,6 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 <option value="ETRANSFER">E-Transfer</option>
               </select>
             </div>
-
-            {selectedCustomer && token && <CustomerAddresses key={`addresses-${selectedCustomer.id}`}
-              customerId={selectedCustomer.id} token={token} currentAddress={manualOrderForm} disabled={manualOrderLoading}
-              onSelect={address => setManualOrderForm(prev => ({ ...prev,
-                addressLine1: address.addressLine1, unitNumber: address.unitNumber || "",
-                buzzCode: address.buzzCode || "", city: address.city, province: address.province }))} />}
 
             {selectedCustomer && token && (
               <LoadPreviousOrder

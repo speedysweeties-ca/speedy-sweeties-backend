@@ -115,6 +115,7 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
           ...clone(initialCustomer)
         }
       : null,
+    addresses: [],
     orders: [],
     customerUpdates: []
   };
@@ -126,6 +127,12 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
       $executeRaw: async () => 1,
       $queryRawUnsafe: async () => [],
       privacyDeletedIdentity: { findUnique: async () => null, findFirst: async () => null },
+      customerAddress: {
+        findMany: async () => clone(database.addresses),
+        updateMany: async ({ data }) => { database.addresses.forEach(a => Object.assign(a, data)); },
+        update: async ({ where, data }) => Object.assign(database.addresses.find(a => a.id === where.id), data),
+        create: async ({ data }) => { const row = { id: `address-${database.addresses.length + 1}`, ...data }; database.addresses.push(row); return row; }
+      },
       customer: {
         findFirst: async () => database.customer,
         create: async ({ data }) => {
@@ -623,4 +630,46 @@ test("website precheck and actual order controller reuse the same strict lookup"
   assert.equal(response.statusCode, 201);
   assert.equal(calls, 1);
   assert.equal(database.database.orders[0].deliveryLatitude, verifiedLocation.deliveryLatitude);
+});
+
+
+test("successful manual orders keep previous addresses and reuse the latest address including changed buzz code", async t => {
+  const db = installOrderCreationDatabase(t);
+  replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
+  const { createManualOrderController } = require("../dist/controllers/order.controller.js");
+  for (const [street, buzz] of [["10 First Synthetic Street", "111"], ["20 Second Synthetic Street", "222"], ["20 Second Synthetic Street", "333"]]) {
+    const res = responseRecorder();
+    await createManualOrderController({ body: { ...firstOrderBody, addressLine1: street, buzzCode: buzz } }, res);
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.addressBookFull, false);
+  }
+  assert.equal(db.database.addresses.length, 2);
+  assert.deepEqual(db.database.addresses.map(a => [a.label, a.isDefault, a.buzzCode]), [["Address 1", false, "111"], ["Address 2", true, "333"]]);
+  assert.equal(db.database.orders[1].buzzCode, "222", "existing order snapshot must not change");
+});
+
+test("a full saved list still accepts the order and remembers the profile address without deleting entries", async t => {
+  const db = installOrderCreationDatabase(t);
+  replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
+  replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
+  db.database.addresses.push(...Array.from({ length: 20 }, (_, i) => ({ id: String(i), customerId: "customer-1", label: `Address ${i + 1}`, addressLine1: `${i + 100} Synthetic Street`, unitNumber: null, buzzCode: null, city: "Guelph", province: "ON", isDefault: i === 0 })));
+  const res = responseRecorder();
+  await createOrderController({ body: firstOrderBody }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.addressBookFull, true);
+  assert.equal(db.database.customer.addressLine1, firstOrderBody.addressLine1);
+  assert.equal(db.database.addresses.length, 20);
+  assert.equal(db.database.addresses[0].isDefault, true);
+});
+
+test("address-book write failure rolls back both the new order and the profile change", async t => {
+  const db = installOrderCreationDatabase(t);
+  replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
+  replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
+  const service = require("../dist/services/customerSavedAddress.service.js");
+  replaceForTest(t, service, "rememberOrderAddress", async () => { throw new Error("address write failed"); });
+  await assert.rejects(createOrderController({ body: firstOrderBody }, responseRecorder()), /address write failed/);
+  assert.equal(db.database.customer, null);
+  assert.equal(db.database.orders.length, 0);
+  assert.equal(db.database.addresses.length, 0);
 });
