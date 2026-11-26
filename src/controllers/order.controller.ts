@@ -1,5 +1,6 @@
 import { precheckSyntheticOrder, reserveSyntheticOrder, finishSyntheticOrder, assertOrdinaryOrderContact } from "../services/syntheticOrderSafety.service";
 import { Request, Response } from "express";
+import { rememberOrderAddress } from "../services/customerSavedAddress.service";
 import { getVerifiedDeliveryAddress } from "../services/verifiedDeliveryAddress.service";
 import { assertPrivacyOrderAllowed } from "../services/privacyGuards.service";
 import { createHash, randomBytes } from "crypto";
@@ -784,7 +785,10 @@ const createOrder = async (
 
     if (options.onOrderCreated) await options.onOrderCreated(tx, createdOrder.id);
 
+    const addressSaved = syntheticPolicy ? true : await rememberOrderAddress(tx, customer.id, orderAddressSnapshot);
+
     return {
+      addressSaved,
       order,
       trackingToken: trackingCredential.token,
       customerId: customer.id,
@@ -837,6 +841,7 @@ const createOrder = async (
       ? "Synthetic order recorded and cancelled; no purchase or delivery will occur."
       : "Order created successfully",
     order: orderResponse,
+    addressBookFull: !transactionResult.addressSaved,
     trackingToken,
     loyaltyAccessToken
   });

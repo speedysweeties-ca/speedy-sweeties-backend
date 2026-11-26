@@ -37,6 +37,24 @@ test('saved addresses migrate, serialize defaults, retain order snapshots and ca
   assert.equal((await db.customerAddress.findUnique({ where: { id: first.id } })).addressLine1, original.addressLine1);
   await call('PUT', { ...original, addressLine1: '100 Changed Street', isDefault: true }, first.id);
   assert.equal((await db.order.findUnique({ where: { id: order.id } })).addressLine1, original.addressLine1);
+  const { rememberOrderAddress } = require('../dist/services/customerSavedAddress.service');
+  const latest = { ...original, addressLine1: '200 Latest Synthetic Street', buzzCode: '222' };
+  const beforeCount = await db.customerAddress.count({ where: { customerId: customer.id } });
+  await Promise.all(Array.from({ length: 5 }, () => db.$transaction(tx => rememberOrderAddress(tx, customer.id, latest))));
+  assert.equal(await db.customerAddress.count({ where: { customerId: customer.id } }), beforeCount + 1, 'concurrent repeat orders create one entry');
+  assert.equal(await db.customerAddress.count({ where: { customerId: customer.id, isDefault: true } }), 1);
+  const newest = await db.customerAddress.findFirst({ where: { customerId: customer.id, isDefault: true } });
+  assert.equal(newest.addressLine1, latest.addressLine1);
+  await db.$transaction(tx => rememberOrderAddress(tx, customer.id, { ...latest, province: 'Ontario', buzzCode: '333' }));
+  assert.equal(await db.customerAddress.count({ where: { customerId: customer.id } }), beforeCount + 1);
+  assert.equal((await db.customerAddress.findUnique({ where: { id: newest.id } })).buzzCode, '333');
+  await assert.rejects(db.$transaction(async tx => {
+    await rememberOrderAddress(tx, customer.id, { ...latest, addressLine1: '300 Rolled Back Street' });
+    throw new Error('later transaction failure');
+  }), /later transaction failure/);
+  assert.equal(await db.customerAddress.count({ where: { customerId: customer.id, addressLine1: '300 Rolled Back Street' } }), 0);
+  assert.equal((await db.customerAddress.findUnique({ where: { id: newest.id } })).isDefault, true);
+  assert.equal((await db.order.findUnique({ where: { id: order.id } })).addressLine1, original.addressLine1);
   await db.customer.delete({ where: { id: customer.id } });
   assert.equal(await db.customerAddress.count({ where: { customerId: customer.id } }), 0);
   assert.equal((await db.order.findUnique({ where: { id: order.id } })).addressLine1, original.addressLine1);

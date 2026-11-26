@@ -1,6 +1,7 @@
 import { useReleaseBlocker } from "./useReleaseBlocker";
 import { useEffect, useState } from "react";
 import { API_V1_BASE_URL } from "./apiConfig";
+import { sameCustomerAddress } from "./customerAddressSelection";
 
 export type SavedAddress = {
   id: string;
@@ -21,9 +22,10 @@ const fields = [
   ["city", "City", 100], ["province", "Province", 100],
 ] as const;
 
-export function CustomerAddresses({ customerId, token, currentAddress, onSelect, disabled = false }: {
+export function CustomerAddresses({ customerId, token, currentAddress, profileAddress, onSelect, disabled = false }: {
   customerId: string; token: string; currentAddress: AddressFields;
-  onSelect?: (address: SavedAddress) => void; disabled?: boolean;
+  profileAddress?: AddressFields;
+  onSelect?: (address: AddressFields) => void; disabled?: boolean;
 }) {
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,16 +59,18 @@ export function CustomerAddresses({ customerId, token, currentAddress, onSelect,
     finally { setBusy(false); }
   }
   const locked = disabled || busy || loading;
-  return <details className="mt-3 rounded-lg border border-zinc-700 p-3">
-    <summary className="cursor-pointer font-semibold">Saved addresses</summary>
+  const unsavedProfile = profileAddress?.addressLine1.trim() && !addresses.some(a => sameCustomerAddress(profileAddress, a)) ? profileAddress : null;
+  return <section aria-label="Saved addresses" className="space-y-2">
+    <h3 className="font-semibold">Saved addresses</h3>
     {loading && <p>Loading addresses…</p>}
     {error && <p role="alert" className="text-red-300">{error} <button type="button" disabled={busy} onClick={() => { setLoading(true); setReload(n => n + 1); }}>Try again</button></p>}
     {onSelect && <label className="block mt-2">Use saved address
       <select disabled={locked} value="" className="block w-full bg-zinc-800 p-2" onChange={event => {
-        const address = addresses.find(a => a.id === event.target.value);
+        const address = event.target.value === "profile" ? unsavedProfile : addresses.find(a => a.id === event.target.value);
         if (address) onSelect(address);
       }}>
         <option value="">Choose an address to copy into this order</option>
+        {unsavedProfile && <option value="profile">Last-used profile address — {unsavedProfile.addressLine1}{unsavedProfile.unitNumber ? `, Unit ${unsavedProfile.unitNumber}` : ""}, {unsavedProfile.city}</option>}
         {addresses.map(a => <option key={a.id} value={a.id}>{a.label}{a.isDefault ? " (Default)" : ""} — {a.addressLine1}{a.unitNumber ? `, Unit ${a.unitNumber}` : ""}, {a.city}</option>)}
       </select>
     </label>}
@@ -89,6 +93,6 @@ export function CustomerAddresses({ customerId, token, currentAddress, onSelect,
       }}>Save address</button>
       <button type="button" disabled={busy} className="underline" onClick={() => setForm(null)}>Cancel address edit</button>
     </div>}
-    <p className="mt-2 text-xs text-zinc-400">Saved addresses are separate from the last-used profile address. Changes do not update existing orders. Confirm the delivery address with the customer.</p>
-  </details>;
+    <p className="mt-2 text-xs text-zinc-400">Creating an order saves its address and makes it the default for next time. Previous addresses remain available (up to 20). Confirm the delivery address with the customer.</p>
+  </section>;
 }
