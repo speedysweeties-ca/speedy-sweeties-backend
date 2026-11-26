@@ -403,7 +403,7 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "customer-retention",
     title: "Find customers who have not ordered recently",
-    reviewedAt: "2026-10-30",
+    reviewedAt: "2026-11-26",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "CUSTOMER_RETENTION",
     evidence: ["speedy-dispatcher/src/App.tsx", "src/controllers/customer.controller.ts", "src/jobs/retention90.job.ts", "src/services/retentionSms.service.ts"],

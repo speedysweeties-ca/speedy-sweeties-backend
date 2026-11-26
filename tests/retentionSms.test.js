@@ -12,7 +12,7 @@ function fixture() {
   const rows = new Map();
   const db = {
     retentionMessage:{ findMany:async()=>[message], findUnique:async()=>({...message}), updateMany:async({where,data})=> { if(Object.entries(where).some(([k,v])=>message[k]!==v))return {count:0}; Object.assign(message,data); return {count:1}; }, update:async({data})=>Object.assign(message,data) },
-    systemSetting:{ upsert:async({where,create})=>{if(!rows.has(where.key))rows.set(where.key,{...create});}, findUniqueOrThrow:async({where})=>rows.get(where.key),update:async({where,data})=>Object.assign(rows.get(where.key),data) },
+    systemSetting:{ createMany:async({data})=>{let count=0;for(const row of data){if(!rows.has(row.key)){rows.set(row.key,{...row});count++;}}return {count};}, findUniqueOrThrow:async({where})=>rows.get(where.key),update:async({where,data})=>Object.assign(rows.get(where.key),data) },
     customer:{findUnique:async()=>customer,count:async()=>customer.smsMarketingOptOut?1:0,updateMany:async({data})=>Object.assign(customer,data)},
     privacyDeletionRequest:{count:async()=>0},
     $queryRaw:async()=>[]
