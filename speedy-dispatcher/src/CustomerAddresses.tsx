@@ -1,3 +1,4 @@
+import { updateAddressFields } from "./addressFields";
 import { useReleaseBlocker } from "./useReleaseBlocker";
 import { useEffect, useState } from "react";
 import { API_V1_BASE_URL } from "./apiConfig";
@@ -85,7 +86,7 @@ export function CustomerAddresses({ customerId, token, currentAddress, profileAd
     </div>)}
     <button type="button" disabled={locked} className="mt-3 underline" onClick={() => { setEditingId(null); setForm({ ...blank, ...currentAddress, unitNumber: currentAddress.unitNumber || "", buzzCode: currentAddress.buzzCode || "" }); }}>Add saved address</button>
     {form && <div className="mt-3 space-y-2">
-      {fields.map(([key, label, max]) => <label key={key} className="block">{label}<input aria-label={label} maxLength={max} disabled={locked} className="block w-full bg-zinc-800 p-2" value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} /></label>)}
+      {fields.map(([key, label, max]) => <label key={key} className="block">{label}<input aria-label={label} maxLength={max} disabled={locked} className="block w-full bg-zinc-800 p-2" value={form[key]} onChange={e => setForm(updateAddressFields(form, { [key]: e.target.value }))} /></label>)}
       <label className="block"><input type="checkbox" disabled={locked} checked={form.isDefault} onChange={e => setForm({ ...form, isDefault: e.target.checked })} /> Default address</label>
       <button type="button" disabled={locked || !form.addressLine1.trim() || !form.city.trim() || !form.province.trim()} className="mr-3 underline" onClick={() => {
         const { addressLine1, unitNumber, buzzCode, city, province, isDefault } = form;

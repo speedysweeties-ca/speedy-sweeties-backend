@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   buildAddressRequestFields,
+  updateAddressFields,
+  applyAutocompleteAddress,
   parseGoogleAutocompleteAddress,
 } from "./addressFields.ts";
 
@@ -97,4 +99,34 @@ test("pickup civic-address requests do not gain delivery access fields", () => {
     city: "Guelph",
     province: "ON",
   });
+});
+
+const oldAddress = { addressLine1: "10 Old Street", unitNumber: "4B", buzzCode: "1234", city: "Guelph", province: "Ontario" };
+for (const patch of [{ addressLine1: "20 New Street" }, { city: "Cambridge" }, { province: "Quebec" }]) {
+  test(`civic edit clears old access: ${Object.keys(patch)[0]}`, () => {
+    const next = updateAddressFields(oldAddress, patch);
+    assert.equal(next.unitNumber, "");
+    assert.equal(next.buzzCode, "");
+    assert.equal(buildAddressRequestFields(next).unitNumber, null);
+    assert.equal(buildAddressRequestFields(next).buzzCode, null);
+  });
+}
+test("formatting and access-only edits preserve the other access field", () => {
+  assert.equal(updateAddressFields(oldAddress, { addressLine1: " 10  OLD Street ", province: "ON" }).buzzCode, "1234");
+  assert.equal(updateAddressFields(oldAddress, { unitNumber: "" }).buzzCode, "1234");
+});
+test("saved address selection and subsequent access edits retain their own values", () => {
+  const saved = { ...oldAddress, addressLine1: "20 New Street", unitNumber: "8", buzzCode: "888" };
+  assert.deepEqual(updateAddressFields(oldAddress, saved), saved);
+  const changed = updateAddressFields(oldAddress, { addressLine1: saved.addressLine1 });
+  const entered = updateAddressFields(changed, { unitNumber: "8", buzzCode: "888" });
+  assert.deepEqual(updateAddressFields(entered, { addressLine1: saved.addressLine1 }), saved);
+});
+test("autocomplete clears prior access on a new civic address and retains a supplied unit", () => {
+  const selected = { addressLine1: "20 New Street", city: "Guelph", province: "ON", unitNumber: "9" };
+  const changed = applyAutocompleteAddress(oldAddress, selected);
+  assert.equal(changed.unitNumber, "9"); assert.equal(changed.buzzCode, "");
+  const noUnit = applyAutocompleteAddress(oldAddress, { ...selected, unitNumber: "" });
+  assert.equal(noUnit.unitNumber, ""); assert.equal(noUnit.buzzCode, "");
+  assert.deepEqual(applyAutocompleteAddress(oldAddress, { ...oldAddress, unitNumber: "" }), oldAddress);
 });
