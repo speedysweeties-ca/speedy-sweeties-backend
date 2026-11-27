@@ -36,4 +36,54 @@ test('receipt item fingerprint migration and reopen validity on isolated Postgre
   const after = await db.digitalReceipt.findUniqueOrThrow({ where: { orderId: order.id } });
   assert.equal(after.grandTotal.toString(), '62.02');
   assert.equal(after.updatedAt.toISOString(), saved.updatedAt.toISOString());
+
+  // A delivery/cancellation commits while a receipt request waits on its row.
+  // Verify actual PostgreSQL blocking, rather than relying on a timing guess.
+  for (const role of ['DRIVER', 'ADMIN', 'DISPATCHER']) {
+    for (const status of ['DELIVERED', 'CANCELLED']) {
+      await t.test(`${role} late save waits for ${status} and preserves the receipt`, async () => {
+        await db.order.update({ where: { id: order.id }, data: { orderStatus: 'OUT_FOR_DELIVERY' } });
+        const before = await db.digitalReceipt.findUniqueOrThrow({ where: { orderId: order.id } });
+        const req = { params: { id: order.id }, user: { userId: driver.id, role }, body: {
+          itemTotal: 50, deliveryCharge: 22.02, taxOrFees: 0, grandTotal: 72.02,
+          notes: 'Late edit must not persist',
+          expectedItems: current.map(({ id, name, quantity }) => ({ id, name, quantity }))
+        } };
+        let pending;
+        const res = response();
+        try {
+          await db.$transaction(async tx => {
+            const [{ pid }] = await tx.$queryRaw`SELECT pg_backend_pid() AS pid`;
+            await tx.order.update({ where: { id: order.id }, data: { orderStatus: status } });
+            pending = save(req, res);
+            pending.catch(() => {});
+            let blocked = false;
+            const deadline = Date.now() + 5000;
+            while (Date.now() < deadline) {
+              // pg_locks is current; pg_stat_activity may cache a snapshot that
+              // omits the receipt connection first opened during this transaction.
+              const waiters = await tx.$queryRaw`
+                SELECT pid FROM pg_locks
+                WHERE NOT granted AND ${pid} = ANY(pg_blocking_pids(pid))
+              `;
+              if (waiters.length) { blocked = true; break; }
+              await new Promise(resolve => setTimeout(resolve, 20));
+            }
+            assert.equal(blocked, true, 'receipt save must wait for the final-status writer');
+          }, { timeout: 15000 });
+        } finally {
+          if (pending) await pending;
+        }
+        assert.equal(res.statusCode, 409);
+        assert.equal(res.body.code, 'FINAL_RECEIPT_LOCKED');
+        // A repeated request after completion must also be refused.
+        const repeated = response();
+        await save(req, repeated);
+        assert.equal(repeated.body.code, 'FINAL_RECEIPT_LOCKED');
+        assert.deepEqual(await db.digitalReceipt.findUniqueOrThrow({ where: { orderId: order.id } }), before);
+        assert.equal((await db.order.findUniqueOrThrow({ where: { id: order.id } })).orderStatus, status);
+      });
+    }
+  }
+
 });
