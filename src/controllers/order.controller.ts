@@ -1012,6 +1012,15 @@ export const updateOrderDetailsController = async (
   const updatedOrder = await prisma.$transaction(async (tx) => {
     await assertPrivacyOrderAllowed(tx, normalizedPhone);
     await assertOrdinaryOrderContact(tx, req.body);
+    const lockedOrders = await tx.$queryRaw<Array<{ id: string; orderStatus: OrderStatus }>>`
+      SELECT "id", "orderStatus" FROM "Order" WHERE "id" = ${id} FOR UPDATE
+    `;
+    if (!lockedOrders.length) return { editRejected: "Order not found" } as const;
+    if (lockedOrders[0].orderStatus === OrderStatus.DELIVERED ||
+        lockedOrders[0].orderStatus === OrderStatus.CANCELLED) {
+      return { editRejected: "Delivered or cancelled orders cannot be edited" } as const;
+    }
+
     let customer = await tx.customer.findFirst({
       where: buildCustomerLookupWhere({ normalizedPhone, normalizedEmail })
     });
@@ -1134,6 +1143,11 @@ export const updateOrderDetailsController = async (
       include: orderInclude
     });
   });
+
+  if ("editRejected" in updatedOrder) {
+    res.status(409).json({ success: false, code: "ORDER_CHANGED", message: updatedOrder.editRejected });
+    return;
+  }
 
   res.status(200).json({
     success: true,

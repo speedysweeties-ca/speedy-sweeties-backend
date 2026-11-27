@@ -77,6 +77,14 @@ jobs:
           docker exec "${{ job.services.postgres.id }}" createdb -U privacy_test speedy_flyer_synthetic
           npx prisma db push --skip-generate
           node --test --test-concurrency=1 tests/welcomeFlyer.database.test.js
+      - name: Verify receipt item migration and saved-receipt validity
+        env:
+          CHECK_RECEIPT_ITEMS_DATABASE: 'yes'
+          DATABASE_URL: postgresql://privacy_test:synthetic-only@127.0.0.1:5432/speedy_receipts_synthetic
+        run: |
+          docker exec "${{ job.services.postgres.id }}" createdb -U privacy_test speedy_receipts_synthetic
+          npx prisma db push --skip-generate
+          node --test --test-concurrency=1 tests/receiptItems.database.test.js
       - name: Verify protected reviewer orders against separate synthetic PostgreSQL
         env:
           REVIEWER_SAFETY_SYNTHETIC: 'yes'
