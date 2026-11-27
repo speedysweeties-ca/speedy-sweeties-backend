@@ -110,10 +110,10 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "help-guide",
     title: "Use How do I…? and its source guides",
-    reviewedAt: "2026-11-23",
+    reviewedAt: "2026-11-27",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "HELP",
-    evidence: ["speedy-dispatcher/src/DispatcherHelp.tsx", "src/services/dispatcherHelp.service.ts"],
+    evidence: ["speedy-dispatcher/src/DispatcherHelp.tsx", "src/services/dispatcherHelp.service.ts", "src/routes/dispatcherHelp.routes.ts", "tests/dispatcherHelp.test.js"],
     content: "Open How do I…?, type a workflow question and click Ask the guide, or choose a suggested question. Ask follow-up questions in the same conversation. Expand a Source guide to read the instructions and reviewed date, and use its navigation button to open that screen. New conversation clears the conversation. Chat survives switching dashboard tabs but clears on browser reload or logout. This AI explains the maintained guide; it does not watch screens, learn procedures from chats, read live records, or perform actions. New features need an updated guide released with the software. Do not enter private customer details, passwords or credentials. If a procedure or policy is undocumented, ask the manager or owner; the assistant must not invent it. A source-verification error means the answer could not be verified, not that the procedure is undocumented. Your question stays in the input; use Try again or read an available Source guide. Clarify an ambiguous follow-up when asked.",
   },
   {
@@ -405,11 +405,11 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "bnd-emails",
     title: "Control B&D email notifications",
-    reviewedAt: "2026-11-13",
+    reviewedAt: "2026-11-27",
     roles: ["ADMIN"],
     destination: "LIVE_ORDERS",
-    evidence: ["speedy-dispatcher/src/BndEmailControls.tsx", "src/routes/bndAlerts.routes.ts", "src/services/bndEmailAlerts.service.ts"],
-    content: "Administrators open Show more > B&D Emails and use Turn B&D Emails On or Turn B&D Emails Off. Check the displayed recipients and saved state. Alerts go to the primary mailbox and any configured temporary copy. This separate server setting sends one alert per waiting order to the displayed recipients during B&D's published opening hours and can work while the dispatcher page is closed. Previously sent alerts are not sent again when a copy is added. The control does not edit the recipients; the owner must arrange configuration or removal of a temporary copy. If the expected copy address is missing from the displayed recipients, ask the owner to check its configuration. Browser B&D Alerts and browser sound are separate controls. If Email setup needs attention or a loading/saving error appears, have the administrator check configuration; an unknown setting is not proof that emails are off. The help assistant cannot change the setting, inspect delivery or guarantee that an email reached either recipient.",
+    evidence: ["speedy-dispatcher/src/BndEmailControls.tsx", "src/routes/bndAlerts.routes.ts", "src/services/bndEmailAlerts.service.ts", "docs/bnd-alerts.md", "tests/bndEmailAlerts.test.js"],
+    content: "Administrators open Show more > B&D Emails and use Turn B&D Emails On or Turn B&D Emails Off. Check the displayed recipients and saved state. Alerts go to the primary mailbox and any configured temporary copy. This separate server setting sends one alert per waiting order to the displayed recipients during B&D's published opening hours and can work while the dispatcher page is closed. Previously sent alerts are not sent again when a copy is added. The control does not edit the recipients; the owner must arrange configuration or removal of a temporary copy. If the expected copy address is missing from the displayed recipients, ask the owner to check its configuration. An owner-requested email titled TEST ONLY — B&D email delivery check is a delivery test: no order was created and there is nothing to collect. It is separate from normal waiting-order alerts and can arrive even when those alerts are off. There is no delivery-test button in Dispatcher; ask the owner to investigate delivery problems. Provider acceptance does not confirm inbox delivery. Browser B&D Alerts and browser sound are separate controls. If Email setup needs attention or a loading/saving error appears, have the administrator check configuration; an unknown setting is not proof that emails are off. The help assistant cannot change the setting, inspect delivery or guarantee that an email reached either recipient.",
   },
   {
     id: "customer-retention",

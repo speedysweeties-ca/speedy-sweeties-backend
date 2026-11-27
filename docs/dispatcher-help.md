@@ -67,6 +67,26 @@ guide fails tests. Deployment must include the backend knowledge; if help links
 or suggested questions changed, deploy the dispatcher too. Neither branch tests
 nor a PR mean the guide is already live.
 
+## Current-source review — 2026-11-27
+
+Refreshed this help-only change against main and the live API/dispatcher source
+`cbd6495f169c8f5f63fdda218b64e0f3355fd52a`. Preserved the November 27 audit fixes
+and correlated diagnostics. The old Effect audit blocker is resolved on main by
+its 3.22.1 override; this update does not change dependencies.
+
+Re-reviewed `help-guide` and administrator-only `bnd-emails` against the current
+routes, service and tests. TEST ONLY delivery-check emails create no order, require
+no collection and can arrive while normal waiting-order emails are off. Dispatcher
+has no test-email button. Provider acceptance does not prove inbox delivery.
+The source-verification description below matches the existing HTTP 502 behavior.
+
+Smoke questions: “Does TEST ONLY — B&D email delivery check mean there is an order
+to collect?”, “Why did it arrive while B&D Emails were off?”, and “Does a
+source-verification error mean the procedure is undocumented?” Check ADMIN source
+navigation and DISPATCHER exclusion. No live message or order is used for tests.
+Source/tests do not establish signed-in live help answers. This branch still needs
+its normal CI and a backend knowledge release; no dispatcher bundle change is needed.
+
 ## Released-source review — 2026-11-09
 
 Compared main/API `25088ebd668dc0fd050d82166d91dfe288588182` with dispatcher
@@ -146,10 +166,14 @@ follow-ups and catalog visibility.
 ## Boundaries and validation
 
 The model returns a structured answer, steps, notes and source IDs. The server
-resolves citations and navigation from its own permitted articles. An answer
-without valid sources becomes a fixed undocumented response. This verifies
-citations, not the factual accuracy of every generated sentence; check real
-answers against their source guides during rollout and after knowledge changes.
+resolves citations and navigation from its own permitted articles. An unknown or
+role-inaccessible source ID, or an ANSWERED result without sources, returns a
+source-verification error (HTTP 502); the UI retains the question for Try again.
+This is not evidence that the procedure is undocumented. A valid NOT_DOCUMENTED
+result uses the fixed manager/owner referral; CLARIFY results omit steps, notes
+and sources. This verifies citations, not the factual accuracy of every generated
+sentence; check real answers against their source guides during rollout and after
+knowledge changes.
 Questions/history are explicitly untrusted; there are no execution tools.
 Only user/assistant turns are accepted, with 2,000-character questions and the
 last 8 history messages (6,000 characters each). Requests are limited to 30 per
