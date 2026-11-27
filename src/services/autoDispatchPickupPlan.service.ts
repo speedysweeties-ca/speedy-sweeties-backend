@@ -60,6 +60,7 @@ export type AutoDispatchPickupPlanResult = {
     | "NO_ROUTEABLE_DRIVERS"
     | "ROUTING_UNAVAILABLE"
     | "ORDER_CHANGED"
+    | "DRIVER_LOCATION_CHANGED"
     | "ALLOCATION_UNAVAILABLE";
   driverId?: string;
   driverFcmToken?: string | null;
@@ -180,7 +181,7 @@ type AutoDispatchAllocationResult =
  * calls it. Item pickup types and pickup locations intentionally do not take
  * part in this assignment decision.
  */
-export const autoDispatchCreatedOrderWithPickupPlan = async (
+const attemptAutoDispatchCreatedOrder = async (
   orderId: string
 ): Promise<AutoDispatchPickupPlanResult> => {
   if (!(await isAutoDispatchEnabled())) {
@@ -279,8 +280,7 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
       driver.id,
       {
         latitude: Number(driver.latitude),
-        longitude: Number(driver.longitude),
-        locationUpdatedAtMs: driver.locationUpdatedAt?.getTime() ?? null
+        longitude: Number(driver.longitude)
       }
     ])
   );
@@ -427,6 +427,7 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
           }
         })) as AutoDispatchDriver[];
 
+        let driverLocationChanged = false;
         const candidates = currentDrivers.flatMap((driver) => {
           const plannedRouteSource = plannedDriverRouteSources.get(driver.id);
           const directRoute = directRoutesByDriverId.get(driver.id);
@@ -441,12 +442,18 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
               driver.lastSeenAt,
               driver.locationUpdatedAt,
               allocationTime
-            ) ||
-            Number(driver.latitude) !== plannedRouteSource.latitude ||
-            Number(driver.longitude) !== plannedRouteSource.longitude ||
-            (driver.locationUpdatedAt?.getTime() ?? null) !==
-              plannedRouteSource.locationUpdatedAtMs
+            )
           ) {
+            return [];
+          }
+
+          // Heartbeats refresh the timestamp even when the driver has not moved.
+          // Freshness still matters, but only changed coordinates invalidate a route.
+          if (
+            Number(driver.latitude) !== plannedRouteSource.latitude ||
+            Number(driver.longitude) !== plannedRouteSource.longitude
+          ) {
+            driverLocationChanged = true;
             return [];
           }
 
@@ -458,6 +465,12 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
             }
           ];
         });
+
+        // Recalculate outside this transaction before choosing a fallback: the
+        // moving driver may still be closest, or may be Rob with priority.
+        if (driverLocationChanged) {
+          return { selected: null, reason: "DRIVER_LOCATION_CHANGED" };
+        }
 
         // Lock Rob before reading his workload, using the same order-then-driver
         // lock order as manual assignment. Concurrent auto assignments must see
@@ -568,4 +581,28 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
     routeEtaMinutes: Math.max(1, Math.round(selected.routeDurationSeconds / 60)),
     routeCalculationMode
   };
+};
+
+const MAX_LOCATION_ATTEMPTS = 3;
+
+export const autoDispatchCreatedOrderWithPickupPlan = async (
+  orderId: string
+): Promise<AutoDispatchPickupPlanResult> => {
+  for (let attempt = 1; attempt <= MAX_LOCATION_ATTEMPTS; attempt += 1) {
+    const result = await attemptAutoDispatchCreatedOrder(orderId);
+    if (
+      result.reason === "DRIVER_LOCATION_CHANGED" &&
+      attempt < MAX_LOCATION_ATTEMPTS
+    ) {
+      continue;
+    }
+    if (!result.dispatched) {
+      console.warn(
+        `[Auto Dispatch] Order ${orderId} not assigned: ${result.reason}; attempt ${attempt}.`
+      );
+    }
+    return result;
+  }
+  // The final iteration always returns; retained for TypeScript exhaustiveness.
+  throw new Error("Auto-dispatch attempt limit exceeded");
 };
