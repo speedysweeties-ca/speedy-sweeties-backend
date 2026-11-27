@@ -514,3 +514,41 @@ test("delivered orders cannot be cancelled and drivers cannot invoke the staff c
   assert.equal(driverResponse.statusCode, 403);
   assert.equal(ownershipHarness.getOrder().orderStatus, OrderStatus.ACCEPTED);
 });
+
+test('diagnostics show committed acceptance, receipt pickup and delivery only after writes', async t => {
+  const { withDiagnosticContext } = require('../dist/utils/operationalDiagnostics');
+  const { randomUUID } = require('node:crypto');
+  const events = [];
+  for (const level of ['log', 'warn', 'error']) replaceForTest(t, console, level, line => events.push(JSON.parse(line)));
+  installTransitionHarness(t, { order: order({ orderStatus: OrderStatus.DISPATCHED, fcmToken: null }) });
+  await withDiagnosticContext(randomUUID(), async () => {
+    await driverActionController(driverRequest('ACCEPTED'), responseRecorder());
+    await createOrUpdateReceiptController(receiptRequest(), responseRecorder());
+    await driverActionController(driverRequest('DELIVERED'), responseRecorder());
+    await driverActionController(driverRequest('DELIVERED'), responseRecorder());
+  });
+  const saved = events.filter(e => ['committed', 'replayed'].includes(e.outcome));
+  assert.deepEqual(saved.map(e => [e.event, e.action, e.outcome]), [
+    ['DRIVER_ACTION', 'ACCEPTED', 'committed'], ['RECEIPT_SAVE', 'OUT_FOR_DELIVERY', 'committed'],
+    ['DRIVER_ACTION', 'DELIVERED', 'committed']
+  ]);
+  assert(saved.every(e => e.orderNumber === 101));
+  assert(events.some(e => e.action === 'DELIVERED' && e.outcome === 'rejected')); // Production base rejects already-delivered retries.
+});
+
+test('failed delivery write never emits a committed diagnostic', async t => {
+  const events = [];
+  for (const level of ['log', 'warn', 'error']) replaceForTest(t, console, level, line => events.push(JSON.parse(line)));
+  installTransitionHarness(t, { order: order({ orderStatus: OrderStatus.OUT_FOR_DELIVERY }), receipt: receipt() });
+  replaceForTest(t, prisma.order, 'updateMany', async () => { throw new Error('simulated delivery write failure'); });
+  await assert.rejects(driverActionController(driverRequest('DELIVERED'), responseRecorder()), /simulated delivery write failure/);
+  assert(!events.some(e => e.outcome === 'committed'));
+});
+
+test('rolled back receipt pickup never emits a committed diagnostic', async t => {
+  const events = [];
+  for (const level of ['log', 'warn', 'error']) replaceForTest(t, console, level, line => events.push(JSON.parse(line)));
+  installTransitionHarness(t, { failReceiptOrderUpdate: true });
+  await assert.rejects(createOrUpdateReceiptController(receiptRequest(), responseRecorder()), /simulated order transition failure/);
+  assert(!events.some(e => e.outcome === 'committed'));
+});

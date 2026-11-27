@@ -56,7 +56,7 @@ app.use(
       return callback(new ApiError(403, "CORS origin is not allowed"));
     },
     credentials: true,
-    exposedHeaders: ["X-Dispatcher-Release"]
+    exposedHeaders: ["X-Dispatcher-Release", "X-Request-ID"]
   })
 );
 

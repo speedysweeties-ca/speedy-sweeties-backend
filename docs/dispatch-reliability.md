@@ -7,9 +7,11 @@ B&D monitoring and customer notification flows are unchanged by this release.
 ## Notification outcomes
 
 Structured `DRIVER_ASSIGNMENT_PUSH` events contain a random correlation ID,
-attempt, outcome, and a documented Firebase error code. They never contain device
-tokens, driver/customer identifiers, addresses, notification bodies, credentials
-or raw provider error messages. `provider_accepted` means Firebase accepted the
+attempt, outcome, and a documented Firebase error code. The order-flow diagnostics
+extension adds the numeric order number, originating request ID, timestamp and
+release commit when available; see `docs/order-flow-diagnostics.md`. They never
+contain device tokens, driver/customer IDs, order UUIDs, addresses, notification
+bodies, credentials or raw provider error messages. `provider_accepted` means Firebase accepted the
 message, not that a phone displayed it.
 
 - Explicit invalid/unregistered token errors clear only that driver's matching

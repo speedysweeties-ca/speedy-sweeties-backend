@@ -557,7 +557,13 @@ test("continuous movement stops after three route calculations without assignmen
   assert.equal(harness.getDispatchEvents().length, 0);
   assert.equal(harness.getStopDeleteCount(), 0);
   assert.equal(harness.orderRows.get("order-a").assignedDriverId, null);
-  assert.match(warnings.at(-1), /DRIVER_LOCATION_CHANGED; attempt 3/);
+  const held = JSON.parse(warnings.at(-1));
+  assert.equal(held.event, "AUTO_DISPATCH");
+  assert.equal(held.outcome, "held");
+  assert.equal(held.reason, "DRIVER_LOCATION_CHANGED");
+  assert.equal(held.detail, "LOCATION_RETRY_LIMIT");
+  assert.equal(held.orderNumber, 101);
+  assert.equal(held.attempt, 3);
 });
 
 test("location retry rechecks Rob's capacity before assignment", async t => {
@@ -736,4 +742,22 @@ test("stale Rob GPS does not bypass normal eligibility", async t => {
     routeDurations: directRouteDurations(600, 60)
   });
   assert.equal((await autoDispatchCreatedOrderWithPickupPlan("new")).driverId, "other");
+});
+
+test('auto-dispatch diagnostics expose the held reason without address, IDs or provider exceptions', async t => {
+  const records = [];
+  for (const level of ['log', 'warn', 'error']) replaceForTest(t, console, level, line => {
+    if (line.startsWith('{')) records.push(JSON.parse(line));
+  });
+  installAllocationHarness(t, {
+    orders: [autoDispatchOrder('private-order-id', 501, { geocodeStatus: 'NEEDS_REVIEW' })],
+    drivers: [allocationDriver(ROB_ID, 'Rob', 43.51)], routeDurations: directRouteDurations()
+  });
+  const result = await autoDispatchCreatedOrderWithPickupPlan('private-order-id');
+  assert.equal(result.dispatched, false);
+  const event = records.find(e => e.event === 'AUTO_DISPATCH');
+  assert.equal(event.orderNumber, 501);
+  assert.equal(event.reason, 'ROUTING_UNAVAILABLE');
+  assert.equal(event.detail, 'ADDRESS_NOT_VERIFIED');
+  for (const secret of ['private-order-id', ROB_ID, 'Test Customer', '10 Test Street']) assert(!JSON.stringify(records).includes(secret));
 });

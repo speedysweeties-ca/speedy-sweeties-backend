@@ -1,3 +1,4 @@
+import { logDiagnostic, setDiagnosticOrder } from "../utils/operationalDiagnostics";
 import { assertNoSyntheticReceipt } from "../services/syntheticOrderSafety.service";
 import { Request, Response } from "express";
 import { OrderStatus, UserRole } from "@prisma/client";
@@ -136,6 +137,7 @@ export const createOrUpdateReceiptController = async (
       }
 
       const order = assignedOrders[0];
+      setDiagnosticOrder(order.orderNumber);
       const receipt = await tx.digitalReceipt.upsert({
         where: { orderId },
         update: { itemTotal, deliveryCharge, taxOrFees, grandTotal, notes },
@@ -202,6 +204,7 @@ export const createOrUpdateReceiptController = async (
       where: { id: orderId },
       select: { orderNumber: true }
     });
+    setDiagnosticOrder(order?.orderNumber);
 
     if (!order) {
       return { kind: "notFound" as const };
@@ -244,6 +247,8 @@ export const createOrUpdateReceiptController = async (
     return;
   }
 
+  logDiagnostic({ event: "RECEIPT_SAVE", outcome: "committed",
+    ...(receiptResult.transitionedToOutForDelivery ? { action: "OUT_FOR_DELIVERY" } : {}) });
   if (receiptResult.transitionedToOutForDelivery) {
     await sendCustomerOrderNotification(orderId, "ORDER_OUT_FOR_DELIVERY");
   }

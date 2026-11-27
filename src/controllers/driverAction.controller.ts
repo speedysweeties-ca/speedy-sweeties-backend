@@ -1,3 +1,4 @@
+import { logDiagnostic, setDiagnosticOrder } from "../utils/operationalDiagnostics";
 import { Request, Response } from "express";
 import { OrderStatus, Prisma, UserRole } from "@prisma/client";
 import { sendCustomerOrderNotification } from "../services/customerOrderNotification.service";
@@ -51,20 +52,26 @@ export const driverActionController = async (
   const user = getAuthUser(req);
   const { id } = req.params;
   const { action } = req.body;
+  const log = (outcome: string, reason?: string) => logDiagnostic({ event: "DRIVER_ACTION", action, outcome, reason });
+  log("started");
 
   if (!user?.userId) {
+    log("rejected", "UNAUTHORIZED");
     res.status(401).json({ success: false, message: "Unauthorized" });
     return;
   }
 
   const order = await prisma.order.findUnique({ where: { id } });
+  setDiagnosticOrder(order?.orderNumber);
 
   if (!order) {
+    log("rejected", "ORDER_NOT_FOUND");
     res.status(404).json({ success: false, message: "Order not found" });
     return;
   }
 
   if (order.assignedDriverId !== user.userId) {
+    log("rejected", "FORBIDDEN");
     res.status(403).json({ success: false, message: "Forbidden" });
     return;
   }
@@ -78,6 +85,7 @@ export const driverActionController = async (
           ? OrderStatus.DELIVERED
           : null;
   if (!targetStatus) {
+    log("rejected", "INVALID_ACTION");
     res.status(400).json({ success: false, message: "Invalid action" });
     return;
   }
@@ -98,6 +106,7 @@ export const driverActionController = async (
     hasPersistedReceipt: receipt !== null
   });
   if ("code" in transition) {
+    log("rejected", transition.code);
     res.status(409).json({
       success: false,
       code: transition.code,
@@ -130,6 +139,7 @@ export const driverActionController = async (
     });
 
     if (acceptanceUpdate.count === 0) {
+      log("rejected", "ORDER_CHANGED");
       res.status(409).json({
         success: false,
         code: "INVALID_ORDER_TRANSITION",
@@ -138,6 +148,7 @@ export const driverActionController = async (
       return;
     }
 
+    log("committed");
     const updated = await prisma.order.findUniqueOrThrow({
       where: { id },
       include: orderInclude
@@ -169,6 +180,7 @@ export const driverActionController = async (
     });
 
     if (outForDeliveryUpdate.count === 0) {
+      log("rejected", "ORDER_CHANGED");
       res.status(409).json({
         success: false,
         code: "INVALID_ORDER_TRANSITION",
@@ -177,6 +189,7 @@ export const driverActionController = async (
       return;
     }
 
+    log("committed");
     const updated = await prisma.order.findUniqueOrThrow({
       where: { id },
       include: orderInclude
@@ -214,6 +227,7 @@ export const driverActionController = async (
     });
 
     if (deliveryUpdate.count === 0) {
+      log("rejected", "ORDER_CHANGED");
       res.status(409).json({
         success: false,
         code: "INVALID_ORDER_TRANSITION",
@@ -222,6 +236,7 @@ export const driverActionController = async (
       return;
     }
 
+    log("committed");
     const updated = await prisma.order.findUniqueOrThrow({
       where: { id },
       include: orderInclude
