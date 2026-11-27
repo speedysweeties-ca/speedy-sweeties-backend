@@ -84,7 +84,7 @@ jobs:
         run: |
           docker exec "${{ job.services.postgres.id }}" createdb -U privacy_test speedy_receipts_synthetic
           npx prisma db push --skip-generate
-          node --test --test-concurrency=1 tests/receiptItems.database.test.js
+          node --test --test-concurrency=1 tests/receiptItems.database.test.js tests/deliveryCompletion.database.test.js
       - name: Verify protected reviewer orders against separate synthetic PostgreSQL
         env:
           REVIEWER_SAFETY_SYNTHETIC: 'yes'
