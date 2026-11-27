@@ -7,7 +7,7 @@ import { initialCustomerAddress } from "./customerAddressSelection";
 import { RoutingPreviewMap } from "./RoutingPreviewEnhancerOriginalPins";
 import { useOrderEditPause, type EditTimingSnapshot } from "./useOrderEditPause";
 import { dispatchWaitingMilliseconds, isDispatchTimerPaused, type EditPause } from "./dispatchTiming";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent } from "react";
 import { API_BASE_URL, API_V1_BASE_URL } from "./apiConfig";
 import { DispatcherHelp } from "./DispatcherHelp";
 import { LoadPreviousOrder } from "./LoadPreviousOrder";
@@ -3599,6 +3599,15 @@ const handleSaveEditedOrder = async (orderId: string) => {
       ...prev,
       [field]: value,
     }));
+  };
+
+  const handleCustomerSearchBlur = (event: FocusEvent<HTMLDivElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget)) return;
+
+    // Ignore searches still in flight after the dispatcher leaves this field.
+    customerSearchRequestIdRef.current += 1;
+    setCustomerSuggestions([]);
+    setActiveCustomerSearchField(null);
   };
 
   const selectCustomerSuggestion = (customer: CustomerSuggestion) => {
@@ -8067,7 +8076,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="relative">
+              <div className="relative" onBlur={handleCustomerSearchBlur}>
                 <input
                   type="text"
                   placeholder="Customer Name"
@@ -8085,6 +8094,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                       <button
                         key={customer.id}
                         type="button"
+                        onMouseDown={(event) => event.preventDefault()}
                         onClick={() => selectCustomerSuggestion(customer)}
                         className="w-full text-left px-3 py-3 hover:bg-zinc-800 transition border-b border-zinc-800 last:border-b-0"
                       >
@@ -8108,7 +8118,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 )}
               </div>
 
-              <div className="relative">
+              <div className="relative" onBlur={handleCustomerSearchBlur}>
                 <input
                   type="text"
                   placeholder="Customer Phone"
@@ -8126,6 +8136,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                       <button
                         key={customer.id}
                         type="button"
+                        onMouseDown={(event) => event.preventDefault()}
                         onClick={() => selectCustomerSuggestion(customer)}
                         className="w-full text-left px-3 py-3 hover:bg-zinc-800 transition border-b border-zinc-800 last:border-b-0"
                       >
