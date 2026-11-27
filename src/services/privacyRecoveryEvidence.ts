@@ -11,7 +11,7 @@ export async function scopedRecoveryEvidence(tx: Prisma.TransactionClient, journ
     request: await tx.privacyDeletionRequest.findUnique({ where: { id: requestId }, include: {
       tasks: { orderBy: { system: "asc" } }, audit: { orderBy: { id: "asc" } }
     } }),
-    customer: await tx.customer.findUnique({ where: { id: scope.subjectId } }),
+    customer: await tx.customer.findUnique({ where: { id: scope.subjectId }, include: { savedAddresses: { orderBy: { id: "asc" } } } }),
     orders: await tx.order.findMany({ where: { OR: [{ customerId: scope.subjectId }, { id: { in: ids } }] },
       orderBy: { id: "asc" }, include: { items: { orderBy: { id: "asc" } }, digitalReceipt: true, helpRequest: true } }),
     access: await tx.privacyAccessCredential.findMany({ where: { customerId: scope.subjectId }, orderBy: { id: "asc" } }),

@@ -10,6 +10,7 @@ async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), 'speedy-static-security-'));
   await mkdir(join(directory, 'assets'));
   await writeFile(join(directory, 'index.html'), '<!doctype html><title>Dispatcher</title><div id="root"></div>');
+  await writeFile(join(directory, 'dispatcher-version.json'), JSON.stringify({ release: 'a'.repeat(64) }));
   await writeFile(join(directory, 'assets/app.js'), 'window.dispatcherLoaded = true;');
   await writeFile(join(directory, 'assets/app.js.map'), 'private source map');
   await writeFile(join(directory, '.env'), 'TEST_SECRET=must-not-be-served');
@@ -75,4 +76,14 @@ test('validates actual Host, rejects unsafe methods, and adds compatible protect
   // unverified resource allowlist. The existing frontend controls those URLs.
   assert.doesNotMatch(page.headers['content-security-policy'], /default-src|script-src|connect-src/);
   assert.equal(page.headers['cross-origin-opener-policy'], 'same-origin-allow-popups');
+});
+
+
+test('release manifest is JSON and never cached, including cache-busting queries', async t => {
+  const read = await fixture(t);
+  const response = await read('/dispatcher-version.json?check=123');
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['cache-control'], 'no-store');
+  assert.match(response.headers['content-type'], /json/);
+  assert.equal(JSON.parse(response.body).release, 'a'.repeat(64));
 });

@@ -27,19 +27,17 @@ to the script, so the command also works from inside this folder.
 
 ## Service landing pages
 
-The build generates five separate pages from `content/services.mjs`:
+The build generates three separate pages from `content/services.mjs`:
 
 | Page | Path |
 | --- | --- |
 | Beer | `/beer-delivery-guelph/` |
 | Alcohol | `/alcohol-delivery-guelph/` |
-| Vape information | `/vape-delivery-guelph/` |
-| Cannabis information | `/cannabis-delivery-guelph/` |
 | Convenience | `/convenience-delivery-guelph/` |
 
 Each page has unique copy, title, description, canonical/social metadata,
 WebPage/breadcrumb structured data, a shared 19+ self-declaration and navigation
-back to the main website. The homepage service section and sitemap link all five.
+back to the main website. The homepage service section and sitemap link all three.
 Ordering remains on the existing homepage; landing pages do not submit orders.
 The acknowledgement stores only `19-plus` in sessionStorage for the current tab
 session. It is not verified age or identity and does not replace delivery checks.
@@ -49,15 +47,35 @@ Production landing-page analytics use the existing GA4 loader and add
 category and destination type. Neither event is an accepted-order conversion.
 Previews remain noindex, make no order requests and emit no analytics.
 
-Vape and cannabis pages contain information rather than product sales. Cannabis
-copy makes no retailer-licence/partnership claim and describes Ontario's retailer
-delivery requirement. Google Ads restricts vaping; its Canadian cannabis pilot
-has specific licence/eligibility requirements. A page's existence does not mean
-an advertising platform has approved it. No campaign or ad spend is included.
-Sources checked October 29, 2026:
-- https://www.ontario.ca/laws/regulation/180468 (section 20.2)
-- https://support.google.com/adspolicy/answer/16489929
-- https://support.google.com/adspolicy/answer/16851502
+On November 11, 2026, the owner authorized the website changes requested in
+Google Ads support case 7-9441000042376. Prescription-pickup offers were removed
+from the homepage. The vape and cannabis information pages were retired: the
+build stopped generating their service content, navigation or sitemap entries.
+Initial live checks still returned cached old content at slash URLs after source
+removal. The build then explicitly overwrote both old resources with a
+generic retirement notice containing no service offers, scripts or forms and
+`noindex, nofollow`. These were static notices, not HTTP 404/410 responses.
+Users and crawlers received the same content, with no user-agent-specific treatment.
+Alcohol age/ID safeguards and privacy disclosures remain in place. A privacy
+statement about sensitive order data is not a prescription-service offer and
+must not be removed merely to change ad classification. Historical attribution
+codes are retained for records from previously published pages.
+Google reports that alcohol Approved (limited) is expected and the destination
+accessibility label is stale. Publication does not itself establish Google Ads
+re-approval; a separate platform re-review is still needed.
+
+On November 26, 2026, the owner requested restoration as neutral public
+information, with official Ontario guidance and no ordering links. The original
+two URLs now render from `content/information.mjs` and
+`scripts/render-information-pages.mjs`. They explain age, identification and
+retailer delivery requirements. They have no service offers, product listings,
+ordering/contact links, forms, scripts, counters or analytics. Only section
+anchors and official Ontario guidance are linked. They are accessible without
+JavaScript and use the existing information-page styling. Production includes
+self-canonicals and both sitemap entries; previews retain noindex.
+Homepage service navigation and the three commercial service pages are unchanged.
+Google previously flagged informational references too; this restoration does
+not establish Google Ads eligibility or immediate Google Search indexing.
 
 Release scope is website-only. It requires no API, dispatcher, mobile, database,
 environment-variable or DNS change. Use the existing website production build
@@ -87,8 +105,9 @@ Android submission unless evidence shows the policy cannot be accessed.
 The build also generates `/privacy-policy/`, the canonical standalone privacy
 page, and `/privacy/`, a noindex compatibility copy. The original homepage
 `/#privacy-policy` section and full published text remain available. Its heading
-and all five service-page footers link to the dedicated page. The sitemap contains
-seven canonical URLs; the compatibility copy is omitted. The static host resolves
+and all three service-page footers link to the dedicated page. The sitemap contains
+eight canonical URLs including the two public-information pages; the compatibility
+copy is omitted. The static host resolves
 the slashless privacy paths to their directory pages; verify that behavior live.
 
 Legal pages are readable without JavaScript, an age acknowledgement, login or
@@ -243,3 +262,24 @@ Rollback targets: website `4e1956a3a49c94e270778ee66daac37b28e49e71`, API
 date variable and uses its original November 7 command. Retained source tags on
 existing orders need no reversal. Validation must not place real test orders or
 label a successful browser acknowledgement as a completed delivery.
+
+### Neutral privacy wording — November 12, 2026
+
+Robert authorized the wording update and policy re-review requested in Google Ads
+support case 7-9441000042376. The shared policy now says: "An order request may
+itself reveal sensitive personal information." It retains the sensitive-data
+warning without a named service example. No other disclosure or ordering behavior
+changes. Homepage, canonical privacy page and compatibility privacy page use the
+same source. Publication is not Google Ads re-approval.
+
+For this website-only release, merge `PUBLIC_PRIVACY_POLICY_DATE=2026-11-12` into
+the existing website service configuration, never replace its variable collection.
+Keep the current production flags, owner-held Turnstile key and Auto-Deploy Off.
+The renderer pins this exact policy hash/date for later unchanged rebuilds and
+preserves historical hashes for rollback. Current-head checks and the owner's
+explicit implementation authorization apply before merge/publication.
+
+Prior healthy website/rollback source: `440df36c6bea67478bcb2bb35f3d0bf54e460627`.
+Restoring that source requires restoring its policy date `2026-11-11` as well.
+No API, dispatcher, app, database, DNS, provider or budget change belongs to this
+release. Dispatcher help guide IDs: not applicable.

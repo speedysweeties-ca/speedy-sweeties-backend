@@ -1,5 +1,31 @@
 # Android policy, declaration comparison and smallest device sessions
 
+## November 27 refresh — current source, historical store evidence
+
+Refreshed against backend main `cbd6495f169c8f5f63fdda218b64e0f3355fd52a` and
+Customer Android main `66f826d35ac2044dcc815000fa10ba40b29c8822`. Android #15–17
+and #19–21 are now merged; #16 is no longer a pending version-code preparation.
+The owner previously confirmed internal build 1.0 (6). That historical report is
+not a fresh Play track inventory or proof that the later merged source is installed.
+No version code is reserved or declared available by this review.
+
+The preview now distinguishes older voice prompts from the merged remembered-
+agreement behavior, keeps completed-order notification registration for final
+messages, and describes the separately prepared optional Play update checker
+(Android #18). Its reminder store is backup/transfer-excluded. The checker is not
+claimed to be in installed build 6. Google’s current Data safety documentation was
+rechecked November 27: https://developer.android.com/guide/playcore/in-app-updates#data-safety.
+It identifies device/app/module metadata used for update availability/size; this
+is not permission to declare all SDK data exempt or to change saved Console answers.
+
+The November 11 CSV below remains dated source evidence, not current Console state.
+Preserve its raw rows/counts; reconcile the active tracks, current export and final
+signed app before submitting declarations. The optional SDK must be included in
+that final assessment if shipped. The approved policy and its publication guards
+are unchanged; Android output remains preview-only. No policy, store declaration,
+app release, live order or notification was published or created by this refresh.
+
+
 November 11, 2026 (America/Toronto). Review preparation only. No declarations are
 entered/saved/submitted, no signed build is created and no production changes occur.
 
@@ -11,7 +37,7 @@ The [final proposed answer set](android-play-final-proposed-answers-2026-11-11.m
 supersedes this worksheet's earlier conditional proposals and evidence gaps.
 No further Console-navigation handoff is needed to compare the saved answers.
 
-## Completed Android review and merge
+## Historical November 11 Android review and merge
 
 PR #15 reviewed head `57514ef86163710ceffc8da7a6371a17b3542314` merged normally as
 `58dd9cb37dc8deebb710ab8777ff93d1f3a7e687`. Both Git trees equal

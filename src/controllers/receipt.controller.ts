@@ -1,3 +1,5 @@
+import { logDiagnostic, setDiagnosticOrder } from "../utils/operationalDiagnostics";
+import { validReceiptItems, sameReceiptItems, receiptItemsFingerprint } from "../services/receiptItems.service";
 import { assertNoSyntheticReceipt } from "../services/syntheticOrderSafety.service";
 import { Request, Response } from "express";
 import { OrderStatus, UserRole } from "@prisma/client";
@@ -78,6 +80,15 @@ export const createOrUpdateReceiptController = async (
     });
     return;
   }
+  const expectedItems = req.body.expectedItems;
+  // Optional only for installed legacy clients during the staged app rollout.
+  // Updated apps always submit the exact item snapshot used by their calculator.
+  if (expectedItems !== undefined && !validReceiptItems(expectedItems)) {
+    res.status(400).json({ success: false, code: "INVALID_RECEIPT_ITEMS", message: "Refresh the order and review its item prices before saving." });
+    return;
+  }
+  const itemsFingerprint = user.role === UserRole.DRIVER && expectedItems !== undefined
+    ? receiptItemsFingerprint(expectedItems) : null;
   const notes = req.body.notes ? String(req.body.notes) : null;
 
   if (!orderId) {
@@ -136,9 +147,19 @@ export const createOrUpdateReceiptController = async (
       }
 
       const order = assignedOrders[0];
+      setDiagnosticOrder(order.orderNumber);
+      if (order.orderStatus === OrderStatus.DELIVERED || order.orderStatus === OrderStatus.CANCELLED) {
+        return { kind: "finalized" as const };
+      }
+      if (expectedItems !== undefined) {
+        const currentItems = await tx.orderItem.findMany({
+          where: { orderId }, select: { id: true, name: true, quantity: true }
+        });
+        if (!sameReceiptItems(expectedItems, currentItems)) return { kind: "itemsChanged" as const };
+      }
       const receipt = await tx.digitalReceipt.upsert({
         where: { orderId },
-        update: { itemTotal, deliveryCharge, taxOrFees, grandTotal, notes },
+        update: { itemTotal, deliveryCharge, taxOrFees, grandTotal, notes, itemsFingerprint },
         create: {
           orderId,
           receiptNumber: `SS-${order.orderNumber}`,
@@ -147,7 +168,8 @@ export const createOrUpdateReceiptController = async (
           deliveryCharge,
           taxOrFees,
           grandTotal,
-          notes
+          notes,
+          itemsFingerprint
         }
       });
 
@@ -198,18 +220,24 @@ export const createOrUpdateReceiptController = async (
       };
     }
 
-    const order = await tx.order.findUnique({
-      where: { id: orderId },
-      select: { orderNumber: true }
-    });
+    // Serialize staff receipt saves with delivery/cancellation, just like driver saves.
+    const orders = await tx.$queryRaw<Array<Pick<LockedDriverOrder, "orderNumber" | "orderStatus">>>`
+      SELECT "orderNumber", "orderStatus" FROM "Order"
+      WHERE "id" = ${orderId} FOR UPDATE
+    `;
+    const order = orders[0];
+    setDiagnosticOrder(order?.orderNumber);
 
     if (!order) {
       return { kind: "notFound" as const };
     }
+    if (order.orderStatus === OrderStatus.DELIVERED || order.orderStatus === OrderStatus.CANCELLED) {
+      return { kind: "finalized" as const };
+    }
 
     const receipt = await tx.digitalReceipt.upsert({
       where: { orderId },
-      update: { itemTotal, deliveryCharge, taxOrFees, grandTotal, notes },
+      update: { itemTotal, deliveryCharge, taxOrFees, grandTotal, notes, itemsFingerprint },
       create: {
         orderId,
         receiptNumber: `SS-${order.orderNumber}`,
@@ -218,7 +246,8 @@ export const createOrUpdateReceiptController = async (
         deliveryCharge,
         taxOrFees,
         grandTotal,
-        notes
+        notes,
+        itemsFingerprint
       }
     });
 
@@ -230,6 +259,21 @@ export const createOrUpdateReceiptController = async (
       fcmToken: null
     };
   });
+
+  if (receiptResult.kind === "finalized") {
+    res.status(409).json({
+      success: false,
+      code: "FINAL_RECEIPT_LOCKED",
+      message: "This order is delivered or cancelled. Its receipt cannot be changed."
+    });
+    return;
+  }
+
+  if (receiptResult.kind === "itemsChanged") {
+    res.status(409).json({ success: false, code: "RECEIPT_ITEMS_CHANGED",
+      message: "Dispatch changed this order's items. Refresh the order, review the item prices, and save again." });
+    return;
+  }
 
   if (receiptResult.kind === "notFound") {
     res.status(404).json({ success: false, message: "Order not found" });
@@ -244,6 +288,8 @@ export const createOrUpdateReceiptController = async (
     return;
   }
 
+  logDiagnostic({ event: "RECEIPT_SAVE", outcome: "committed",
+    ...(receiptResult.transitionedToOutForDelivery ? { action: "OUT_FOR_DELIVERY" } : {}) });
   if (receiptResult.transitionedToOutForDelivery) {
     await sendCustomerOrderNotification(orderId, "ORDER_OUT_FOR_DELIVERY");
   }

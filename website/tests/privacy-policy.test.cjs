@@ -17,6 +17,17 @@ const today = () => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit'
 }).format(new Date());
 
+// Historical content hashes include the previous sensitive-data example.
+const usePreviousSensitiveExample = t => {
+  const section = policy.sections.find(s => s.id === 'customer-details');
+  const current = section.paragraphs[2];
+  section.paragraphs[2] = current.replace(
+    'An order request may itself reveal sensitive personal information.',
+    'An order request may itself reveal sensitive information, including information about a prescription pickup.'
+  );
+  t.after(() => { section.paragraphs[2] = current; });
+};
+
 test('ordinary policy rendering preserves the published source and dates', () => {
   const { document } = parseHTML(renderer.renderPrivacyPage(home));
   assert.match(document.querySelector('.policy-dates').textContent, /October 1, 2026/);
@@ -149,6 +160,7 @@ test('current-main integration preserves driver pages and ordinary output while 
 
 
 test('published operational policy preserves November 7 while changed content needs a new date', t => {
+  usePreviousSensitiveExample(t);
   const website = policy.sections.find(s => s.id === 'website');
   const currentWebsite = website.paragraphs;
   website.paragraphs = currentWebsite.filter(p => !p.startsWith('To understand which sources'));
@@ -168,6 +180,7 @@ test('published operational policy preserves November 7 while changed content ne
 });
 
 test('request-only published policy retains its exact November 7 date as rollback evidence', t => {
+  usePreviousSensitiveExample(t);
   const website = policy.sections.find(s => s.id === 'website');
   const currentWebsite = website.paragraphs;
   website.paragraphs = currentWebsite.filter(p => !p.startsWith('To understand which sources'));
@@ -186,6 +199,7 @@ test('request-only published policy retains its exact November 7 date as rollbac
 });
 
 test('unchanged previous policy still supports its exact November 3 rollback date', t => {
+  usePreviousSensitiveExample(t);
   const website = policy.sections.find(s => s.id === 'website');
   const currentWebsite = website.paragraphs;
   website.paragraphs = currentWebsite.filter(p => !p.startsWith('To understand which sources'));
@@ -212,6 +226,7 @@ test('new attribution disclosure cannot be published with the older November 7 d
 
 
 test('attribution policy rebuild preserves its November 11 date and rejects content drift', t => {
+  usePreviousSensitiveExample(t);
   t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-12T17:00:00Z') });
   const options = { production: true, approved: true, publicationDate: '2026-11-11' };
   assert.match(renderer.proposedPolicyBlocks(options).join(' '), /Last updated:<\/strong> 2026-11-11/);
@@ -234,4 +249,22 @@ test('deployment date override supersedes an old saved command but preserves app
   const output = fs.readFileSync(path.join(fixture, 'dist/privacy-policy/index.html'), 'utf8');
   assert.match(output, new RegExp('Last updated:</strong> ' + today()));
   assert.match(output, /up to 30 minutes/);
+});
+
+test('neutral sensitive-data wording keeps its November 12 date without weakening publication guards', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-13T17:00:00Z') });
+  const options = { production: true, approved: true, publicationDate: '2026-11-12' };
+  const candidate = renderer.replaceHomepagePolicy(home, options);
+  for (const output of [candidate, renderer.renderPrivacyPage(candidate, { ...options, proposed: true }), renderer.renderPrivacyPage(candidate, { ...options, proposed: true, legacy: true })]) {
+    assert.match(output, /An order request may itself reveal sensitive personal information\./);
+    assert.doesNotMatch(output, /prescription pickup/i);
+    assert.match(output, /Last updated:<\/strong> 2026-11-12/);
+  }
+  assert.throws(() => renderer.proposedPolicyBlocks({ ...options, approved: false }), /separate approval/);
+  assert.throws(() => renderer.proposedPolicyBlocks({ ...options, publicationDate: '2026-11-11' }), /actual Toronto publication date/);
+  const introduction = policy.introduction;
+  try {
+    policy.introduction += ' Unpublished change.';
+    assert.throws(() => renderer.proposedPolicyBlocks(options), /actual Toronto publication date/);
+  } finally { policy.introduction = introduction; }
 });

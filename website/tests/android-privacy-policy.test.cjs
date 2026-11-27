@@ -18,7 +18,7 @@ before(async () => {
 
 test('Android review does not mutate approved policy, attribution, retention or request handling', () => {
   assert.equal(createHash('sha256').update(JSON.stringify(published)).digest('hex'),
-    'e4a9ae2e4c5089058b1c2122e40de9f006b23a1f53c017322d5471a845126ee9');
+    '45bc166719271804adc47456996ef58a393a7c228fab3af0fd9f4b781d2789f5');
   assert.doesNotMatch(published.introduction, /Android/);
   for (const id of ['retention', 'requests', 'website', 'order-sharing']) {
     assert.deepEqual(android.sections.find(s => s.id === id), published.sections.find(s => s.id === id));
@@ -42,8 +42,12 @@ test('one opt-in preview supplies consistent Android and iOS wording on all poli
   }
   assert.match(copy, /ca\.speedysweeties\.customer/);
   assert.match(copy, /may process it on its servers/);
-  assert.match(copy, /Android 1\.0 \(5\).*does not have the iPhone\/iPad installation-wide/);
-  assert.match(copy, /In Android versions that show Agree and speak \/ Not now/);
+  assert.match(copy, /Updated versions that remember agreement store only the accepted disclosure version/);
+  assert.match(copy, /A changed disclosure, cleared app data, reinstall or completed customer-data cleanup requires agreement again/);
+  assert.match(copy, /retain an existing completed-order registration/);
+  assert.match(copy, /do not register a new destination for a closed order/);
+  assert.match(copy, /optional Google Play update checker/);
+  assert.match(copy, /installing a downloaded update requires an explicit restart choice/);
   assert.match(copy, /On iPhone and iPad, choose Not now/);
   assert.match(copy, /does not mean every profile or tracking field is separately encrypted/);
   assert.match(copy, /cannot always be recalled/);

@@ -28,9 +28,9 @@ function harness({ live = false, acknowledged = false, storageBlocked = false } 
   return { document, gate, events, writes, focused, Event, click: id => document.getElementById(id).dispatchEvent(new Event('click', { bubbles: true })) };
 }
 
-test('five independent pages have unique metadata, working assets, navigation and main-site destinations', () => {
-  assert.equal(services.length, 5);
-  for (const field of ['slug', 'title', 'description']) assert.equal(new Set(services.map(s => s[field])).size, 5);
+test('three independent pages have unique metadata, working assets, navigation and main-site destinations', () => {
+  assert.equal(services.length, 3);
+  for (const field of ['slug', 'title', 'description']) assert.equal(new Set(services.map(s => s[field])).size, 3);
   const home = parseHTML(fs.readFileSync(path.join(root, 'src/index.html'), 'utf8')).document;
   for (const service of services) {
     const { document } = parseHTML(renderServicePage(service, { production: true }));
@@ -42,7 +42,7 @@ test('five independent pages have unique metadata, working assets, navigation an
     assert.equal(document.querySelectorAll('[src="/js/order-attribution.js"]').length, 1);
     assert.ok(document.querySelector('a[data-landing-destination]'));
     assert.ok(home.querySelector(`a[href="/${service.slug}/"]`));
-    assert.equal(document.querySelectorAll('footer nav a').length, 5);
+    assert.equal(document.querySelectorAll('footer nav a').length, 3);
     assert.ok(document.querySelector('footer a[href="/privacy-policy/"]'));
     JSON.parse(document.querySelector('[type="application/ld+json"]').textContent);
     for (const el of document.querySelectorAll('a[href^="/#"]')) assert.ok(home.getElementById(el.getAttribute('href').slice(2)), el.getAttribute('href'));
@@ -94,9 +94,16 @@ test('live landing events contain only service and destination, never an order c
   assert.ok(h.document.getElementById('landing-preview').hidden);
 });
 
-test('cannabis page is informational and has no cannabis sales or ordering control', () => {
-  const { document } = parseHTML(renderServicePage(services.find(s => s.key === 'cannabis')));
-  assert.equal(document.querySelector('[data-landing-destination="order"]'), null);
-  assert.match(document.getElementById('details').textContent, /authorization holder or their employee/);
-  assert.ok(document.querySelector('a[href="https://www.ontario.ca/laws/regulation/180468"]'));
+test('published service offers omit retired categories and retain adult safeguards', () => {
+  const home = parseHTML(fs.readFileSync(path.join(root, 'src/index.html'), 'utf8')).document;
+  assert.doesNotMatch(home.getElementById('services').textContent, /prescription|cannabis|marijuana|vape|tobacco/i);
+  assert.match(home.getElementById('services').textContent, /Everyday essentials and local errands/);
+  assert.equal(home.querySelector('a[href="/vape-delivery-guelph/"]'), null);
+  assert.equal(home.querySelector('a[href="/cannabis-delivery-guelph/"]'), null);
+  assert.match(home.body.textContent, /For alcohol deliveries, the receiver must be at least 19/);
+  for (const service of services) {
+    const { document } = parseHTML(renderServicePage(service, { production: true }));
+    assert.doesNotMatch(document.body.textContent, /prescription|cannabis|marijuana|vape|tobacco/i);
+    assert.ok(document.getElementById('age-gate'));
+  }
 });

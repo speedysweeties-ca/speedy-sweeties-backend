@@ -4,6 +4,7 @@ import { requireAuth } from "../middleware/auth.middleware";
 import { requireRole } from "../middleware/role.middleware";
 import { UserRole } from "@prisma/client";
 import { getDriverOrdersController } from "../controllers/driverOrders.controller";
+import { getDriverHistoryController } from "../controllers/driverHistory.controller";
 import {
   heartbeatDriverController,
   setDriverOfflineController,
@@ -11,6 +12,13 @@ import {
 } from "../controllers/driverPresence.controller";
 
 const router = Router();
+
+router.get(
+  "/history",
+  requireAuth,
+  requireRole([UserRole.DRIVER]),
+  asyncHandler(getDriverHistoryController)
+);
 
 /**
  * GET DRIVER ORDERS

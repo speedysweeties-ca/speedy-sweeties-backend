@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { env } from "../config/env";
 import { normalizePickupTypeOrUnknown } from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
+import { isWelcomeFlyerItem } from "../services/welcomeFlyer.service";
 import {
   RoutingPreviewUnavailableError,
   type RoutingPreviewMatrixResult
@@ -124,6 +125,7 @@ export const getOrderRoutingPreviewController = async (
       geocodeStatus: true,
       items: {
         select: {
+          name: true,
           itemCatalog: {
             select: {
               pickupType: true
@@ -143,7 +145,7 @@ export const getOrderRoutingPreviewController = async (
     return;
   }
 
-  const itemPickupTypes = order.items.map((item) =>
+  const itemPickupTypes = order.items.filter(item => !isWelcomeFlyerItem(item)).map((item) =>
     normalizePickupTypeOrUnknown(item.itemCatalog?.pickupType)
   );
   const unknownItemCount = itemPickupTypes.filter(

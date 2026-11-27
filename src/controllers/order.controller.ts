@@ -1,5 +1,8 @@
+import { logDiagnostic, setDiagnosticOrder } from "../utils/operationalDiagnostics";
+import { sameCivicAddress } from "../utils/addressAccess";
 import { precheckSyntheticOrder, reserveSyntheticOrder, finishSyntheticOrder, assertOrdinaryOrderContact } from "../services/syntheticOrderSafety.service";
 import { Request, Response } from "express";
+import { rememberOrderAddress } from "../services/customerSavedAddress.service";
 import { getVerifiedDeliveryAddress } from "../services/verifiedDeliveryAddress.service";
 import { assertPrivacyOrderAllowed } from "../services/privacyGuards.service";
 import { createHash, randomBytes } from "crypto";
@@ -57,6 +60,7 @@ import {
   normalizePaymentMethod
 } from "../utils/paymentMethod";
 import { buildCustomerLookupWhere } from "../utils/customerIdentity";
+import { isFirstCustomerOrder, isWelcomeFlyerItem, welcomeFlyerItem } from "../services/welcomeFlyer.service";
 import { normalizeManualEntryStartedAt } from "../services/dispatcherPerformanceTracking.service";
 import {
   getGoogleLiveTrafficEnabled,
@@ -243,7 +247,7 @@ const summarizePickupRouting = (
 };
 
 const logPickupRoutingAdvisory = (
-  orderId: string,
+  orderNumber: number,
   pickupRouting: PickupRoutingSummary
 ): void => {
   const requiredTypesText =
@@ -252,7 +256,7 @@ const logPickupRoutingAdvisory = (
       : "NONE";
 
   console.log(
-    `[Pickup Routing Advisory] Order ${orderId}: required pickup types = ${requiredTypesText}; unknown item(s) = ${pickupRouting.unknownItemCount}.`
+    `[Pickup Routing Advisory] Order #${orderNumber}: required pickup types = ${requiredTypesText}; unknown item(s) = ${pickupRouting.unknownItemCount}.`
   );
 };
 
@@ -504,10 +508,12 @@ const createOrder = async (
   res: Response,
   options: CreateOrderOptions
 ): Promise<void> => {
+  logDiagnostic({ event: "ORDER_CREATE", outcome: "started" });
   if (
     !options.bypassBusinessHours &&
     (await isBusinessConfirmedClosed())
   ) {
+    logDiagnostic({ event: "ORDER_CREATE", outcome: "rejected", reason: "BUSINESS_CLOSED" });
     res.status(409).json({
       success: false,
       message: "Ordering is currently unavailable while Speedy Sweeties is closed."
@@ -599,19 +605,13 @@ const createOrder = async (
     unitNumber: normalizedUnitNumber,
     buzzCode: normalizedBuzzCode
   };
-  const customerAddressUpdate = {
-    ...civicAddressSnapshot,
-    ...(unitNumberSubmitted ? { unitNumber: normalizedUnitNumber } : {}),
-    ...(buzzCodeSubmitted ? { buzzCode: normalizedBuzzCode } : {})
-  };
 
   const incomingItems: CreateOrderItemInput[] = Array.isArray(items) ? items : [];
-  const rawItems: CreateOrderItemInput[] = expandCreateOrderItems(incomingItems);
-
-  const matchedCustomer = await prisma.customer.findFirst({
-    where: buildCustomerLookupWhere({ normalizedPhone, normalizedEmail }),
-    select: { id: true }
-  });
+  const requestedItems = expandCreateOrderItems(incomingItems).filter(item => !isWelcomeFlyerItem(item));
+  if (requestedItems.length === 0) {
+    res.status(400).json({ success: false, message: "Add at least one item to the order. The welcome flyer is added automatically." });
+    return;
+  }
 
   const transactionResult = await prisma.$transaction(async (tx) => {
     await assertPrivacyOrderAllowed(tx, normalizedPhone);
@@ -619,6 +619,18 @@ const createOrder = async (
     if (syntheticPolicy && options.onOrderCreated) {
       throw new Error("Synthetic safety does not permit external integration callbacks.");
     }
+    // Resolve only after the shared order/privacy lock, so concurrent first orders
+    // cannot both create a customer or both receive the welcome flyer.
+    const matchedCustomer = syntheticPolicy ? null : await tx.customer.findFirst({
+      where: buildCustomerLookupWhere({ normalizedPhone, normalizedEmail }),
+      select: { id: true, addressLine1: true, city: true, province: true }
+    });
+    const keepOmittedAccess = sameCivicAddress(matchedCustomer, civicAddressSnapshot);
+    const customerAddressUpdate = {
+      ...civicAddressSnapshot,
+      ...(unitNumberSubmitted || !keepOmittedAccess ? { unitNumber: normalizedUnitNumber } : {}),
+      ...(buzzCodeSubmitted || !keepOmittedAccess ? { buzzCode: normalizedBuzzCode } : {})
+    };
     const customerId =
       (syntheticPolicy ? syntheticPolicy.customerId : matchedCustomer?.id) ??
       (await tx.customer.create({
@@ -647,6 +659,12 @@ const createOrder = async (
     if (!customer) {
       throw new Error("Customer disappeared before loyalty redemption could be completed.");
     }
+
+    const includeWelcomeFlyer = !syntheticPolicy &&
+      await isFirstCustomerOrder(tx, customer.id, normalizedPhone);
+    const rawItems: CreateOrderItemInput[] = includeWelcomeFlyer
+      ? [...requestedItems, welcomeFlyerItem()]
+      : requestedItems;
 
     const recurringDriverNotesPlan = resolveRecurringDriverNotes({
       isManualOrder: options.acceptRecurringDriverNotes,
@@ -718,6 +736,12 @@ const createOrder = async (
       const cleanedItemName = item.name.trim();
       const normalizedItemName = normalize(cleanedItemName);
 
+      if (isWelcomeFlyerItem(item)) {
+        await tx.orderItem.create({ data: { orderId: createdOrder.id, itemCatalogId: null,
+          name: item.name, quantity: 1, price: 0 } });
+        continue; // Driver-carried flyer: no catalogue entry or store pickup.
+      }
+
       if (syntheticPolicy) {
         await tx.orderItem.create({ data: { orderId: createdOrder.id, itemCatalogId: null,
           name: cleanedItemName, quantity: item.quantity || 1, price: item.unitPrice ?? 0 } });
@@ -757,7 +781,7 @@ const createOrder = async (
     }
 
     const pickupRouting = summarizePickupRouting(orderItemPickupTypes);
-    logPickupRoutingAdvisory(createdOrder.id, pickupRouting);
+    logPickupRoutingAdvisory(createdOrder.orderNumber, pickupRouting);
 
     const order = await tx.order.findUniqueOrThrow({
       where: { id: createdOrder.id },
@@ -766,7 +790,10 @@ const createOrder = async (
 
     if (options.onOrderCreated) await options.onOrderCreated(tx, createdOrder.id);
 
+    const addressSaved = syntheticPolicy ? true : await rememberOrderAddress(tx, customer.id, orderAddressSnapshot);
+
     return {
+      addressSaved,
       order,
       trackingToken: trackingCredential.token,
       customerId: customer.id,
@@ -776,6 +803,9 @@ const createOrder = async (
   });
 
   const { order: createdOrder, trackingToken, customerId, loyaltyResult } = transactionResult;
+  setDiagnosticOrder(createdOrder.orderNumber);
+  logDiagnostic({ event: "ORDER_CREATE", outcome: "committed", orderNumber: createdOrder.orderNumber });
+  if (transactionResult.syntheticOrder) logDiagnostic({ event: "AUTO_DISPATCH", outcome: "skipped", reason: "SYNTHETIC_ORDER" });
   const autoDispatchResult = transactionResult.syntheticOrder ? null : await autoDispatchCreatedOrderWithPickupPlan(
     createdOrder.id
   );
@@ -809,6 +839,10 @@ const createOrder = async (
       city: autoDispatchResult.city,
       pickupSummary: autoDispatchResult.pickupSummary
     });
+  } else if (autoDispatchResult?.dispatched) {
+    logDiagnostic({ event: "DRIVER_ASSIGNMENT_PUSH", outcome: "skipped",
+      reason: !autoDispatchResult.driverIsOnline ? "DRIVER_OFFLINE" : !autoDispatchResult.driverFcmToken ? "NO_TOKEN"
+        : autoDispatchResult.driverAppState === "FOREGROUND" ? "APP_FOREGROUND" : "NOTIFICATION_INPUT_INCOMPLETE" });
   }
 
   if (!transactionResult.syntheticOrder) await sendCustomerLoyaltyNotification(order.id, loyaltyResult);
@@ -819,6 +853,7 @@ const createOrder = async (
       ? "Synthetic order recorded and cancelled; no purchase or delivery will occur."
       : "Order created successfully",
     order: orderResponse,
+    addressBookFull: !transactionResult.addressSaved,
     trackingToken,
     loyaltyAccessToken
   });
@@ -940,18 +975,25 @@ export const updateOrderDetailsController = async (
     return;
   }
 
+  const requestedItems = items.filter(item => !isWelcomeFlyerItem(item));
+  if (requestedItems.length === 0) {
+    res.status(400).json({ success: false, message: "Add at least one item to the order. The welcome flyer is added automatically." });
+    return;
+  }
+
   const normalizedEmail = customerEmail ? normalize(customerEmail) : null;
   const normalizedPhone = normalizePhone(customerPhone);
   const normalizedName = normalize(customerName);
+  const keepOmittedAccess = sameCivicAddress(existingOrder, { addressLine1, city, province });
   const nextUnitNumber = Object.prototype.hasOwnProperty.call(
     req.body,
     "unitNumber"
   )
     ? normalizeAddressAccessField(unitNumber)
-    : existingOrder.unitNumber;
+    : keepOmittedAccess ? existingOrder.unitNumber : null;
   const nextBuzzCode = Object.prototype.hasOwnProperty.call(req.body, "buzzCode")
     ? normalizeAddressAccessField(buzzCode)
-    : existingOrder.buzzCode;
+    : keepOmittedAccess ? existingOrder.buzzCode : null;
 
   const nextDeliveryAddress: DeliveryAddressInput = {
     addressLine1,
@@ -983,6 +1025,15 @@ export const updateOrderDetailsController = async (
   const updatedOrder = await prisma.$transaction(async (tx) => {
     await assertPrivacyOrderAllowed(tx, normalizedPhone);
     await assertOrdinaryOrderContact(tx, req.body);
+    const lockedOrders = await tx.$queryRaw<Array<{ id: string; orderStatus: OrderStatus }>>`
+      SELECT "id", "orderStatus" FROM "Order" WHERE "id" = ${id} FOR UPDATE
+    `;
+    if (!lockedOrders.length) return { editRejected: "Order not found" } as const;
+    if (lockedOrders[0].orderStatus === OrderStatus.DELIVERED ||
+        lockedOrders[0].orderStatus === OrderStatus.CANCELLED) {
+      return { editRejected: "Delivered or cancelled orders cannot be edited" } as const;
+    }
+
     let customer = await tx.customer.findFirst({
       where: buildCustomerLookupWhere({ normalizedPhone, normalizedEmail })
     });
@@ -1023,14 +1074,28 @@ export const updateOrderDetailsController = async (
       });
     }
 
+    // Preserve the system item through ordinary edits, even if a newer order now
+    // exists. Re-evaluate only when the order is moved to another customer.
+    const includeWelcomeFlyer = customer.id === existingOrder.customerId
+      ? existingOrder.items.some(isWelcomeFlyerItem)
+      : await isFirstCustomerOrder(tx, customer.id, normalizedPhone, id);
+    const updatedItems: UpdateOrderItemInput[] = [...requestedItems];
+    if (includeWelcomeFlyer) updatedItems.push(welcomeFlyerItem());
+
     await tx.orderItem.deleteMany({
       where: { orderId: id }
     });
 
     const orderItemPickupTypes: Array<string | null | undefined> = [];
 
-    for (const item of items) {
+    for (const item of updatedItems) {
       if (!item.name) continue;
+
+      if (isWelcomeFlyerItem(item)) {
+        await tx.orderItem.create({ data: { orderId: id, itemCatalogId: null,
+          name: item.name, quantity: 1, price: 0 } });
+        continue;
+      }
 
       const normalizedItemName = normalize(item.name);
 
@@ -1062,7 +1127,7 @@ export const updateOrderDetailsController = async (
     }
 
     const pickupRouting = summarizePickupRouting(orderItemPickupTypes);
-    logPickupRoutingAdvisory(id, pickupRouting);
+    logPickupRoutingAdvisory(existingOrder.orderNumber, pickupRouting);
 
     await tx.order.update({
       where: { id },
@@ -1076,7 +1141,7 @@ export const updateOrderDetailsController = async (
         buzzCode: nextBuzzCode,
         city: city.trim(),
         province: province.trim(),
-        itemsText: items.map((i) => `${i.quantity}x ${i.name}`).join(", "),
+        itemsText: updatedItems.map((i) => `${i.quantity}x ${i.name}`).join(", "),
         additionalNotes:
           typeof additionalNotes === "string" && additionalNotes.trim()
             ? additionalNotes.trim()
@@ -1091,6 +1156,11 @@ export const updateOrderDetailsController = async (
       include: orderInclude
     });
   });
+
+  if ("editRejected" in updatedOrder) {
+    res.status(409).json({ success: false, code: "ORDER_CHANGED", message: updatedOrder.editRejected });
+    return;
+  }
 
   res.status(200).json({
     success: true,

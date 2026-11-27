@@ -13,6 +13,7 @@
 <meta content="Speedy Sweeties | Local Delivery in Guelph" name="twitter:title"/>
 <meta content="Your plans. Our pickup. Beer, wine, spirits, snacks and everyday essentials delivered in Guelph. Check rates and order online or call 519-826-8097." name="twitter:description"/>
 <meta property="og:type" content="website"/>
+<meta property="og:site_name" content="Speedy Sweeties"/>
 <meta content="summary_large_image" name="twitter:card"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <link href="/assets/f62e53fca07200b2.css" rel="stylesheet" type="text/css" crossorigin="anonymous"/>
@@ -48,6 +49,15 @@
   "@type": "LocalBusiness",
   "@id": "https://www.speedysweeties.ca/#business",
   "name": "Speedy Sweeties",
+  "alternateName": "RS Speedy Sweeties",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "11 Belcourt Crescent",
+    "addressLocality": "Guelph",
+    "addressRegion": "ON",
+    "postalCode": "N1H 7A6",
+    "addressCountry": "CA"
+  },
   "url": "https://www.speedysweeties.ca/",
   "telephone": "+1-519-826-8097",
   "description": "Local beer, alcohol, snack and convenience delivery in Guelph, Ontario. Serving Guelph since 2006.",
@@ -92,6 +102,16 @@
   ]
 }
 </script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "@id": "https://www.speedysweeties.ca/#website",
+  "name": "Speedy Sweeties",
+  "alternateName": "RS Speedy Sweeties",
+  "url": "https://www.speedysweeties.ca/"
+}
+</script>
 <style>
 /* Accessible focus and hover states for keyboard and pointer users. */
 .cta-button-submit:hover { background-color: #1737b8; color: #ffffff; }
@@ -121,7 +141,7 @@
 <span aria-hidden="true">☰</span>
 </button>
 <div class="navigation-bar-cta-wrapper">
-<a href="#contact-us" class="navigation-bar-cta-button w-button">Start my order</a>
+<a href="#contact-us" data-order-start class="navigation-bar-cta-button w-button">Start my order</a>
 </div>
 </div>
 </div>
@@ -132,7 +152,7 @@
 <div class="hero-section-1-text-1">SPEEDY SWEETIES · YOUR NEIGHBOURHOOD DELIVERY CREW</div>
 <h1 class="hero-section-1-text-2 speedy-hero-heading">Local delivery<br/>in Guelph.</h1>
 <div class="hero-section-1-text-3">Your plans. Our pickup.</div>
-<div class="speedy-hero-actions"><a href="#contact-us" class="hero-section-1-cta-button w-button">Start my order</a><a href="#rates" class="speedy-rates-link">See delivery rates</a></div>
+<div class="speedy-hero-actions"><a href="#contact-us" data-order-start class="hero-section-1-cta-button w-button">Start my order</a><a href="#rates" class="speedy-rates-link">See delivery rates</a></div>
 </div>
 </section>
 <figure id="introduction" class="hero-section-2">
@@ -154,7 +174,7 @@
 </a>!</div>
 <div class="hero-section-2-text-block-4">
 <strong>PLEASE NOTE:</strong> Most deliveries take 15–45 minutes. Delivery times may vary depending on time of day and traffic conditions.</div>
-<a href="#contact-us" class="hero-section-1-cta-button w-button">Start my order</a>
+<a href="#contact-us" data-order-start class="hero-section-1-cta-button w-button">Start my order</a>
 </div>
 </div>
 <div class="hero-section-2-column-2 w-col w-col-6 w-col-stack w-col-small-small-stack w-col-tiny-tiny-stack">
@@ -178,7 +198,7 @@
 <div class="hero-section-3-text-block-1">We know a delivery can make someone’s day a little easier. From everyday pickups to community food hamper deliveries, we’re proud to keep Guelph moving.</div>
 <div class="hero-section-3-text-block-1">Serving our neighbours also means supporting food hamper deliveries from the Guelph Food Bank. Local service, with a little heart.</div>
 <div class="hero-section-3-text-block-2">
-<a href="#contact-us">
+<a href="#contact-us" data-order-start>
 <span class="hero-section-3-text-link-2">Start my order</span>
 </a> and leave the trip to us.</div>
 
@@ -197,15 +217,13 @@
 <a href="/beer-delivery-guelph/">Beer delivery</a>
 <a href="/alcohol-delivery-guelph/">Alcohol delivery</a>
 <a href="/convenience-delivery-guelph/">Convenience delivery</a>
-<a href="/vape-delivery-guelph/">Vape delivery information</a>
-<a href="/cannabis-delivery-guelph/">Cannabis delivery information</a>
 </nav>
 <div class="hero-section-4-text-block-1"><strong>Your beer run. Handled.</strong>
 <br/>Beer, wine, spirits and coolers—leave the trip to your local delivery crew.</div>
 <div class="hero-section-4-text-block-1">
 <strong>Snacks, mixers, ice, and convenience items<br/>‍</strong>Forgot something? We’re on it. Add the everyday extras to your list.</div>
 <div class="hero-section-4-text-block-1">
-<strong>Prescriptions and everyday essentials<br/>‍</strong>Need something picked up locally? We can help with that too.</div>
+<strong>Everyday essentials and local errands<br/>‍</strong>Need something picked up locally? We can help with that too.</div>
 </div>
 <div class="hero-section-4-column-2 w-col w-col-6 w-col-stack">
 <section class="hero-section-4-column-2-image">
@@ -453,7 +471,7 @@
 </div>
 </section>
 <section id="drive-with-us" class="speedy-driver-section" aria-labelledby="driver-section-title">
-<div><p class="speedy-driver-eyebrow">JOIN THE LOCAL DELIVERY TEAM</p><h2 id="driver-section-title">Your city. Your wheels. Our team.</h2><p>Help keep Guelph moving with Speedy Sweeties. Earn $6 per delivery, keep 100% of your tips, and get paid weekly. Extra stops pay $2.50 each.</p><p class="speedy-driver-fine">Independent contractor opportunity. Deliveries and earnings vary.</p></div>
+<div><h2 id="driver-section-title">Your city. Your wheels. Our team.</h2></div>
 <a class="speedy-driver-button" href="/drive-with-us/">Apply to drive ↗</a>
 </section>
 <section class="footer">
@@ -461,7 +479,7 @@
 <div class="w-layout-vflex footer-column-1">
 <div class="text-block-4">PLEASE NOTE:<br/>
 </div>
-<div class="text-block-5">This online order form requires you to confirm that you are at least 19 years old and have valid photo ID. For deliveries containing alcohol, cannabis, tobacco, or vaping products, the receiver must be at least 19 and present valid government-issued photo ID at delivery. If valid ID cannot be presented, restricted items cannot be delivered.<br/>
+<div class="text-block-5">This online order form requires you to confirm that you are at least 19 years old and have valid photo ID. For alcohol deliveries, the receiver must be at least 19 and present valid government-issued photo ID at delivery. If valid ID cannot be presented, restricted items cannot be delivered.<br/>
 <br/>
 <br/><span id="privacy-policy"><a href="/privacy-policy/">Privacy Policy</a></span><br/>‍<strong>Effective Date:</strong> October 1, 2026<br/><strong>Last updated:</strong> October 29, 2026<br/>‍<strong>Speedy Sweeties</strong> (&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and protect information when you use our website or mobile app, Speedy Sweeties.<br/>‍<br/>Information We Collect<br/>When you use our website or app, we may collect information that you provide directly:<br/>Name<br/>Delivery address, including optional apartment/unit number and buzz code<br/>Email <br/>Phone Number<br/>Order details include the items you request, your payment-method choice, delivery instructions and other notes you provide. The website order form asks for your payment method, not card numbers or security codes. It also asks you to acknowledge that you are at least 19 and have valid photo ID; this is not online age or identity verification.<br/>We use Google Analytics to understand usage of our main website and service landing pages. Google Analytics uses cookies and similar identifiers to measure visits and interactions. Cookies are small files saved by your browser that can help distinguish visits and remember activity. You can manage or delete cookies through your browser settings. Clearing site data may also remove saved tracking records and the service-page age acknowledgement from this browser; it does not delete our order records. Learn more about <a href="https://policies.google.com/technologies/partner-sites">how Google uses information from sites and apps that use its services</a> and <a href="https://policies.google.com/technologies/cookies">how Google uses cookies</a>. It may collect standard usage information such as pages viewed, approximate location, browser and device type, referral source, scrolling and outbound-link clicks. Our custom website events record actions such as starting an order, receiving an order acknowledgement and clicking contact links. These custom events send event names and, on service landing pages, the service category and link destination type. They do not send the names, contact details, addresses, order contents or other field values you enter. The service-page 19+ welcome screen saves only an adult acknowledgement in session storage for the current tab session; it does not store your birth date or verify your identity.<br/>Browser order tracking: this browser can save up to five private tracking tokens, order numbers and saved times so you can return to recent orders. Saved records expire after 48 hours and are removed while the page is active or on your next visit. Keep tracking links private: anyone with a valid link can view the associated order-tracking information.<br/>How We Use Your Information:<br/>We use the information we collect to process and deliver orders, communicate with you about your orders or account, send important updates and push notifications, and improve our website and app experiences. We do not sell, rent, or share your personal information with third parties for marketing or advertising purposes.<br/>‍<br/>Data Sharing:<br/>We do not sell, rent or share your personal information with third parties for their marketing or advertising. We use Render for website hosting and our ordering API. Our ordering system stores order records in a PostgreSQL database. Our delivery systems use Google Maps/Places for address, routing and business-hours functions, Firebase for app and driver notifications, and Resend for dispatch-alert emails containing order identifiers and waiting-time information. These providers process information as needed to operate the service and fulfil deliveries. We use Google Analytics as described above. We use Cloudflare Turnstile to check website submissions for automated activity. Our backend verification request sends the Turnstile verification token without the order form field values. The browser widget also processes technical signals, such as your IP address, browser information and connection characteristics, to detect bots. Cloudflare also uses these signals to improve its bot-detection capabilities. See the <a href="https://www.cloudflare.com/turnstile-privacy-policy/">Cloudflare Turnstile Privacy Addendum</a> for details. We take reasonable technical and organizational measures to protect your personal information.<br/>Choosing “Forget this order on this browser” removes that browser’s saved tracking record; it does not cancel your order, revoke a copied tracking link or delete our order records. The 48-hour browser-storage limit is separate from our order records. For questions about information held in those records, or to request access, correction or deletion, please contact us.<br/>Your Rights:<br/>You have the right to: Request access to the personal information we have about you, Request correction or deletion of your information, Opt out of receiving certain communications at any time. To make a privacy-related request, please contact us. <br/>
 <br/>Contact Us<br/>If you have any questions or concerns about this Privacy Policy or how your information is handled, please contact us through our website:<br/>🌐 <a target="_new" href="https://speedysweeties.ca">speedysweeties.ca</a>‍</div>
@@ -475,6 +493,12 @@
 </div>
 </section>
 <section class="copyrights">
+<section id="business-contact" class="copyright-text" aria-label="Business contact details">
+<strong>Speedy Sweeties / RS Speedy Sweeties</strong>
+<address style="font-style:normal;margin:0">11 Belcourt Crescent, Guelph, ON N1H 7A6<br/>
+<a href="tel:+15198268097" style="color:inherit;text-decoration:underline">519-826-8097</a></address>
+<p style="margin:0">Delivery only — no customer visits or pickup.</p>
+</section>
 <div class="copyright-text">
 <br/>COPYRIGHT © 2026 SPEEDY SWEETIES</div>
 </section>

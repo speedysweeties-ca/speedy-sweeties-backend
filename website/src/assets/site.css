@@ -18,6 +18,11 @@ html { scroll-behavior: smooth; scroll-padding-top: 110px; }
   #main-navigation.is-open { display: block; position: absolute; top: 100%; left: 0; right: 0; background: #fff; box-shadow: 0 8px 20px #0003; z-index: 1000; }
   .nav-menu.is-open .nav-link { display: block; color: #17234b; padding: 15px 24px; }
 }
+/* Keep the stacked phone header from covering the page at enlarged zoom. */
+@media (max-width: 479px) and (max-height: 480px) {
+  .navbar { position: relative; }
+  html { scroll-padding-top: 20px; }
+}
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 .service-page-links{display:flex;flex-wrap:wrap;gap:10px 18px;margin:20px 0 25px;font:600 14px/1.6 Arial,sans-serif}
 .service-page-links a{color:inherit;text-decoration:underline;text-underline-offset:4px}
@@ -32,6 +37,12 @@ html { scroll-behavior: smooth; scroll-padding-top: 110px; }
 .speedy-form-intro, .speedy-form-help { color: #fff; font: 400 16px/1.6 Arial, sans-serif; }
 .speedy-form-intro { margin: 0 0 24px; }
 .speedy-form-help { margin: 0 0 8px; }
+.speedy-order-resume { padding: 16px; margin: 0 0 24px; border-radius: 6px; background: #edf2fa; color: #182d4b; font: 400 16px/1.6 Arial, sans-serif; }
+.speedy-order-resume p { margin: 0 0 12px; }
+.speedy-order-resume a { color: inherit; text-decoration: underline; }
+.speedy-order-resume button { padding: 10px 16px; border: 1px solid #182d4b; border-radius: 4px; background: #fff; color: #182d4b; font: inherit; cursor: pointer; }
+.speedy-order-resume button:focus-visible { outline: 3px solid #182d4b; outline-offset: 3px; }
+.speedy-order-actions:focus-visible { outline: 3px solid #f7bc2b; outline-offset: 3px; }
 .hero-section-1-text-1 { max-width: 900px; text-align: center; line-height: 1.45; }
 .hero-section-1-text-3 { text-align: center; line-height: 1.5; }
 @media (max-width: 767px) {

@@ -26,7 +26,12 @@ When Auto Dispatch is enabled, the service:
    Otherwise selects the shortest drive time. Distance and stable driver identity are
    used only to break equal-time ties.
 6. Rechecks the setting, order, driver presence, and unchanged GPS coordinates
-   inside the assignment transaction.
+   inside the assignment transaction. A fresh heartbeat at the same coordinates
+   remains eligible even when its timestamp changes. If an otherwise eligible
+   driver's coordinates changed during routing, releases the transaction and
+   recalculates from fresh driver locations before selecting a driver. This is
+   limited to three total attempts; each repeats eligibility and Rob's locked
+   workload check. Persistent movement leaves the order unassigned for staff.
 7. Transitions the order from `PLACED` to `DISPATCHED` with
    `dispatchSource = AUTO` and clears any stale assigned pickup stops.
 
@@ -34,6 +39,12 @@ Item catalog classifications—including `UNKNOWN`—cannot prevent assignment.
 The driver apps continue to receive the order's item list and existing routing
 response shape. Opening the order remains the driver's `DISPATCHED` to
 `ACCEPTED` action.
+
+Every unsuccessful auto-dispatch result now logs the reason and attempt count.
+`DRIVER_LOCATION_CHANGED` after attempt 3 identifies exhausted location retries.
+There is no background retry queue or retry of older waiting orders. Failed
+attempts do not assign, clear pickup stops, record assignment events or notify a
+driver; those effects occur only after a successful allocation.
 
 ## Concurrency
 

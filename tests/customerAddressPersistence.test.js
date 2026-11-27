@@ -6,6 +6,7 @@ const deliveryGeocodingService = require("../dist/services/deliveryGeocoding.ser
 const businessController = require("../dist/controllers/business.controller.js");
 const {
   createOrderController,
+  updateOrderDetailsController,
   createChatGPTOrderController
 } = require("../dist/controllers/order.controller.js");
 const {
@@ -115,18 +116,27 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
           ...clone(initialCustomer)
         }
       : null,
+    addresses: [],
     orders: [],
     customerUpdates: []
   };
 
   replaceForTest(t, prisma.customer, "findFirst", async () => database.customer);
+  replaceForTest(t, prisma.order, "findUnique", async ({ where }) => ({ ...database.orders.find(o => o.id === where.id), items: [] }));
   replaceForTest(t, prisma, "$transaction", async (callback) => {
     const checkpoint = clone(database);
     const tx = {
       $executeRaw: async () => 1,
       $queryRawUnsafe: async () => [],
       privacyDeletedIdentity: { findUnique: async () => null, findFirst: async () => null },
+      customerAddress: {
+        findMany: async () => clone(database.addresses),
+        updateMany: async ({ data }) => { database.addresses.forEach(a => Object.assign(a, data)); },
+        update: async ({ where, data }) => Object.assign(database.addresses.find(a => a.id === where.id), data),
+        create: async ({ data }) => { const row = { id: `address-${database.addresses.length + 1}`, ...data }; database.addresses.push(row); return row; }
+      },
       customer: {
+        findFirst: async () => database.customer,
         create: async ({ data }) => {
           database.customer = {
             id: "customer-1",
@@ -169,8 +179,11 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
         }
       },
       order: {
+        update: async ({ where, data }) => Object.assign(database.orders.find(o => o.id === where.id), data),
+        findFirst: async ({ where }) => database.orders.find(order =>
+          order.customerId === where.OR[0].customerId && order.orderStatus !== "CANCELLED") ?? null,
         create: async ({ data }) => {
-          const order = { id: `order-${database.orders.length + 1}`, ...data };
+          const order = { id: `order-${database.orders.length + 1}`, orderNumber: database.orders.length + 101, ...data };
           database.orders.push(order);
           return order;
         },
@@ -185,14 +198,22 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
         create: async () => ({ id: "catalog-item", pickupType: "OTHER" })
       },
       orderItem: {
+        deleteMany: async () => ({ count: 0 }),
         create: async () => ({ id: "order-item" })
       },
       systemSetting: {
         findUnique: async ({ where }) => where.key === "syntheticOrderSafety.v1" ? null : { value: "false" }
       }
       };
-      tx.$queryRaw = async (_queryStrings, ...queryValues) =>
-        queryValues.includes(database.customer?.id) ? [clone(database.customer)] : [];
+      tx.$queryRaw = async (queryStrings, ...queryValues) => {
+        const sql = queryStrings.join("?");
+        if (sql.includes('FROM "Order"')) {
+          assert.match(sql, /FOR UPDATE/, "order edits must hold the receipt coordination lock");
+          const order = database.orders.find(row => row.id === queryValues[0]);
+          return order ? [{ id: order.id, orderStatus: order.orderStatus }] : [];
+        }
+        return queryValues.includes(database.customer?.id) ? [clone(database.customer)] : [];
+      };
       tx.customer.findUnique = async ({ where }) =>
         where.id === database.customer?.id ? database.customer : null;
 
@@ -318,7 +339,7 @@ test("NEEDS_REVIEW orders create or retain a customer and save the latest order 
   assert.equal(database.database.customer.createdAt, "2026-01-01T00:00:00.000Z");
 });
 
-test("older clients do not erase saved unit or buzz-code details when fields are omitted", async (t) => {
+test("older clients retain profile access details only for the same civic address", async (t) => {
   const database = installOrderCreationDatabase(t, {
     id: "customer-1",
     addressLine1: "10 Working Street",
@@ -332,7 +353,7 @@ test("older clients do not erase saved unit or buzz-code details when fields are
   replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
   replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
 
-  const legacyBody = { ...firstOrderBody };
+  const legacyBody = { ...firstOrderBody, addressLine1: " 10 Working Street ", province: "ON" };
   delete legacyBody.unitNumber;
   delete legacyBody.buzzCode;
 
@@ -456,6 +477,7 @@ test("a transaction failure rolls back a customer address update", async (t) => 
         create: async () => {
           throw new Error("unexpected customer creation");
         },
+        findFirst: async () => database.database.customer,
         findUnique: async ({ where }) =>
           where.id === database.database.customer?.id
             ? database.database.customer
@@ -473,6 +495,7 @@ test("a transaction failure rolls back a customer address update", async (t) => 
           database.database.orders.push(order);
           return order;
         },
+        findFirst: async () => null,
         findUniqueOrThrow: async () => {
           throw new Error("should not read a failed order");
         }
@@ -618,4 +641,151 @@ test("website precheck and actual order controller reuse the same strict lookup"
   assert.equal(response.statusCode, 201);
   assert.equal(calls, 1);
   assert.equal(database.database.orders[0].deliveryLatitude, verifiedLocation.deliveryLatitude);
+});
+
+
+test("successful manual orders keep previous addresses and reuse the latest address including changed buzz code", async t => {
+  const db = installOrderCreationDatabase(t);
+  replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
+  const { createManualOrderController } = require("../dist/controllers/order.controller.js");
+  for (const [street, buzz] of [["10 First Synthetic Street", "111"], ["20 Second Synthetic Street", "222"], ["20 Second Synthetic Street", "333"]]) {
+    const res = responseRecorder();
+    await createManualOrderController({ body: { ...firstOrderBody, addressLine1: street, buzzCode: buzz } }, res);
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.addressBookFull, false);
+  }
+  assert.equal(db.database.addresses.length, 2);
+  assert.deepEqual(db.database.addresses.map(a => [a.label, a.isDefault, a.buzzCode]), [["Address 1", false, "111"], ["Address 2", true, "333"]]);
+  assert.equal(db.database.orders[1].buzzCode, "222", "existing order snapshot must not change");
+});
+
+test("a full saved list still accepts the order and remembers the profile address without deleting entries", async t => {
+  const db = installOrderCreationDatabase(t);
+  replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
+  replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
+  db.database.addresses.push(...Array.from({ length: 20 }, (_, i) => ({ id: String(i), customerId: "customer-1", label: `Address ${i + 1}`, addressLine1: `${i + 100} Synthetic Street`, unitNumber: null, buzzCode: null, city: "Guelph", province: "ON", isDefault: i === 0 })));
+  const res = responseRecorder();
+  await createOrderController({ body: firstOrderBody }, res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.addressBookFull, true);
+  assert.equal(db.database.customer.addressLine1, firstOrderBody.addressLine1);
+  assert.equal(db.database.addresses.length, 20);
+  assert.equal(db.database.addresses[0].isDefault, true);
+});
+
+test("address-book write failure rolls back both the new order and the profile change", async t => {
+  const db = installOrderCreationDatabase(t);
+  replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
+  replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
+  const service = require("../dist/services/customerSavedAddress.service.js");
+  replaceForTest(t, service, "rememberOrderAddress", async () => { throw new Error("address write failed"); });
+  await assert.rejects(createOrderController({ body: firstOrderBody }, responseRecorder()), /address write failed/);
+  assert.equal(db.database.customer, null);
+  assert.equal(db.database.orders.length, 0);
+  assert.equal(db.database.addresses.length, 0);
+});
+
+for (const scenario of [
+  { name: "new street, omitted access", patch: { addressLine1: "20 New Street" }, unit: null, buzz: null },
+  { name: "new city, omitted access", patch: { city: "Cambridge" }, unit: null, buzz: null },
+  { name: "new province, omitted access", patch: { province: "Quebec" }, unit: null, buzz: null },
+  { name: "new embedded unit, omitted access", patch: { addressLine1: "Unit 2, 10A Industrial Dr" }, unit: null, buzz: null },
+  { name: "new address, explicit unit only", patch: { addressLine1: "20 New Street", unitNumber: "7" }, unit: "7", buzz: null },
+  { name: "same address, explicit blank access", patch: { unitNumber: "", buzzCode: null }, unit: null, buzz: null },
+]) {
+  test(`order address and next dispatcher selection stay coherent: ${scenario.name}`, async t => {
+    const db = installOrderCreationDatabase(t, { id: "customer-1", ...firstOrderBody,
+      recurringDriverNotes: null, loyaltyFreeDelivery: false });
+    replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
+    replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
+    const body = { ...firstOrderBody };
+    delete body.unitNumber; delete body.buzzCode;
+    Object.assign(body, scenario.patch);
+    const response = responseRecorder();
+    await createOrderController({ body }, response);
+    assert.equal(response.statusCode, 201);
+    for (const address of [db.database.customer, db.database.orders[0], db.database.addresses[0]]) {
+      assert.equal(address.unitNumber, scenario.unit);
+      assert.equal(address.buzzCode, scenario.buzz);
+      assert.equal(address.addressLine1, body.addressLine1);
+    }
+    const { initialCustomerAddress } = await import("../speedy-dispatcher/src/customerAddressSelection.ts");
+    const selected = initialCustomerAddress({ ...db.database.customer, savedAddresses: db.database.addresses });
+    assert.equal(selected.unitNumber, scenario.unit);
+    assert.equal(selected.buzzCode, scenario.buzz);
+    assert.equal(selected.addressLine1, body.addressLine1);
+  });
+}
+
+for (const patch of [{ addressLine1: "20 New Street" }, { city: "Cambridge" }, { province: "Quebec" }]) {
+  test(`profile civic edit clears omitted access: ${Object.keys(patch)[0]}`, async t => {
+    const existing = { id: "customer-1", ...firstOrderBody, fullName: "Test Customer", phone: "519-555-0100" };
+    replaceForTest(t, prisma.customer, "findUnique", async () => existing);
+    let updated;
+    replaceForTest(t, prisma.customer, "update", async ({ data }) => (updated = { ...existing, ...data }));
+    await updateCustomerController({ params: { id: existing.id }, body: patch }, responseRecorder());
+    assert.equal(updated.unitNumber, null);
+    assert.equal(updated.buzzCode, null);
+  });
+}
+
+for (const scenario of [
+  { patch: {}, unit: "4B", buzz: "1234", name: "unchanged civic address" },
+  { patch: { addressLine1: "20 New Street" }, unit: null, buzz: null, name: "new street" },
+  { patch: { city: "Cambridge" }, unit: null, buzz: null, name: "new city" },
+  { patch: { province: "Quebec" }, unit: null, buzz: null, name: "new province" },
+  { patch: { unitNumber: "", buzzCode: null }, unit: null, buzz: null, name: "explicit clears" },
+  { patch: { addressLine1: "20 New Street", unitNumber: "9", buzzCode: "900" }, unit: "9", buzz: "900", name: "new address and access" },
+]) {
+  test(`order edit keeps profile and order access coherent: ${scenario.name}`, async t => {
+    const db = installOrderCreationDatabase(t);
+    replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
+    replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
+    await createOrderController({ body: firstOrderBody }, responseRecorder());
+    const body = { ...firstOrderBody };
+    delete body.unitNumber; delete body.buzzCode;
+    Object.assign(body, scenario.patch);
+    const response = responseRecorder();
+    await updateOrderDetailsController({ params: { id: db.database.orders[0].id }, body }, response);
+    assert.equal(response.statusCode, 200);
+    for (const address of [db.database.customer, db.database.orders[0]]) {
+      assert.equal(address.unitNumber, scenario.unit);
+      assert.equal(address.buzzCode, scenario.buzz);
+    }
+  });
+}
+
+test('creation diagnostics distinguish a committed order from a later dispatch failure', async t => {
+  const { withDiagnosticContext } = require('../dist/utils/operationalDiagnostics');
+  const { randomUUID } = require('node:crypto');
+  const events = [];
+  for (const level of ['log', 'warn', 'error']) replaceForTest(t, console, level, line => {
+    if (line.startsWith('{')) events.push(JSON.parse(line));
+  });
+  const db = installOrderCreationDatabase(t);
+  replaceForTest(t, deliveryGeocodingService, 'geocodeDeliveryAddress', async () => needsReviewLocation);
+  replaceForTest(t, businessController, 'isBusinessConfirmedClosed', async () => false);
+  const dispatch = require('../dist/services/autoDispatchPickupPlan.service');
+  replaceForTest(t, dispatch, 'autoDispatchCreatedOrderWithPickupPlan', async () => { throw new Error('dispatch unavailable'); });
+  const requestId = randomUUID();
+  await assert.rejects(withDiagnosticContext(requestId, () => createOrderController({ body: firstOrderBody }, responseRecorder())), /dispatch unavailable/);
+  assert.equal(db.database.orders.length, 1);
+  const committed = events.find(e => e.event === 'ORDER_CREATE' && e.outcome === 'committed');
+  assert.equal(committed.orderNumber, 101);
+  assert.equal(committed.requestId, requestId);
+  for (const secret of [firstOrderBody.customerName, firstOrderBody.customerPhone, firstOrderBody.addressLine1]) assert(!JSON.stringify(events).includes(secret));
+});
+
+test('rolled back order creation never logs a committed order', async t => {
+  const events = [];
+  for (const level of ['log', 'warn', 'error']) replaceForTest(t, console, level, line => {
+    if (line.startsWith('{')) events.push(JSON.parse(line));
+  });
+  installOrderCreationDatabase(t);
+  replaceForTest(t, deliveryGeocodingService, 'geocodeDeliveryAddress', async () => needsReviewLocation);
+  replaceForTest(t, businessController, 'isBusinessConfirmedClosed', async () => false);
+  const service = require('../dist/services/customerSavedAddress.service');
+  replaceForTest(t, service, 'rememberOrderAddress', async () => { throw new Error('address write failed'); });
+  await assert.rejects(createOrderController({ body: firstOrderBody }, responseRecorder()), /address write failed/);
+  assert(!events.some(e => e.event === 'ORDER_CREATE' && e.outcome === 'committed'));
 });

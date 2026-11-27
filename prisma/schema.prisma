@@ -215,6 +215,7 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  savedAddresses    CustomerAddress[]
   orders            Order[]
   retentionMessages RetentionMessage[]
   privacyAccess     PrivacyAccessCredential[]
@@ -571,8 +572,9 @@ model OrderItem {
 }
 
 model DigitalReceipt {
-  id            String @id @default(uuid())
-  receiptNumber String @unique
+  itemsFingerprint String?
+  id               String  @id @default(uuid())
+  receiptNumber    String  @unique
 
   orderId           String  @unique
   createdByDriverId String?
@@ -779,4 +781,22 @@ model OrderEditPause {
 model PageViewCounter {
   page  String @id
   views BigInt @default(0)
+}
+
+// Staff-managed address book. Legacy Customer address fields remain last-used.
+model CustomerAddress {
+  id           String   @id @default(uuid())
+  customerId   String
+  label        String
+  addressLine1 String
+  unitNumber   String?
+  buzzCode     String?
+  city         String
+  province     String
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
 }

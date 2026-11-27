@@ -7,9 +7,9 @@
     "node": "24.22.1"
   },
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev": "node scripts/dispatcherRelease.cjs && ts-node-dev --respawn --transpile-only src/server.ts",
     "prebuild": "node -e \"require('node:assert/strict').equal(process.versions.node, require('./package.json').engines.node, 'Use the pinned Node.js runtime before building')\"",
-    "build": "tsc",
+    "build": "node scripts/dispatcherRelease.cjs && tsc",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -63,6 +63,17 @@
   },
   "overrides": {
     "deepmerge-ts": "8.0.2",
-    "uuid": "11.1.1"
+    "uuid": "11.1.1",
+    "google-gax@5": {
+      "rimraf@5": {
+        "glob": {
+          ".": "14.0.5",
+          "minimatch": "11.0.8"
+        }
+      }
+    },
+    "@prisma/config@6.19.3": {
+      "effect": "3.22.1"
+    }
   }
 }

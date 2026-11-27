@@ -55,7 +55,7 @@
 
       if (href.startsWith("tel:")) {
         track("phone_click");
-      } else if (label.includes("order online")) {
+      } else if (target.hasAttribute("data-order-start") || label.includes("order online")) {
         track("order_online_click");
       } else if (label === "contact us") {
         track("contact_us_click");

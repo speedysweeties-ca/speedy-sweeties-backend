@@ -1,3 +1,4 @@
+import { logDiagnostic, setDiagnosticOrder } from "../utils/operationalDiagnostics";
 import {
   DispatchEventType,
   DispatchSource,
@@ -66,6 +67,7 @@ export const assignDriverToOrderController = async (
     }
   });
 
+  setDiagnosticOrder(existingOrder?.orderNumber);
   if (!existingOrder) {
     res.status(404).json({
       success: false,
@@ -137,6 +139,7 @@ export const assignDriverToOrderController = async (
       return;
     }
 
+    logDiagnostic({ event: "MANUAL_ASSIGNMENT", outcome: "committed", reason: "UNASSIGNED" });
     await prisma.orderPickupStop.deleteMany({ where: { orderId: id } });
 
     if (existingOrder.assignedDriverId) {
@@ -215,6 +218,7 @@ export const assignDriverToOrderController = async (
     existingOrder.assignedDriverId === driver.id &&
     priority === undefined
   ) {
+    logDiagnostic({ event: "MANUAL_ASSIGNMENT", outcome: "replayed", reason: "ALREADY_ASSIGNED" });
     const currentOrder = await prisma.order.findUniqueOrThrow({
       where: { id },
       include: {
@@ -308,6 +312,7 @@ export const assignDriverToOrderController = async (
     return;
   }
 
+  logDiagnostic({ event: "MANUAL_ASSIGNMENT", outcome: "committed" });
   if (wasAssignedToDifferentDriver) {
     await prisma.orderPickupStop.deleteMany({ where: { orderId: id } });
 
@@ -351,6 +356,9 @@ export const assignDriverToOrderController = async (
       addressLine1: updatedOrder.addressLine1,
       city: updatedOrder.city
     });
+  } else {
+    logDiagnostic({ event: "DRIVER_ASSIGNMENT_PUSH", outcome: "skipped", reason: !wasAssignedToDifferentDriver ? "ALREADY_ASSIGNED"
+      : !driver.isOnline ? "DRIVER_OFFLINE" : !driver.driverFcmToken ? "NO_TOKEN" : "APP_FOREGROUND" });
   }
 
   res.status(200).json({

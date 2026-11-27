@@ -170,6 +170,7 @@ test("manual creation atomically snapshots and persists against the resolved cus
           return customerId ? [{ id: customerId }] : [];
         },
         customer: {
+          findFirst: async () => customerToResolve,
           create: async ({ data }) => {
             transactionCustomer = {
               ...existingCustomer,
@@ -188,6 +189,8 @@ test("manual creation atomically snapshots and persists against the resolved cus
           }
         },
         order: {
+          findFirst: async ({ where }) => createdOrders.find(order =>
+            order.customerId === where.OR[0].customerId && order.orderStatus !== "CANCELLED") ?? null,
           create: async ({ data }) => {
             if (failOrderCreation) throw new Error("simulated order failure");
             createdOrder = { id: `order-${createdOrders.length + 1}`, ...data };
@@ -256,7 +259,9 @@ test("manual creation atomically snapshots and persists against the resolved cus
     data: {
       addressLine1: "10A Industrial Dr",
       city: "Guelph",
-      province: "Ontario"
+      province: "Ontario",
+      unitNumber: null,
+      buzzCode: null
     }
   });
   assert.deepEqual(customerUpdates[1], {
@@ -283,7 +288,9 @@ test("manual creation atomically snapshots and persists against the resolved cus
     data: {
       addressLine1: "10A Industrial Dr",
       city: "Guelph",
-      province: "Ontario"
+      province: "Ontario",
+      unitNumber: null,
+      buzzCode: null
     }
   });
   assert.deepEqual(customerUpdates[3], {
@@ -314,7 +321,9 @@ test("manual creation atomically snapshots and persists against the resolved cus
     data: {
       addressLine1: "10A Industrial Dr",
       city: "Guelph",
-      province: "Ontario"
+      province: "Ontario",
+      unitNumber: null,
+      buzzCode: null
     }
   });
 
@@ -609,3 +618,6 @@ test("driver order responses retain additionalNotes and exclude customer-only no
   assert.equal(Object.hasOwn(responseOrder, "dispatcherNotes"), false);
   assert.equal(Object.hasOwn(responseOrder, "recurringDriverNotes"), false);
 });
+
+// Address-book persistence is covered by customerAddressPersistence and database regressions.
+test.beforeEach(t => replaceForTest(t, require("../dist/services/customerSavedAddress.service.js"), "rememberOrderAddress", async () => true));

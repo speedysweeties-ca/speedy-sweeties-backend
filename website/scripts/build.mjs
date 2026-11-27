@@ -1,7 +1,9 @@
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { services } from '../content/services.mjs';
+import { informationPages } from '../content/information.mjs';
 import { canonicalOrigin, renderServicePage } from './render-service-pages.mjs';
+import { renderInformationPage } from './render-information-pages.mjs';
 import { driverPath, renderDriverPage } from './render-driver-page.mjs';
 import { privacyPath, renderPrivacyPage, replaceHomepagePolicy, validateProposedPolicyPublication } from './render-privacy-page.mjs';
 
@@ -42,6 +44,12 @@ for (const service of services) {
   await mkdir(root + `dist/${service.slug}`, { recursive: true });
   await writeFile(root + `dist/${service.slug}/index.html`, withPageCounter(renderServicePage(service, { production }), service.key));
 }
+// Replace the old retirement notices with standalone educational pages.
+// These pages have no ordering, contact, analytics or page-counter scripts.
+for (const page of informationPages) {
+  await mkdir(root + `dist/${page.slug}`, { recursive: true });
+  await writeFile(root + `dist/${page.slug}/index.html`, renderInformationPage(page, { production }));
+}
 await writeFile(root + 'dist/js/site-config.js', `/* Generated at build time. Preview is the default. */
 (() => {
   const production = ${production};
@@ -57,6 +65,6 @@ await writeFile(root + 'dist/js/site-config.js', `/* Generated at build time. Pr
 await writeFile(root + 'dist/robots.txt', production
   ? 'User-agent: *\nAllow: /\nSitemap: https://www.speedysweeties.ca/sitemap.xml\n'
   : 'User-agent: *\nDisallow: /\n');
-const sitemapUrls = [canonicalOrigin + '/', ...services.map(service => `${canonicalOrigin}/${service.slug}/`), canonicalOrigin + privacyPath, canonicalOrigin + driverPath];
+const sitemapUrls = [canonicalOrigin + '/', ...services.map(service => `${canonicalOrigin}/${service.slug}/`), ...informationPages.map(page => `${canonicalOrigin}/${page.slug}/`), canonicalOrigin + privacyPath, canonicalOrigin + driverPath];
 await writeFile(root + 'dist/sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + sitemapUrls.map(url => `<url><loc>${url}</loc></url>`).join('') + '</urlset>\n');
 console.log(`Built ${production ? 'production (live only on www.speedysweeties.ca)' : 'preview (no orders or analytics)'} into website/dist.`);
