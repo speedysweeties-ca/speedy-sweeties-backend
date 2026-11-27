@@ -1,3 +1,4 @@
+import { logDiagnostic, setDiagnosticOrder } from "../utils/operationalDiagnostics";
 import { validReceiptItems, sameReceiptItems, receiptItemsFingerprint } from "../services/receiptItems.service";
 import { assertNoSyntheticReceipt } from "../services/syntheticOrderSafety.service";
 import { Request, Response } from "express";
@@ -146,6 +147,7 @@ export const createOrUpdateReceiptController = async (
       }
 
       const order = assignedOrders[0];
+      setDiagnosticOrder(order.orderNumber);
       if (order.orderStatus === OrderStatus.DELIVERED || order.orderStatus === OrderStatus.CANCELLED) {
         return { kind: "finalized" as const };
       }
@@ -224,6 +226,7 @@ export const createOrUpdateReceiptController = async (
       WHERE "id" = ${orderId} FOR UPDATE
     `;
     const order = orders[0];
+    setDiagnosticOrder(order?.orderNumber);
 
     if (!order) {
       return { kind: "notFound" as const };
@@ -285,6 +288,8 @@ export const createOrUpdateReceiptController = async (
     return;
   }
 
+  logDiagnostic({ event: "RECEIPT_SAVE", outcome: "committed",
+    ...(receiptResult.transitionedToOutForDelivery ? { action: "OUT_FOR_DELIVERY" } : {}) });
   if (receiptResult.transitionedToOutForDelivery) {
     await sendCustomerOrderNotification(orderId, "ORDER_OUT_FOR_DELIVERY");
   }

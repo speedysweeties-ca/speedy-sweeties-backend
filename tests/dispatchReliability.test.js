@@ -124,9 +124,21 @@ test('request diagnostics use route templates and generated IDs, never tracking 
   const req={method:'GET',baseUrl:'/api/v1/orders',route:{path:'/track-token/:token'},url:'/track-token/private-token?secret=private',params:{token:'private-token'},headers:{'x-request-id':'private-token'}};
   assert.equal(safeRouteTemplate(req),'/api/v1/orders/track-token/:token');
   assert.equal(safeRouteTemplate({...req,baseUrl:'/private-token'}),'/track-token/:token');
-  const res={locals:{},set(k,v){this[k]=v;}};let next=0;requestDiagnostics(req,res,()=>next++);
+  const res={locals:{},once(){},set(k,v){this[k]=v;}};let next=0;requestDiagnostics(req,res,()=>next++);
   assert.equal(next,1);assert.match(res.locals.requestId,/^[0-9a-f-]{36}$/);
   const logs=[];t.mock.method(console,'error',v=>logs.push(v));
   logServerError(Object.assign(new Error('private-token'),{code:'secret-code'}),req,res);
   assert.ok(!logs[0].includes('private-token'));assert.ok(!logs[0].includes('secret-code'));assert.ok(logs[0].includes('/track-token/:token'));
+});
+
+test('deferred driver retry keeps the originating request and order outside its request context', async () => {
+  const { randomUUID } = require('node:crypto');
+  const { withDiagnosticContext } = require('../dist/utils/operationalDiagnostics');
+  const requestId = randomUUID(); let sends = 0;
+  const f = fixture({ send: async () => { if (++sends === 1) throw { code: 'messaging/internal-error' }; } });
+  await withDiagnosticContext(requestId, () => f.notify(input));
+  f.scheduled[0].callback(); await flush();
+  assert.equal(sends, 2);
+  assert(f.events.every(e => e.requestId === requestId && e.orderNumber === input.orderNumber));
+  assert.equal(f.events.at(-1).outcome, 'provider_accepted');
 });

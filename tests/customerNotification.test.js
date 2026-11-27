@@ -113,3 +113,21 @@ test('mounted customer API requires Bearer order access and returns only safe me
   assert.equal((await fetch(url, { headers: { Authorization: `Bearer ${publicReference}` } })).status, 401);
   assert.equal((await fetch(url.replace(id, publicReference), { headers: { Authorization: `Bearer ${token}` } })).status, 400);
 });
+
+test('customer notification diagnostics distinguish skips, provider failure and safe token cleanup', async t => {
+  const events = [];
+  for (const level of ['log', 'warn', 'error']) t.mock.method(console, level, line => events.push(JSON.parse(line)));
+  let current = { ...row(), orderNumber: 501, fcmToken: null };
+  const notify = createCustomerOrderNotifier({ findOrder: async () => current,
+    send: async () => { throw Object.assign(new Error('private-provider-body'), { code: 'messaging/registration-token-not-registered' }); },
+    clearInvalidToken: async () => { throw Object.assign(new Error('private-db-body'), { code: 'P2034' }); } });
+  await notify(id, 'ORDER_OUT_FOR_DELIVERY');
+  assert.equal(events.at(-1).reason, 'NO_TOKEN');
+  current.fcmToken = 'private-device';
+  await notify(id, 'ORDER_OUT_FOR_DELIVERY');
+  assert.equal(events.at(-2).code, 'messaging/registration-token-not-registered');
+  assert.equal(events.at(-1).outcome, 'token_cleanup_failed');
+  assert.equal(events.at(-1).code, 'P2034');
+  assert(events.every(e => e.orderNumber === 501));
+  for (const secret of [id, 'private-device', 'private-provider-body', 'private-db-body']) assert(!JSON.stringify(events).includes(secret));
+});
