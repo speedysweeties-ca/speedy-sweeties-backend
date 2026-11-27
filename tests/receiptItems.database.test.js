@@ -60,9 +60,11 @@ test('receipt item fingerprint migration and reopen validity on isolated Postgre
             let blocked = false;
             const deadline = Date.now() + 5000;
             while (Date.now() < deadline) {
+              // pg_locks is current; pg_stat_activity may cache a snapshot that
+              // omits the receipt connection first opened during this transaction.
               const waiters = await tx.$queryRaw`
-                SELECT pid FROM pg_stat_activity
-                WHERE datname = current_database() AND ${pid} = ANY(pg_blocking_pids(pid))
+                SELECT pid FROM pg_locks
+                WHERE NOT granted AND ${pid} = ANY(pg_blocking_pids(pid))
               `;
               if (waiters.length) { blocked = true; break; }
               await new Promise(resolve => setTimeout(resolve, 20));
