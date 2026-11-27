@@ -572,8 +572,9 @@ model OrderItem {
 }
 
 model DigitalReceipt {
-  id            String @id @default(uuid())
-  receiptNumber String @unique
+  itemsFingerprint String?
+  id               String  @id @default(uuid())
+  receiptNumber    String  @unique
 
   orderId           String  @unique
   createdByDriverId String?

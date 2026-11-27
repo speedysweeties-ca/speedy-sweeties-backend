@@ -200,8 +200,10 @@ const installTransitionHarness = (t, options = {}) => {
         if (!orderId || (driverId && currentOrder.assignedDriverId !== driverId)) {
           return [];
         }
+        if (options.itemsAfterLock) currentOrder.items = clone(options.itemsAfterLock);
         return [clone(currentOrder)];
       },
+      orderItem: { findMany: async () => clone(currentOrder.items) },
       order: {
         findUnique: async ({ where }) =>
           where.id === currentOrder?.id ? clone(currentOrder) : null,
@@ -513,4 +515,51 @@ test("delivered orders cannot be cancelled and drivers cannot invoke the staff c
   );
   assert.equal(driverResponse.statusCode, 403);
   assert.equal(ownershipHarness.getOrder().orderStatus, OrderStatus.ACCEPTED);
+});
+
+const pricedItems = [{ id: "a", name: "Item A", quantity: 1 }, { id: "b", name: "Item B", quantity: 1 }];
+for (const scenario of [
+  { name: "removed item", items: [pricedItems[0]] },
+  { name: "replacement item", items: [pricedItems[0], { ...pricedItems[1], id: "c" }] },
+  { name: "changed quantity", items: [pricedItems[0], { ...pricedItems[1], quantity: 2 }] },
+  { name: "changed name", items: [pricedItems[0], { ...pricedItems[1], name: "New item" }] }
+]) {
+  test(`stale receipt is refused without writes or notification after ${scenario.name}`, async t => {
+    const harness = installTransitionHarness(t, { order: order({ items: pricedItems }), itemsAfterLock: scenario.items });
+    const req = receiptRequest(); req.body.expectedItems = pricedItems;
+    const res = responseRecorder();
+    await createOrUpdateReceiptController(req, res);
+    assert.equal(res.statusCode, 409);
+    assert.equal(res.body.code, "RECEIPT_ITEMS_CHANGED");
+    assert.equal(harness.getReceiptUpserts(), 0);
+    assert.equal(harness.getOrder().orderStatus, "ACCEPTED");
+    assert.equal(harness.getNotificationCount(), 0);
+  });
+}
+
+test("current reviewed receipt accepts items in any display order", async t => {
+  const harness = installTransitionHarness(t, { order: order({ items: pricedItems }) });
+  const req = receiptRequest(); req.body.expectedItems = [...pricedItems].reverse();
+  const res = responseRecorder();
+  await createOrUpdateReceiptController(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(harness.getReceiptUpserts(), 1);
+});
+for (const items of [null, {}, [pricedItems[0], pricedItems[0]], [{ ...pricedItems[0], quantity: -1 }]]) {
+  test(`malformed receipt snapshot is rejected: ${JSON.stringify(items)}`, async t => {
+    const harness = installTransitionHarness(t);
+    const req = receiptRequest(); req.body.expectedItems = items;
+    const res = responseRecorder(); await createOrUpdateReceiptController(req, res);
+    assert.equal(res.statusCode, 400); assert.equal(harness.getReceiptUpserts(), 0);
+  });
+}
+
+test("reviewed receipts persist their item fingerprint and legacy writes clear it", async t => {
+  const { receiptItemsFingerprint } = require('../dist/services/receiptItems.service');
+  const harness = installTransitionHarness(t, { order: order({ items: pricedItems }) });
+  const req = receiptRequest(); req.body.expectedItems = pricedItems;
+  await createOrUpdateReceiptController(req, responseRecorder());
+  assert.equal(harness.getReceipt().itemsFingerprint, receiptItemsFingerprint(pricedItems));
+  await createOrUpdateReceiptController(receiptRequest(), responseRecorder());
+  assert.equal(harness.getReceipt().itemsFingerprint, null);
 });

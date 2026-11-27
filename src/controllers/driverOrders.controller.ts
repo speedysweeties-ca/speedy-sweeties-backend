@@ -1,3 +1,4 @@
+import { receiptMatchesItems } from "../services/receiptItems.service";
 import { OrderStatus, Prisma } from "@prisma/client";
 import { Request, Response } from "express";
 import {
@@ -175,7 +176,7 @@ export const getDriverOrdersController = async (
             )
           : [];
 
-      return withDriverRoutingPlan(order, {
+      return withDriverRoutingPlan({ ...order, receiptItemsCurrent: receiptMatchesItems(order.digitalReceipt?.itemsFingerprint, order.items) }, {
         pickupRequired: pickupRequirement.pickupRequired,
         requiredPickupTypes: pickupRequirement.routablePickupTypes,
         unknownPickupItemCount: pickupRequirement.unknownPickupItemCount,

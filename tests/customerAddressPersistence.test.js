@@ -205,8 +205,15 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
         findUnique: async ({ where }) => where.key === "syntheticOrderSafety.v1" ? null : { value: "false" }
       }
       };
-      tx.$queryRaw = async (_queryStrings, ...queryValues) =>
-        queryValues.includes(database.customer?.id) ? [clone(database.customer)] : [];
+      tx.$queryRaw = async (queryStrings, ...queryValues) => {
+        const sql = queryStrings.join("?");
+        if (sql.includes('FROM "Order"')) {
+          assert.match(sql, /FOR UPDATE/, "order edits must hold the receipt coordination lock");
+          const order = database.orders.find(row => row.id === queryValues[0]);
+          return order ? [{ id: order.id, orderStatus: order.orderStatus }] : [];
+        }
+        return queryValues.includes(database.customer?.id) ? [clone(database.customer)] : [];
+      };
       tx.customer.findUnique = async ({ where }) =>
         where.id === database.customer?.id ? database.customer : null;
 
