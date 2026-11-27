@@ -182,8 +182,9 @@ export const dispatcherHelpKnowledge: HelpArticle[] = [
   {
     id: "customer-profile",
     title: "Change a customer’s saved profile or address",
-    // 2026-11-26: Reviewed civic edits, explicit access clearing and saved-address selection.
-    reviewedAt: "2026-11-26",
+    // 2026-11-27: Re-reviewed address-access clearing alongside loyalty outage handling.
+    // 2026-11-27: Customer loyalty lookup outages now return retryable 503; profile/address controls and staff instructions remain unchanged.
+    reviewedAt: "2026-11-27",
     roles: ["ADMIN", "DISPATCHER"],
     destination: "CUSTOMERS",
     evidence: ["speedy-dispatcher/src/addressFields.ts", "src/services/customerSavedAddress.service.ts", "speedy-dispatcher/src/customerAddressSelection.ts", "speedy-dispatcher/src/CustomerAddresses.tsx", "src/controllers/customerAddress.controller.ts", "speedy-dispatcher/src/App.tsx", "src/controllers/customer.controller.ts"],
