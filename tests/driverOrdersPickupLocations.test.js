@@ -164,3 +164,22 @@ test("driver orders preserve the assigned pickup-stop response fields and sequen
     [1, 2]
   );
 });
+
+for (const variant of ['matching', 'removed', 'quantity', 'legacy']) {
+  test(`reopened driver receipt reports whether its saved total belongs to current items: ${variant}`, async t => {
+    const { receiptItemsFingerprint } = require('../dist/services/receiptItems.service');
+    const original = [{ id: 'a', name: 'Item A', quantity: 1 }, { id: 'b', name: 'Item B', quantity: 1 }];
+    const items = variant === 'removed' ? [original[0]] : variant === 'quantity' ? [{ ...original[0], quantity: 2 }, original[1]] : [...original].reverse();
+    replaceForTest(t, prisma.order, 'findMany', async () => [{
+      id: 'order-1', orderStatus: 'OUT_FOR_DELIVERY', items, pickupStops: [],
+      digitalReceipt: { itemTotal: '40.00', deliveryCharge: '22.02',
+        itemsFingerprint: variant === 'legacy' ? null : receiptItemsFingerprint(original) }
+    }]);
+    replaceForTest(t, prisma.pickupLocation, 'findMany', async () => []);
+    const response = responseRecorder();
+    await getDriverOrdersController({ user: { userId: 'driver-1', role: 'DRIVER' } }, response);
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.orders[0].receiptItemsCurrent, variant === 'matching');
+    assert.equal(response.body.orders[0].digitalReceipt.deliveryCharge, '22.02');
+  });
+}

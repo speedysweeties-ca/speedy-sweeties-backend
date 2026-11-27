@@ -1,3 +1,4 @@
+import { receiptMatchesItems } from "../services/receiptItems.service";
 import { OrderStatus, Prisma } from "@prisma/client";
 import { Request, Response } from "express";
 import {
@@ -5,6 +6,7 @@ import {
   normalizePickupTypeOrUnknown
 } from "../constants/pickupTypes";
 import { prisma } from "../lib/prisma";
+import { isWelcomeFlyerItem } from "../services/welcomeFlyer.service";
 import { buildRoutablePickupLocationWhere } from "../utils/pickupLocationAvailability";
 
 type AuthenticatedUser = {
@@ -94,9 +96,10 @@ export const getDriverOrdersController = async (
   });
 
   const pickupRequirements = orders.map((order) => {
+    const pickupItems = order.items.filter(item => !isWelcomeFlyerItem(item));
     const requiredPickupTypes = Array.from(
       new Set(
-        order.items
+        pickupItems
           .map((item) =>
             normalizePickupTypeOrUnknown(item.itemCatalog?.pickupType)
           )
@@ -104,7 +107,7 @@ export const getDriverOrdersController = async (
       )
     );
 
-    const unknownPickupItemCount = order.items.filter(
+    const unknownPickupItemCount = pickupItems.filter(
       (item) =>
         normalizePickupTypeOrUnknown(item.itemCatalog?.pickupType) === "UNKNOWN"
     ).length;
@@ -173,7 +176,7 @@ export const getDriverOrdersController = async (
             )
           : [];
 
-      return withDriverRoutingPlan(order, {
+      return withDriverRoutingPlan({ ...order, receiptItemsCurrent: receiptMatchesItems(order.digitalReceipt?.itemsFingerprint, order.items) }, {
         pickupRequired: pickupRequirement.pickupRequired,
         requiredPickupTypes: pickupRequirement.routablePickupTypes,
         unknownPickupItemCount: pickupRequirement.unknownPickupItemCount,

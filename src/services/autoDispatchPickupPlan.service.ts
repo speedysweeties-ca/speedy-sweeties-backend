@@ -1,3 +1,4 @@
+import { logDiagnostic, setDiagnosticOrder, safeDiagnosticErrorCode } from "../utils/operationalDiagnostics";
 import {
   DispatchEventType,
   DispatchSource,
@@ -14,7 +15,6 @@ import {
   buildOrderTransitionTimestampData,
   evaluateOrderStatusTransition
 } from "./orderStateTransition.service";
-import { RoutingPreviewUnavailableError } from "./routingPreview.service";
 import { recordDispatchEventBestEffort } from "./dispatcherPerformanceTracking.service";
 import {
   computeConfiguredRouteMatrixToDestinations,
@@ -60,6 +60,7 @@ export type AutoDispatchPickupPlanResult = {
     | "NO_ROUTEABLE_DRIVERS"
     | "ROUTING_UNAVAILABLE"
     | "ORDER_CHANGED"
+    | "DRIVER_LOCATION_CHANGED"
     | "ALLOCATION_UNAVAILABLE";
   driverId?: string;
   driverFcmToken?: string | null;
@@ -167,6 +168,8 @@ type AutoDispatchAllocationResult =
       reason: Exclude<AutoDispatchPickupPlanResult["reason"], "DISPATCHED">;
     };
 
+type AllocationDiagnostic = { orderNumber?: number; detail?: string; code?: string; eligibleDrivers?: number; priorityDriverActiveOrders?: number };
+
 /**
  * Assigns a newly created order to the online driver with fresh GPS whose
  * shortest configured route to the customer's address. With Google Live
@@ -180,8 +183,8 @@ type AutoDispatchAllocationResult =
  * calls it. Item pickup types and pickup locations intentionally do not take
  * part in this assignment decision.
  */
-export const autoDispatchCreatedOrderWithPickupPlan = async (
-  orderId: string
+const attemptAutoDispatchCreatedOrder = async (
+  orderId: string, diagnostic: AllocationDiagnostic
 ): Promise<AutoDispatchPickupPlanResult> => {
   if (!(await isAutoDispatchEnabled())) {
     return { dispatched: false, reason: "AUTO_DISPATCH_DISABLED" };
@@ -203,6 +206,8 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
     }
   });
 
+  diagnostic.orderNumber = order?.orderNumber;
+  setDiagnosticOrder(order?.orderNumber);
   if (
     !order ||
     order.orderStatus !== OrderStatus.PLACED ||
@@ -226,9 +231,7 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
     Number.isFinite(deliveryLongitude);
 
   if (!hasVerifiedDeliveryLocation) {
-    console.warn(
-      `[Auto Dispatch] Order ${order.id} held: the delivery address has no verified coordinates.`
-    );
+    diagnostic.detail = "ADDRESS_NOT_VERIFIED";
     return { dispatched: false, reason: "ROUTING_UNAVAILABLE" };
   }
 
@@ -267,10 +270,9 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
     );
   });
 
+  diagnostic.eligibleDrivers = routeableDrivers.length;
   if (routeableDrivers.length === 0) {
-    console.log(
-      `[Auto Dispatch] Order ${order.id} held: no online driver has fresh GPS.`
-    );
+    diagnostic.detail = "NO_FRESH_GPS";
     return { dispatched: false, reason: "NO_ROUTEABLE_DRIVERS" };
   }
 
@@ -279,8 +281,7 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
       driver.id,
       {
         latitude: Number(driver.latitude),
-        longitude: Number(driver.longitude),
-        locationUpdatedAtMs: driver.locationUpdatedAt?.getTime() ?? null
+        longitude: Number(driver.longitude)
       }
     ])
   );
@@ -325,21 +326,13 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
       });
     }
   } catch (error) {
-    console.error(
-      `[Auto Dispatch] Order ${order.id} held: direct driver routing unavailable.`,
-      error instanceof RoutingPreviewUnavailableError
-        ? error.message
-        : error instanceof Error
-          ? error.name
-          : typeof error
-    );
+    diagnostic.detail = "ROUTING_PROVIDER_FAILED";
+    diagnostic.code = safeDiagnosticErrorCode(error);
     return { dispatched: false, reason: "ROUTING_UNAVAILABLE" };
   }
 
   if (directRoutesByDriverId.size === 0) {
-    console.warn(
-      `[Auto Dispatch] Order ${order.id} held: no driver has a route to the delivery address.`
-    );
+    diagnostic.detail = "NO_AVAILABLE_ROUTE";
     return { dispatched: false, reason: "ROUTING_UNAVAILABLE" };
   }
 
@@ -427,6 +420,7 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
           }
         })) as AutoDispatchDriver[];
 
+        let driverLocationChanged = false;
         const candidates = currentDrivers.flatMap((driver) => {
           const plannedRouteSource = plannedDriverRouteSources.get(driver.id);
           const directRoute = directRoutesByDriverId.get(driver.id);
@@ -441,12 +435,18 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
               driver.lastSeenAt,
               driver.locationUpdatedAt,
               allocationTime
-            ) ||
-            Number(driver.latitude) !== plannedRouteSource.latitude ||
-            Number(driver.longitude) !== plannedRouteSource.longitude ||
-            (driver.locationUpdatedAt?.getTime() ?? null) !==
-              plannedRouteSource.locationUpdatedAtMs
+            )
           ) {
+            return [];
+          }
+
+          // Heartbeats refresh the timestamp even when the driver has not moved.
+          // Freshness still matters, but only changed coordinates invalidate a route.
+          if (
+            Number(driver.latitude) !== plannedRouteSource.latitude ||
+            Number(driver.longitude) !== plannedRouteSource.longitude
+          ) {
+            driverLocationChanged = true;
             return [];
           }
 
@@ -458,6 +458,12 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
             }
           ];
         });
+
+        // Recalculate outside this transaction before choosing a fallback: the
+        // moving driver may still be closest, or may be Rob with priority.
+        if (driverLocationChanged) {
+          return { selected: null, reason: "DRIVER_LOCATION_CHANGED" };
+        }
 
         // Lock Rob before reading his workload, using the same order-then-driver
         // lock order as manual assignment. Concurrent auto assignments must see
@@ -478,16 +484,20 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
                 orderStatus: { notIn: [OrderStatus.DELIVERED, OrderStatus.CANCELLED] }
               }
             });
+            diagnostic.priorityDriverActiveOrders = activeOrders;
             if (activeOrders < ROB_ACTIVE_ORDER_LIMIT) preferred = robCandidate;
+            else diagnostic.detail = "PRIORITY_CAP_REACHED";
           }
         }
         const selected = preferred ??
           selectAutoDispatchAllocationCandidate(fallbackCandidates);
         if (!selected) {
+          diagnostic.detail ??= "NO_ELIGIBLE_CANDIDATE";
           return { selected: null, reason: "NO_ROUTEABLE_DRIVERS" };
         }
 
         if (!preferred && !await lockAssignableDriver(tx, selected.driver.id, new Date())) {
+          diagnostic.detail = "DRIVER_UNAVAILABLE";
           return { selected: null, reason: "NO_ROUTEABLE_DRIVERS" };
         }
 
@@ -522,10 +532,8 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
       }
     );
   } catch (error) {
-    console.error(
-      `[Auto Dispatch] Order ${order.id} held: allocation transaction unavailable.`,
-      error instanceof Error ? `${error.name}: ${error.message}` : typeof error
-    );
+    diagnostic.detail = "ALLOCATION_TRANSACTION_FAILED";
+    diagnostic.code = safeDiagnosticErrorCode(error);
     return { dispatched: false, reason: "ALLOCATION_UNAVAILABLE" };
   }
 
@@ -544,14 +552,6 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
     toDriverId: selected.driver.id
   });
 
-  console.log(
-    `[Auto Dispatch] Order ${order.id} dispatched to driver ${selected.driver.id}; ${
-      routeCalculationMode === "GOOGLE_LIVE_TRAFFIC"
-        ? "live-traffic ETA"
-        : "free coordinate estimate"
-    } ${selected.routeDurationSeconds} second(s).`
-  );
-
   return {
     dispatched: true,
     reason: "DISPATCHED",
@@ -568,4 +568,33 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
     routeEtaMinutes: Math.max(1, Math.round(selected.routeDurationSeconds / 60)),
     routeCalculationMode
   };
+};
+
+const MAX_LOCATION_ATTEMPTS = 3;
+
+export const autoDispatchCreatedOrderWithPickupPlan = async (
+  orderId: string
+): Promise<AutoDispatchPickupPlanResult> => {
+  for (let attempt = 1; attempt <= MAX_LOCATION_ATTEMPTS; attempt += 1) {
+    const diagnostic: AllocationDiagnostic = {};
+    let result: AutoDispatchPickupPlanResult;
+    try { result = await attemptAutoDispatchCreatedOrder(orderId, diagnostic); }
+    catch (error) {
+      logDiagnostic({ event: "AUTO_DISPATCH", outcome: "failed", attempt, ...diagnostic, code: safeDiagnosticErrorCode(error) });
+      throw error;
+    }
+    const retrying = result.reason === "DRIVER_LOCATION_CHANGED" && attempt < MAX_LOCATION_ATTEMPTS;
+    logDiagnostic({ event: "AUTO_DISPATCH", outcome: result.dispatched ? "assigned" : retrying ? "retrying" : "held",
+      reason: result.reason, attempt, ...diagnostic,
+      ...(result.reason === "DRIVER_LOCATION_CHANGED" && !retrying ? { detail: "LOCATION_RETRY_LIMIT" } : {}) });
+    if (
+      result.reason === "DRIVER_LOCATION_CHANGED" &&
+      attempt < MAX_LOCATION_ATTEMPTS
+    ) {
+      continue;
+    }
+    return result;
+  }
+  // The final iteration always returns; retained for TypeScript exhaustiveness.
+  throw new Error("Auto-dispatch attempt limit exceeded");
 };

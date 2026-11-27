@@ -89,6 +89,8 @@ test('real order route rejects missing verification before duplicate checks or o
   for (const origin of ['https://www.speedysweeties.ca', 'https://speedy-dispatcher.onrender.com']) {
     const allowed = await fetch(base + '/api/v1/orders', { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' } });
     assert.equal(allowed.status, 204); assert.equal(allowed.headers.get('access-control-allow-origin'), origin);
+    assert.equal(allowed.headers.get('x-dispatcher-release'), require('../dist/generated/dispatcherRelease').DISPATCHER_RELEASE);
+    assert.match(allowed.headers.get('access-control-expose-headers'), /X-Dispatcher-Release/i);
   }
   const tracking = await fetch(base + '/track/?embedded=1');
   assert.match(tracking.headers.get('content-security-policy'), /frame-ancestors 'self' https:\/\/www.speedysweeties.ca$/);

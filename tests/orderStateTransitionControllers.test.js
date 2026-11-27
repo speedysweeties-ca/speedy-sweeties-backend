@@ -181,7 +181,13 @@ const installTransitionHarness = (t, options = {}) => {
   replaceForTest(t, prisma.digitalReceipt, "findUnique", async ({ where }) =>
     where.orderId === currentReceipt?.orderId ? clone(currentReceipt) : null
   );
+  let transactionTail = Promise.resolve();
   replaceForTest(t, prisma, "$transaction", async (callback) => {
+    const previous = transactionTail;
+    let release;
+    transactionTail = new Promise(resolve => { release = resolve; });
+    await previous;
+    const transactionCustomerBefore = clone(currentCustomer);
     const transactionOrderBefore = clone(currentOrder);
     const transactionReceiptBefore = clone(currentReceipt);
     const tx = {
@@ -200,8 +206,10 @@ const installTransitionHarness = (t, options = {}) => {
         if (!orderId || (driverId && currentOrder.assignedDriverId !== driverId)) {
           return [];
         }
+        if (options.itemsAfterLock) currentOrder.items = clone(options.itemsAfterLock);
         return [clone(currentOrder)];
       },
+      orderItem: { findMany: async () => clone(currentOrder.items) },
       order: {
         findUnique: async ({ where }) =>
           where.id === currentOrder?.id ? clone(currentOrder) : null,
@@ -210,15 +218,13 @@ const installTransitionHarness = (t, options = {}) => {
             throw new Error("simulated order transition failure");
           }
           if (where.id !== currentOrder?.id) throw new Error("Order not found");
+          updateAttempts += 1;
           currentOrder = { ...currentOrder, ...clone(data) };
-          return {
-            id: currentOrder.id,
-            orderStatus: currentOrder.orderStatus,
-            outForDeliveryAt: currentOrder.outForDeliveryAt
-          };
+          return clone(currentOrder);
         }
       },
       digitalReceipt: {
+        findUnique: async ({ where }) => where.orderId === currentReceipt?.orderId ? clone(currentReceipt) : null,
         upsert: async ({ where, update, create }) => {
           receiptUpserts += 1;
           currentReceipt = currentReceipt
@@ -233,6 +239,7 @@ const installTransitionHarness = (t, options = {}) => {
         update: async ({ where, data }) => {
           if (where.id !== currentCustomer?.id) throw new Error("Customer not found");
           loyaltyUpdateCount += 1;
+          if (options.failLoyaltyUpdate) throw new Error("simulated loyalty write failure");
           const nextCustomer = { ...currentCustomer, ...clone(data) };
           if (data.loyaltyRewardsEarned?.increment) {
             nextCustomer.loyaltyRewardsEarned += data.loyaltyRewardsEarned.increment;
@@ -254,7 +261,10 @@ const installTransitionHarness = (t, options = {}) => {
     } catch (error) {
       currentOrder = transactionOrderBefore;
       currentReceipt = transactionReceiptBefore;
+      currentCustomer = transactionCustomerBefore;
       throw error;
+    } finally {
+      release();
     }
   });
 
@@ -264,6 +274,7 @@ const installTransitionHarness = (t, options = {}) => {
     getUpdateAttempts: () => updateAttempts,
     getReceiptUpserts: () => receiptUpserts,
     getNotificationCount: () => notificationCount,
+    getCustomer: () => clone(currentCustomer),
     getLoyaltyUpdateCount: () => loyaltyUpdateCount
   };
 };
@@ -404,8 +415,7 @@ test("concurrent delivery requests produce one transition and one loyalty comple
       customerId: "customer-1",
       fcmToken: null
     }),
-    receipt: receipt(),
-    waitForInitialOrderReads: 2
+    receipt: receipt()
   });
   const firstResponse = responseRecorder();
   const secondResponse = responseRecorder();
@@ -417,7 +427,7 @@ test("concurrent delivery requests produce one transition and one loyalty comple
 
   assert.deepEqual(
     [firstResponse.statusCode, secondResponse.statusCode].sort(),
-    [200, 409]
+    [200, 200]
   );
   assert.equal(harness.getOrder().orderStatus, OrderStatus.DELIVERED);
   assert.equal(harness.getLoyaltyUpdateCount(), 1);
@@ -431,8 +441,8 @@ test("terminal statuses and unauthorized drivers cannot use driver actions", asy
   const deliveredResponse = responseRecorder();
   await driverActionController(driverRequest("DELIVERED"), deliveredResponse);
 
-  assert.equal(deliveredResponse.statusCode, 409);
-  assert.equal(deliveredResponse.body.code, "INVALID_ORDER_TRANSITION");
+  assert.equal(deliveredResponse.statusCode, 200);
+  assert.equal(deliveredResponse.body.alreadyCompleted, true);
   assert.equal(deliveredHarness.getOrder().deliveredAt instanceof Date, true);
 
   const ownershipHarness = installTransitionHarness(t, { receipt: receipt() });
@@ -513,4 +523,181 @@ test("delivered orders cannot be cancelled and drivers cannot invoke the staff c
   );
   assert.equal(driverResponse.statusCode, 403);
   assert.equal(ownershipHarness.getOrder().orderStatus, OrderStatus.ACCEPTED);
+});
+
+const pricedItems = [{ id: "a", name: "Item A", quantity: 1 }, { id: "b", name: "Item B", quantity: 1 }];
+for (const scenario of [
+  { name: "removed item", items: [pricedItems[0]] },
+  { name: "replacement item", items: [pricedItems[0], { ...pricedItems[1], id: "c" }] },
+  { name: "changed quantity", items: [pricedItems[0], { ...pricedItems[1], quantity: 2 }] },
+  { name: "changed name", items: [pricedItems[0], { ...pricedItems[1], name: "New item" }] }
+]) {
+  test(`stale receipt is refused without writes or notification after ${scenario.name}`, async t => {
+    const harness = installTransitionHarness(t, { order: order({ items: pricedItems }), itemsAfterLock: scenario.items });
+    const req = receiptRequest(); req.body.expectedItems = pricedItems;
+    const res = responseRecorder();
+    await createOrUpdateReceiptController(req, res);
+    assert.equal(res.statusCode, 409);
+    assert.equal(res.body.code, "RECEIPT_ITEMS_CHANGED");
+    assert.equal(harness.getReceiptUpserts(), 0);
+    assert.equal(harness.getOrder().orderStatus, "ACCEPTED");
+    assert.equal(harness.getNotificationCount(), 0);
+  });
+}
+
+test("current reviewed receipt accepts items in any display order", async t => {
+  const harness = installTransitionHarness(t, { order: order({ items: pricedItems }) });
+  const req = receiptRequest(); req.body.expectedItems = [...pricedItems].reverse();
+  const res = responseRecorder();
+  await createOrUpdateReceiptController(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(harness.getReceiptUpserts(), 1);
+});
+for (const items of [null, {}, [pricedItems[0], pricedItems[0]], [{ ...pricedItems[0], quantity: -1 }]]) {
+  test(`malformed receipt snapshot is rejected: ${JSON.stringify(items)}`, async t => {
+    const harness = installTransitionHarness(t);
+    const req = receiptRequest(); req.body.expectedItems = items;
+    const res = responseRecorder(); await createOrUpdateReceiptController(req, res);
+    assert.equal(res.statusCode, 400); assert.equal(harness.getReceiptUpserts(), 0);
+  });
+}
+
+test("reviewed receipts persist their item fingerprint and legacy writes clear it", async t => {
+  const { receiptItemsFingerprint } = require('../dist/services/receiptItems.service');
+  const harness = installTransitionHarness(t, { order: order({ items: pricedItems }) });
+  const req = receiptRequest(); req.body.expectedItems = pricedItems;
+  await createOrUpdateReceiptController(req, responseRecorder());
+  assert.equal(harness.getReceipt().itemsFingerprint, receiptItemsFingerprint(pricedItems));
+  await createOrUpdateReceiptController(receiptRequest(), responseRecorder());
+  assert.equal(harness.getReceipt().itemsFingerprint, null);
+});
+
+for (const role of [UserRole.DRIVER, UserRole.ADMIN, UserRole.DISPATCHER]) {
+  for (const status of [OrderStatus.DELIVERED, OrderStatus.CANCELLED]) {
+    for (const existing of [true, false]) {
+      test(`${role} cannot ${existing ? 'overwrite' : 'create'} a ${status} receipt, including retries`, async t => {
+        const finalOrder = order({ orderStatus: status });
+        const saved = existing ? receipt({ notes: 'Original evidence', itemsFingerprint: 'original-snapshot' }) : null;
+        const harness = installTransitionHarness(t, { order: finalOrder, receipt: saved });
+        const req = receiptRequest();
+        req.user.role = role;
+        // Exercise changed totals/notes and a second identical request.
+        req.body.itemTotal = 20;
+        req.body.grandTotal = 26.95;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const res = responseRecorder();
+          await createOrUpdateReceiptController(req, res);
+          assert.equal(res.statusCode, 409);
+          assert.equal(res.body.code, 'FINAL_RECEIPT_LOCKED');
+        }
+        assert.deepEqual(harness.getReceipt(), saved);
+        assert.deepEqual(harness.getOrder(), finalOrder);
+        assert.equal(harness.getReceiptUpserts(), 0);
+        assert.equal(harness.getNotificationCount(), 0);
+        assert.equal(harness.getLoyaltyUpdateCount(), 0);
+      });
+    }
+  }
+}
+
+for (const role of [UserRole.ADMIN, UserRole.DISPATCHER]) {
+  for (const status of [OrderStatus.ACCEPTED, OrderStatus.OUT_FOR_DELIVERY]) {
+    test(`${role} can still edit a receipt while ${status} without advancing the order`, async t => {
+      const harness = installTransitionHarness(t, { order: order({ orderStatus: status }), receipt: receipt() });
+      const req = receiptRequest();
+      req.user.role = role;
+      const res = responseRecorder();
+      await createOrUpdateReceiptController(req, res);
+      assert.equal(res.statusCode, 200);
+      assert.equal(harness.getReceipt().notes, req.body.notes);
+      assert.equal(harness.getOrder().orderStatus, status);
+      assert.equal(harness.getReceiptUpserts(), 1);
+      assert.equal(harness.getNotificationCount(), 0);
+    });
+  }
+}
+
+test('final receipt lock preserves driver ownership and missing-order responses', async t => {
+  const harness = installTransitionHarness(t, {
+    order: order({ orderStatus: OrderStatus.DELIVERED, assignedDriverId: 'another-driver' }), receipt: receipt()
+  });
+  const denied = responseRecorder();
+  await createOrUpdateReceiptController(receiptRequest(), denied);
+  assert.equal(denied.statusCode, 403);
+  for (const role of [UserRole.DRIVER, UserRole.ADMIN, UserRole.DISPATCHER]) {
+    const req = receiptRequest();
+    req.params.id = 'missing-order';
+    req.user.role = role;
+    const res = responseRecorder();
+    await createOrUpdateReceiptController(req, res);
+    assert.equal(res.statusCode, 404);
+  }
+  assert.equal(harness.getReceiptUpserts(), 0);
+});
+
+
+test("a lost delivery response can be retried without changing time or loyalty", async t => {
+  const harness = installTransitionHarness(t, { order: order({ orderStatus: OrderStatus.OUT_FOR_DELIVERY, customerId: "customer-1", fcmToken: null }), receipt: receipt() });
+  const first = responseRecorder();
+  await driverActionController(driverRequest("DELIVERED"), first);
+  const savedOrder = harness.getOrder();
+  const savedCustomer = harness.getCustomer();
+  const retry = responseRecorder();
+  await driverActionController(driverRequest("DELIVERED"), retry);
+  assert.equal(first.statusCode, 200);
+  assert.equal(retry.statusCode, 200);
+  assert.equal(retry.body.alreadyCompleted, true);
+  assert.equal(retry.body.order.id, "order-1");
+  assert.equal(retry.body.order.orderStatus, "DELIVERED");
+  assert.deepEqual(harness.getOrder(), savedOrder);
+  assert.deepEqual(harness.getCustomer(), savedCustomer);
+  assert.equal(harness.getLoyaltyUpdateCount(), 1);
+});
+
+test("a loyalty write failure rolls delivery and its timestamp back", async t => {
+  const initial = order({ orderStatus: OrderStatus.OUT_FOR_DELIVERY, customerId: "customer-1", fcmToken: null });
+  const harness = installTransitionHarness(t, { order: initial, receipt: receipt(), failLoyaltyUpdate: true });
+  await assert.rejects(driverActionController(driverRequest("DELIVERED"), responseRecorder()), /simulated loyalty write failure/);
+  assert.deepEqual(harness.getOrder(), initial);
+  assert.equal(harness.getCustomer().loyaltyCompletedOrders, 0);
+});
+
+test("delivery replay never confirms a cancelled order or another driver's order", async t => {
+  const harness = installTransitionHarness(t, { order: order({ orderStatus: OrderStatus.CANCELLED }), receipt: receipt() });
+  const cancelled = responseRecorder();
+  await driverActionController(driverRequest("DELIVERED"), cancelled);
+  assert.equal(cancelled.statusCode, 409);
+  const denied = responseRecorder();
+  await driverActionController({ ...driverRequest("DELIVERED"), user: { userId: "other-driver", role: UserRole.DRIVER } }, denied);
+  assert.equal(denied.statusCode, 403);
+  assert.equal(harness.getUpdateAttempts(), 0);
+  assert.equal(harness.getLoyaltyUpdateCount(), 0);
+});
+
+test('diagnostics show committed acceptance, receipt pickup, delivery and replay only after writes', async t => {
+  const { withDiagnosticContext } = require('../dist/utils/operationalDiagnostics');
+  const { randomUUID } = require('node:crypto');
+  const events = [];
+  for (const level of ['log', 'warn', 'error']) replaceForTest(t, console, level, line => events.push(JSON.parse(line)));
+  installTransitionHarness(t, { order: order({ orderStatus: OrderStatus.DISPATCHED, fcmToken: null }) });
+  await withDiagnosticContext(randomUUID(), async () => {
+    await driverActionController(driverRequest('ACCEPTED'), responseRecorder());
+    await createOrUpdateReceiptController(receiptRequest(), responseRecorder());
+    await driverActionController(driverRequest('DELIVERED'), responseRecorder());
+    await driverActionController(driverRequest('DELIVERED'), responseRecorder());
+  });
+  const saved = events.filter(e => ['committed', 'replayed'].includes(e.outcome));
+  assert.deepEqual(saved.map(e => [e.event, e.action, e.outcome]), [
+    ['DRIVER_ACTION', 'ACCEPTED', 'committed'], ['RECEIPT_SAVE', 'OUT_FOR_DELIVERY', 'committed'],
+    ['DRIVER_ACTION', 'DELIVERED', 'committed'], ['DRIVER_ACTION', 'DELIVERED', 'replayed']
+  ]);
+  assert(saved.every(e => e.orderNumber === 101));
+});
+
+test('rolled back delivery never emits a committed diagnostic', async t => {
+  const events = [];
+  for (const level of ['log', 'warn', 'error']) replaceForTest(t, console, level, line => events.push(JSON.parse(line)));
+  installTransitionHarness(t, { order: order({ orderStatus: OrderStatus.OUT_FOR_DELIVERY, customerId: 'customer-1' }), receipt: receipt(), failLoyaltyUpdate: true });
+  await assert.rejects(driverActionController(driverRequest('DELIVERED'), responseRecorder()), /simulated loyalty write failure/);
+  assert(!events.some(e => e.outcome === 'committed'));
 });

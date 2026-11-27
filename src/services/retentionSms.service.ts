@@ -54,7 +54,13 @@ function parseState(value: string): RecipientState {
   return state;
 }
 async function lockedRecipient(tx: Prisma.TransactionClient, key: string): Promise<RecipientState> {
-  await tx.systemSetting.upsert({ where: { key }, create: { key, value: '{"optedOut":false}' }, update: {} });
+  // An empty-update upsert can race on the first insert before a row exists
+  // to lock. PostgreSQL's conflict-safe insert also preserves existing STOP
+  // and last-attempt state; the row lock below still serializes its use.
+  await tx.systemSetting.createMany({
+    data: [{ key, value: '{"optedOut":false}' }],
+    skipDuplicates: true,
+  });
   await tx.$queryRaw`SELECT "key" FROM "SystemSetting" WHERE "key" = ${key} FOR UPDATE`;
   const row = await tx.systemSetting.findUniqueOrThrow({ where: { key } });
   return parseState(row.value);

@@ -1,9 +1,12 @@
+import { sameCivicAddress } from "../utils/addressAccess";
+import { Prisma } from "@prisma/client";
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { getCustomerLoyaltySnapshot } from "../services/loyalty.service";
 import { RECURRING_DRIVER_NOTES_MAX_LENGTH } from "../services/recurringDriverNotes.service";
 import { verifyCustomerLoyaltyToken } from "../utils/jwt";
 import { assertSyntheticLoyaltyCredentialActive } from "../services/syntheticCredentialRevocation.service";
+import { ApiError } from "../utils/ApiError";
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
@@ -34,6 +37,7 @@ type CustomerSearchResult = {
 };
 
 export const dispatcherCustomerLookupSelect = {
+  savedAddresses: { orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }, { id: "asc" }] },
   id: true,
   fullName: true,
   phone: true,
@@ -53,7 +57,7 @@ export const dispatcherCustomerLookupSelect = {
       orders: true
     }
   }
-} as const;
+} satisfies Prisma.CustomerSelect;
 
 const cleanStringOrNull = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
@@ -228,9 +232,24 @@ export const getCustomerLoyaltyByTokenController = async (
     return;
   }
 
+  let payload: ReturnType<typeof verifyCustomerLoyaltyToken>;
   try {
-    const payload = verifyCustomerLoyaltyToken(token);
-    await assertSyntheticLoyaltyCredentialActive(prisma, payload);
+    payload = verifyCustomerLoyaltyToken(token);
+  } catch {
+    res.status(401).json({ success: false, message: "Unauthorized" });
+    return;
+  }
+
+  try {
+    try {
+      await assertSyntheticLoyaltyCredentialActive(prisma, payload);
+    } catch (error) {
+      if (error instanceof ApiError && error.statusCode === 401) {
+        res.status(401).json({ success: false, message: "Unauthorized" });
+        return;
+      }
+      throw error;
+    }
     const loyaltyResponse = await getLoyaltyResponseForCustomerId(payload.sub);
 
     if (!loyaltyResponse) {
@@ -239,8 +258,13 @@ export const getCustomerLoyaltyByTokenController = async (
     }
 
     res.status(200).json(loyaltyResponse);
-  } catch (_error) {
-    res.status(401).json({ success: false, message: "Unauthorized" });
+  } catch {
+    // Database failures do not invalidate the customer's saved credential.
+    res.status(503).json({
+      success: false,
+      code: "LOYALTY_TEMPORARILY_UNAVAILABLE",
+      message: "Loyalty information is temporarily unavailable. Please try again.",
+    });
   }
 };
 
@@ -634,14 +658,6 @@ export const updateCustomerController = async (
       ? addressLine1.trim()
       : existingCustomer.addressLine1;
 
-  const cleanedUnitNumber = unitNumberSubmitted
-    ? cleanStringOrNull(unitNumber)
-    : existingCustomer.unitNumber;
-
-  const cleanedBuzzCode = buzzCodeSubmitted
-    ? cleanStringOrNull(buzzCode)
-    : existingCustomer.buzzCode;
-
   const cleanedCity =
     typeof city === "string" && city.trim()
       ? city.trim()
@@ -651,6 +667,17 @@ export const updateCustomerController = async (
     typeof province === "string" && province.trim()
       ? province.trim()
       : existingCustomer.province;
+
+  const keepOmittedAccess = sameCivicAddress(existingCustomer, {
+    addressLine1: cleanedAddressLine1, city: cleanedCity, province: cleanedProvince
+  });
+  const cleanedUnitNumber = unitNumberSubmitted
+    ? cleanStringOrNull(unitNumber)
+    : keepOmittedAccess ? existingCustomer.unitNumber : null;
+
+  const cleanedBuzzCode = buzzCodeSubmitted
+    ? cleanStringOrNull(buzzCode)
+    : keepOmittedAccess ? existingCustomer.buzzCode : null;
 
   const updatedCustomer = await prisma.customer.update({
     where: { id },

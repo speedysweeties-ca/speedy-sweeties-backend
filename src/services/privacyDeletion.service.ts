@@ -575,7 +575,7 @@ export class PrivacyDeletionService {
   }
   private async candidateScope(tx: Tx, subjectId: string, sourceOrderId: string) {
     await tx.$queryRaw`SELECT id FROM "Customer" WHERE id = ${subjectId} FOR UPDATE`;
-    const customer = await tx.customer.findUnique({ where: { id: subjectId } });
+    const customer = await tx.customer.findUnique({ where: { id: subjectId }, include: { savedAddresses: { orderBy: { id: "asc" } } } });
     if (!customer) throw new PrivacyError(409, "SUBJECT_UNAVAILABLE");
     const sourceOrder = await tx.order.findUnique({ where: { id: sourceOrderId } });
     if (!sourceOrder || sourceOrder.customerId !== customer.id || sourceOrder.privacyErasedAt) {
@@ -611,7 +611,7 @@ export class PrivacyDeletionService {
         conflictingLinkedOrderIds: p.conflictingLinkedOrderIds,
         financialFields: retainedFinancialFields, externalSystems,
         dueAt: p.request.dueAt,
-        removes: "Customer profile, preferences and loyalty; copied order contact/address/geocode/instructions; help messages; retention drafts; order push/tracking credentials; dispatch and pickup history. Catalog links and free-text receipt notes are removed. Item descriptions and recognized receipt-charge facts remain only as restricted receipt/transaction evidence with quantities, prices and totals." };
+        removes: "Customer profile, saved addresses, preferences and loyalty; copied order contact/address/geocode/instructions; help messages; retention drafts; order push/tracking credentials; dispatch and pickup history. Catalog links and free-text receipt notes are removed. Item descriptions and recognized receipt-charge facts remain only as restricted receipt/transaction evidence with quantities, prices and totals." };
     });
   }
   async fulfill(id: string, actor: string, version: number, previewHash: string, rawDecision: unknown) {
@@ -673,7 +673,7 @@ export class PrivacyDeletionService {
       await tx.privacyDeletedIdentity.upsert({ where: { phoneHash: this.hash(`phone:${p.customer.normalizedPhone}`) },
         create: { phoneHash: this.hash(`phone:${p.customer.normalizedPhone}`), keyFingerprint: digest(this.key), reviewAt: suppressionReviewAt },
         update: { reviewAt: suppressionReviewAt } });
-      // Cascade removes RetentionMessage, but all independent order snapshots were handled above.
+      // Cascade removes CustomerAddress and RetentionMessage, but all independent order snapshots were handled above.
       await tx.customer.delete({ where: { id: p.customer.id } });
       await tx.privacyChallenge.updateMany({ where: { subjectId: p.customer.id }, data: { subjectId: null, contactFingerprint: null, codeHash: "revoked", consumedAt: now } });
       return this.publicStatus(await tx.privacyDeletionRequest.update({ where: { id }, data: {

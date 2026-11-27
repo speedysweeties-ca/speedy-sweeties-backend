@@ -38,7 +38,7 @@ const response = () => ({
   json(value) { this.body = value; return this; }
 });
 
-const installOrderDatabase = (t, existingItem = null) => {
+const installOrderDatabase = (t, existingItem = null, lockedStatus = null) => {
   const catalog = existingItem ? [{ ...existingItem }] : [];
   let order = {
     ...body, id: "order-1", orderStatus: "PLACED", items: [],
@@ -47,6 +47,10 @@ const installOrderDatabase = (t, existingItem = null) => {
   const customer = { id: "customer-1", recurringDriverNotes: null };
   const tx = {
     systemSetting: { findUnique: async () => null },
+    $queryRaw: async (query, ...values) => {
+      assert.match(query.join("?"), /FOR UPDATE/);
+      return values.includes(order.id) ? [{ ...order, orderStatus: lockedStatus ?? order.orderStatus }] : [];
+    },
     $executeRaw: async () => 1,
       $queryRawUnsafe: async () => [],
     privacyDeletedIdentity: { findUnique: async () => null, findFirst: async () => null },
@@ -55,7 +59,8 @@ const installOrderDatabase = (t, existingItem = null) => {
       update: async () => customer
     },
     order: {
-      create: async ({ data }) => (order = { id: "order-1", ...data }),
+      findFirst: async () => null,
+      create: async ({ data }) => (order = { id: "order-1", items: [], ...data }),
       update: async ({ data }) => (order = { ...order, ...data }),
       findUniqueOrThrow: async () => ({ ...order, items: [] })
     },
@@ -173,3 +178,17 @@ test("customer AI product lookup attributes new entries and preserves existing c
   assert.equal(updated.createdByName, "Shannon");
   assert.equal(updated.createdByUserId, "shannon-1");
 });
+
+// Address-book persistence is covered by customerAddressPersistence and database regressions.
+test.beforeEach(t => replaceForTest(t, require("../dist/services/customerSavedAddress.service.js"), "rememberOrderAddress", async () => true));
+
+for (const status of ["DELIVERED", "CANCELLED"]) {
+  test(`order item replacement checks ${status} under the receipt's row lock`, async t => {
+    const catalog = installOrderDatabase(t, null, status);
+    const res = response();
+    await updateOrderDetailsController({ params: { id: "order-1" }, body }, res);
+    assert.equal(res.statusCode, 409);
+    assert.equal(res.body.code, "ORDER_CHANGED");
+    assert.equal(catalog.length, 0);
+  });
+}

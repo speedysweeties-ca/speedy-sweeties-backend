@@ -1,3 +1,4 @@
+import { diagnosticContext, diagnosticRecord, writeDiagnostic, safeMessagingErrorCode } from "../utils/operationalDiagnostics";
 import { randomUUID } from "node:crypto";
 import type { Message } from "firebase-admin/messaging";
 import { messaging } from "../config/firebase";
@@ -14,26 +15,7 @@ type AssignmentNotification = {
   pickupSummary?: string | null;
 };
 
-// Only documented codes may reach logs. Never log an SDK message, token,
-// notification body, customer address or Firebase credential.
-const knownCodes = new Set([
-  "messaging/invalid-registration-token", "messaging/registration-token-not-registered",
-  "messaging/invalid-argument", "messaging/invalid-recipient", "messaging/invalid-payload",
-  "messaging/invalid-data-payload-key", "messaging/payload-size-limit-exceeded",
-  "messaging/invalid-options", "messaging/invalid-package-name",
-  "messaging/message-rate-exceeded", "messaging/device-message-rate-exceeded",
-  "messaging/topics-message-rate-exceeded", "messaging/quota-exceeded",
-  "messaging/invalid-apns-credentials", "messaging/third-party-auth-error",
-  "messaging/mismatched-credential", "messaging/authentication-error",
-  "messaging/server-unavailable", "messaging/internal-error", "messaging/unknown-error",
-  "app/network-error", "app/network-timeout", "app/invalid-credential"
-]);
-
-export function safeMessagingErrorCode(error: unknown): string {
-  if (!error || typeof error !== "object") return "unclassified";
-  const code = (error as { code?: unknown }).code;
-  return typeof code === "string" && knownCodes.has(code) ? code : "unclassified";
-}
+export { safeMessagingErrorCode } from "../utils/operationalDiagnostics";
 
 const invalidTokenCodes = new Set([
   "messaging/invalid-registration-token", "messaging/registration-token-not-registered"
@@ -88,11 +70,11 @@ export function createDriverAssignmentNotifier(deps: Dependencies) {
     };
   }
 
-  async function notify(input: AssignmentNotification, correlationId = randomUUID(), attempt = 1): Promise<void> {
+  async function notify(input: AssignmentNotification, correlationId = randomUUID(), attempt = 1, requestId = diagnosticContext()?.requestId): Promise<void> {
     if (stopped) return;
     const key = `${input.orderId}/${input.driverId}`;
     const log = (outcome: string, extra: Record<string, string | number> = {}) =>
-      deps.log({ event: "DRIVER_ASSIGNMENT_PUSH", correlationId, attempt, outcome, ...extra });
+      deps.log(diagnosticRecord({ event: "DRIVER_ASSIGNMENT_PUSH", orderNumber: input.orderNumber, requestId, correlationId, attempt, outcome, ...extra }));
     try {
       await deps.send(buildMessage(input));
       log("provider_accepted"); // Provider acceptance is not proof of device delivery.
@@ -120,7 +102,7 @@ export function createDriverAssignmentNotifier(deps: Dependencies) {
           if (stopped) return;
           try {
             if (!(await deps.stillNeedsNotification(input))) { log("retry_no_longer_needed"); return; }
-            await notify(input, correlationId, 2);
+            await notify(input, correlationId, 2, requestId);
           } catch { log("retry_validation_failed"); }
         })();
       }, delayMs));
@@ -149,11 +131,7 @@ const notifier = createDriverAssignmentNotifier({
       }
     }, select: { id: true }
   })),
-  log: event => {
-    const line = JSON.stringify(event);
-    if (event.outcome === "failed" || String(event.outcome).endsWith("_failed")) console.error(line);
-    else console.log(line);
-  },
+  log: writeDiagnostic,
   schedule: (callback, delayMs) => {
     const timer = setTimeout(callback, delayMs); timer.unref();
     return () => clearTimeout(timer);

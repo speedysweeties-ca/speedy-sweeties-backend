@@ -1,3 +1,4 @@
+import { useReleaseBlocker } from "./useReleaseBlocker";
 import { useEffect, useState } from "react";
 import { API_V1_BASE_URL } from "./apiConfig";
 
@@ -19,6 +20,7 @@ export function CustomerCare({ token, onOpenCountChange }: { token: string; onOp
   const [saving, setSaving] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [refresh, setRefresh] = useState(0);
+  useReleaseBlocker(!!saving || Object.values(notes).some(note => note.length > 0));
   useEffect(() => {
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
@@ -48,6 +50,7 @@ export function CustomerCare({ token, onOpenCountChange }: { token: string; onOp
         body: JSON.stringify({ resolutionNote: notes[id].trim() }), signal: AbortSignal.timeout(15000)
       });
       if (!response.ok) throw new Error("The request wasn't marked handled. Please try again.");
+      setNotes(value => { const next = { ...value }; delete next[id]; return next; });
       setRefresh(value => value + 1);
     } catch (err) { setSaveError(err instanceof Error ? err.message : "Could not save this request."); }
     finally { setSaving(null); }

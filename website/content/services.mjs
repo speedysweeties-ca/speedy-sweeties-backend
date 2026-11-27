@@ -4,8 +4,8 @@ import { getBeerDeliveryPriceAnswer } from './delivery-rates.mjs';
 export const services = [
   {
     slug: 'beer-delivery-guelph', key: 'beer', label: 'Beer delivery', short: 'Beer',
-    title: 'Beer Delivery in Guelph | Speedy Sweeties',
-    description: 'Local beer delivery in Guelph with Speedy Sweeties. See how to request delivery, check current rates and order on our main website. Adults 19+ with valid ID.',
+    title: 'Beer Delivery in Guelph: Rates & Ordering | Speedy Sweeties',
+    description: 'Check Guelph beer delivery rates, how to order and how to request empty returns. Speedy Sweeties serves adults 19+ with valid ID.',
     eyebrow: 'BEER DELIVERY · GUELPH, ONTARIO',
     heading: 'Your beer run.\nHandled.',
     intro: 'Skip the extra trip. Send your beer request to your local delivery team, then get back to your evening.',

@@ -49,13 +49,13 @@ Previews remain noindex, make no order requests and emit no analytics.
 
 On November 11, 2026, the owner authorized the website changes requested in
 Google Ads support case 7-9441000042376. Prescription-pickup offers were removed
-from the homepage. The vape and cannabis information pages are retired: the
-build no longer generates their service content, navigation or sitemap entries.
+from the homepage. The vape and cannabis information pages were retired: the
+build stopped generating their service content, navigation or sitemap entries.
 Initial live checks still returned cached old content at slash URLs after source
-removal. The build therefore explicitly overwrites both old resources with a
+removal. The build then explicitly overwrote both old resources with a
 generic retirement notice containing no service offers, scripts or forms and
-`noindex, nofollow`. These are static notices, not a claim of HTTP 404/410 status. This is the same public content
-for users and crawlers; no user-agent-specific treatment is introduced.
+`noindex, nofollow`. These were static notices, not HTTP 404/410 responses.
+Users and crawlers received the same content, with no user-agent-specific treatment.
 Alcohol age/ID safeguards and privacy disclosures remain in place. A privacy
 statement about sensitive order data is not a prescription-service offer and
 must not be removed merely to change ad classification. Historical attribution
@@ -63,6 +63,19 @@ codes are retained for records from previously published pages.
 Google reports that alcohol Approved (limited) is expected and the destination
 accessibility label is stale. Publication does not itself establish Google Ads
 re-approval; a separate platform re-review is still needed.
+
+On November 26, 2026, the owner requested restoration as neutral public
+information, with official Ontario guidance and no ordering links. The original
+two URLs now render from `content/information.mjs` and
+`scripts/render-information-pages.mjs`. They explain age, identification and
+retailer delivery requirements. They have no service offers, product listings,
+ordering/contact links, forms, scripts, counters or analytics. Only section
+anchors and official Ontario guidance are linked. They are accessible without
+JavaScript and use the existing information-page styling. Production includes
+self-canonicals and both sitemap entries; previews retain noindex.
+Homepage service navigation and the three commercial service pages are unchanged.
+Google previously flagged informational references too; this restoration does
+not establish Google Ads eligibility or immediate Google Search indexing.
 
 Release scope is website-only. It requires no API, dispatcher, mobile, database,
 environment-variable or DNS change. Use the existing website production build
@@ -78,7 +91,8 @@ The build also generates `/privacy-policy/`, the canonical standalone privacy
 page, and `/privacy/`, a noindex compatibility copy. The original homepage
 `/#privacy-policy` section and full published text remain available. Its heading
 and all three service-page footers link to the dedicated page. The sitemap contains
-six canonical URLs; the compatibility copy is omitted. The static host resolves
+eight canonical URLs including the two public-information pages; the compatibility
+copy is omitted. The static host resolves
 the slashless privacy paths to their directory pages; verify that behavior live.
 
 Legal pages are readable without JavaScript, an age acknowledgement, login or

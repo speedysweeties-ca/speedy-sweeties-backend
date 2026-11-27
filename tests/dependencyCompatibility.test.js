@@ -49,3 +49,20 @@ test('Cloud Storage XML dependency preserves multipart receipt structure without
   assert.equal(typeof require('google-gax').GrpcClient, 'function');
   assert.equal(typeof require('firebase-admin/messaging').getMessaging, 'function');
 });
+
+test('Prisma config preserves validation and rejects adversarial template input promptly', () => {
+  const { execFileSync } = require('node:child_process');
+  // Isolate the vulnerable synchronous regex so a regression cannot hang the suite.
+  execFileSync(process.execPath, ['-e', `
+    const assert = require('node:assert/strict');
+    const { createRequire } = require('node:module');
+    const fromConfig = createRequire(require.resolve('@prisma/config'));
+    const { Schema } = fromConfig('effect');
+    const schema = Schema.TemplateLiteral(Schema.String, ':', Schema.String, ':', Schema.String, 'X');
+    assert.equal(Schema.decodeUnknownSync(schema)('a:b:cX'), 'a:b:cX');
+    assert.equal(Schema.is(schema)(':'.repeat(5000)), false);
+    const { defineConfig } = require('@prisma/config');
+    const config = defineConfig({ schema: 'prisma/schema.prisma' });
+    assert.equal(config.schema, 'prisma/schema.prisma');
+  `], { cwd: path.resolve(__dirname, '..'), timeout: 3000, stdio: 'pipe' });
+});

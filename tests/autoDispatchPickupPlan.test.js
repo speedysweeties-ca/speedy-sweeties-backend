@@ -126,6 +126,7 @@ const installAllocationHarness = (t, options) => {
   const dispatchEvents = [];
   let transactionCount = 0;
   let routeFetchCount = 0;
+  const routeOrigins = [];
   let releaseRootOrderReads;
   const initialReadsReady = new Promise((resolve) => {
     releaseRootOrderReads = resolve;
@@ -147,6 +148,7 @@ const installAllocationHarness = (t, options) => {
   const routeFetchImplementation = routeFetch(options.routeDurations);
   replaceForTest(t, global, "fetch", async (...args) => {
     routeFetchCount += 1;
+    routeOrigins.push(JSON.parse(args[1].body).origins);
     return routeFetchImplementation(...args);
   });
   replaceForTest(t, prisma.systemSetting, "findUnique", async ({ where }) => ({
@@ -184,6 +186,7 @@ const installAllocationHarness = (t, options) => {
     if (options.beforeFirstTransaction && transactionCount === 1) {
       options.beforeFirstTransaction(drivers);
     }
+    options.beforeTransaction?.({ drivers, orderRows, transactionCount });
 
     let releaseLock;
     const driverLocks = new Map();
@@ -268,7 +271,9 @@ const installAllocationHarness = (t, options) => {
     };
 
     try {
-      return await callback(tx);
+      const result = await callback(tx);
+      options.afterTransaction?.({ result, transactionCount });
+      return result;
     } catch (error) {
       if (lockedOrderId && snapshot) {
         orderRows.set(lockedOrderId, snapshot);
@@ -286,7 +291,9 @@ const installAllocationHarness = (t, options) => {
     getRawQueries: () => rawQueries,
     getStopDeleteCount: () => stopDeleteCount,
     getDispatchEvents: () => dispatchEvents,
-    getRouteFetchCount: () => routeFetchCount
+    getRouteFetchCount: () => routeFetchCount,
+    getRouteOrigins: () => routeOrigins,
+    getTransactionCount: () => transactionCount
   };
 };
 
@@ -469,7 +476,7 @@ test("stale driver presence and GPS are excluded", async (t) => {
   assert.equal(harness.orderRows.get("order-a").assignedDriverId, "driver-b");
 });
 
-test("a driver whose GPS changes after routing is not assigned from a stale route", async (t) => {
+test("a driver whose GPS changes is rerouted before choosing a fallback", async (t) => {
   const harness = installAllocationHarness(t, {
     orders: [autoDispatchOrder("order-a", 101)],
     drivers: [
@@ -490,6 +497,132 @@ test("a driver whose GPS changes after routing is not assigned from a stale rout
   assert.equal(result.dispatched, true);
   assert.equal(result.driverId, "driver-b");
   assert.equal(harness.orderRows.get("order-a").assignedDriverId, "driver-b");
+  assert.equal(harness.getRouteFetchCount(), 2);
+  assert.equal(harness.getRouteOrigins()[1][0].waypoint.location.latLng.latitude, 43.515);
+});
+
+for (const googleLiveTrafficEnabled of [true, false]) {
+  test(`stationary heartbeat allows Rob assignment (live traffic ${googleLiveTrafficEnabled})`, async t => {
+    const harness = installAllocationHarness(t, {
+      orders: [autoDispatchOrder("order-a", 101), ...robWorkload(3)],
+      drivers: [allocationDriver(ROB_ID, "Rob", 43.51)],
+      routeDurations: directRouteDurations(),
+      googleLiveTrafficEnabled,
+      beforeFirstTransaction: drivers => {
+        drivers[0].locationUpdatedAt = new Date(drivers[0].locationUpdatedAt.getTime() + 1);
+        drivers[0].lastSeenAt = drivers[0].locationUpdatedAt;
+      }
+    });
+    const result = await autoDispatchCreatedOrderWithPickupPlan("order-a");
+    assert.equal(result.dispatched, true);
+    assert.equal(result.driverId, ROB_ID);
+    assert.equal(harness.getTransactionCount(), 1);
+    assert.equal(harness.getRouteFetchCount(), googleLiveTrafficEnabled ? 1 : 0);
+    assert.equal(harness.getDispatchEvents().length, 1);
+    assert.equal(harness.getStopDeleteCount(), 1);
+  });
+}
+
+test("moving Rob is rerouted from his new position and keeps priority", async t => {
+  const harness = installAllocationHarness(t, {
+    orders: [autoDispatchOrder("order-a", 101)],
+    drivers: [allocationDriver(ROB_ID, "Rob", 43.51), allocationDriver("other", "Other", 43.51)],
+    routeDurations: directRouteDurations(30, 300),
+    beforeFirstTransaction: drivers => { drivers[0].latitude = 43.52; }
+  });
+  const result = await autoDispatchCreatedOrderWithPickupPlan("order-a");
+  assert.equal(result.driverId, ROB_ID);
+  assert.equal(result.routeDurationSeconds, 300);
+  assert.equal(harness.getRouteFetchCount(), 2);
+  assert.equal(harness.getRouteOrigins()[1][0].waypoint.location.latLng.latitude, 43.52);
+  assert.equal(harness.getDispatchEvents().length, 1);
+});
+
+test("continuous movement stops after three route calculations without assignment", async t => {
+  const warnings = [];
+  replaceForTest(t, console, "warn", message => warnings.push(message));
+  const harness = installAllocationHarness(t, {
+    orders: [autoDispatchOrder("order-a", 101)],
+    drivers: [allocationDriver(ROB_ID, "Rob", 43.51)],
+    routeDurations: directRouteDurations(),
+    beforeTransaction: ({ drivers }) => {
+      drivers[0].latitude = drivers[0].latitude === 43.51 ? 43.52 : 43.51;
+    }
+  });
+  const result = await autoDispatchCreatedOrderWithPickupPlan("order-a");
+  assert.equal(result.dispatched, false);
+  assert.equal(result.reason, "DRIVER_LOCATION_CHANGED");
+  assert.equal(harness.getRouteFetchCount(), 3);
+  assert.equal(harness.getTransactionCount(), 3);
+  assert.equal(harness.getDispatchEvents().length, 0);
+  assert.equal(harness.getStopDeleteCount(), 0);
+  assert.equal(harness.orderRows.get("order-a").assignedDriverId, null);
+  const held = JSON.parse(warnings.at(-1));
+  assert.equal(held.event, "AUTO_DISPATCH");
+  assert.equal(held.outcome, "held");
+  assert.equal(held.reason, "DRIVER_LOCATION_CHANGED");
+  assert.equal(held.detail, "LOCATION_RETRY_LIMIT");
+  assert.equal(held.orderNumber, 101);
+  assert.equal(held.attempt, 3);
+});
+
+test("location retry rechecks Rob's capacity before assignment", async t => {
+  const harness = installAllocationHarness(t, {
+    orders: [autoDispatchOrder("order-a", 101), ...robWorkload(3)],
+    drivers: [allocationDriver(ROB_ID, "Rob", 43.51)],
+    routeDurations: directRouteDurations(),
+    beforeTransaction: ({ drivers, orderRows, transactionCount }) => {
+      if (transactionCount === 1) {
+        drivers[0].latitude = 43.52;
+        orderRows.set("fourth", autoDispatchOrder("fourth", 204, {
+          assignedDriverId: ROB_ID, orderStatus: OrderStatus.DISPATCHED
+        }));
+      }
+    }
+  });
+  const result = await autoDispatchCreatedOrderWithPickupPlan("order-a");
+  assert.equal(result.reason, "NO_ROUTEABLE_DRIVERS");
+  assert.equal(harness.getRouteFetchCount(), 2);
+  assert.equal(harness.orderRows.get("order-a").assignedDriverId, null);
+});
+
+test("location retry stops when auto-dispatch is disabled", async t => {
+  t.after(() => { process.env.AUTO_DISPATCH_ENABLED = "true"; });
+  const harness = installAllocationHarness(t, {
+    orders: [autoDispatchOrder("order-a", 101)],
+    drivers: [allocationDriver(ROB_ID, "Rob", 43.51)],
+    routeDurations: directRouteDurations(),
+    beforeFirstTransaction: drivers => {
+      drivers[0].latitude = 43.52;
+    },
+    afterTransaction: () => { process.env.AUTO_DISPATCH_ENABLED = "false"; }
+  });
+  const result = await autoDispatchCreatedOrderWithPickupPlan("order-a");
+  assert.equal(result.reason, "AUTO_DISPATCH_DISABLED");
+  assert.equal(harness.getRouteFetchCount(), 1);
+  assert.equal(harness.getDispatchEvents().length, 0);
+});
+
+test("location retry does not overwrite an intervening manual assignment", async t => {
+  const harness = installAllocationHarness(t, {
+    orders: [autoDispatchOrder("order-a", 101)],
+    drivers: [allocationDriver(ROB_ID, "Rob", 43.51)],
+    routeDurations: directRouteDurations(),
+    beforeTransaction: ({ drivers, orderRows, transactionCount }) => {
+      if (transactionCount === 1) {
+        drivers[0].latitude = 43.52;
+      } else {
+        Object.assign(orderRows.get("order-a"), {
+          assignedDriverId: "manual-driver", orderStatus: OrderStatus.DISPATCHED,
+          dispatchSource: DispatchSource.MANUAL
+        });
+      }
+    }
+  });
+  const result = await autoDispatchCreatedOrderWithPickupPlan("order-a");
+  assert.equal(result.reason, "ORDER_CHANGED");
+  assert.equal(harness.orderRows.get("order-a").assignedDriverId, "manual-driver");
+  assert.equal(harness.getDispatchEvents().length, 0);
 });
 
 test("an unavailable direct route leaves the order unassigned", async (t) => {
@@ -609,4 +742,22 @@ test("stale Rob GPS does not bypass normal eligibility", async t => {
     routeDurations: directRouteDurations(600, 60)
   });
   assert.equal((await autoDispatchCreatedOrderWithPickupPlan("new")).driverId, "other");
+});
+
+test('auto-dispatch diagnostics expose the held reason without address, IDs or provider exceptions', async t => {
+  const records = [];
+  for (const level of ['log', 'warn', 'error']) replaceForTest(t, console, level, line => {
+    if (line.startsWith('{')) records.push(JSON.parse(line));
+  });
+  installAllocationHarness(t, {
+    orders: [autoDispatchOrder('private-order-id', 501, { geocodeStatus: 'NEEDS_REVIEW' })],
+    drivers: [allocationDriver(ROB_ID, 'Rob', 43.51)], routeDurations: directRouteDurations()
+  });
+  const result = await autoDispatchCreatedOrderWithPickupPlan('private-order-id');
+  assert.equal(result.dispatched, false);
+  const event = records.find(e => e.event === 'AUTO_DISPATCH');
+  assert.equal(event.orderNumber, 501);
+  assert.equal(event.reason, 'ROUTING_UNAVAILABLE');
+  assert.equal(event.detail, 'ADDRESS_NOT_VERIFIED');
+  for (const secret of ['private-order-id', ROB_ID, 'Test Customer', '10 Test Street']) assert(!JSON.stringify(records).includes(secret));
 });

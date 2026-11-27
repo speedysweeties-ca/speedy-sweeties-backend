@@ -1,7 +1,13 @@
+import { dispatcherRelease } from "./dispatcherRelease";
+import { RELEASE_LOGIN_KEY } from "./releaseController";
+import { useReleaseBlocker } from "./useReleaseBlocker";
+import { DispatcherUpdate } from "./DispatcherUpdate";
+import { CustomerAddresses, type SavedAddress } from "./CustomerAddresses";
+import { initialCustomerAddress } from "./customerAddressSelection";
 import { RoutingPreviewMap } from "./RoutingPreviewEnhancerOriginalPins";
 import { useOrderEditPause, type EditTimingSnapshot } from "./useOrderEditPause";
 import { dispatchWaitingMilliseconds, isDispatchTimerPaused, type EditPause } from "./dispatchTiming";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent } from "react";
 import { API_BASE_URL, API_V1_BASE_URL } from "./apiConfig";
 import { DispatcherHelp } from "./DispatcherHelp";
 import { LoadPreviousOrder } from "./LoadPreviousOrder";
@@ -28,6 +34,8 @@ import {
 } from "./deliveryLocation";
 import {
   buildAddressRequestFields,
+  updateAddressFields,
+  applyAutocompleteAddress,
   parseGoogleAutocompleteAddress,
   type GoogleAutocompletePlace,
 } from "./addressFields";
@@ -279,6 +287,7 @@ type EditOrderForm = {
 };
 
 type CustomerSuggestion = {
+  savedAddresses?: SavedAddress[];
   id: string;
   fullName: string;
   phone: string;
@@ -802,6 +811,15 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     return JSON.stringify(manualOrderForm) !== JSON.stringify(initialManualOrderForm);
   }, [manualOrderForm]);
 
+  useReleaseBlocker(!token || loginLoading || activeTab !== "LIVE_ORDERS" ||
+    manualFormIsDirty || manualOrderLoading || dashboardLoading ||
+    !!editingOrderId || !!editOrderForm || !!editingCustomerId || !!customerEditForm ||
+    !!editingCatalogItemId || !!catalogEditForm || !!editingPickupLocationId || !!pickupLocationEditForm ||
+    JSON.stringify(pickupLocationForm) !== JSON.stringify(initialPickupLocationForm) ||
+    !!updatingOrderId || !!updatingDriverVisibilityId || !!updatingCatalogPickupTypeId ||
+    autoDispatchUpdating || googleLiveTrafficUpdating || !!completingChecklistItemId ||
+    orders.some(order => (driverSelections[order.id] ?? order.assignedDriver?.id ?? "") !== (order.assignedDriver?.id ?? "")));
+
   const autoRefreshPaused =
     activeTab === "HELP" ||
     activeTab === "CUSTOMER_FOLLOW_UPS" ||
@@ -961,7 +979,8 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
   }, [driverStats]);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("token");
+    const savedToken = sessionStorage.getItem(RELEASE_LOGIN_KEY) ? null : localStorage.getItem("token");
+    void dispatcherRelease.check();
 
     if (savedToken) {
       setToken(savedToken);
@@ -1129,10 +1148,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         );
 
         if (!selectedAddress) return;
-        setManualOrderForm((current) => ({
-          ...current,
-          ...selectedAddress,
-        }));
+        setManualOrderForm((current) => applyAutocompleteAddress(current, selectedAddress));
       });
       return true;
     };
@@ -1177,7 +1193,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
         if (!selectedAddress) return;
         setEditOrderForm((current) =>
-          current ? { ...current, ...selectedAddress } : current
+          current ? applyAutocompleteAddress(current, selectedAddress) : current
         );
       });
       return true;
@@ -2855,6 +2871,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
       if (response.ok) {
         if (!Array.isArray(data.orders)) throw new Error("Invalid order response");
+        dispatcherRelease.observe(response.headers.get("X-Dispatcher-Release"));
         const fetchedOrders: Order[] = [...data.orders];
         // The API paginates active orders in batches of 100. Observe a complete
         // snapshot so an order moving between pages is never a false arrival.
@@ -2919,6 +2936,11 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
     loginPending.current = true;
     try {
       setLoginLoading(true);
+      await dispatcherRelease.check();
+      if (dispatcherRelease.pending) {
+        dispatcherRelease.reload();
+        return;
+      }
 
       const response = await fetch(`${API_V1_BASE_URL}/auth/login`, {
         method: "POST",
@@ -2941,6 +2963,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
       }
       if (response.ok) {
         setPassword("");
+        sessionStorage.removeItem(RELEASE_LOGIN_KEY);
         localStorage.setItem("token", data.token);
         setToken(data.token);
         await fetchCurrentUser(data.token);
@@ -3233,10 +3256,7 @@ const handleEditOrderFieldChange = (
   setEditOrderForm((prev) => {
     if (!prev) return prev;
 
-    return {
-      ...prev,
-      [field]: value,
-    };
+    return updateAddressFields(prev, { [field]: value });
   });
 };
 
@@ -3571,25 +3591,32 @@ const handleSaveEditedOrder = async (orderId: string) => {
     field: keyof Omit<ManualOrderForm, "items">,
     value: string
   ) => {
-    setManualOrderForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setManualOrderForm((prev) => updateAddressFields(prev, { [field]: value }));
+  };
+
+  const handleCustomerSearchBlur = (event: FocusEvent<HTMLDivElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget)) return;
+
+    // Ignore searches still in flight after the dispatcher leaves this field.
+    customerSearchRequestIdRef.current += 1;
+    setCustomerSuggestions([]);
+    setActiveCustomerSearchField(null);
   };
 
   const selectCustomerSuggestion = (customer: CustomerSuggestion) => {
     customerSearchRequestIdRef.current += 1;
     setSelectedCustomer(customer);
+    const address = initialCustomerAddress({ ...customer, unitNumber: customer.unitNumber || null, buzzCode: customer.buzzCode || null });
     setManualOrderForm((prev) => ({
       ...prev,
       customerName: customer.fullName || "",
       customerPhone: customer.phone || "",
       customerEmail: customer.email || "",
-      addressLine1: customer.addressLine1 || "",
-      unitNumber: customer.unitNumber || "",
-      buzzCode: customer.buzzCode || "",
-      city: customer.city || "Guelph",
-      province: customer.province || "ON",
+      addressLine1: address.addressLine1 || "",
+      unitNumber: address.unitNumber || "",
+      buzzCode: address.buzzCode || "",
+      city: address.city || "Guelph",
+      province: address.province || "ON",
       recurringDriverNotes: recurringDriverNotesForCustomer(
         customer.recurringDriverNotes
       ),
@@ -3954,7 +3981,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
       const data = await response.json();
 
       if (response.ok) {
-        alert("Manual order created successfully");
+        alert(data.addressBookFull
+          ? "Manual order created successfully. The address was saved to the customer profile, but the saved-address list is full (20). Remove an unused saved address to make room."
+          : "Manual order created successfully");
         setManualOrderForm(initialManualOrderForm);
         setSelectedCustomer(null);
         customerSearchRequestIdRef.current += 1;
@@ -4216,10 +4245,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
     setCustomerEditForm((prev) => {
       if (!prev) return prev;
 
-      return {
-        ...prev,
-        [field]: value,
-      };
+      return updateAddressFields(prev, { [field]: value });
     });
   };
 
@@ -6061,6 +6087,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                             </td>
 
                             <td className="p-2 align-top text-zinc-300">
+                              <p className="text-xs text-zinc-500">Last-used profile address</p>
                               <p>{customer.addressLine1}</p>
                               {customer.unitNumber && (
                                 <p className="text-zinc-300 text-xs mt-1">
@@ -6077,6 +6104,9 @@ const handleSaveEditedOrder = async (orderId: string) => {
                                   .filter(Boolean)
                                   .join(", ")}
                               </p>
+                              {token && <CustomerAddresses key={customer.id} customerId={customer.id} token={token}
+                                currentAddress={{ addressLine1: customer.addressLine1, unitNumber: customer.unitNumber || null,
+                                  buzzCode: customer.buzzCode || null, city: customer.city, province: customer.province }} />}
                             </td>
 
                             <td className="p-2 align-top">
@@ -7258,6 +7288,8 @@ const handleSaveEditedOrder = async (orderId: string) => {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-white px-4">
         <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-2xl">
+          <DispatcherUpdate signedIn={false} />
+          {sessionStorage.getItem(RELEASE_LOGIN_KEY) && <p role="status" className="mb-4 text-amber-200">The dispatcher was updated. Please sign in again.</p>}
           <h1 className="text-3xl font-bold mb-2 text-center">Dispatcher Login</h1>
           <p className="text-zinc-400 text-center mb-6">
             Sign in to manage live delivery orders.
@@ -7296,6 +7328,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
+      <DispatcherUpdate signedIn />
       <div className="border-b border-zinc-800 bg-zinc-900/70 backdrop-blur">
         <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col gap-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -8033,7 +8066,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="relative">
+              <div className="relative" onBlur={handleCustomerSearchBlur}>
                 <input
                   type="text"
                   placeholder="Customer Name"
@@ -8051,6 +8084,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                       <button
                         key={customer.id}
                         type="button"
+                        onMouseDown={(event) => event.preventDefault()}
                         onClick={() => selectCustomerSuggestion(customer)}
                         className="w-full text-left px-3 py-3 hover:bg-zinc-800 transition border-b border-zinc-800 last:border-b-0"
                       >
@@ -8074,7 +8108,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                 )}
               </div>
 
-              <div className="relative">
+              <div className="relative" onBlur={handleCustomerSearchBlur}>
                 <input
                   type="text"
                   placeholder="Customer Phone"
@@ -8092,6 +8126,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
                       <button
                         key={customer.id}
                         type="button"
+                        onMouseDown={(event) => event.preventDefault()}
                         onClick={() => selectCustomerSuggestion(customer)}
                         className="w-full text-left px-3 py-3 hover:bg-zinc-800 transition border-b border-zinc-800 last:border-b-0"
                       >
@@ -8139,6 +8174,22 @@ const handleSaveEditedOrder = async (orderId: string) => {
               <p className="text-zinc-500 text-xs -mt-2 md:col-span-2">
                 Select a suggestion to fill the street address. Apartment/unit and buzz code stay separate from Google Maps.
               </p>
+
+              {selectedCustomer && token && (
+                <div className="md:col-span-2">
+                  <CustomerAddresses
+                    key={`addresses-${selectedCustomer.id}`}
+                    customerId={selectedCustomer.id}
+                    token={token}
+                    currentAddress={manualOrderForm}
+                    profileAddress={{ ...selectedCustomer, unitNumber: selectedCustomer.unitNumber || null, buzzCode: selectedCustomer.buzzCode || null }}
+                    disabled={manualOrderLoading}
+                    onSelect={address => setManualOrderForm(prev => ({ ...prev,
+                      addressLine1: address.addressLine1, unitNumber: address.unitNumber || "",
+                      buzzCode: address.buzzCode || "", city: address.city, province: address.province }))}
+                  />
+                </div>
+              )}
 
               <input
                 type="text"

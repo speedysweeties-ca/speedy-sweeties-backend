@@ -219,52 +219,39 @@ export const recordDeliveredOrderLoyalty = async (
   customerId: string | null,
   orderSource: OrderSource,
   now: Date = new Date()
+): Promise<LoyaltyMutationResult> => prisma.$transaction(tx =>
+  recordDeliveredOrderLoyaltyInTransaction(tx, customerId, orderSource, now)
+);
+
+export const recordDeliveredOrderLoyaltyInTransaction = async (
+  tx: Prisma.TransactionClient,
+  customerId: string | null,
+  orderSource: OrderSource,
+  now: Date = new Date()
 ): Promise<LoyaltyMutationResult> => {
   if (!customerId || !isLoyaltyEligibleOrderSource(orderSource)) {
     return noCustomerResult();
   }
 
-  return prisma.$transaction(async (tx) => {
-    const lockedCustomer = await lockCustomerLoyalty(tx, customerId);
-    if (!lockedCustomer) return noCustomerResult();
+  const lockedCustomer = await lockCustomerLoyalty(tx, customerId);
+  if (!lockedCustomer) return noCustomerResult();
 
-    const { customer, monthReset } = await resetLoyaltyMonthIfNeeded(
-      tx,
-      lockedCustomer,
-      now
-    );
-    const nextCompletedOrders = customer.loyaltyCompletedOrders + 1;
+  const { customer, monthReset } = await resetLoyaltyMonthIfNeeded(
+    tx,
+    lockedCustomer,
+    now
+  );
+  const nextCompletedOrders = customer.loyaltyCompletedOrders + 1;
 
-    if (nextCompletedOrders >= LOYALTY_DELIVERIES_PER_REWARD) {
-      const updatedCustomer = await tx.customer.update({
-        where: { id: customer.id },
-        data: {
-          loyaltyCompletedOrders: 0,
-          loyaltyProgressMonth: getCurrentLoyaltyMonth(now),
-          loyaltyRewardsEarned: { increment: 1 },
-          loyaltyRewardBalance: { increment: 1 },
-          loyaltyFreeDelivery: true
-        },
-        select: loyaltyCustomerSelect
-      });
-
-      return {
-        customerFound: true,
-        progressIncreased: true,
-        rewardEarned: true,
-        rewardRedeemed: false,
-        monthReset,
-        completedOrders: updatedCustomer.loyaltyCompletedOrders,
-        notification: "LOYALTY_REWARD_EARNED",
-        notificationShouldBeAttempted: true
-      };
-    }
-
+  if (nextCompletedOrders >= LOYALTY_DELIVERIES_PER_REWARD) {
     const updatedCustomer = await tx.customer.update({
       where: { id: customer.id },
       data: {
-        loyaltyCompletedOrders: nextCompletedOrders,
-        loyaltyProgressMonth: getCurrentLoyaltyMonth(now)
+        loyaltyCompletedOrders: 0,
+        loyaltyProgressMonth: getCurrentLoyaltyMonth(now),
+        loyaltyRewardsEarned: { increment: 1 },
+        loyaltyRewardBalance: { increment: 1 },
+        loyaltyFreeDelivery: true
       },
       select: loyaltyCustomerSelect
     });
@@ -272,14 +259,34 @@ export const recordDeliveredOrderLoyalty = async (
     return {
       customerFound: true,
       progressIncreased: true,
-      rewardEarned: false,
+      rewardEarned: true,
       rewardRedeemed: false,
       monthReset,
       completedOrders: updatedCustomer.loyaltyCompletedOrders,
-      notification: "LOYALTY_PROGRESS_UPDATE",
+      notification: "LOYALTY_REWARD_EARNED",
       notificationShouldBeAttempted: true
     };
+  }
+
+  const updatedCustomer = await tx.customer.update({
+    where: { id: customer.id },
+    data: {
+      loyaltyCompletedOrders: nextCompletedOrders,
+      loyaltyProgressMonth: getCurrentLoyaltyMonth(now)
+    },
+    select: loyaltyCustomerSelect
   });
+
+  return {
+    customerFound: true,
+    progressIncreased: true,
+    rewardEarned: false,
+    rewardRedeemed: false,
+    monthReset,
+    completedOrders: updatedCustomer.loyaltyCompletedOrders,
+    notification: "LOYALTY_PROGRESS_UPDATE",
+    notificationShouldBeAttempted: true
+  };
 };
 
 export const getCustomerLoyaltySnapshot = async (

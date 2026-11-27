@@ -84,3 +84,24 @@ export const buildAddressRequestFields = (
     province: address.province.trim(),
   };
 };
+
+// Apply civic edits synchronously so delayed form effects cannot erase newly
+// entered access details. A complete saved-address patch supplies its own codes.
+export const updateAddressFields = <T extends AddressFields>(current: T, patch: Partial<T>): T => {
+  const next = { ...current, ...patch };
+  const key = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
+  const provinceKey = (value: string) => key(value) === "ontario" ? "on" : key(value);
+  const changed = key(current.addressLine1) !== key(next.addressLine1) ||
+    key(current.city) !== key(next.city) || provinceKey(current.province) !== provinceKey(next.province);
+  return {
+    ...current,
+    ...(changed && "unitNumber" in current ? { unitNumber: "" } : {}),
+    ...(changed && "buzzCode" in current ? { buzzCode: "" } : {}),
+    ...patch,
+  };
+};
+
+export const applyAutocompleteAddress = <T extends AddressFields>(current: T, selected: ParsedGoogleAddressFields): T => {
+  const { unitNumber, ...civic } = selected;
+  return updateAddressFields(current, { ...civic, ...(unitNumber ? { unitNumber } : {}) } as Partial<T>);
+};

@@ -67,7 +67,7 @@ export function createDispatcherServer({
     dotfiles: 'deny', index: false, redirect: false, fallthrough: true,
     cacheControl: false,
     setHeaders(res, filename) {
-      if (extname(filename) === '.html') res.setHeader('Cache-Control', 'no-store');
+      if (extname(filename) === '.html' || filename.endsWith('/dispatcher-version.json')) res.setHeader('Cache-Control', 'no-store');
     },
   }));
   app.use((req, res, next) => {

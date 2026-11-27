@@ -32,7 +32,8 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
     const phone = '519' + String(parseInt(unique, 16)).slice(-7).padStart(7, '0');
     return db.customer.create({ data: { fullName: 'Synthetic Customer', normalizedFullName: 'synthetic customer', phone, normalizedPhone: phone,
       email: email ? `${unique}@example.invalid` : null, normalizedEmail: email ? `${unique}@example.invalid` : null,
-      addressLine1: '1 Example Street', city: 'Guelph', province: 'ON' } });
+      addressLine1: '1 Example Street', city: 'Guelph', province: 'ON',
+      savedAddresses: { create: { label: 'Address 1', addressLine1: '1 Example Street', unitNumber: '2', buzzCode: '123', city: 'Guelph', province: 'ON', isDefault: true } } } });
   };
   const ordered = async (customer, status = 'DELIVERED', changes = {}) => {
     const trackingToken = randomBytes(32).toString('base64url');
@@ -178,6 +179,7 @@ test('privacy lifecycle on isolated synthetic PostgreSQL', { skip: process.env.P
       const marker = await db.privacyDeletedIdentity.findUnique({ where: { phoneHash: service.hash(`phone:${c.normalizedPhone}`) } });
       assert.equal(marker.reviewAt.toISOString(), addCalendarMonths(erasedRequest.databaseErasedAt, 24).toISOString());
       assert.equal(await db.customer.findUnique({ where: { id: c.id } }), null);
+      assert.equal(await db.customerAddress.count({ where: { customerId: c.id } }), 0);
       assert.equal(await db.privacyAccessCredential.count({ where: { customerId: c.id } }), 0);
       const erased = await db.order.findUnique({ where: { id: source.order.id }, include: { digitalReceipt: true, items: true, helpRequest: true } });
       assert.equal(erased.phone, ''); assert.equal(erased.addressLine1, ''); assert.equal(erased.customerId, null);

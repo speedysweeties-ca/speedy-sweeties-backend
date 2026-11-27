@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Generated API/UI release identity
+src/generated/dispatcherRelease.ts
+
 # TypeScript build output
 dist/
 *.tsbuildinfo

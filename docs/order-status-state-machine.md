@@ -39,6 +39,10 @@ their existing assignment compare-and-set and Number 4 advisory-lock behavior.
 `DELIVERED` and `CANCELLED` are terminal. All other actor/status combinations
 are rejected with `409 INVALID_ORDER_TRANSITION`. Pickup or delivery completion
 without a persisted receipt is rejected with `409 RECEIPT_REQUIRED`.
+An assigned driver's repeated DELIVERED action for that same delivered order is
+an acknowledgement, not a new transition: it returns 200 with the saved order
+and `alreadyCompleted: true`. Cancellation, other drivers and missing orders
+remain refused. The transition matrix itself does not permit reopening.
 
 The legacy staff status route is now cancellation-only. The current web
 dispatcher uses it only for cancellation, so its current workflow remains
@@ -47,16 +51,20 @@ backend or dispatcher operation required one.
 
 ## Concurrency and side effects
 
-Driver actions retain their `updateMany` compare-and-set on order ID, assigned
-driver, and current status. Two requests that read the same prior state can
-therefore commit only one transition. Lifecycle timestamps are built from the
-central policy and preserve an existing timestamp on retries.
+Acceptance and pickup retain their `updateMany` compare-and-set on order ID,
+assigned driver and current status. Delivery takes the Order row lock and checks
+ownership, final status and receipt inside the transaction. A new delivery and
+its existing eligible loyalty credit commit together; retries acknowledge the
+saved result without another write. Lifecycle timestamps remain unchanged on
+replay. A loyalty-write failure rolls completion back so it can safely retry.
 
 Receipt creation/update and `ACCEPTED -> OUT_FOR_DELIVERY` remain one
 transaction under the existing PostgreSQL `FOR UPDATE` order-row lock. An
 error rolls back both writes. Customer out-for-delivery notifications are sent
-only after a successful status write; delivery loyalty processing runs only for
-the single successful `OUT_FOR_DELIVERY -> DELIVERED` compare-and-set winner.
+only after a successful status write. Delivery notifications are attempted only
+by the transaction that newly completes the order, after commit. Notification
+failure does not change a committed delivery to an error; retries do not resend.
+This is best-effort notification delivery, not a durable notification outbox.
 
 Number 4 auto-dispatch continues to use its transaction-scoped PostgreSQL
 advisory lock, and Number 2 route evaluation remains
@@ -71,8 +79,10 @@ response and transition the order atomically, so its workflow is compatible.
 The older `driver-action` pickup request remains available only when an
 existing receipt is present.
 
-No iOS driver source is present in this workspace. Its compatibility cannot be
-verified here. The legacy `speedy_sweeties_android_phase1` dispatcher screen
+The November 26 delivery-confirmation companion patches review both driver
+apps: they retry a transient completion failure once and require an explicit
+same-order DELIVERED acknowledgement. See `delivery-confirmation-retry.md` for
+source branches and mobile acceptance limits. The legacy `speedy_sweeties_android_phase1` dispatcher screen
 contains direct ACCEPTED, OUT_FOR_DELIVERY, and DELIVERED status buttons. Those
 requests are intentionally rejected by the now cancellation-only staff status
 endpoint because the client has no receipt-backed driver workflow. It must be

@@ -1,3 +1,4 @@
+import { useReleaseBlocker } from "./useReleaseBlocker";
 import { useEffect, useRef, useState } from "react";
 import { API_V1_BASE_URL } from "./apiConfig";
 import { helpAnswerText, helpDestinations, helpRequestBody, isHelpAnswer, type HelpAnswer, type HelpDestination } from "./dispatcherHelpClient";
@@ -19,6 +20,7 @@ export function DispatcherHelp({ token, onNavigate, onSessionExpired }: {
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [pendingQuestion, setPendingQuestion] = useState("");
   const [error, setError] = useState("");
+  useReleaseBlocker(!!question || !!pendingQuestion);
   const requestRef = useRef<AbortController | null>(null);
   const answerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
