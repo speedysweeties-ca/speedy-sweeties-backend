@@ -259,7 +259,9 @@ test("manual creation atomically snapshots and persists against the resolved cus
     data: {
       addressLine1: "10A Industrial Dr",
       city: "Guelph",
-      province: "Ontario"
+      province: "Ontario",
+      unitNumber: null,
+      buzzCode: null
     }
   });
   assert.deepEqual(customerUpdates[1], {
@@ -286,7 +288,9 @@ test("manual creation atomically snapshots and persists against the resolved cus
     data: {
       addressLine1: "10A Industrial Dr",
       city: "Guelph",
-      province: "Ontario"
+      province: "Ontario",
+      unitNumber: null,
+      buzzCode: null
     }
   });
   assert.deepEqual(customerUpdates[3], {
@@ -317,7 +321,9 @@ test("manual creation atomically snapshots and persists against the resolved cus
     data: {
       addressLine1: "10A Industrial Dr",
       city: "Guelph",
-      province: "Ontario"
+      province: "Ontario",
+      unitNumber: null,
+      buzzCode: null
     }
   });
 
