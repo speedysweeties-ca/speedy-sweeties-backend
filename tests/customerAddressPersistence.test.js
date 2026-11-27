@@ -183,7 +183,7 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
         findFirst: async ({ where }) => database.orders.find(order =>
           order.customerId === where.OR[0].customerId && order.orderStatus !== "CANCELLED") ?? null,
         create: async ({ data }) => {
-          const order = { id: `order-${database.orders.length + 1}`, ...data };
+          const order = { id: `order-${database.orders.length + 1}`, orderNumber: database.orders.length + 101, ...data };
           database.orders.push(order);
           return order;
         },
@@ -754,3 +754,38 @@ for (const scenario of [
     }
   });
 }
+
+test('creation diagnostics distinguish a committed order from a later dispatch failure', async t => {
+  const { withDiagnosticContext } = require('../dist/utils/operationalDiagnostics');
+  const { randomUUID } = require('node:crypto');
+  const events = [];
+  for (const level of ['log', 'warn', 'error']) replaceForTest(t, console, level, line => {
+    if (line.startsWith('{')) events.push(JSON.parse(line));
+  });
+  const db = installOrderCreationDatabase(t);
+  replaceForTest(t, deliveryGeocodingService, 'geocodeDeliveryAddress', async () => needsReviewLocation);
+  replaceForTest(t, businessController, 'isBusinessConfirmedClosed', async () => false);
+  const dispatch = require('../dist/services/autoDispatchPickupPlan.service');
+  replaceForTest(t, dispatch, 'autoDispatchCreatedOrderWithPickupPlan', async () => { throw new Error('dispatch unavailable'); });
+  const requestId = randomUUID();
+  await assert.rejects(withDiagnosticContext(requestId, () => createOrderController({ body: firstOrderBody }, responseRecorder())), /dispatch unavailable/);
+  assert.equal(db.database.orders.length, 1);
+  const committed = events.find(e => e.event === 'ORDER_CREATE' && e.outcome === 'committed');
+  assert.equal(committed.orderNumber, 101);
+  assert.equal(committed.requestId, requestId);
+  for (const secret of [firstOrderBody.customerName, firstOrderBody.customerPhone, firstOrderBody.addressLine1]) assert(!JSON.stringify(events).includes(secret));
+});
+
+test('rolled back order creation never logs a committed order', async t => {
+  const events = [];
+  for (const level of ['log', 'warn', 'error']) replaceForTest(t, console, level, line => {
+    if (line.startsWith('{')) events.push(JSON.parse(line));
+  });
+  installOrderCreationDatabase(t);
+  replaceForTest(t, deliveryGeocodingService, 'geocodeDeliveryAddress', async () => needsReviewLocation);
+  replaceForTest(t, businessController, 'isBusinessConfirmedClosed', async () => false);
+  const service = require('../dist/services/customerSavedAddress.service');
+  replaceForTest(t, service, 'rememberOrderAddress', async () => { throw new Error('address write failed'); });
+  await assert.rejects(createOrderController({ body: firstOrderBody }, responseRecorder()), /address write failed/);
+  assert(!events.some(e => e.event === 'ORDER_CREATE' && e.outcome === 'committed'));
+});

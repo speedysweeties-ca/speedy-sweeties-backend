@@ -1,3 +1,4 @@
+import { logDiagnostic, setDiagnosticOrder, safeDiagnosticErrorCode } from "../utils/operationalDiagnostics";
 import {
   DispatchEventType,
   DispatchSource,
@@ -14,7 +15,6 @@ import {
   buildOrderTransitionTimestampData,
   evaluateOrderStatusTransition
 } from "./orderStateTransition.service";
-import { RoutingPreviewUnavailableError } from "./routingPreview.service";
 import { recordDispatchEventBestEffort } from "./dispatcherPerformanceTracking.service";
 import {
   computeConfiguredRouteMatrixToDestinations,
@@ -168,6 +168,8 @@ type AutoDispatchAllocationResult =
       reason: Exclude<AutoDispatchPickupPlanResult["reason"], "DISPATCHED">;
     };
 
+type AllocationDiagnostic = { orderNumber?: number; detail?: string; code?: string; eligibleDrivers?: number; priorityDriverActiveOrders?: number };
+
 /**
  * Assigns a newly created order to the online driver with fresh GPS whose
  * shortest configured route to the customer's address. With Google Live
@@ -182,7 +184,7 @@ type AutoDispatchAllocationResult =
  * part in this assignment decision.
  */
 const attemptAutoDispatchCreatedOrder = async (
-  orderId: string
+  orderId: string, diagnostic: AllocationDiagnostic
 ): Promise<AutoDispatchPickupPlanResult> => {
   if (!(await isAutoDispatchEnabled())) {
     return { dispatched: false, reason: "AUTO_DISPATCH_DISABLED" };
@@ -204,6 +206,8 @@ const attemptAutoDispatchCreatedOrder = async (
     }
   });
 
+  diagnostic.orderNumber = order?.orderNumber;
+  setDiagnosticOrder(order?.orderNumber);
   if (
     !order ||
     order.orderStatus !== OrderStatus.PLACED ||
@@ -227,9 +231,7 @@ const attemptAutoDispatchCreatedOrder = async (
     Number.isFinite(deliveryLongitude);
 
   if (!hasVerifiedDeliveryLocation) {
-    console.warn(
-      `[Auto Dispatch] Order ${order.id} held: the delivery address has no verified coordinates.`
-    );
+    diagnostic.detail = "ADDRESS_NOT_VERIFIED";
     return { dispatched: false, reason: "ROUTING_UNAVAILABLE" };
   }
 
@@ -268,10 +270,9 @@ const attemptAutoDispatchCreatedOrder = async (
     );
   });
 
+  diagnostic.eligibleDrivers = routeableDrivers.length;
   if (routeableDrivers.length === 0) {
-    console.log(
-      `[Auto Dispatch] Order ${order.id} held: no online driver has fresh GPS.`
-    );
+    diagnostic.detail = "NO_FRESH_GPS";
     return { dispatched: false, reason: "NO_ROUTEABLE_DRIVERS" };
   }
 
@@ -325,21 +326,13 @@ const attemptAutoDispatchCreatedOrder = async (
       });
     }
   } catch (error) {
-    console.error(
-      `[Auto Dispatch] Order ${order.id} held: direct driver routing unavailable.`,
-      error instanceof RoutingPreviewUnavailableError
-        ? error.message
-        : error instanceof Error
-          ? error.name
-          : typeof error
-    );
+    diagnostic.detail = "ROUTING_PROVIDER_FAILED";
+    diagnostic.code = safeDiagnosticErrorCode(error);
     return { dispatched: false, reason: "ROUTING_UNAVAILABLE" };
   }
 
   if (directRoutesByDriverId.size === 0) {
-    console.warn(
-      `[Auto Dispatch] Order ${order.id} held: no driver has a route to the delivery address.`
-    );
+    diagnostic.detail = "NO_AVAILABLE_ROUTE";
     return { dispatched: false, reason: "ROUTING_UNAVAILABLE" };
   }
 
@@ -491,16 +484,20 @@ const attemptAutoDispatchCreatedOrder = async (
                 orderStatus: { notIn: [OrderStatus.DELIVERED, OrderStatus.CANCELLED] }
               }
             });
+            diagnostic.priorityDriverActiveOrders = activeOrders;
             if (activeOrders < ROB_ACTIVE_ORDER_LIMIT) preferred = robCandidate;
+            else diagnostic.detail = "PRIORITY_CAP_REACHED";
           }
         }
         const selected = preferred ??
           selectAutoDispatchAllocationCandidate(fallbackCandidates);
         if (!selected) {
+          diagnostic.detail ??= "NO_ELIGIBLE_CANDIDATE";
           return { selected: null, reason: "NO_ROUTEABLE_DRIVERS" };
         }
 
         if (!preferred && !await lockAssignableDriver(tx, selected.driver.id, new Date())) {
+          diagnostic.detail = "DRIVER_UNAVAILABLE";
           return { selected: null, reason: "NO_ROUTEABLE_DRIVERS" };
         }
 
@@ -535,10 +532,8 @@ const attemptAutoDispatchCreatedOrder = async (
       }
     );
   } catch (error) {
-    console.error(
-      `[Auto Dispatch] Order ${order.id} held: allocation transaction unavailable.`,
-      error instanceof Error ? `${error.name}: ${error.message}` : typeof error
-    );
+    diagnostic.detail = "ALLOCATION_TRANSACTION_FAILED";
+    diagnostic.code = safeDiagnosticErrorCode(error);
     return { dispatched: false, reason: "ALLOCATION_UNAVAILABLE" };
   }
 
@@ -556,14 +551,6 @@ const attemptAutoDispatchCreatedOrder = async (
     fromDriverId: null,
     toDriverId: selected.driver.id
   });
-
-  console.log(
-    `[Auto Dispatch] Order ${order.id} dispatched to driver ${selected.driver.id}; ${
-      routeCalculationMode === "GOOGLE_LIVE_TRAFFIC"
-        ? "live-traffic ETA"
-        : "free coordinate estimate"
-    } ${selected.routeDurationSeconds} second(s).`
-  );
 
   return {
     dispatched: true,
@@ -589,17 +576,22 @@ export const autoDispatchCreatedOrderWithPickupPlan = async (
   orderId: string
 ): Promise<AutoDispatchPickupPlanResult> => {
   for (let attempt = 1; attempt <= MAX_LOCATION_ATTEMPTS; attempt += 1) {
-    const result = await attemptAutoDispatchCreatedOrder(orderId);
+    const diagnostic: AllocationDiagnostic = {};
+    let result: AutoDispatchPickupPlanResult;
+    try { result = await attemptAutoDispatchCreatedOrder(orderId, diagnostic); }
+    catch (error) {
+      logDiagnostic({ event: "AUTO_DISPATCH", outcome: "failed", attempt, ...diagnostic, code: safeDiagnosticErrorCode(error) });
+      throw error;
+    }
+    const retrying = result.reason === "DRIVER_LOCATION_CHANGED" && attempt < MAX_LOCATION_ATTEMPTS;
+    logDiagnostic({ event: "AUTO_DISPATCH", outcome: result.dispatched ? "assigned" : retrying ? "retrying" : "held",
+      reason: result.reason, attempt, ...diagnostic,
+      ...(result.reason === "DRIVER_LOCATION_CHANGED" && !retrying ? { detail: "LOCATION_RETRY_LIMIT" } : {}) });
     if (
       result.reason === "DRIVER_LOCATION_CHANGED" &&
       attempt < MAX_LOCATION_ATTEMPTS
     ) {
       continue;
-    }
-    if (!result.dispatched) {
-      console.warn(
-        `[Auto Dispatch] Order ${orderId} not assigned: ${result.reason}; attempt ${attempt}.`
-      );
     }
     return result;
   }

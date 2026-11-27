@@ -673,3 +673,31 @@ test("delivery replay never confirms a cancelled order or another driver's order
   assert.equal(harness.getUpdateAttempts(), 0);
   assert.equal(harness.getLoyaltyUpdateCount(), 0);
 });
+
+test('diagnostics show committed acceptance, receipt pickup, delivery and replay only after writes', async t => {
+  const { withDiagnosticContext } = require('../dist/utils/operationalDiagnostics');
+  const { randomUUID } = require('node:crypto');
+  const events = [];
+  for (const level of ['log', 'warn', 'error']) replaceForTest(t, console, level, line => events.push(JSON.parse(line)));
+  installTransitionHarness(t, { order: order({ orderStatus: OrderStatus.DISPATCHED, fcmToken: null }) });
+  await withDiagnosticContext(randomUUID(), async () => {
+    await driverActionController(driverRequest('ACCEPTED'), responseRecorder());
+    await createOrUpdateReceiptController(receiptRequest(), responseRecorder());
+    await driverActionController(driverRequest('DELIVERED'), responseRecorder());
+    await driverActionController(driverRequest('DELIVERED'), responseRecorder());
+  });
+  const saved = events.filter(e => ['committed', 'replayed'].includes(e.outcome));
+  assert.deepEqual(saved.map(e => [e.event, e.action, e.outcome]), [
+    ['DRIVER_ACTION', 'ACCEPTED', 'committed'], ['RECEIPT_SAVE', 'OUT_FOR_DELIVERY', 'committed'],
+    ['DRIVER_ACTION', 'DELIVERED', 'committed'], ['DRIVER_ACTION', 'DELIVERED', 'replayed']
+  ]);
+  assert(saved.every(e => e.orderNumber === 101));
+});
+
+test('rolled back delivery never emits a committed diagnostic', async t => {
+  const events = [];
+  for (const level of ['log', 'warn', 'error']) replaceForTest(t, console, level, line => events.push(JSON.parse(line)));
+  installTransitionHarness(t, { order: order({ orderStatus: OrderStatus.OUT_FOR_DELIVERY, customerId: 'customer-1' }), receipt: receipt(), failLoyaltyUpdate: true });
+  await assert.rejects(driverActionController(driverRequest('DELIVERED'), responseRecorder()), /simulated loyalty write failure/);
+  assert(!events.some(e => e.outcome === 'committed'));
+});

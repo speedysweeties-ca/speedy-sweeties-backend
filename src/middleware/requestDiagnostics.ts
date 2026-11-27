@@ -1,3 +1,4 @@
+import { withDiagnosticContext, diagnosticContext, logDiagnostic, safeDiagnosticErrorCode } from "../utils/operationalDiagnostics";
 import { randomUUID } from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 
@@ -18,18 +19,29 @@ export function safeRouteTemplate(req: Request): string {
   return `${scopes.has(req.baseUrl) ? req.baseUrl : ""}${route}`;
 }
 
-export function requestDiagnostics(_req: Request, res: Response, next: NextFunction): void {
+export function requestDiagnostics(req: Request, res: Response, next: NextFunction): void {
   // Do not trust a caller-supplied correlation ID to become log content.
   res.locals.requestId = randomUUID();
   res.set("X-Request-ID", res.locals.requestId);
-  next();
+  const started = Date.now();
+  withDiagnosticContext(res.locals.requestId, () => {
+    const requestContext = diagnosticContext();
+    res.once("finish", () => {
+      if (res.statusCode >= 400) logDiagnostic({
+        ...requestContext, event: "HTTP_REQUEST_FAILED",
+        outcome: res.statusCode >= 500 ? "failed" : "rejected",
+        method: req.method, route: safeRouteTemplate(req), status: res.statusCode,
+        durationMs: Math.max(0, Date.now() - started)
+      });
+    });
+    next();
+  });
 }
 
 export function logServerError(error: unknown, req: Request, res: Response): void {
-  const rawCode = error && typeof error === "object" ? (error as { code?: unknown }).code : undefined;
-  const code = typeof rawCode === "string" && /^P\d{4}$/.test(rawCode) ? rawCode : "unclassified";
-  console.error(JSON.stringify({
-    event: "HTTP_SERVER_ERROR", requestId: res.locals.requestId ?? "unavailable",
+  const code = safeDiagnosticErrorCode(error);
+  logDiagnostic({
+    event: "HTTP_SERVER_ERROR", outcome: "failed", requestId: res.locals.requestId ?? "unavailable",
     method: req.method, route: safeRouteTemplate(req), code
-  }));
+  });
 }

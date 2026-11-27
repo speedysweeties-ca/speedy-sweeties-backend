@@ -1,3 +1,4 @@
+import { logDiagnostic, safeDiagnosticErrorCode } from "../utils/operationalDiagnostics";
 import type { Message } from "firebase-admin/messaging";
 import { prisma } from "../lib/prisma";
 import { messaging } from "../config/firebase";
@@ -6,7 +7,7 @@ import { customerNotificationReference, customerNotificationEventId } from "../u
 export const CUSTOMER_NOTIFICATION_TTL_MS = 15 * 60_000;
 export type CustomerNotificationType = "ORDER_OUT_FOR_DELIVERY" | "LOYALTY_REWARD_EARNED" | "LOYALTY_REWARD_APPLIED" | "LOYALTY_PROGRESS_UPDATE";
 type Snapshot = {
-  id: string; fcmToken: string | null; privacyErasedAt: Date | null; orderStatus: string;
+  orderNumber?: number; id: string; fcmToken: string | null; privacyErasedAt: Date | null; orderStatus: string;
   createdAt: Date; outForDeliveryAt: Date | null; deliveredAt: Date | null;
 };
 export function customerNotificationMessage(order: Snapshot, type: CustomerNotificationType, now = Date.now()): Message | null {
@@ -40,27 +41,44 @@ export function createCustomerOrderNotifier(deps: {
   now?: () => number;
 }) {
   return async (orderId: string, type: CustomerNotificationType) => {
+    let order: Snapshot | null = null;
+    const log = (outcome: string, extra: Record<string, unknown> = {}) => logDiagnostic({
+      event: "CUSTOMER_ORDER_PUSH", outcome, orderNumber: order?.orderNumber, notificationType: type, ...extra
+    });
     try {
       // No captured token or deferred retry: consult current deletion/removal/rotation state before sending.
-      const order = await deps.findOrder(orderId);
-      const message = order && customerNotificationMessage(order, type, (deps.now ?? Date.now)());
-      if (!message) return;
-      try { await deps.send(message); }
-      catch (error) {
-        const code = (error as { code?: unknown })?.code;
-        if (code === "messaging/invalid-registration-token" || code === "messaging/registration-token-not-registered") {
-          await deps.clearInvalidToken(order!.id, order!.fcmToken!);
-        }
-        // No token, payload, provider body, address or SDK exception reaches logs.
-        console.error("Customer notification provider did not confirm delivery");
+      order = await deps.findOrder(orderId);
+      const now = (deps.now ?? Date.now)();
+      const message = order && customerNotificationMessage(order, type, now);
+      if (!message) {
+        const occurredAt = type === "ORDER_OUT_FOR_DELIVERY" ? order?.outForDeliveryAt
+          : type === "LOYALTY_REWARD_APPLIED" ? order?.createdAt : order?.deliveredAt;
+        const reason = !order ? "ORDER_NOT_FOUND" : order.privacyErasedAt ? "PRIVACY_ERASED"
+          : !order.fcmToken ? "NO_TOKEN" : order.orderStatus === "CANCELLED" ? "ORDER_CANCELLED"
+          : type === "ORDER_OUT_FOR_DELIVERY" && order.orderStatus !== "OUT_FOR_DELIVERY" ? "STATUS_NOT_ELIGIBLE"
+          : !(occurredAt instanceof Date) || !Number.isFinite(occurredAt.getTime()) || occurredAt.getTime() > now
+            ? "EVENT_TIME_INVALID" : "EVENT_EXPIRED";
+        log("skipped", { reason });
+        return;
       }
-    } catch { console.error("Customer notification could not be prepared"); }
+      try { await deps.send(message); log("provider_accepted"); }
+      catch (error) {
+        const code = safeDiagnosticErrorCode(error);
+        log("failed", { code });
+        if (code === "messaging/invalid-registration-token" || code === "messaging/registration-token-not-registered") {
+          try {
+            await deps.clearInvalidToken(order!.id, order!.fcmToken!);
+            log("invalid_token_cleanup_completed");
+          } catch (cleanupError) { log("token_cleanup_failed", { code: safeDiagnosticErrorCode(cleanupError) }); }
+        }
+      }
+    } catch (error) { log("failed", { reason: "PREPARATION_FAILED", code: safeDiagnosticErrorCode(error) }); }
   };
 }
 
 export const sendCustomerOrderNotification = createCustomerOrderNotifier({
   findOrder: id => prisma.order.findUnique({ where: { id }, select: {
-    id: true, fcmToken: true, privacyErasedAt: true, orderStatus: true,
+    id: true, orderNumber: true, fcmToken: true, privacyErasedAt: true, orderStatus: true,
     createdAt: true, outForDeliveryAt: true, deliveredAt: true
   } }),
   send: message => messaging.send(message),

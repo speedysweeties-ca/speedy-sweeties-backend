@@ -1,3 +1,4 @@
+import { logDiagnostic, setDiagnosticOrder } from "../utils/operationalDiagnostics";
 import { sameCivicAddress } from "../utils/addressAccess";
 import { precheckSyntheticOrder, reserveSyntheticOrder, finishSyntheticOrder, assertOrdinaryOrderContact } from "../services/syntheticOrderSafety.service";
 import { Request, Response } from "express";
@@ -246,7 +247,7 @@ const summarizePickupRouting = (
 };
 
 const logPickupRoutingAdvisory = (
-  orderId: string,
+  orderNumber: number,
   pickupRouting: PickupRoutingSummary
 ): void => {
   const requiredTypesText =
@@ -255,7 +256,7 @@ const logPickupRoutingAdvisory = (
       : "NONE";
 
   console.log(
-    `[Pickup Routing Advisory] Order ${orderId}: required pickup types = ${requiredTypesText}; unknown item(s) = ${pickupRouting.unknownItemCount}.`
+    `[Pickup Routing Advisory] Order #${orderNumber}: required pickup types = ${requiredTypesText}; unknown item(s) = ${pickupRouting.unknownItemCount}.`
   );
 };
 
@@ -507,10 +508,12 @@ const createOrder = async (
   res: Response,
   options: CreateOrderOptions
 ): Promise<void> => {
+  logDiagnostic({ event: "ORDER_CREATE", outcome: "started" });
   if (
     !options.bypassBusinessHours &&
     (await isBusinessConfirmedClosed())
   ) {
+    logDiagnostic({ event: "ORDER_CREATE", outcome: "rejected", reason: "BUSINESS_CLOSED" });
     res.status(409).json({
       success: false,
       message: "Ordering is currently unavailable while Speedy Sweeties is closed."
@@ -778,7 +781,7 @@ const createOrder = async (
     }
 
     const pickupRouting = summarizePickupRouting(orderItemPickupTypes);
-    logPickupRoutingAdvisory(createdOrder.id, pickupRouting);
+    logPickupRoutingAdvisory(createdOrder.orderNumber, pickupRouting);
 
     const order = await tx.order.findUniqueOrThrow({
       where: { id: createdOrder.id },
@@ -800,6 +803,9 @@ const createOrder = async (
   });
 
   const { order: createdOrder, trackingToken, customerId, loyaltyResult } = transactionResult;
+  setDiagnosticOrder(createdOrder.orderNumber);
+  logDiagnostic({ event: "ORDER_CREATE", outcome: "committed", orderNumber: createdOrder.orderNumber });
+  if (transactionResult.syntheticOrder) logDiagnostic({ event: "AUTO_DISPATCH", outcome: "skipped", reason: "SYNTHETIC_ORDER" });
   const autoDispatchResult = transactionResult.syntheticOrder ? null : await autoDispatchCreatedOrderWithPickupPlan(
     createdOrder.id
   );
@@ -833,6 +839,10 @@ const createOrder = async (
       city: autoDispatchResult.city,
       pickupSummary: autoDispatchResult.pickupSummary
     });
+  } else if (autoDispatchResult?.dispatched) {
+    logDiagnostic({ event: "DRIVER_ASSIGNMENT_PUSH", outcome: "skipped",
+      reason: !autoDispatchResult.driverIsOnline ? "DRIVER_OFFLINE" : !autoDispatchResult.driverFcmToken ? "NO_TOKEN"
+        : autoDispatchResult.driverAppState === "FOREGROUND" ? "APP_FOREGROUND" : "NOTIFICATION_INPUT_INCOMPLETE" });
   }
 
   if (!transactionResult.syntheticOrder) await sendCustomerLoyaltyNotification(order.id, loyaltyResult);
@@ -1117,7 +1127,7 @@ export const updateOrderDetailsController = async (
     }
 
     const pickupRouting = summarizePickupRouting(orderItemPickupTypes);
-    logPickupRoutingAdvisory(id, pickupRouting);
+    logPickupRoutingAdvisory(existingOrder.orderNumber, pickupRouting);
 
     await tx.order.update({
       where: { id },
