@@ -12,6 +12,7 @@ const PRIVACY_MIGRATIONS = [
     '20261030160000_retention_sms_delivery',
     '20261110160000_customer_notification_revision',
     '20261125190000_customer_saved_addresses',
+    '20261127035000_receipt_items_fingerprint',
 ];
 
 function materializePinnedBaselineSchema() {
