@@ -1,3 +1,4 @@
+import { sameCivicAddress } from "../utils/addressAccess";
 import { precheckSyntheticOrder, reserveSyntheticOrder, finishSyntheticOrder, assertOrdinaryOrderContact } from "../services/syntheticOrderSafety.service";
 import { Request, Response } from "express";
 import { rememberOrderAddress } from "../services/customerSavedAddress.service";
@@ -601,11 +602,6 @@ const createOrder = async (
     unitNumber: normalizedUnitNumber,
     buzzCode: normalizedBuzzCode
   };
-  const customerAddressUpdate = {
-    ...civicAddressSnapshot,
-    ...(unitNumberSubmitted ? { unitNumber: normalizedUnitNumber } : {}),
-    ...(buzzCodeSubmitted ? { buzzCode: normalizedBuzzCode } : {})
-  };
 
   const incomingItems: CreateOrderItemInput[] = Array.isArray(items) ? items : [];
   const requestedItems = expandCreateOrderItems(incomingItems).filter(item => !isWelcomeFlyerItem(item));
@@ -624,8 +620,14 @@ const createOrder = async (
     // cannot both create a customer or both receive the welcome flyer.
     const matchedCustomer = syntheticPolicy ? null : await tx.customer.findFirst({
       where: buildCustomerLookupWhere({ normalizedPhone, normalizedEmail }),
-      select: { id: true }
+      select: { id: true, addressLine1: true, city: true, province: true }
     });
+    const keepOmittedAccess = sameCivicAddress(matchedCustomer, civicAddressSnapshot);
+    const customerAddressUpdate = {
+      ...civicAddressSnapshot,
+      ...(unitNumberSubmitted || !keepOmittedAccess ? { unitNumber: normalizedUnitNumber } : {}),
+      ...(buzzCodeSubmitted || !keepOmittedAccess ? { buzzCode: normalizedBuzzCode } : {})
+    };
     const customerId =
       (syntheticPolicy ? syntheticPolicy.customerId : matchedCustomer?.id) ??
       (await tx.customer.create({
@@ -972,15 +974,16 @@ export const updateOrderDetailsController = async (
   const normalizedEmail = customerEmail ? normalize(customerEmail) : null;
   const normalizedPhone = normalizePhone(customerPhone);
   const normalizedName = normalize(customerName);
+  const keepOmittedAccess = sameCivicAddress(existingOrder, { addressLine1, city, province });
   const nextUnitNumber = Object.prototype.hasOwnProperty.call(
     req.body,
     "unitNumber"
   )
     ? normalizeAddressAccessField(unitNumber)
-    : existingOrder.unitNumber;
+    : keepOmittedAccess ? existingOrder.unitNumber : null;
   const nextBuzzCode = Object.prototype.hasOwnProperty.call(req.body, "buzzCode")
     ? normalizeAddressAccessField(buzzCode)
-    : existingOrder.buzzCode;
+    : keepOmittedAccess ? existingOrder.buzzCode : null;
 
   const nextDeliveryAddress: DeliveryAddressInput = {
     addressLine1,

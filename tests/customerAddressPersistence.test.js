@@ -6,6 +6,7 @@ const deliveryGeocodingService = require("../dist/services/deliveryGeocoding.ser
 const businessController = require("../dist/controllers/business.controller.js");
 const {
   createOrderController,
+  updateOrderDetailsController,
   createChatGPTOrderController
 } = require("../dist/controllers/order.controller.js");
 const {
@@ -121,6 +122,7 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
   };
 
   replaceForTest(t, prisma.customer, "findFirst", async () => database.customer);
+  replaceForTest(t, prisma.order, "findUnique", async ({ where }) => ({ ...database.orders.find(o => o.id === where.id), items: [] }));
   replaceForTest(t, prisma, "$transaction", async (callback) => {
     const checkpoint = clone(database);
     const tx = {
@@ -177,6 +179,7 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
         }
       },
       order: {
+        update: async ({ where, data }) => Object.assign(database.orders.find(o => o.id === where.id), data),
         findFirst: async ({ where }) => database.orders.find(order =>
           order.customerId === where.OR[0].customerId && order.orderStatus !== "CANCELLED") ?? null,
         create: async ({ data }) => {
@@ -195,6 +198,7 @@ const installOrderCreationDatabase = (t, initialCustomer = null) => {
         create: async () => ({ id: "catalog-item", pickupType: "OTHER" })
       },
       orderItem: {
+        deleteMany: async () => ({ count: 0 }),
         create: async () => ({ id: "order-item" })
       },
       systemSetting: {
@@ -328,7 +332,7 @@ test("NEEDS_REVIEW orders create or retain a customer and save the latest order 
   assert.equal(database.database.customer.createdAt, "2026-01-01T00:00:00.000Z");
 });
 
-test("older clients do not erase saved unit or buzz-code details when fields are omitted", async (t) => {
+test("older clients retain profile access details only for the same civic address", async (t) => {
   const database = installOrderCreationDatabase(t, {
     id: "customer-1",
     addressLine1: "10 Working Street",
@@ -342,7 +346,7 @@ test("older clients do not erase saved unit or buzz-code details when fields are
   replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
   replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
 
-  const legacyBody = { ...firstOrderBody };
+  const legacyBody = { ...firstOrderBody, addressLine1: " 10 Working Street ", province: "ON" };
   delete legacyBody.unitNumber;
   delete legacyBody.buzzCode;
 
@@ -673,3 +677,73 @@ test("address-book write failure rolls back both the new order and the profile c
   assert.equal(db.database.orders.length, 0);
   assert.equal(db.database.addresses.length, 0);
 });
+
+for (const scenario of [
+  { name: "new street, omitted access", patch: { addressLine1: "20 New Street" }, unit: null, buzz: null },
+  { name: "new city, omitted access", patch: { city: "Cambridge" }, unit: null, buzz: null },
+  { name: "new province, omitted access", patch: { province: "Quebec" }, unit: null, buzz: null },
+  { name: "new embedded unit, omitted access", patch: { addressLine1: "Unit 2, 10A Industrial Dr" }, unit: null, buzz: null },
+  { name: "new address, explicit unit only", patch: { addressLine1: "20 New Street", unitNumber: "7" }, unit: "7", buzz: null },
+  { name: "same address, explicit blank access", patch: { unitNumber: "", buzzCode: null }, unit: null, buzz: null },
+]) {
+  test(`order address and next dispatcher selection stay coherent: ${scenario.name}`, async t => {
+    const db = installOrderCreationDatabase(t, { id: "customer-1", ...firstOrderBody,
+      recurringDriverNotes: null, loyaltyFreeDelivery: false });
+    replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
+    replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
+    const body = { ...firstOrderBody };
+    delete body.unitNumber; delete body.buzzCode;
+    Object.assign(body, scenario.patch);
+    const response = responseRecorder();
+    await createOrderController({ body }, response);
+    assert.equal(response.statusCode, 201);
+    for (const address of [db.database.customer, db.database.orders[0], db.database.addresses[0]]) {
+      assert.equal(address.unitNumber, scenario.unit);
+      assert.equal(address.buzzCode, scenario.buzz);
+      assert.equal(address.addressLine1, body.addressLine1);
+    }
+    const { initialCustomerAddress } = await import("../speedy-dispatcher/src/customerAddressSelection.ts");
+    const selected = initialCustomerAddress({ ...db.database.customer, savedAddresses: db.database.addresses });
+    assert.equal(selected.unitNumber, scenario.unit);
+    assert.equal(selected.buzzCode, scenario.buzz);
+    assert.equal(selected.addressLine1, body.addressLine1);
+  });
+}
+
+for (const patch of [{ addressLine1: "20 New Street" }, { city: "Cambridge" }, { province: "Quebec" }]) {
+  test(`profile civic edit clears omitted access: ${Object.keys(patch)[0]}`, async t => {
+    const existing = { id: "customer-1", ...firstOrderBody, fullName: "Test Customer", phone: "519-555-0100" };
+    replaceForTest(t, prisma.customer, "findUnique", async () => existing);
+    let updated;
+    replaceForTest(t, prisma.customer, "update", async ({ data }) => (updated = { ...existing, ...data }));
+    await updateCustomerController({ params: { id: existing.id }, body: patch }, responseRecorder());
+    assert.equal(updated.unitNumber, null);
+    assert.equal(updated.buzzCode, null);
+  });
+}
+
+for (const scenario of [
+  { patch: {}, unit: "4B", buzz: "1234", name: "unchanged civic address" },
+  { patch: { addressLine1: "20 New Street" }, unit: null, buzz: null, name: "new street" },
+  { patch: { city: "Cambridge" }, unit: null, buzz: null, name: "new city" },
+  { patch: { province: "Quebec" }, unit: null, buzz: null, name: "new province" },
+  { patch: { unitNumber: "", buzzCode: null }, unit: null, buzz: null, name: "explicit clears" },
+  { patch: { addressLine1: "20 New Street", unitNumber: "9", buzzCode: "900" }, unit: "9", buzz: "900", name: "new address and access" },
+]) {
+  test(`order edit keeps profile and order access coherent: ${scenario.name}`, async t => {
+    const db = installOrderCreationDatabase(t);
+    replaceForTest(t, businessController, "isBusinessConfirmedClosed", async () => false);
+    replaceForTest(t, deliveryGeocodingService, "geocodeDeliveryAddress", async () => needsReviewLocation);
+    await createOrderController({ body: firstOrderBody }, responseRecorder());
+    const body = { ...firstOrderBody };
+    delete body.unitNumber; delete body.buzzCode;
+    Object.assign(body, scenario.patch);
+    const response = responseRecorder();
+    await updateOrderDetailsController({ params: { id: db.database.orders[0].id }, body }, response);
+    assert.equal(response.statusCode, 200);
+    for (const address of [db.database.customer, db.database.orders[0]]) {
+      assert.equal(address.unitNumber, scenario.unit);
+      assert.equal(address.buzzCode, scenario.buzz);
+    }
+  });
+}

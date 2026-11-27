@@ -1,3 +1,4 @@
+import { sameCivicAddress } from "../utils/addressAccess";
 import { Prisma } from "@prisma/client";
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
@@ -636,14 +637,6 @@ export const updateCustomerController = async (
       ? addressLine1.trim()
       : existingCustomer.addressLine1;
 
-  const cleanedUnitNumber = unitNumberSubmitted
-    ? cleanStringOrNull(unitNumber)
-    : existingCustomer.unitNumber;
-
-  const cleanedBuzzCode = buzzCodeSubmitted
-    ? cleanStringOrNull(buzzCode)
-    : existingCustomer.buzzCode;
-
   const cleanedCity =
     typeof city === "string" && city.trim()
       ? city.trim()
@@ -653,6 +646,17 @@ export const updateCustomerController = async (
     typeof province === "string" && province.trim()
       ? province.trim()
       : existingCustomer.province;
+
+  const keepOmittedAccess = sameCivicAddress(existingCustomer, {
+    addressLine1: cleanedAddressLine1, city: cleanedCity, province: cleanedProvince
+  });
+  const cleanedUnitNumber = unitNumberSubmitted
+    ? cleanStringOrNull(unitNumber)
+    : keepOmittedAccess ? existingCustomer.unitNumber : null;
+
+  const cleanedBuzzCode = buzzCodeSubmitted
+    ? cleanStringOrNull(buzzCode)
+    : keepOmittedAccess ? existingCustomer.buzzCode : null;
 
   const updatedCustomer = await prisma.customer.update({
     where: { id },
