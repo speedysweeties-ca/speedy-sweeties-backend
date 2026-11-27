@@ -34,6 +34,8 @@ import {
 } from "./deliveryLocation";
 import {
   buildAddressRequestFields,
+  updateAddressFields,
+  applyAutocompleteAddress,
   parseGoogleAutocompleteAddress,
   type GoogleAutocompletePlace,
 } from "./addressFields";
@@ -1146,10 +1148,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
         );
 
         if (!selectedAddress) return;
-        setManualOrderForm((current) => ({
-          ...current,
-          ...selectedAddress,
-        }));
+        setManualOrderForm((current) => applyAutocompleteAddress(current, selectedAddress));
       });
       return true;
     };
@@ -1194,7 +1193,7 @@ const [activeCustomerSearchField, setActiveCustomerSearchField] =
 
         if (!selectedAddress) return;
         setEditOrderForm((current) =>
-          current ? { ...current, ...selectedAddress } : current
+          current ? applyAutocompleteAddress(current, selectedAddress) : current
         );
       });
       return true;
@@ -3257,10 +3256,7 @@ const handleEditOrderFieldChange = (
   setEditOrderForm((prev) => {
     if (!prev) return prev;
 
-    return {
-      ...prev,
-      [field]: value,
-    };
+    return updateAddressFields(prev, { [field]: value });
   });
 };
 
@@ -3595,10 +3591,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
     field: keyof Omit<ManualOrderForm, "items">,
     value: string
   ) => {
-    setManualOrderForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setManualOrderForm((prev) => updateAddressFields(prev, { [field]: value }));
   };
 
   const handleCustomerSearchBlur = (event: FocusEvent<HTMLDivElement>) => {
@@ -4252,10 +4245,7 @@ const handleSaveEditedOrder = async (orderId: string) => {
     setCustomerEditForm((prev) => {
       if (!prev) return prev;
 
-      return {
-        ...prev,
-        [field]: value,
-      };
+      return updateAddressFields(prev, { [field]: value });
     });
   };
 
