@@ -563,3 +563,66 @@ test("reviewed receipts persist their item fingerprint and legacy writes clear i
   await createOrUpdateReceiptController(receiptRequest(), responseRecorder());
   assert.equal(harness.getReceipt().itemsFingerprint, null);
 });
+
+for (const role of [UserRole.DRIVER, UserRole.ADMIN, UserRole.DISPATCHER]) {
+  for (const status of [OrderStatus.DELIVERED, OrderStatus.CANCELLED]) {
+    for (const existing of [true, false]) {
+      test(`${role} cannot ${existing ? 'overwrite' : 'create'} a ${status} receipt, including retries`, async t => {
+        const finalOrder = order({ orderStatus: status });
+        const saved = existing ? receipt({ notes: 'Original evidence', itemsFingerprint: 'original-snapshot' }) : null;
+        const harness = installTransitionHarness(t, { order: finalOrder, receipt: saved });
+        const req = receiptRequest();
+        req.user.role = role;
+        // Exercise changed totals/notes and a second identical request.
+        req.body.itemTotal = 20;
+        req.body.grandTotal = 26.95;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const res = responseRecorder();
+          await createOrUpdateReceiptController(req, res);
+          assert.equal(res.statusCode, 409);
+          assert.equal(res.body.code, 'FINAL_RECEIPT_LOCKED');
+        }
+        assert.deepEqual(harness.getReceipt(), saved);
+        assert.deepEqual(harness.getOrder(), finalOrder);
+        assert.equal(harness.getReceiptUpserts(), 0);
+        assert.equal(harness.getNotificationCount(), 0);
+        assert.equal(harness.getLoyaltyUpdateCount(), 0);
+      });
+    }
+  }
+}
+
+for (const role of [UserRole.ADMIN, UserRole.DISPATCHER]) {
+  for (const status of [OrderStatus.ACCEPTED, OrderStatus.OUT_FOR_DELIVERY]) {
+    test(`${role} can still edit a receipt while ${status} without advancing the order`, async t => {
+      const harness = installTransitionHarness(t, { order: order({ orderStatus: status }), receipt: receipt() });
+      const req = receiptRequest();
+      req.user.role = role;
+      const res = responseRecorder();
+      await createOrUpdateReceiptController(req, res);
+      assert.equal(res.statusCode, 200);
+      assert.equal(harness.getReceipt().notes, req.body.notes);
+      assert.equal(harness.getOrder().orderStatus, status);
+      assert.equal(harness.getReceiptUpserts(), 1);
+      assert.equal(harness.getNotificationCount(), 0);
+    });
+  }
+}
+
+test('final receipt lock preserves driver ownership and missing-order responses', async t => {
+  const harness = installTransitionHarness(t, {
+    order: order({ orderStatus: OrderStatus.DELIVERED, assignedDriverId: 'another-driver' }), receipt: receipt()
+  });
+  const denied = responseRecorder();
+  await createOrUpdateReceiptController(receiptRequest(), denied);
+  assert.equal(denied.statusCode, 403);
+  for (const role of [UserRole.DRIVER, UserRole.ADMIN, UserRole.DISPATCHER]) {
+    const req = receiptRequest();
+    req.params.id = 'missing-order';
+    req.user.role = role;
+    const res = responseRecorder();
+    await createOrUpdateReceiptController(req, res);
+    assert.equal(res.statusCode, 404);
+  }
+  assert.equal(harness.getReceiptUpserts(), 0);
+});

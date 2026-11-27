@@ -146,6 +146,9 @@ export const createOrUpdateReceiptController = async (
       }
 
       const order = assignedOrders[0];
+      if (order.orderStatus === OrderStatus.DELIVERED || order.orderStatus === OrderStatus.CANCELLED) {
+        return { kind: "finalized" as const };
+      }
       if (expectedItems !== undefined) {
         const currentItems = await tx.orderItem.findMany({
           where: { orderId }, select: { id: true, name: true, quantity: true }
@@ -215,13 +218,18 @@ export const createOrUpdateReceiptController = async (
       };
     }
 
-    const order = await tx.order.findUnique({
-      where: { id: orderId },
-      select: { orderNumber: true }
-    });
+    // Serialize staff receipt saves with delivery/cancellation, just like driver saves.
+    const orders = await tx.$queryRaw<Array<Pick<LockedDriverOrder, "orderNumber" | "orderStatus">>>`
+      SELECT "orderNumber", "orderStatus" FROM "Order"
+      WHERE "id" = ${orderId} FOR UPDATE
+    `;
+    const order = orders[0];
 
     if (!order) {
       return { kind: "notFound" as const };
+    }
+    if (order.orderStatus === OrderStatus.DELIVERED || order.orderStatus === OrderStatus.CANCELLED) {
+      return { kind: "finalized" as const };
     }
 
     const receipt = await tx.digitalReceipt.upsert({
@@ -248,6 +256,15 @@ export const createOrUpdateReceiptController = async (
       fcmToken: null
     };
   });
+
+  if (receiptResult.kind === "finalized") {
+    res.status(409).json({
+      success: false,
+      code: "FINAL_RECEIPT_LOCKED",
+      message: "This order is delivered or cancelled. Its receipt cannot be changed."
+    });
+    return;
+  }
 
   if (receiptResult.kind === "itemsChanged") {
     res.status(409).json({ success: false, code: "RECEIPT_ITEMS_CHANGED",
